@@ -1,0 +1,115 @@
+/* Small hand-rolled design system — no CSS framework on purpose:
+   keeps the image tiny and the demo dependency-free. */
+
+:root {
+  --bg: #f7f7f5;
+  --panel: #ffffff;
+  --text: #1a1c1e;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --accent: #0d7d62;
+  --accent-soft: #e6f4f0;
+  --warn: #b45309;
+  --error-bg: #fef2f2;
+  --error-text: #991b1b;
+  --haiku: #0e7490;
+  --haiku-soft: #ecfeff;
+  --sonnet: #6d28d9;
+  --sonnet-soft: #f5f3ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111315;
+    --panel: #1b1e21;
+    --text: #e8eaed;
+    --muted: #9aa0a6;
+    --border: #2d3135;
+    --accent: #34d399;
+    --accent-soft: #12261f;
+    --warn: #fbbf24;
+    --error-bg: #2a1516;
+    --error-text: #fca5a5;
+    --haiku: #22d3ee;
+    --haiku-soft: #0e2a30;
+    --sonnet: #a78bfa;
+    --sonnet-soft: #221a33;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.app { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+
+header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 26px; }
+.tagline { margin: 4px 0 0; color: var(--muted); }
+a { color: var(--accent); }
+
+.chip {
+  display: inline-block; padding: 2px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; border: 1px solid var(--border);
+  background: var(--panel); white-space: nowrap;
+}
+.chip-ok { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.chip-muted { color: var(--muted); }
+.chip-warn { color: var(--warn); }
+.model-haiku { color: var(--haiku); background: var(--haiku-soft); border-color: transparent; }
+.model-sonnet { color: var(--sonnet); background: var(--sonnet-soft); border-color: transparent; }
+
+.recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 24px; }
+.card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; display: flex; flex-direction: column; gap: 6px;
+}
+.card-active { border-color: var(--accent); }
+.card h3 { margin: 0; font-size: 16px; }
+.card-sub { margin: 0; color: var(--muted); font-size: 13px; }
+.card-ings {
+  margin: 0; font-size: 13px; color: var(--muted); flex: 1;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+button {
+  margin-top: 8px; padding: 8px 12px; border: none; border-radius: 8px;
+  background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+}
+button:disabled { opacity: 0.55; cursor: default; }
+
+.banner { margin-top: 20px; padding: 12px 16px; border-radius: 10px; }
+.banner-error { background: var(--error-bg); color: var(--error-text); }
+.banner-hint { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+
+.panel {
+  margin-top: 24px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px;
+}
+.plan-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.plan-header h2 { margin: 0; font-size: 18px; }
+.plan-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.table-wrap { overflow-x: auto; margin-top: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tfoot td { border-bottom: none; font-weight: 700; }
+td.total { color: var(--accent); font-size: 16px; }
+.prod-name { font-weight: 600; }
+.prod-desc { color: var(--muted); font-size: 12.5px; }
+
+.conf { display: flex; align-items: center; gap: 8px; min-width: 110px; }
+.conf-track { flex: 1; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.conf-fill { height: 100%; border-radius: 3px; }
+.conf-high { background: var(--accent); }
+.conf-mid { background: var(--warn); }
+.conf-low { background: #dc2626; }
+.conf-label { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+footer { margin-top: 40px; color: var(--muted); font-size: 13px; text-align: center; }
