@@ -23,3 +23,9 @@ export const getHealth = () => request<Health>('/health');
 export const getRecipes = () => request<Recipe[]>('/recipes');
 export const planRecipe = (slug: string) =>
   request<ShoppingPlan>(`/plan/${slug}`, { method: 'POST' });
+export const planNL = (recipeText: string) =>
+  request<ShoppingPlan>('/plan/nl', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recipe_text: recipeText }),
+  });

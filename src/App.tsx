@@ -1,6 +1,30 @@
 import { useEffect, useState } from 'react';
-import { getHealth, getRecipes, planRecipe } from './api';
+import { getHealth, getRecipes, planNL, planRecipe } from './api';
 import type { Health, Recipe, ShoppingPlan } from './types';
+
+const RECIPE_PLACEHOLDER = `Paste a whole recipe, e.g.
+
+Spaghetti Bolognese (serves 4)
+- 400g spaghetti
+- 500g ground beef
+- 1 yellow onion
+- 1 can crushed tomatoes
+- olive oil
+
+Notes: under $30, no dairy`;
+
+function RecipeInput({ onPlan, busy }: { onPlan: (text: string) => void; busy: boolean }) {
+  const [text, setText] = useState('');
+  return (
+    <form className="recipe-input" onSubmit={(e) => { e.preventDefault(); onPlan(text); }}>
+      <textarea rows={8} value={text} onChange={(e) => setText(e.target.value)}
+                placeholder={RECIPE_PLACEHOLDER} />
+      <button disabled={busy || !text.trim()}>
+        {busy ? 'Planning…' : 'Plan my shopping'}
+      </button>
+    </form>
+  );
+}
 
 const modelShort = (model: string) =>
   model.includes('haiku') ? 'haiku' : model.includes('sonnet') ? 'sonnet' : model || '—';
@@ -30,6 +54,20 @@ function ConfidenceBar({ value }: { value: number }) {
 function PlanView({ plan }: { plan: ShoppingPlan }) {
   return (
     <section className="panel">
+      {plan.interpretation.length > 0 && (
+        <div className="interpretation">
+          <span className="interp-label">Interpreted as:</span>
+          {plan.interpretation.map((line) => (
+            <span key={line} className="chip">{line}</span>
+          ))}
+        </div>
+      )}
+      {plan.retrieval_sql && (
+        <details className="sql-panel">
+          <summary>Generated SQL · {plan.candidate_count} candidates retrieved</summary>
+          <pre><code>{plan.retrieval_sql}</code></pre>
+        </details>
+      )}
       <div className="plan-header">
         <h2>Shopping plan · {plan.recipe_name}</h2>
         <div className="plan-meta">
@@ -109,6 +147,19 @@ export default function App() {
     }
   };
 
+  const onPlanNL = async (text: string) => {
+    setPlanning('__nl__');
+    setPlan(null);
+    setPlanError('');
+    try {
+      setPlan(await planNL(text));
+    } catch (e) {
+      setPlanError((e as Error).message);
+    } finally {
+      setPlanning(null);
+    }
+  };
+
   return (
     <div className="app">
       <header>
@@ -129,6 +180,10 @@ export default function App() {
           Couldn't load recipes: {loadError}. Is the API up and the database seeded?
         </div>
       )}
+
+      <RecipeInput onPlan={onPlanNL} busy={planning !== null} />
+
+      <p className="or-divider">…or plan one of the sample recipes:</p>
 
       <section className="recipes">
         {recipes.map((r) => (

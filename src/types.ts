@@ -35,6 +35,10 @@ export interface ShoppingPlan {
   escalated: boolean;
   total_llm_cost_usd: number;
   total_latency_ms: number;
+  // NL2SQL path extras (empty on the classic path)
+  interpretation: string[];
+  retrieval_sql: string;
+  candidate_count: number;
 }
 
 export interface Health {
