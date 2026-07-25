@@ -1,20 +1,34 @@
-import type { Health, Recipe, ShoppingPlan } from './types';
+import type { Health, PlanExecution, Recipe, ShoppingPlan } from './types';
 
 // BASE_URL is '/pantry/' (vite.config.ts `base`). Building URLs from it
 // keeps fetches correct regardless of how the current page path looks.
 const API = `${import.meta.env.BASE_URL}api`;
 
+// A query-plan gate fired (HTTP 409): carries the alert + step trace so the
+// UI can render the abort card and the timeline up to the failed step.
+export class PlanAbortError extends Error {
+  execution: PlanExecution;
+
+  constructor(execution: PlanExecution) {
+    super(execution.aborted?.message ?? 'Plan aborted');
+    this.name = 'PlanAbortError';
+    this.execution = execution;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, init);
   if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`;
+    let detail: unknown = null;
     try {
-      const body = await res.json();
-      if (body.detail) detail = String(body.detail);
+      detail = (await res.json()).detail;
     } catch {
       /* non-JSON error body — keep the status text */
     }
-    throw new Error(detail);
+    if (res.status === 409 && detail && typeof detail === 'object' && 'aborted' in detail) {
+      throw new PlanAbortError(detail as PlanExecution);
+    }
+    throw new Error(detail ? String(detail) : `${res.status} ${res.statusText}`);
   }
   return res.json() as Promise<T>;
 }

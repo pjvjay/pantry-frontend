@@ -23,6 +23,40 @@ export interface PlanLineItem {
   confidence: number;
   reasoning: string;
   model_used: string;
+  // Query-plan path: which store the price comes from
+  store_name: string;
+  store_price: number | null;
+}
+
+// One executed step of the retrieval query plan (t1 existence -> t2 options
+// -> t3 brand stats -> t4 lookups), with its SQL for the timeline panel.
+export interface StepResult {
+  step_id: string;
+  kind: 'existence' | 'options' | 'statistics' | 'lookup';
+  label: string;
+  sql_display: string;
+  row_count: number;
+  duration_ms: number;
+  outcome: 'ok' | 'aborted' | 'skipped';
+}
+
+export interface PlanAlertDetail {
+  name: string;
+  reason: string;
+  suggestions: string[];
+}
+
+export interface PlanAlert {
+  stage: string;
+  code: 'missing_ingredients' | 'unavailable_within_constraints' | 'budget_infeasible';
+  message: string;
+  details: PlanAlertDetail[];
+}
+
+// The 409 payload when a plan gate aborts: trace up to the failed step + alert.
+export interface PlanExecution {
+  steps: StepResult[];
+  aborted: PlanAlert | null;
 }
 
 export interface ShoppingPlan {
@@ -37,7 +71,7 @@ export interface ShoppingPlan {
   total_latency_ms: number;
   // NL2SQL path extras (empty on the classic path)
   interpretation: string[];
-  retrieval_sql: string;
+  plan_trace: StepResult[];
   candidate_count: number;
 }
 

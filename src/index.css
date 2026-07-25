@@ -128,15 +128,37 @@ footer { margin-top: 40px; color: var(--muted); font-size: 13px; text-align: cen
 .interpretation { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
 .interp-label { color: var(--muted); font-size: 12px; font-weight: 600; }
 
-.sql-panel {
-  margin-bottom: 14px; border: 1px solid var(--border); border-radius: 10px;
-  background: var(--bg); overflow: hidden;
+/* Query-plan timeline: one expandable row per executed step */
+.timeline { margin-bottom: 14px; }
+.timeline-heading { color: var(--muted); font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.step {
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+  overflow: hidden; margin-bottom: 6px;
 }
-.sql-panel summary {
-  padding: 8px 12px; cursor: pointer; font-size: 13px; font-weight: 600;
-  color: var(--muted);
+.step summary {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; cursor: pointer; font-size: 13px;
 }
-.sql-panel pre {
+.step-icon { font-weight: 700; }
+.step-ok .step-icon { color: var(--accent); }
+.step-aborted { border-color: var(--error-text); }
+.step-aborted .step-icon, .step-aborted .step-name { color: var(--error-text); }
+.step-name { font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.step-title { color: var(--muted); font-weight: 600; }
+.step-label { flex: 1; }
+.step-meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.step pre {
   margin: 0; padding: 12px; overflow-x: auto; font-size: 12px; line-height: 1.5;
   border-top: 1px solid var(--border);
 }
+
+/* Gate-abort alert card (409) */
+.alert-card {
+  background: var(--error-bg); color: var(--error-text);
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 14px;
+}
+.alert-title { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.alert-message { margin: 8px 0 0; }
+.alert-details { margin: 8px 0 0; padding-left: 18px; }
+.alert-details li { margin-top: 4px; }
+.alert-suggestions { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-left: 6px; }

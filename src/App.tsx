@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getHealth, getRecipes, planNL, planRecipe } from './api';
-import type { Health, Recipe, ShoppingPlan } from './types';
+import { getHealth, getRecipes, PlanAbortError, planNL, planRecipe } from './api';
+import type { Health, PlanExecution, Recipe, ShoppingPlan, StepResult } from './types';
 
 const RECIPE_PLACEHOLDER = `Paste a whole recipe, e.g.
 
@@ -11,7 +11,7 @@ Spaghetti Bolognese (serves 4)
 - 1 can crushed tomatoes
 - olive oil
 
-Notes: under $30, no dairy`;
+Notes: under $30, no dairy, only stores within 10km`;
 
 function RecipeInput({ onPlan, busy }: { onPlan: (text: string) => void; busy: boolean }) {
   const [text, setText] = useState('');
@@ -51,6 +51,67 @@ function ConfidenceBar({ value }: { value: number }) {
   );
 }
 
+const STEP_TITLES: Record<StepResult['kind'], string> = {
+  existence: 'existence check',
+  options: 'store options',
+  statistics: 'brand stats',
+  lookup: 'substitute lookup',
+};
+
+function PlanTimeline({ steps, heading }: { steps: StepResult[]; heading: string }) {
+  return (
+    <div className="timeline">
+      <div className="timeline-heading">{heading}</div>
+      {steps.map((s) => (
+        <details key={s.step_id} className={`step step-${s.outcome}`}>
+          <summary>
+            <span className="step-icon">{s.outcome === 'aborted' ? '✗' : '✓'}</span>
+            <span className="step-name">{s.step_id}</span>
+            <span className="step-title">{STEP_TITLES[s.kind]}</span>
+            <span className="step-label">{s.label}</span>
+            <span className="step-meta">{s.row_count} rows · {s.duration_ms} ms</span>
+          </summary>
+          <pre><code>{s.sql_display}</code></pre>
+        </details>
+      ))}
+    </div>
+  );
+}
+
+const GATE_TITLES: Record<string, string> = {
+  missing_ingredients: 'Ingredients not stocked',
+  unavailable_within_constraints: 'Unavailable within your constraints',
+  budget_infeasible: 'Budget infeasible',
+};
+
+function AbortAlert({ execution }: { execution: PlanExecution }) {
+  const alert = execution.aborted;
+  if (!alert) return null;
+  return (
+    <section className="panel">
+      <div className="alert-card">
+        <div className="alert-title">
+          ✗ {GATE_TITLES[alert.code] ?? alert.code} <span className="chip chip-warn">{alert.stage}</span>
+        </div>
+        <p className="alert-message">{alert.message}</p>
+        <ul className="alert-details">
+          {alert.details.map((d) => (
+            <li key={d.name}>
+              <strong>{d.name}</strong> — {d.reason}
+              {d.suggestions.length > 0 && (
+                <span className="alert-suggestions">
+                  {d.suggestions.map((sug) => <span key={sug} className="chip">{sug}</span>)}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <PlanTimeline steps={execution.steps} heading="Query plan (aborted at the ✗ step):" />
+    </section>
+  );
+}
+
 function PlanView({ plan }: { plan: ShoppingPlan }) {
   return (
     <section className="panel">
@@ -62,11 +123,11 @@ function PlanView({ plan }: { plan: ShoppingPlan }) {
           ))}
         </div>
       )}
-      {plan.retrieval_sql && (
-        <details className="sql-panel">
-          <summary>Generated SQL · {plan.candidate_count} candidates retrieved</summary>
-          <pre><code>{plan.retrieval_sql}</code></pre>
-        </details>
+      {plan.plan_trace.length > 0 && (
+        <PlanTimeline
+          steps={plan.plan_trace}
+          heading={`Query plan · ${plan.candidate_count} candidates retrieved:`}
+        />
       )}
       <div className="plan-header">
         <h2>Shopping plan · {plan.recipe_name}</h2>
@@ -99,6 +160,7 @@ function PlanView({ plan }: { plan: ShoppingPlan }) {
                 <td>
                   <div className="prod-name">{li.product_name}</div>
                   <div className="prod-desc" title={li.reasoning}>{li.product_description}</div>
+                  {li.store_name && <div className="prod-store">at {li.store_name}</div>}
                 </td>
                 <td className="num">${li.price.toFixed(2)}</td>
                 <td><ConfidenceBar value={li.confidence} /></td>
@@ -126,6 +188,7 @@ export default function App() {
   const [planning, setPlanning] = useState<string | null>(null);
   const [plan, setPlan] = useState<ShoppingPlan | null>(null);
   const [planError, setPlanError] = useState('');
+  const [planAbort, setPlanAbort] = useState<PlanExecution | null>(null);
 
   useEffect(() => {
     getHealth().then(setHealth).catch(() => setHealth(null));
@@ -138,6 +201,7 @@ export default function App() {
     setPlanning(slug);
     setPlan(null);
     setPlanError('');
+    setPlanAbort(null);
     try {
       setPlan(await planRecipe(slug));
     } catch (e) {
@@ -151,10 +215,15 @@ export default function App() {
     setPlanning('__nl__');
     setPlan(null);
     setPlanError('');
+    setPlanAbort(null);
     try {
       setPlan(await planNL(text));
     } catch (e) {
-      setPlanError((e as Error).message);
+      if (e instanceof PlanAbortError) {
+        setPlanAbort(e.execution);      // gate abort: render the alert card
+      } else {
+        setPlanError((e as Error).message);
+      }
     } finally {
       setPlanning(null);
     }
@@ -209,6 +278,8 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {planAbort && <AbortAlert execution={planAbort} />}
 
       {plan && <PlanView plan={plan} />}
 
