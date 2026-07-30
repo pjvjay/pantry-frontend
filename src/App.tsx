@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { getHealth, getRecipes, PlanAbortError, planNL, planRecipe } from './api';
-import type { Health, PlanExecution, Recipe, ShoppingPlan, StepResult } from './types';
+import { getHealth, getRecipes, PlanAbortError, planNL, planRecipe, planWeek } from './api';
+import type {
+  Health, PlanExecution, Recipe, ShoppingPlan, StepResult, TripOption, WeekPlan,
+} from './types';
 
 const RECIPE_PLACEHOLDER = `Paste a whole recipe, e.g.
 
@@ -58,6 +60,12 @@ const STEP_TITLES: Record<StepResult['kind'], string> = {
   lookup: 'substitute lookup',
 };
 
+// Specific steps get a clearer title than their generic kind.
+const stepTitle = (s: StepResult) =>
+  s.step_id === 't5_trip_optimizer' ? 'trip optimizer'
+    : s.step_id === 'w3_menu' ? 'menu selection'
+      : STEP_TITLES[s.kind];
+
 function PlanTimeline({ steps, heading }: { steps: StepResult[]; heading: string }) {
   return (
     <div className="timeline">
@@ -67,11 +75,48 @@ function PlanTimeline({ steps, heading }: { steps: StepResult[]; heading: string
           <summary>
             <span className="step-icon">{s.outcome === 'aborted' ? '✗' : '✓'}</span>
             <span className="step-name">{s.step_id}</span>
-            <span className="step-title">{STEP_TITLES[s.kind]}</span>
+            <span className="step-title">{stepTitle(s)}</span>
             <span className="step-label">{s.label}</span>
             <span className="step-meta">{s.row_count} rows · {s.duration_ms} ms</span>
           </summary>
           <pre><code>{s.sql_display}</code></pre>
+        </details>
+      ))}
+    </div>
+  );
+}
+
+function TripOptionsPanel({ options }: { options: TripOption[] }) {
+  if (options.length === 0) return null;
+  return (
+    <div className="trips">
+      <div className="timeline-heading">Where to shop (basket vs travel, computed exactly):</div>
+      {options.map((o) => (
+        <details key={o.stores.join('|')} className={`trip ${o.recommended ? 'trip-rec' : ''}`}>
+          <summary>
+            <span className="trip-stops">{o.stores.length} stop{o.stores.length > 1 ? 's' : ''}</span>
+            <span className="trip-stores">{o.stores.join(' → ')}</span>
+            <span className="trip-math">
+              ${o.basket_cost.toFixed(2)} basket + {o.travel_km} km (${o.travel_cost.toFixed(2)})
+            </span>
+            <span className="trip-total">${o.total_cost.toFixed(2)}</span>
+            {o.recommended && <span className="chip chip-ok">recommended</span>}
+            {!o.recommended && o.savings_vs_one_stop !== 0 && (
+              <span className="chip chip-muted">
+                {o.savings_vs_one_stop > 0 ? 'saves' : 'costs'} $
+                {Math.abs(o.savings_vs_one_stop).toFixed(2)} vs one stop
+              </span>
+            )}
+          </summary>
+          {o.items.length > 0 && (
+            <ul className="trip-items">
+              {o.items.map((it, i) => (
+                <li key={`${it.product_id}-${i}`}>
+                  {it.product_name} — <strong>{it.store_name}</strong> ${it.price.toFixed(2)}
+                </li>
+              ))}
+            </ul>
+          )}
         </details>
       ))}
     </div>
@@ -142,6 +187,7 @@ function PlanView({ plan }: { plan: ShoppingPlan }) {
           </span>
         </div>
       </div>
+      <TripOptionsPanel options={plan.trip_options} />
       <div className="table-wrap">
         <table>
           <thead>
@@ -181,14 +227,129 @@ function PlanView({ plan }: { plan: ShoppingPlan }) {
   );
 }
 
+function WeekPlanner({ onPlan, busy }: {
+  onPlan: (days: number, budget: number | null) => void; busy: boolean;
+}) {
+  const [days, setDays] = useState(5);
+  const [budget, setBudget] = useState('');
+  return (
+    <form
+      className="week-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onPlan(days, budget.trim() ? Number(budget) : null);
+      }}
+    >
+      <span className="week-label">…or plan a whole week from the recipe library:</span>
+      <label>
+        dinners
+        <input type="number" min={2} max={7} value={days}
+               onChange={(e) => setDays(Number(e.target.value))} />
+      </label>
+      <label>
+        budget $
+        <input type="number" min={1} step="0.01" placeholder="optional" value={budget}
+               onChange={(e) => setBudget(e.target.value)} />
+      </label>
+      <button disabled={busy}>{busy ? 'Planning…' : 'Plan my week'}</button>
+    </form>
+  );
+}
+
+function WeekView({ week }: { week: WeekPlan }) {
+  return (
+    <section className="panel">
+      <div className="plan-header">
+        <h2>Week plan · {week.days.length} dinners</h2>
+        <div className="plan-meta">
+          <span className="chip chip-ok">
+            merged basket ${week.total_cost.toFixed(2)}
+          </span>
+          <span className="chip">standalone ${week.standalone_cost.toFixed(2)}</span>
+          {week.overlap_savings > 0 && (
+            <span className="chip chip-ok">overlap saves ${week.overlap_savings.toFixed(2)}</span>
+          )}
+          {week.budget != null && <span className="chip">budget ${week.budget.toFixed(2)}</span>}
+          <span className="chip chip-muted">LLM ${week.total_llm_cost_usd.toFixed(4)}</span>
+        </div>
+      </div>
+      {week.notes.length > 0 && (
+        <ul className="week-notes">
+          {week.notes.map((n) => <li key={n}>{n}</li>)}
+        </ul>
+      )}
+      <PlanTimeline steps={week.plan_trace} heading="Query plan:" />
+      <TripOptionsPanel options={week.trip_options} />
+      <div className="week-days">
+        {week.days.map((d) => (
+          <details key={d.recipe_slug} className="step">
+            <summary>
+              <span className="step-name">{d.recipe_name}</span>
+              <span className="step-label">{d.line_items.length} items</span>
+              <span className="step-meta">${d.day_cost.toFixed(2)}</span>
+            </summary>
+            <ul className="trip-items">
+              {d.line_items.map((li) => (
+                <li key={li.line_no}>
+                  {li.ingredient_name} → {li.product_name}
+                  {li.store_name && <> at <strong>{li.store_name}</strong></>} ${li.price.toFixed(2)}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Buy once</th>
+              <th>Store</th>
+              <th className="num">Price</th>
+              <th>Used by</th>
+            </tr>
+          </thead>
+          <tbody>
+            {week.shopping_list.map((w) => (
+              <tr key={w.product_id}>
+                <td className="prod-name">{w.product_name}</td>
+                <td>{w.store_name}</td>
+                <td className="num">${w.price.toFixed(2)}</td>
+                <td>
+                  {w.used_by.map((r) => <span key={r} className="chip chip-muted">{r}</span>)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={2}>Week total (shared items once)</td>
+              <td className="num total">${week.total_cost.toFixed(2)}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loadError, setLoadError] = useState('');
   const [planning, setPlanning] = useState<string | null>(null);
   const [plan, setPlan] = useState<ShoppingPlan | null>(null);
+  const [week, setWeek] = useState<WeekPlan | null>(null);
   const [planError, setPlanError] = useState('');
   const [planAbort, setPlanAbort] = useState<PlanExecution | null>(null);
+
+  const resetResults = () => {
+    setPlan(null);
+    setWeek(null);
+    setPlanError('');
+    setPlanAbort(null);
+  };
 
   useEffect(() => {
     getHealth().then(setHealth).catch(() => setHealth(null));
@@ -199,9 +360,7 @@ export default function App() {
 
   const onPlan = async (slug: string) => {
     setPlanning(slug);
-    setPlan(null);
-    setPlanError('');
-    setPlanAbort(null);
+    resetResults();
     try {
       setPlan(await planRecipe(slug));
     } catch (e) {
@@ -213,14 +372,28 @@ export default function App() {
 
   const onPlanNL = async (text: string) => {
     setPlanning('__nl__');
-    setPlan(null);
-    setPlanError('');
-    setPlanAbort(null);
+    resetResults();
     try {
       setPlan(await planNL(text));
     } catch (e) {
       if (e instanceof PlanAbortError) {
         setPlanAbort(e.execution);      // gate abort: render the alert card
+      } else {
+        setPlanError((e as Error).message);
+      }
+    } finally {
+      setPlanning(null);
+    }
+  };
+
+  const onPlanWeek = async (days: number, budget: number | null) => {
+    setPlanning('__week__');
+    resetResults();
+    try {
+      setWeek(await planWeek(days, budget));
+    } catch (e) {
+      if (e instanceof PlanAbortError) {
+        setPlanAbort(e.execution);
       } else {
         setPlanError((e as Error).message);
       }
@@ -252,6 +425,8 @@ export default function App() {
 
       <RecipeInput onPlan={onPlanNL} busy={planning !== null} />
 
+      <WeekPlanner onPlan={onPlanWeek} busy={planning !== null} />
+
       <p className="or-divider">…or plan one of the sample recipes:</p>
 
       <section className="recipes">
@@ -282,6 +457,8 @@ export default function App() {
       {planAbort && <AbortAlert execution={planAbort} />}
 
       {plan && <PlanView plan={plan} />}
+
+      {week && <WeekView week={week} />}
 
       <footer>
         pantry-platform demo · React SPA → FastAPI → Postgres · shipped by ArgoCD from{' '}
