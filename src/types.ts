@@ -130,4 +130,5 @@ export interface Health {
   default_model: string;
   escalation_model: string;
   confidence_threshold: number;
+  demo_mode?: boolean;
 }

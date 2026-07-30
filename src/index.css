@@ -59,6 +59,7 @@ a { color: var(--accent); }
   background: var(--panel); white-space: nowrap;
 }
 .chip-ok { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.health-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .chip-muted { color: var(--muted); }
 .chip-warn { color: var(--warn); }
 .model-haiku { color: var(--haiku); background: var(--haiku-soft); border-color: transparent; }

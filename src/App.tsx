@@ -34,8 +34,18 @@ const modelShort = (model: string) =>
 function HealthChip({ health }: { health: Health | null }) {
   if (!health) return <span className="chip chip-muted">api: connecting…</span>;
   return (
-    <span className="chip chip-ok" title={`default: ${health.default_model} · escalation: ${health.escalation_model}`}>
-      api: {health.status} · {health.routing_strategy}
+    <span className="health-chips">
+      <span className="chip chip-ok" title={`default: ${health.default_model} · escalation: ${health.escalation_model}`}>
+        api: {health.status} · {health.routing_strategy}
+      </span>
+      {health.demo_mode && (
+        <span
+          className="chip chip-warn"
+          title="Deterministic stand-ins replace the Claude parse & selection calls — the query-plan SQL, gates, and optimizers run for real. Run locally with your own ANTHROPIC_API_KEY for the full LLM pipeline."
+        >
+          demo mode — no LLM
+        </span>
+      )}
     </span>
   );
 }
