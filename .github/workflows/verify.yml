@@ -1,0 +1,36 @@
+# ============================================================
+# pantry-frontend — pull-request verification
+#
+# build-and-deploy only runs on push to main, so nothing type-checked a
+# branch before it merged. A PR whose base had moved on merged cleanly at
+# the git level and left main unable to compile. This closes that gap:
+# type-check and build every PR, publish nothing.
+# ============================================================
+
+name: verify
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      # tsc separately from the build so a type error is reported as one
+      - run: npx tsc --noEmit
+      - run: npm run build
