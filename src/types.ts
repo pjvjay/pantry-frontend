@@ -59,6 +59,25 @@ export interface PlanExecution {
   aborted: PlanAlert | null;
 }
 
+// 4A: one point on the stops-vs-cost frontier from the split-trip optimizer.
+export interface TripItem {
+  product_id: number;
+  product_name: string;
+  store_name: string;
+  price: number;
+}
+
+export interface TripOption {
+  stores: string[];
+  basket_cost: number;
+  travel_km: number;
+  travel_cost: number;
+  total_cost: number;
+  savings_vs_one_stop: number;
+  recommended: boolean;
+  items: TripItem[]; // populated on the recommended option only
+}
+
 export interface ShoppingPlan {
   recipe_slug: string;
   recipe_name: string;
@@ -73,6 +92,36 @@ export interface ShoppingPlan {
   interpretation: string[];
   plan_trace: StepResult[];
   candidate_count: number;
+  trip_options: TripOption[];
+}
+
+// 5A: weekly menu optimizer (/plan/week)
+export interface WeekItem {
+  product_id: number;
+  product_name: string;
+  store_name: string;
+  price: number;
+  used_by: string[];
+}
+
+export interface DayPlan {
+  recipe_slug: string;
+  recipe_name: string;
+  line_items: PlanLineItem[];
+  day_cost: number;
+}
+
+export interface WeekPlan {
+  days: DayPlan[];
+  shopping_list: WeekItem[];
+  total_cost: number;
+  standalone_cost: number;
+  overlap_savings: number;
+  budget: number | null;
+  notes: string[];
+  plan_trace: StepResult[];
+  trip_options: TripOption[];
+  total_llm_cost_usd: number;
 }
 
 export interface Health {
@@ -81,6 +130,7 @@ export interface Health {
   default_model: string;
   escalation_model: string;
   confidence_threshold: number;
+  demo_mode?: boolean;
 }
 
 // ─── Provenance (pantry-api origins.py) ──────────────────────

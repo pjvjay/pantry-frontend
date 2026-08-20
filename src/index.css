@@ -59,6 +59,7 @@ a { color: var(--accent); }
   background: var(--panel); white-space: nowrap;
 }
 .chip-ok { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.health-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .chip-muted { color: var(--muted); }
 .chip-warn { color: var(--warn); }
 .model-haiku { color: var(--haiku); background: var(--haiku-soft); border-color: transparent; }
@@ -151,6 +152,40 @@ footer { margin-top: 40px; color: var(--muted); font-size: 13px; text-align: cen
   margin: 0; padding: 12px; overflow-x: auto; font-size: 12px; line-height: 1.5;
   border-top: 1px solid var(--border);
 }
+
+/* 4A: split-trip options */
+.trips { margin-bottom: 14px; }
+.trip {
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+  overflow: hidden; margin-bottom: 6px;
+}
+.trip-rec { border-color: var(--accent); }
+.trip summary {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; cursor: pointer; font-size: 13px;
+}
+.trip-stops { font-weight: 700; white-space: nowrap; }
+.trip-stores { color: var(--muted); flex: 1; }
+.trip-math { color: var(--muted); font-variant-numeric: tabular-nums; }
+.trip-total { font-weight: 700; font-variant-numeric: tabular-nums; }
+.trip-items { margin: 0; padding: 8px 12px 12px 28px; font-size: 13px; border-top: 1px solid var(--border); }
+.trip-items li { margin-top: 2px; }
+
+/* 5A: week planner */
+.week-form {
+  margin-top: 12px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.week-label { color: var(--muted); font-size: 13px; }
+.week-form label {
+  display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted);
+}
+.week-form input {
+  width: 90px; padding: 6px 8px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+}
+.week-form button { margin-top: 0; padding: 8px 14px; }
+.week-notes { margin: 0 0 12px; padding-left: 18px; color: var(--warn); font-size: 13px; }
+.week-days { margin-bottom: 14px; }
 
 /* Gate-abort alert card (409) */
 .alert-card {
