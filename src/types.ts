@@ -82,3 +82,65 @@ export interface Health {
   escalation_model: string;
   confidence_threshold: number;
 }
+
+// ─── Provenance (pantry-api origins.py) ──────────────────────
+
+// status is what the ranking keys off. Only 'resolved' carries usable
+// evidence: 'unknown' means no source published an origin, 'conflicting'
+// means sources disagreed and no winner was picked, 'lookup_failed' means
+// a source did not answer, and 'guess' is a name-based hint that is never
+// provenance. Absence is never evidence of foreign origin.
+export interface ProductOrigin {
+  product_id: number;
+  product_name: string;
+  status: 'resolved' | 'conflicting' | 'unknown' | 'lookup_failed' | 'guess';
+  claim_type: string;
+  country: string;
+  ingredient_origin: string;
+  manufactured_in: string;
+  verbatim: string;
+  confidence: 'high' | 'medium' | 'low';
+  source: string;
+  note: string;
+  evidence_count: number;
+}
+
+export interface RankedProduct {
+  product_id: number;
+  product_name: string;
+  price: number;
+  rank: number;
+  tier_label: string;
+  origin: ProductOrigin;
+  matched_country: string;
+  matched_field: string;
+}
+
+export interface ExcludedProduct {
+  product_id: number;
+  product_name: string;
+  price: number;
+  excluded_country: string;
+  matched_field: string;
+  claim_type: string;
+  verbatim: string;
+  confidence: string;
+}
+
+export interface UnrankedProduct {
+  product_id: number;
+  product_name: string;
+  price: number;
+  reason: 'no_evidence' | 'conflicting' | 'lookup_failed' | 'guess_only';
+  detail: string;
+}
+
+export interface OriginRanking {
+  preference: string[];
+  exclude: string[];
+  ranked: RankedProduct[];
+  excluded: ExcludedProduct[];
+  unranked: UnrankedProduct[];
+  counts: Record<string, number>;
+  coverage_note: string;
+}

@@ -1,6 +1,21 @@
 import { useEffect, useState } from 'react';
-import { getHealth, getRecipes, PlanAbortError, planNL, planRecipe } from './api';
-import type { Health, PlanExecution, Recipe, ShoppingPlan, StepResult } from './types';
+import {
+  PlanAbortError,
+  getHealth,
+  getRecipes,
+  planNL,
+  planRecipe,
+  rankByOrigin,
+} from './api';
+import type {
+  Health,
+  OriginRanking,
+  PlanExecution,
+  Recipe,
+  ShoppingPlan,
+  StepResult,
+  UnrankedProduct,
+} from './types';
 
 const RECIPE_PLACEHOLDER = `Paste a whole recipe, e.g.
 
@@ -181,6 +196,157 @@ function PlanView({ plan }: { plan: ShoppingPlan }) {
   );
 }
 
+
+const REASON_LABELS: Record<UnrankedProduct['reason'], string> = {
+  no_evidence: 'No source published an origin',
+  conflicting: 'Sources disagree — no winner picked',
+  lookup_failed: 'Lookup failed (outage or rate limit) — not a finding',
+  guess_only: 'Name-based guess only — not evidence',
+};
+
+function parseCountries(text: string): string[] {
+  return text.split(',').map((c) => c.trim()).filter(Boolean);
+}
+
+function OriginPanel() {
+  const [preference, setPreference] = useState('Canada');
+  const [exclude, setExclude] = useState('United States');
+  const [result, setResult] = useState<OriginRanking | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [showUnranked, setShowUnranked] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      setResult(await rankByOrigin(parseCountries(preference), parseCountries(exclude)));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="panel origin-panel">
+      <h2>Where things come from</h2>
+      <p className="card-sub">
+        Rank the catalog against countries you prefer. Nothing is inferred — products are
+        placed only on ingested label and database evidence.
+      </p>
+
+      <div className="origin-controls">
+        <label>
+          Prefer, in order
+          <input
+            value={preference}
+            onChange={(e) => setPreference(e.target.value)}
+            placeholder="Canada, Mexico"
+          />
+        </label>
+        <label>
+          Exclude
+          <input
+            value={exclude}
+            onChange={(e) => setExclude(e.target.value)}
+            placeholder="United States"
+          />
+        </label>
+        <button onClick={run} disabled={busy}>
+          {busy ? 'Ranking…' : 'Rank catalog'}
+        </button>
+      </div>
+
+      {error && <div className="banner banner-error">Ranking failed: {error}</div>}
+
+      {result && (
+        <>
+          <div className="origin-counts">
+            <span className="chip chip-ok">{result.counts.ranked ?? 0} ranked</span>
+            <span className="chip pill-bad">{result.counts.excluded ?? 0} excluded</span>
+            <span className="chip pill-warn">{result.counts.unranked ?? 0} unverified</span>
+            <span className="chip chip-muted">{result.counts.total ?? 0} in catalog</span>
+          </div>
+
+          <p className="coverage-note">{result.coverage_note}</p>
+
+          {result.ranked.length > 0 && (
+            <table className="origin-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Placement</th>
+                  <th>On the label</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.ranked.map((r) => (
+                  <tr key={r.product_id}>
+                    <td>{r.product_name}</td>
+                    <td>
+                      {r.tier_label}
+                      {r.origin.claim_type && (
+                        <span className="claim-chip">{r.origin.claim_type}</span>
+                      )}
+                    </td>
+                    <td className="verbatim">{r.origin.verbatim || '—'}</td>
+                    <td className="muted">
+                      {r.origin.source} · {r.origin.confidence}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {result.excluded.length > 0 && (
+            <>
+              <h3 className="origin-subhead">Excluded ({result.excluded.length})</h3>
+              <ul className="origin-list">
+                {result.excluded.map((e) => (
+                  <li key={e.product_id}>
+                    <strong>{e.product_name}</strong> — {e.excluded_country}, evidenced by{' '}
+                    <code>{e.matched_field}</code>
+                    {e.matched_field === 'ingredient_origin' && (
+                      <span className="hint">
+                        {' '}processed elsewhere, but the ingredients are from an excluded country
+                      </span>
+                    )}
+                    {e.verbatim && <div className="verbatim">“{e.verbatim}”</div>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <h3 className="origin-subhead">
+            Unverified ({result.unranked.length}){' '}
+            <button className="linkish" onClick={() => setShowUnranked((v) => !v)}>
+              {showUnranked ? 'hide' : 'show'}
+            </button>
+          </h3>
+          <p className="card-sub">
+            Held out of the ranking on purpose. No origin was published for these — that is
+            not evidence that they are foreign, or domestic.
+          </p>
+          {showUnranked && (
+            <ul className="origin-list">
+              {result.unranked.map((u) => (
+                <li key={u.product_id}>
+                  <strong>{u.product_name}</strong> — {REASON_LABELS[u.reason]}
+                  {u.detail && <span className="muted"> ({u.detail})</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -268,6 +434,8 @@ export default function App() {
           </article>
         ))}
       </section>
+
+      <OriginPanel />
 
       {planError && (
         <div className="banner banner-error">

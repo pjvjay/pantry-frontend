@@ -1,4 +1,10 @@
-import type { Health, PlanExecution, Recipe, ShoppingPlan } from './types';
+import type {
+  Health,
+  OriginRanking,
+  PlanExecution,
+  Recipe,
+  ShoppingPlan,
+} from './types';
 
 // BASE_URL is '/pantry/' (vite.config.ts `base`). Building URLs from it
 // keeps fetches correct regardless of how the current page path looks.
@@ -42,4 +48,11 @@ export const planNL = (recipeText: string) =>
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ recipe_text: recipeText }),
+  });
+
+export const rankByOrigin = (preference: string[], exclude: string[]) =>
+  request<OriginRanking>('/origins/rank', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ preference, exclude }),
   });
