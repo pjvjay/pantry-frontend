@@ -1,7 +1,20 @@
 import { useEffect, useState } from 'react';
-import { getHealth, getRecipes, PlanAbortError, planNL, planRecipe, planWeek } from './api';
+import {
+  PlanAbortError,
+  getHealth,
+  getRecipes,
+  planNL,
+  planRecipe,
+  rankByOrigin,
+} from './api';
 import type {
-  Health, PlanExecution, Recipe, ShoppingPlan, StepResult, TripOption, WeekPlan,
+  Health,
+  OriginRanking,
+  PlanExecution,
+  Recipe,
+  ShoppingPlan,
+  StepResult,
+  UnrankedProduct,
 } from './types';
 
 const RECIPE_PLACEHOLDER = `Paste a whole recipe, e.g.
@@ -237,109 +250,153 @@ function PlanView({ plan }: { plan: ShoppingPlan }) {
   );
 }
 
-function WeekPlanner({ onPlan, busy }: {
-  onPlan: (days: number, budget: number | null) => void; busy: boolean;
-}) {
-  const [days, setDays] = useState(5);
-  const [budget, setBudget] = useState('');
-  return (
-    <form
-      className="week-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onPlan(days, budget.trim() ? Number(budget) : null);
-      }}
-    >
-      <span className="week-label">…or plan a whole week from the recipe library:</span>
-      <label>
-        dinners
-        <input type="number" min={2} max={7} value={days}
-               onChange={(e) => setDays(Number(e.target.value))} />
-      </label>
-      <label>
-        budget $
-        <input type="number" min={1} step="0.01" placeholder="optional" value={budget}
-               onChange={(e) => setBudget(e.target.value)} />
-      </label>
-      <button disabled={busy}>{busy ? 'Planning…' : 'Plan my week'}</button>
-    </form>
-  );
+
+const REASON_LABELS: Record<UnrankedProduct['reason'], string> = {
+  no_evidence: 'No source published an origin',
+  conflicting: 'Sources disagree — no winner picked',
+  lookup_failed: 'Lookup failed (outage or rate limit) — not a finding',
+  guess_only: 'Name-based guess only — not evidence',
+};
+
+function parseCountries(text: string): string[] {
+  return text.split(',').map((c) => c.trim()).filter(Boolean);
 }
 
-function WeekView({ week }: { week: WeekPlan }) {
+function OriginPanel() {
+  const [preference, setPreference] = useState('Canada');
+  const [exclude, setExclude] = useState('United States');
+  const [result, setResult] = useState<OriginRanking | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [showUnranked, setShowUnranked] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      setResult(await rankByOrigin(parseCountries(preference), parseCountries(exclude)));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <section className="panel">
-      <div className="plan-header">
-        <h2>Week plan · {week.days.length} dinners</h2>
-        <div className="plan-meta">
-          <span className="chip chip-ok">
-            merged basket ${week.total_cost.toFixed(2)}
-          </span>
-          <span className="chip">standalone ${week.standalone_cost.toFixed(2)}</span>
-          {week.overlap_savings > 0 && (
-            <span className="chip chip-ok">overlap saves ${week.overlap_savings.toFixed(2)}</span>
-          )}
-          {week.budget != null && <span className="chip">budget ${week.budget.toFixed(2)}</span>}
-          <span className="chip chip-muted">LLM ${week.total_llm_cost_usd.toFixed(4)}</span>
-        </div>
+    <section className="panel origin-panel">
+      <h2>Where things come from</h2>
+      <p className="card-sub">
+        Rank the catalog against countries you prefer. Nothing is inferred — products are
+        placed only on ingested label and database evidence.
+      </p>
+
+      <div className="origin-controls">
+        <label>
+          Prefer, in order
+          <input
+            value={preference}
+            onChange={(e) => setPreference(e.target.value)}
+            placeholder="Canada, Mexico"
+          />
+        </label>
+        <label>
+          Exclude
+          <input
+            value={exclude}
+            onChange={(e) => setExclude(e.target.value)}
+            placeholder="United States"
+          />
+        </label>
+        <button onClick={run} disabled={busy}>
+          {busy ? 'Ranking…' : 'Rank catalog'}
+        </button>
       </div>
-      {week.notes.length > 0 && (
-        <ul className="week-notes">
-          {week.notes.map((n) => <li key={n}>{n}</li>)}
-        </ul>
-      )}
-      <PlanTimeline steps={week.plan_trace} heading="Query plan:" />
-      <TripOptionsPanel options={week.trip_options} />
-      <div className="week-days">
-        {week.days.map((d) => (
-          <details key={d.recipe_slug} className="step">
-            <summary>
-              <span className="step-name">{d.recipe_name}</span>
-              <span className="step-label">{d.line_items.length} items</span>
-              <span className="step-meta">${d.day_cost.toFixed(2)}</span>
-            </summary>
-            <ul className="trip-items">
-              {d.line_items.map((li) => (
-                <li key={li.line_no}>
-                  {li.ingredient_name} → {li.product_name}
-                  {li.store_name && <> at <strong>{li.store_name}</strong></>} ${li.price.toFixed(2)}
+
+      {error && <div className="banner banner-error">Ranking failed: {error}</div>}
+
+      {result && (
+        <>
+          <div className="origin-counts">
+            <span className="chip chip-ok">{result.counts.ranked ?? 0} ranked</span>
+            <span className="chip pill-bad">{result.counts.excluded ?? 0} excluded</span>
+            <span className="chip pill-warn">{result.counts.unranked ?? 0} unverified</span>
+            <span className="chip chip-muted">{result.counts.total ?? 0} in catalog</span>
+          </div>
+
+          <p className="coverage-note">{result.coverage_note}</p>
+
+          {result.ranked.length > 0 && (
+            <table className="origin-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Placement</th>
+                  <th>On the label</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.ranked.map((r) => (
+                  <tr key={r.product_id}>
+                    <td>{r.product_name}</td>
+                    <td>
+                      {r.tier_label}
+                      {r.origin.claim_type && (
+                        <span className="claim-chip">{r.origin.claim_type}</span>
+                      )}
+                    </td>
+                    <td className="verbatim">{r.origin.verbatim || '—'}</td>
+                    <td className="muted">
+                      {r.origin.source} · {r.origin.confidence}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {result.excluded.length > 0 && (
+            <>
+              <h3 className="origin-subhead">Excluded ({result.excluded.length})</h3>
+              <ul className="origin-list">
+                {result.excluded.map((e) => (
+                  <li key={e.product_id}>
+                    <strong>{e.product_name}</strong> — {e.excluded_country}, evidenced by{' '}
+                    <code>{e.matched_field}</code>
+                    {e.matched_field === 'ingredient_origin' && (
+                      <span className="hint">
+                        {' '}processed elsewhere, but the ingredients are from an excluded country
+                      </span>
+                    )}
+                    {e.verbatim && <div className="verbatim">“{e.verbatim}”</div>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <h3 className="origin-subhead">
+            Unverified ({result.unranked.length}){' '}
+            <button className="linkish" onClick={() => setShowUnranked((v) => !v)}>
+              {showUnranked ? 'hide' : 'show'}
+            </button>
+          </h3>
+          <p className="card-sub">
+            Held out of the ranking on purpose. No origin was published for these — that is
+            not evidence that they are foreign, or domestic.
+          </p>
+          {showUnranked && (
+            <ul className="origin-list">
+              {result.unranked.map((u) => (
+                <li key={u.product_id}>
+                  <strong>{u.product_name}</strong> — {REASON_LABELS[u.reason]}
+                  {u.detail && <span className="muted"> ({u.detail})</span>}
                 </li>
               ))}
             </ul>
-          </details>
-        ))}
-      </div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Buy once</th>
-              <th>Store</th>
-              <th className="num">Price</th>
-              <th>Used by</th>
-            </tr>
-          </thead>
-          <tbody>
-            {week.shopping_list.map((w) => (
-              <tr key={w.product_id}>
-                <td className="prod-name">{w.product_name}</td>
-                <td>{w.store_name}</td>
-                <td className="num">${w.price.toFixed(2)}</td>
-                <td>
-                  {w.used_by.map((r) => <span key={r} className="chip chip-muted">{r}</span>)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={2}>Week total (shared items once)</td>
-              <td className="num total">${week.total_cost.toFixed(2)}</td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+          )}
+        </>
+      )}
     </section>
   );
 }
@@ -453,6 +510,8 @@ export default function App() {
           </article>
         ))}
       </section>
+
+      <OriginPanel />
 
       {planError && (
         <div className="banner banner-error">

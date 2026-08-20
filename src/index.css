@@ -197,3 +197,49 @@ footer { margin-top: 40px; color: var(--muted); font-size: 13px; text-align: cen
 .alert-details { margin: 8px 0 0; padding-left: 18px; }
 .alert-details li { margin-top: 4px; }
 .alert-suggestions { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-left: 6px; }
+
+/* Provenance panel — reuses the .chip/.panel vocabulary above so it
+   themes with the rest of the app rather than pinning its own palette. */
+.origin-controls {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-top: 14px;
+}
+.origin-controls label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px; color: var(--muted);
+}
+.origin-controls input {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-size: 14px; min-width: 220px;
+}
+.origin-controls button { margin-top: 0; }
+
+.origin-counts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+/* Unverified is warn-coloured, never ok-coloured: it is an open question,
+   not a pass. Excluded reuses the error palette. */
+.pill-warn { color: var(--warn); border-color: transparent; }
+.pill-bad { color: var(--error-text); background: var(--error-bg); border-color: transparent; }
+
+.coverage-note {
+  margin: 10px 0 0; padding-left: 10px; font-size: 13px; color: var(--muted);
+  border-left: 3px solid var(--warn);
+}
+.origin-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 14px; }
+.origin-table th {
+  text-align: left; font-weight: 600; padding: 6px 8px;
+  border-bottom: 1px solid var(--border); color: var(--muted);
+}
+.origin-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.claim-chip {
+  margin-left: 6px; padding: 1px 6px; border-radius: 4px;
+  background: var(--accent-soft); color: var(--accent); font-size: 11px;
+}
+.verbatim { font-style: italic; color: var(--muted); }
+.muted { color: var(--muted); font-size: 12px; }
+.hint { color: var(--warn); font-size: 12px; }
+.origin-subhead { margin: 20px 0 4px; font-size: 15px; }
+.origin-list { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+.origin-list li { margin-bottom: 6px; }
+.linkish {
+  margin: 0; padding: 0; background: none; border: none;
+  color: var(--accent); font-size: 12px; cursor: pointer; text-decoration: underline;
+}
