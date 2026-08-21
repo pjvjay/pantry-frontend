@@ -5,6 +5,7 @@ import {
   getRecipes,
   planNL,
   planRecipe,
+  planWeek,
   rankByOrigin,
 } from './api';
 import type {
@@ -14,7 +15,9 @@ import type {
   Recipe,
   ShoppingPlan,
   StepResult,
+  TripOption,
   UnrankedProduct,
+  WeekPlan,
 } from './types';
 
 const RECIPE_PLACEHOLDER = `Paste a whole recipe, e.g.
@@ -250,6 +253,112 @@ function PlanView({ plan }: { plan: ShoppingPlan }) {
   );
 }
 
+function WeekPlanner({ onPlan, busy }: {
+  onPlan: (days: number, budget: number | null) => void; busy: boolean;
+}) {
+  const [days, setDays] = useState(5);
+  const [budget, setBudget] = useState('');
+  return (
+    <form
+      className="week-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onPlan(days, budget.trim() ? Number(budget) : null);
+      }}
+    >
+      <span className="week-label">…or plan a whole week from the recipe library:</span>
+      <label>
+        dinners
+        <input type="number" min={2} max={7} value={days}
+               onChange={(e) => setDays(Number(e.target.value))} />
+      </label>
+      <label>
+        budget $
+        <input type="number" min={1} step="0.01" placeholder="optional" value={budget}
+               onChange={(e) => setBudget(e.target.value)} />
+      </label>
+      <button disabled={busy}>{busy ? 'Planning…' : 'Plan my week'}</button>
+    </form>
+  );
+}
+
+function WeekView({ week }: { week: WeekPlan }) {
+  return (
+    <section className="panel">
+      <div className="plan-header">
+        <h2>Week plan · {week.days.length} dinners</h2>
+        <div className="plan-meta">
+          <span className="chip chip-ok">
+            merged basket ${week.total_cost.toFixed(2)}
+          </span>
+          <span className="chip">standalone ${week.standalone_cost.toFixed(2)}</span>
+          {week.overlap_savings > 0 && (
+            <span className="chip chip-ok">overlap saves ${week.overlap_savings.toFixed(2)}</span>
+          )}
+          {week.budget != null && <span className="chip">budget ${week.budget.toFixed(2)}</span>}
+          <span className="chip chip-muted">LLM ${week.total_llm_cost_usd.toFixed(4)}</span>
+        </div>
+      </div>
+      {week.notes.length > 0 && (
+        <ul className="week-notes">
+          {week.notes.map((n) => <li key={n}>{n}</li>)}
+        </ul>
+      )}
+      <PlanTimeline steps={week.plan_trace} heading="Query plan:" />
+      <TripOptionsPanel options={week.trip_options} />
+      <div className="week-days">
+        {week.days.map((d) => (
+          <details key={d.recipe_slug} className="step">
+            <summary>
+              <span className="step-name">{d.recipe_name}</span>
+              <span className="step-label">{d.line_items.length} items</span>
+              <span className="step-meta">${d.day_cost.toFixed(2)}</span>
+            </summary>
+            <ul className="trip-items">
+              {d.line_items.map((li) => (
+                <li key={li.line_no}>
+                  {li.ingredient_name} → {li.product_name}
+                  {li.store_name && <> at <strong>{li.store_name}</strong></>} ${li.price.toFixed(2)}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Buy once</th>
+              <th>Store</th>
+              <th className="num">Price</th>
+              <th>Used by</th>
+            </tr>
+          </thead>
+          <tbody>
+            {week.shopping_list.map((w) => (
+              <tr key={w.product_id}>
+                <td className="prod-name">{w.product_name}</td>
+                <td>{w.store_name}</td>
+                <td className="num">${w.price.toFixed(2)}</td>
+                <td>
+                  {w.used_by.map((r) => <span key={r} className="chip chip-muted">{r}</span>)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={2}>Week total (shared items once)</td>
+              <td className="num total">${week.total_cost.toFixed(2)}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 const REASON_LABELS: Record<UnrankedProduct['reason'], string> = {
   no_evidence: 'No source published an origin',

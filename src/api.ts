@@ -4,6 +4,7 @@ import type {
   PlanExecution,
   Recipe,
   ShoppingPlan,
+  WeekPlan,
 } from './types';
 
 // BASE_URL is '/pantry/' (vite.config.ts `base`). Building URLs from it
@@ -48,6 +49,12 @@ export const planNL = (recipeText: string) =>
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ recipe_text: recipeText }),
+  });
+export const planWeek = (days: number, maxTotalBudget: number | null) =>
+  request<WeekPlan>('/plan/week', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ days, max_total_budget: maxTotalBudget }),
   });
 
 export const rankByOrigin = (preference: string[], exclude: string[]) =>
