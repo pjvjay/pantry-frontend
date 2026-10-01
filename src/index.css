@@ -243,3 +243,12 @@ footer { margin-top: 40px; color: var(--muted); font-size: 13px; text-align: cen
   margin: 0; padding: 0; background: none; border: none;
   color: var(--accent); font-size: 12px; cursor: pointer; text-decoration: underline;
 }
+
+/* Basket provenance coverage. Warn-coloured below the floor, never green:
+   an unverified basket is an open question, not a pass. */
+.coverage { margin-top: 12px; font-size: 13px; padding: 8px 10px; border-radius: 8px; }
+.coverage-ok { background: var(--accent-soft); color: var(--accent); }
+.coverage-warn { background: var(--panel); color: var(--warn); border: 1px solid var(--border); }
+.coverage .hint { margin-top: 4px; color: var(--muted); font-size: 12px; }
+/* The basis line under a heading that would otherwise imply exactness. */
+.basis { font-weight: 400; font-size: 12px; color: var(--muted); }

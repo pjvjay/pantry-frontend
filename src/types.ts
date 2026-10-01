@@ -26,6 +26,7 @@ export interface PlanLineItem {
   // Query-plan path: which store the price comes from
   store_name: string;
   store_price: number | null;
+  origin?: OriginReceipt | null;
 }
 
 // One executed step of the retrieval query plan (t1 existence -> t2 options
@@ -93,6 +94,7 @@ export interface ShoppingPlan {
   plan_trace: StepResult[];
   candidate_count: number;
   trip_options: TripOption[];
+  origin_coverage?: OriginCoverage | null;
 }
 
 // 5A: weekly menu optimizer (/plan/week)
@@ -102,6 +104,7 @@ export interface WeekItem {
   store_name: string;
   price: number;
   used_by: string[];
+  origin?: OriginReceipt | null;
 }
 
 export interface DayPlan {
@@ -122,6 +125,7 @@ export interface WeekPlan {
   plan_trace: StepResult[];
   trip_options: TripOption[];
   total_llm_cost_usd: number;
+  origin_coverage?: OriginCoverage | null;
 }
 
 export interface Health {
@@ -193,4 +197,32 @@ export interface OriginRanking {
   unranked: UnrankedProduct[];
   counts: Record<string, number>;
   coverage_note: string;
+}
+
+// Provenance carried on a chosen plan line (pantry-api origins.py).
+export interface OriginReceipt {
+  status: string;
+  country: string;
+  claim_type: string;
+  ingredient_origin: string;
+  manufactured_in: string;
+  source: string;
+  confidence: string;
+  verbatim: string;
+}
+
+// How much of a basket's provenance is actually known. Reported both
+// count- and spend-weighted because they diverge: the one line somebody
+// photographed is often the cheapest thing in the cart.
+export interface OriginCoverage {
+  lines_total: number;
+  lines_known: number;
+  lines_excluded_origin: number;
+  count_fraction: number;
+  spend_total: number;
+  spend_known: number;
+  spend_fraction: number;
+  meets_floor: boolean;
+  floor: number;
+  note: string;
 }

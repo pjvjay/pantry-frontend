@@ -10,6 +10,7 @@ import {
 } from './api';
 import type {
   Health,
+  OriginCoverage,
   OriginRanking,
   PlanExecution,
   Recipe,
@@ -116,7 +117,12 @@ function TripOptionsPanel({ options }: { options: TripOption[] }) {
   if (options.length === 0) return null;
   return (
     <div className="trips">
-      <div className="timeline-heading">Where to shop (basket vs travel, computed exactly):</div>
+      <div className="timeline-heading">
+        Where to shop (basket vs travel)
+        <span className="basis"> · optimal store split over straight-line
+        distance at an assumed $/km — the search is exact, the inputs are
+        estimates</span>
+      </div>
       {options.map((o) => (
         <details key={o.stores.join('|')} className={`trip ${o.recommended ? 'trip-rec' : ''}`}>
           <summary>
@@ -180,6 +186,29 @@ function AbortAlert({ execution }: { execution: PlanExecution }) {
       </div>
       <PlanTimeline steps={execution.steps} heading="Query plan (aborted at the ✗ step):" />
     </section>
+  );
+}
+
+
+function CoverageNote({ coverage }: { coverage?: OriginCoverage | null }) {
+  if (!coverage || coverage.lines_total === 0) return null;
+  // Spend-weighted is the headline: a basket can be half-covered by count
+  // and barely covered by money. Never render an unverified basket as clean.
+  const pct = Math.round(coverage.spend_fraction * 100);
+  return (
+    <div className={`coverage ${coverage.meets_floor ? 'coverage-ok' : 'coverage-warn'}`}>
+      <strong>Origin checked for {pct}% of spend</strong>{' '}
+      ({coverage.lines_known} of {coverage.lines_total} lines
+      {coverage.lines_excluded_origin > 0 &&
+        `; ${coverage.lines_excluded_origin} candidate(s) excluded`})
+      {!coverage.meets_floor && (
+        <div className="hint">
+          Below the {Math.round(coverage.floor * 100)}% floor — the unchecked
+          lines are not evidence of foreign origin, but this basket has not
+          been verified well enough to call it clean.
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -248,6 +277,7 @@ function PlanView({ plan }: { plan: ShoppingPlan }) {
             </tr>
           </tfoot>
         </table>
+        <CoverageNote coverage={plan.origin_coverage} />
       </div>
     </section>
   );
@@ -355,6 +385,7 @@ function WeekView({ week }: { week: WeekPlan }) {
             </tr>
           </tfoot>
         </table>
+        <CoverageNote coverage={week.origin_coverage} />
       </div>
     </section>
   );
