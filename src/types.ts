@@ -95,6 +95,8 @@ export interface ShoppingPlan {
   candidate_count: number;
   trip_options: TripOption[];
   origin_coverage?: OriginCoverage | null;
+  // not_requested | verified | unverified — read this before calling a basket clean
+  origin_status?: 'not_requested' | 'verified' | 'unverified';
 }
 
 // 5A: weekly menu optimizer (/plan/week)
@@ -126,6 +128,8 @@ export interface WeekPlan {
   trip_options: TripOption[];
   total_llm_cost_usd: number;
   origin_coverage?: OriginCoverage | null;
+  // not_requested | verified | unverified — read this before calling a basket clean
+  origin_status?: 'not_requested' | 'verified' | 'unverified';
 }
 
 export interface Health {
