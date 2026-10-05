@@ -542,3 +542,9 @@ tr.row-active td { background: var(--accent-soft); }
   .wf-row { grid-template-columns: 1fr 56px; }
   .wf-track { grid-column: 1 / -1; order: 3; }
 }
+
+/* The Assistant's pickers keep one width whether or not the hub's options have arrived: they
+   used to grow to the longest model name on load, wrap the row and push the page down (the
+   browser measured a layout shift of 0.3 from div.form-row.compact and everything below it). */
+.view.assistant .form-row.compact select { width: 17rem; max-width: 100%; text-overflow: ellipsis; }
+.health-chips { min-height: 24px; }
