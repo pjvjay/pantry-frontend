@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ErrorBanner } from '../components/common';
-import { EvalCard, Waterfall, dur } from '../components/flow';
-import { getMetrics, traceDetail, traceList } from '../hub';
-import type { Metrics, MetricsRow, Trace, TraceSummary } from '../types';
+import { dur } from '../components/flow';
+import { getMetrics, traceList } from '../hub';
+import type { Metrics, MetricsRow, TraceSummary } from '../types';
+import RunView from './RunView';
 
 // Every layer of the Assistant's workflow, measured: the models (tokens, cache, rates, time to
 // first token, cost), the MCP tools and the gateway's overhead, pantry's own pipeline steps, the
@@ -46,43 +47,6 @@ function Table({ rows, keys }: { rows: MetricsRow[]; keys?: string[] }) {
   );
 }
 
-function TraceView({ id, onClose }: { id: string; onClose: () => void }) {
-  const [trace, setTrace] = useState<Trace | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    traceDetail(id).then(setTrace).catch((e: Error) => setError(e.message));
-  }, [id]);
-  if (error) return <ErrorBanner error={error} />;
-  if (!trace) return <p className="muted">Loading trace…</p>;
-  const steps = trace.spans.filter((s) => s.kind === 'model');
-  return (
-    <section className="panel">
-      <div className="plan-header">
-        <h2>Trace {trace.id}</h2>
-        <button type="button" className="secondary" onClick={onClose}>Back to metrics</button>
-      </div>
-      <p className="card-sub">
-        <code>{trace.model}</code> · {trace.target} · {trace.disclosure} toolset · {trace.status} ·{' '}
-        {dur(trace.wall_ms)} · {trace.steps} step(s) · {(trace.input_tokens ?? 0).toLocaleString()} in /{' '}
-        {(trace.output_tokens ?? 0).toLocaleString()} out tokens · {fmt('cost_usd', trace.cost_usd)} on a paid key
-      </p>
-      <p className="muted">“{trace.message}”</p>
-      {trace.evals && <EvalCard evals={trace.evals} />}
-      {trace.browser && (
-        <p className="muted">
-          browser: first byte {dur(trace.browser.ttfb_ms as number)}, first event {dur(trace.browser.first_event_ms as number)},
-          stream lag p95 {dur(trace.browser.lag_p95_ms as number)}, render p95 {dur(trace.browser.render_p95_ms as number)}
-        </p>
-      )}
-      <Waterfall trace={trace} />
-      <p className="muted">
-        {steps.length} model step(s); ≈ marks pantry's steps, laid end to end inside their tool call
-        (Burr times each step, not where it sat). Click a row for its attributes, events and reasoning.
-      </p>
-    </section>
-  );
-}
-
 export default function MetricsView() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [traces, setTraces] = useState<TraceSummary[]>([]);
@@ -100,7 +64,7 @@ export default function MetricsView() {
   useEffect(() => { load(); }, [load]);
 
   const close = () => { setOpen(null); window.location.hash = '#/metrics'; };
-  if (open) return <div className="view"><TraceView id={open} onClose={close} /></div>;
+  if (open) return <div className="view"><RunView id={open} onClose={close} /></div>;
 
   const b = metrics?.browser;
   return (
@@ -197,7 +161,7 @@ export default function MetricsView() {
                     <td>{t.steps}</td>
                     <td>{(t.input_tokens ?? 0).toLocaleString()} / {(t.output_tokens ?? 0).toLocaleString()}</td>
                     <td>{fmt('answer_confidence', t.answer_confidence)}</td>
-                    <td><button type="button" className="secondary" onClick={() => { setOpen(t.id); window.location.hash = `#/metrics?trace=${t.id}`; }}>trace</button></td>
+                    <td><button type="button" className="secondary" onClick={() => { setOpen(t.id); window.location.hash = `#/metrics?trace=${t.id}`; }}>run</button></td>
                   </tr>
                 ))}
               </tbody>

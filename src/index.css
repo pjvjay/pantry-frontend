@@ -551,3 +551,39 @@ tr.row-active td { background: var(--accent-soft); }
    browser measured a layout shift of 0.3 from div.form-row.compact and everything below it). */
 .view.assistant .form-row.compact select { width: 17rem; max-width: 100%; text-overflow: ellipsis; }
 .health-chips { min-height: 24px; }
+
+/* the run view: one Assistant run from every system that saw it */
+.run-view .kpis { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.kpi { display: flex; flex-direction: column; min-width: 96px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.kpi-v { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpi-k { font-size: 11.5px; color: var(--muted); }
+.run-message { font-style: italic; margin: 6px 0; }
+.row-gap { display: flex; gap: 8px; align-items: center; }
+.budget-bar { display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: var(--bg); }
+.budget-bar span { height: 100%; }
+.budget-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12.5px; }
+.budget-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.budget-read, .wf-seg-read { background: var(--sonnet); }
+.budget-write, .wf-seg-write { background: var(--accent); }
+.budget-queued, .wf-seg-queued { background: var(--error-text); }
+.budget-load, .wf-seg-load { background: var(--muted); }
+.budget-provider { background: var(--gemini); }
+.budget-tools { background: var(--warn); }
+.budget-gateway { background: var(--haiku); }
+.budget-observers { background: var(--border); }
+.budget-other { background: var(--muted); opacity: 0.4; }
+.wf-bar { display: flex; overflow: hidden; }
+.wf-seg { height: 100%; }
+.wf-seg-key { display: inline-block; width: 10px; height: 8px; border-radius: 2px; margin: 0 3px 0 8px; }
+.wf-scale { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; margin-bottom: 4px; }
+.wf-legend { font-size: 11.5px; margin-top: 6px; }
+.run-tool { border-top: 1px solid var(--border); padding: 10px 0; }
+.run-tool:first-child { border-top: none; }
+.run-card { margin: 8px 0 0 12px; padding: 8px 10px; border-left: 3px solid var(--border); }
+.run-card-head { margin-bottom: 4px; }
+.run-pre { white-space: pre-wrap; font-size: 11.5px; max-height: 320px; overflow: auto; margin: 4px 0; }
+.run-text { max-width: 860px; }
+.metrics-table.compact td, .metrics-table.compact th { padding: 3px 8px; font-size: 12.5px; }
+.row-bad td { color: var(--error-text); }
+.secondary-link { font-size: 13px; }
+.warm-line { min-height: 1.4em; margin: 4px 0 0; font-size: 12.5px; }

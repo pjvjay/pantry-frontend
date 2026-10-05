@@ -3,7 +3,7 @@ import { ErrorBanner, JsonView } from '../components/common';
 import Markdown from '../components/Markdown';
 import { EvalCard, PlanCard, Reasoning, RecipeImages, imagesIn } from '../components/flow';
 import { BurrLink, LlmCalls } from '../components/plan';
-import { agentChat, agentOptions } from '../hub';
+import { agentChat, agentOptions, agentWarm } from '../hub';
 import { ChatMeter } from '../telemetry';
 import type { AgentEvent, AgentOptions, Evals, LlmCallTrace } from '../types';
 
@@ -226,6 +226,26 @@ export default function AssistantView() {
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [items]);
 
+  // A local model starts reading its instructions as soon as it is chosen: by the time the
+  // question is typed, the first step has only the question left to read.
+  const [warm, setWarm] = useState('');
+  useEffect(() => {
+    if (!model.startsWith('ollama:') || !target) { setWarm(''); return; }
+    let live = true;
+    const started = Date.now();
+    setWarm('reading its instructions and tools ahead of your question…');
+    agentWarm({ model, target, disclosure })
+      .then((r) => {
+        if (!live) return;
+        const secs = Math.round((Date.now() - started) / 1000);
+        setWarm(r.prompt_tokens && r.prompt_tokens > 50
+          ? `ready: read its instructions and tools (${r.prompt_tokens.toLocaleString()} tokens) in ${secs} s`
+          : 'ready: its instructions and tools were already read');
+      })
+      .catch(() => { if (live) setWarm(''); });
+    return () => { live = false; };
+  }, [model, target, disclosure]);
+
   const send = async (message: string) => {
     if (!message.trim() || busy) return;
     setBusy(true);
@@ -353,6 +373,8 @@ export default function AssistantView() {
           Through <strong>pantry-recipes</strong> it can read a recipe page with the gateway's
           fetch tool but cannot write; the direct <strong>pantry</strong> server has no fetch.
         </p>
+        {/* always rendered, so the line appearing never moves the chat below it */}
+        <p className="muted warm-line">{warm || '\u00a0'}</p>
       </section>
 
       <ErrorBanner error={error} />

@@ -496,6 +496,56 @@ export interface Trace extends TraceSummary {
   spans: Span[];
 }
 
+// One run as every system saw it (GET /hub/runs/{id}): the hub's trace with pantry's steps at
+// Burr's recorded times, each plan call's Burr run, and each tool call's ContextForge trace.
+export interface BurrStep {
+  action: string;
+  sequence_id: number;
+  start_ms: number | null;
+  end_ms: number | null;
+  ms: number | null;
+  inputs: unknown;
+  result: unknown;
+  exception: string | null;
+  changed: Record<string, unknown>;
+}
+
+export interface BurrRun {
+  tool_span: string;
+  app_id: string;
+  ui_url: string;
+  steps: BurrStep[];
+  note?: string;
+}
+
+export interface GatewaySpan {
+  name: string;
+  status: string;
+  duration_ms: number | null;
+  start_ms: number | null;
+  attributes: Record<string, unknown>;
+}
+
+export interface GatewayTrace {
+  tool_span: string;
+  trace_id: string;
+  name?: string;
+  status?: string;
+  http_status?: number;
+  duration_ms?: number;
+  start_ms?: number | null;
+  attributes?: Record<string, unknown>;
+  spans?: GatewaySpan[];
+  note?: string;
+}
+
+export interface RunDetail {
+  trace: Trace;
+  burr: BurrRun[];
+  gateway: GatewayTrace[];
+  links: { burr_ui: string; contextforge: string };
+}
+
 export type MetricsRow = Record<string, string | number | null>;
 
 export interface Metrics {
