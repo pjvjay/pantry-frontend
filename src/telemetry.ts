@@ -104,13 +104,17 @@ function observePage(): void {
     }
   }, { durationThreshold: 40 });
   observe('longtask', (e) => { page.long_tasks += 1; page.long_task_ms += Math.round(e.duration); });
-  let sent = false;
+  // One id per page load: the page reports again whenever its numbers change (an interaction
+  // late in a session counts too), and the hub keeps the last report of each load.
+  const loadId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  let last = '';
   const report = (beacon: boolean) => {
-    if (sent) return;
-    sent = true;
     const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    const now = JSON.stringify({ ...page, n: shifted.size });
+    if (now === last) return;
+    last = now;
     send({
-      kind: 'page', path: window.location.hash || '/',
+      kind: 'page', load_id: loadId, path: window.location.hash || '/',
       ttfb_ms: nav ? Math.round(nav.responseStart) : null,
       dom_ready_ms: nav ? Math.round(nav.domContentLoadedEventEnd) : null,
       load_ms: nav ? Math.round(nav.loadEventEnd) : null,
@@ -120,6 +124,7 @@ function observePage(): void {
     }, beacon);
   };
   window.setTimeout(() => report(false), 20_000);
+  window.setInterval(() => report(false), 60_000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') { report(true); flushApi(true); }
   });
