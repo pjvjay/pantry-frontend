@@ -96,8 +96,13 @@ function observePage(): void {
       shifted.set(key, (shifted.get(key) ?? 0) + shift.value);
     }
   });
-  observe('event', (e) => { page.inp_ms = Math.max(page.inp_ms, Math.round(e.duration)); },
-    { durationThreshold: 40 });
+  // Interaction to Next Paint: real interactions only (clicks, taps, keys carry an interactionId);
+  // pointer moves while the page is busy are not something the shopper waited on.
+  observe('event', (e) => {
+    if ((e as PerformanceEntry & { interactionId?: number }).interactionId) {
+      page.inp_ms = Math.max(page.inp_ms, Math.round(e.duration));
+    }
+  }, { durationThreshold: 40 });
   observe('longtask', (e) => { page.long_tasks += 1; page.long_task_ms += Math.round(e.duration); });
   let sent = false;
   const report = (beacon: boolean) => {
