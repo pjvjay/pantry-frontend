@@ -52,8 +52,14 @@ export default function MetricsView() {
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
-  const [open, setOpen] = useState<string | null>(
-    () => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('trace'));
+  const traceInHash = () => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('trace');
+  const [open, setOpen] = useState<string | null>(traceInHash);
+  // a "run details" link from an answer, or the back button, changes the hash on this page
+  useEffect(() => {
+    const onHash = () => setOpen(traceInHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
 
   const load = useCallback(() => {
     Promise.all([getMetrics(), traceList(50)])
