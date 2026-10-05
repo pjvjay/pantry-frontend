@@ -11,6 +11,7 @@ import type {
   TripOption,
   WeekPlan,
 } from '../types';
+import { IngredientImage } from './flow';
 
 export const modelShort = (model: string) =>
   model.includes('haiku') ? 'haiku'
@@ -323,6 +324,7 @@ export function PlanView({ plan }: { plan: ShoppingPlan }) {
         <table>
           <thead>
             <tr>
+              <th aria-label="photo" />
               <th>Ingredient</th>
               <th>Matched product</th>
               <th className="num">Price</th>
@@ -333,6 +335,7 @@ export function PlanView({ plan }: { plan: ShoppingPlan }) {
           <tbody>
             {plan.line_items.map((li) => (
               <tr key={li.line_no}>
+                <td><IngredientImage name={li.ingredient_name.split(' + ')[0]} size={40} /></td>
                 <td>
                   {li.ingredient_name}
                   {li.also_lines && li.also_lines.length > 0 && (
