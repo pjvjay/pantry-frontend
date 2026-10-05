@@ -21,7 +21,7 @@ const fmt = (key: string, v: unknown): string => {
 
 const LABELS: Record<string, string> = {
   turn_p50_ms: 'turn p50', turn_p95_ms: 'turn p95', step_p50_ms: 'step p50', step_p95_ms: 'step p95',
-  ttft_p50_ms: 'first token p50', read_tok_s: 'read tok/s', write_tok_s: 'write tok/s',
+  ttft_p50_ms: 'first token p50', queued_p95_ms: 'queued p95', read_tok_s: 'read tok/s', write_tok_s: 'write tok/s',
   cached_share: 'cached', prompt_tokens_p50: 'prompt tokens p50', tokens_in_per_turn: 'in/turn',
   tokens_out_per_turn: 'out/turn', cost_per_turn_usd: 'cost/turn (paid)', answered_share: 'answered',
   answer_confidence: 'confidence', steps_per_turn: 'steps/turn', gateway_overhead_p50_ms: 'gateway overhead',
@@ -87,13 +87,15 @@ export default function MetricsView() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [error, setError] = useState('');
+  const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState<string | null>(
     () => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('trace'));
 
   const load = useCallback(() => {
     Promise.all([getMetrics(), traceList(50)])
       .then(([m, t]) => { setMetrics(m); setTraces(t); setError(''); })
-      .catch((e: Error) => setError(e.message));
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoaded(true));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -116,14 +118,17 @@ export default function MetricsView() {
         </p>
       </section>
       <ErrorBanner error={error} />
+      {/* everything below arrives at once: sections filling in one by one moved the ones under
+          them (a layout shift of 0.22 on this page) */}
+      {!loaded && <p className="muted">Loading metrics…</p>}
       {metrics && (
         <>
           <section className="panel">
             <h3>Models</h3>
             <Table rows={metrics.models} keys={['model', 'turns', 'answered_share', 'answer_confidence',
-              'turn_p50_ms', 'turn_p95_ms', 'steps_per_turn', 'step_p50_ms', 'ttft_p50_ms', 'read_tok_s',
-              'write_tok_s', 'cached_share', 'prompt_tokens_p50', 'tokens_in_per_turn', 'tokens_out_per_turn',
-              'cost_per_turn_usd']} />
+              'turn_p50_ms', 'turn_p95_ms', 'steps_per_turn', 'step_p50_ms', 'ttft_p50_ms', 'queued_p95_ms',
+              'read_tok_s', 'write_tok_s', 'cached_share', 'prompt_tokens_p50', 'tokens_in_per_turn',
+              'tokens_out_per_turn', 'cost_per_turn_usd']} />
             <p className="muted">
               Cost is what the turn's tokens would cost on a paid key (local models: $0; Gemini's free tier
               bills nothing but allows {metrics.free_tier_requests_per_day} requests per model per day).
@@ -173,7 +178,7 @@ export default function MetricsView() {
           </section>
         </>
       )}
-      <section className="panel">
+      {loaded && <section className="panel">
         <h3>Recent turns</h3>
         {traces.length === 0 ? <p className="muted">No Assistant turns yet.</p> : (
           <div className="table-wrap">
@@ -199,7 +204,7 @@ export default function MetricsView() {
             </table>
           </div>
         )}
-      </section>
+      </section>}
     </div>
   );
 }

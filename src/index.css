@@ -270,6 +270,9 @@ footer { margin-top: 40px; color: var(--muted); font-size: 13px; text-align: cen
 }
 .tab:hover { color: var(--text); }
 .tab-active { color: var(--accent); border-bottom-color: var(--accent); }
+/* the footer starts below the fold, so a view filling in as its data arrives moves nothing on
+   screen (no layout shift) */
+.view { min-height: 100vh; }
 .view h2 { margin: 0 0 4px; font-size: 18px; }
 .view h3 { font-size: 15px; }
 .view h4 { margin: 16px 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
