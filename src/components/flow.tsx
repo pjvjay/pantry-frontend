@@ -1,4 +1,4 @@
-// The agentic flow made visible: a plan as a card of ingredient photos, a recipe page's images,
+// The agentic flow made visible: an ingredient's photo, a recipe page's images,
 // a step's reasoning, the answer's evals and confidence, and a turn's trace as a waterfall of
 // spans from every layer (browser, model, tools, gateway, pantry's own steps and LLM calls).
 import { useState } from 'react';
@@ -6,7 +6,6 @@ import { ingredientImage, remoteImage } from '../hub';
 import type { Evals, PlanConfidence, Span, Trace } from '../types';
 
 const pct = (v: number | null | undefined) => (v == null ? '–' : `${Math.round(v * 100)}%`);
-const money = (v: unknown) => (typeof v === 'number' ? `$${v.toFixed(2)}` : '–');
 export const dur = (ms: number | null | undefined) => {
   if (ms == null) return '–';
   if (ms < 1000) return `${Math.round(ms)} ms`;
@@ -22,68 +21,6 @@ export function IngredientImage({ name, size = 56 }: { name: string; size?: numb
   return (
     <img className="ing-img" src={ingredientImage(name)} alt={name} width={size} height={size}
          loading="lazy" onError={() => setFailed(true)} />
-  );
-}
-
-type Line = {
-  ingredient: string; product: string; store?: string; price?: number; trip_store?: string;
-  trip_price?: number | null; origin_country?: string; origin_status?: string;
-  confidence?: number; match?: string; size?: string;
-};
-type Summary = {
-  recipe_name?: string; total_cost?: number; lines?: Line[]; origin_status?: string;
-  trip?: { stores: string[]; total_cost: number; travel_cost?: number } | null;
-  not_stocked?: { ingredient: string }[]; out_of_range?: { ingredient: string; reason?: string }[];
-  skipped?: { ingredient: string }[];
-};
-
-// A plan tool's result as the shopper would read it: one tile per purchase with its photo,
-// where the recommended trip buys it, the price there, the origin and the planner's confidence.
-export function PlanCard({ summary }: { summary: Summary }) {
-  const lines = summary.lines ?? [];
-  const left = [...(summary.not_stocked ?? []), ...(summary.out_of_range ?? []), ...(summary.skipped ?? [])];
-  return (
-    <div className="plan-card">
-      <div className="plan-card-head">
-        <strong>{summary.recipe_name ?? 'Plan'}</strong>
-        <span className="muted">
-          {lines.length} item(s) · {money(summary.total_cost)}
-          {summary.trip && <> · trip {summary.trip.stores.join(' → ')} {money(summary.trip.total_cost)} with travel</>}
-          {summary.origin_status && summary.origin_status !== 'not_requested' && <> · origin {summary.origin_status}</>}
-        </span>
-      </div>
-      <div className="plan-tiles">
-        {lines.map((l) => (
-          <div key={`${l.ingredient}-${l.product}`} className="plan-tile">
-            <IngredientImage name={l.ingredient} />
-            <div className="plan-tile-body">
-              <div className="plan-tile-ing">{l.ingredient}</div>
-              <div className="plan-tile-prod">{l.product}</div>
-              <div className="muted">
-                {l.trip_store || l.store || 'no store chosen'} · {money(l.trip_price ?? l.price)}
-              </div>
-              <div className="plan-tile-tags">
-                {(l.origin_country || l.origin_status) && (
-                  <span className={`chip ${l.origin_status === 'resolved' ? 'chip-ok' : 'chip-muted'}`}>
-                    {l.origin_country || l.origin_status}
-                  </span>
-                )}
-                {l.match && l.match !== 'exact' && <span className="chip chip-warn">{l.match} match</span>}
-                {l.confidence != null && (
-                  <span className="confidence" title="the planner's confidence in this product">
-                    <span className="confidence-fill" style={{ width: pct(l.confidence) }} />
-                    <span className="confidence-label">{pct(l.confidence)}</span>
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      {left.length > 0 && (
-        <div className="muted">not planned: {left.map((d) => d.ingredient).join(', ')}</div>
-      )}
-    </div>
   );
 }
 

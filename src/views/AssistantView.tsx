@@ -1,7 +1,9 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBanner, JsonView } from '../components/common';
 import Markdown from '../components/Markdown';
-import { EvalCard, PlanCard, Reasoning, RecipeImages, imagesIn } from '../components/flow';
+import { AskContext, CartCard, PlanStrip } from '../components/cart';
+import type { CartSummary, PlanCardData } from '../components/cart';
+import { EvalCard, Reasoning, RecipeImages, imagesIn } from '../components/flow';
 import { BurrLink, LlmCalls } from '../components/plan';
 import { agentChat, agentOptions, agentWarm } from '../hub';
 import { ChatMeter } from '../telemetry';
@@ -123,7 +125,8 @@ function CallProgress({ w }: { w: Waiting }) {
 
 type Item =
   | { kind: 'user'; text: string }
-  | { kind: 'assistant'; text: string }
+  // `plans`: the turn's plans, drawn as carts under the model's own sentences (`reply`)
+  | { kind: 'assistant'; text: string; reply?: string; plans?: PlanCardData[] }
   | { kind: 'tool'; id: string; name: string; arguments: Record<string, unknown>;
       result?: Extract<AgentEvent, { type: 'tool_result' }> }
   | { kind: 'error'; text: string }
@@ -170,7 +173,7 @@ function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
           : <JsonView value={r.text} label={r.is_error ? 'error' : 'text result'} open={r.is_error} />)}
       </div>
     </details>
-    {isPlan && <PlanCard summary={summary as Parameters<typeof PlanCard>[0]['summary']} />}
+    {isPlan && <PlanStrip summary={summary as CartSummary} />}
     {photos.length > 0 && <RecipeImages urls={photos} />}
     {calls.length > 0 && <LlmCalls calls={calls} heading="inside pantry:" />}
     {trace.burr_run && (
@@ -184,7 +187,19 @@ function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
 // redrawing the others, which matters once a conversation holds long answers and tool results.
 const ChatItem = memo(function ChatItem({ it }: { it: Item }) {
   if (it.kind === 'user') return <div className="bubble bubble-user">{it.text}</div>;
-  if (it.kind === 'assistant') return <div className="bubble bubble-agent"><Markdown text={it.text} /></div>;
+  if (it.kind === 'assistant') {
+    // every plan drawn as a cart; a week plan keeps the hub's Markdown tables
+    const plans = it.plans ?? [];
+    if (plans.length > 0 && plans.every((c) => c.kind === 'plan')) {
+      return (
+        <div className="bubble bubble-agent bubble-cart">
+          {it.reply && <Markdown text={it.reply} />}
+          {plans.map((c, i) => <CartCard key={i} summary={c.summary} />)}
+        </div>
+      );
+    }
+    return <div className="bubble bubble-agent"><Markdown text={it.text} /></div>;
+  }
   if (it.kind === 'tool') return <ToolCard item={it} />;
   if (it.kind === 'reasoning') return <Reasoning text={it.text} label={`step ${it.step} reasoning`} />;
   if (it.kind === 'evals') return <EvalCard evals={it.evals} traceId={it.traceId} />;
@@ -214,6 +229,9 @@ export default function AssistantView() {
   const [waiting, setWaiting] = useState<Waiting | null>(null);
   const abort = useRef<AbortController | null>(null);
   const bottom = useRef<HTMLDivElement | null>(null);
+  const box = useRef<HTMLTextAreaElement | null>(null);
+  // a cart's swap button: the request goes in the message box, for the shopper to send or edit
+  const ask = useCallback((text: string) => { setInput(text); box.current?.focus(); }, []);
 
   useEffect(() => {
     agentOptions().then((o) => {
@@ -297,7 +315,8 @@ export default function AssistantView() {
             case 'tools_offered':
               return [...prev, { kind: 'observe', tone: 'tools', label: `discover_tools → + ${short(e.added)}`, detail: e.reason.replace(/^discover_tools:/, 'asked for: ') }];
             case 'assistant':
-              return [...prev, { kind: 'assistant', text: e.text }];
+              return [...prev, { kind: 'assistant', text: e.text, reply: e.reply,
+                                 plans: e.plans as PlanCardData[] | undefined }];
             case 'tool_call':
               return [...prev, { kind: 'tool', id: e.id, name: e.name, arguments: e.arguments }];
             case 'tool_result':
@@ -389,7 +408,9 @@ export default function AssistantView() {
             ))}
           </div>
         )}
-        {items.map((it, i) => <ChatItem key={i} it={it} />)}
+        <AskContext.Provider value={ask}>
+          {items.map((it, i) => <ChatItem key={i} it={it} />)}
+        </AskContext.Provider>
         {busy && (
           <div className="chat-meta">
             {waiting ? <CallProgress w={waiting} /> : 'working…'}
@@ -399,7 +420,7 @@ export default function AssistantView() {
       </div>
 
       <form className="chat-input" onSubmit={(e) => { e.preventDefault(); void send(input); }}>
-        <textarea rows={2} value={input} placeholder="Ask about a recipe link, a product, a week of dinners…"
+        <textarea ref={box} rows={2} value={input} placeholder="Ask about a recipe link, a product, a week of dinners…"
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input); }
