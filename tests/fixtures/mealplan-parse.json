@@ -1,0 +1,87 @@
+{
+ "selections": [
+  {
+   "input": "3 Pepperoni Pizza",
+   "name": "Pepperoni Pizza",
+   "count": 3,
+   "count_stated": true,
+   "slot_hint": null,
+   "status": "matched",
+   "matched_as": {
+    "recipe_key": "starter:pepperoni_pizza",
+    "title": "Pepperoni Pizza",
+    "kind": "starter",
+    "label": "demo starter",
+    "slot": "dinner",
+    "how": "exact",
+    "distance": 0
+   },
+   "needs_confirmation": false,
+   "candidates": [],
+   "meaning": "3 \u00d7 Pepperoni Pizza = 3 dinners for 2 people"
+  },
+  {
+   "input": "2 Chicken Fried Rice",
+   "name": "Chicken Fried Rice",
+   "count": 2,
+   "count_stated": true,
+   "slot_hint": null,
+   "status": "matched",
+   "matched_as": {
+    "recipe_key": "starter:chicken_fried_rice",
+    "title": "Chicken Fried Rice",
+    "kind": "starter",
+    "label": "demo starter",
+    "slot": "dinner",
+    "how": "exact",
+    "distance": 0
+   },
+   "needs_confirmation": false,
+   "candidates": [],
+   "meaning": "2 \u00d7 Chicken Fried Rice = 2 dinners for 2 people"
+  },
+  {
+   "input": "3 chicken briyani",
+   "name": "chicken briyani",
+   "count": 3,
+   "count_stated": true,
+   "slot_hint": null,
+   "status": "matched",
+   "matched_as": {
+    "recipe_key": "starter:chicken_biryani",
+    "title": "Chicken Biryani",
+    "kind": "starter",
+    "label": "demo starter",
+    "slot": "dinner",
+    "how": "alias",
+    "distance": 0
+   },
+   "needs_confirmation": true,
+   "candidates": [],
+   "meaning": "3 \u00d7 Chicken Biryani = 3 dinners for 2 people"
+  },
+  {
+   "input": "7 mango milkshakes",
+   "name": "mango milkshakes",
+   "count": 7,
+   "count_stated": true,
+   "slot_hint": null,
+   "status": "matched",
+   "matched_as": {
+    "recipe_key": "starter:mango_milkshake",
+    "title": "Mango Milkshake",
+    "kind": "starter",
+    "label": "demo starter",
+    "slot": "snack",
+    "how": "plural",
+    "distance": 0
+   },
+   "needs_confirmation": false,
+   "candidates": [],
+   "meaning": "7 \u00d7 Mango Milkshake = 7 snacks for 2 people"
+  }
+ ],
+ "unmatched": [],
+ "period_days": 14,
+ "warnings": []
+}
