@@ -86,6 +86,17 @@ test('every amount says where it came from, and a transcribed line asks to be ch
   assert.equal(basisBadge(line({ amount_basis: 'written_by_assistant' })).tone, 'warn');
 });
 
+test('a line with no amount says whose text gave none, never that an amount was stated', () => {
+  assert.deepEqual(basisBadge(line({ quantity: null })), { text: 'the source gives none', tone: 'muted' });
+  assert.deepEqual(basisBadge(line({ quantity: null, amount_basis: 'parsed_from_your_paste' })),
+    { text: 'none in your paste', tone: 'muted' });
+  assert.equal(basisBadge(line({ quantity: null, amount_basis: 'demo_house_amounts' })).text, 'no demo amount');
+  assert.equal(basisBadge(line({ quantity: null, amount_basis: 'written_by_assistant' })).text, 'none written');
+  // a transcribed line is still to be checked against the video, amount or not
+  assert.equal(basisBadge(line({ quantity: null, amount_basis: 'transcribed_confirmed_by_you',
+                                 confirmed: false })).text, 'transcribed: check it');
+});
+
 test('the source sentence names the site, the channel and the method as the doc states them', () => {
   assert.equal(sourceText(pageDoc().source),
     "From blog.example: the page's schema.org recipe (JSON-LD).");
@@ -164,6 +175,15 @@ test('servings the source does not state are the shopper\'s, labelled so; a stat
     assert.equal(d.servings_basis, null);
   }
   assert.equal(withServings(pageDoc(), 9).servings, 4);
+});
+
+test('an answered servings count takes away the reader\'s "servings not stated", and a cleared one puts it back', () => {
+  const unstated = { ...videoDoc(), warnings: ['servings not stated', 'line 3 (salt) states no amount'] };
+  const answered = withServings(unstated, 2);
+  assert.deepEqual(answered.warnings, ['line 3 (salt) states no amount']);
+  assert.deepEqual(withServings(answered, null).warnings,
+    ['servings not stated', 'line 3 (salt) states no amount']);
+  assert.deepEqual(withServings(unstated, null).warnings, unstated.warnings);
 });
 
 test('a doc needs a name to be ready', () => {

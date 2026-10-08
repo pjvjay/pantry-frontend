@@ -47,12 +47,20 @@ export function amountText(line: Pick<RecipeLine, 'quantity' | 'unit'>): string 
 export type Tone = 'ok' | 'warn' | 'muted';
 
 // Where a line's amount came from, in words, next to every amount. A transcribed line says it
-// needs checking until the shopper ticks it.
-export function basisBadge(line: Pick<RecipeLine, 'amount_basis' | 'confirmed'>): { text: string; tone: Tone } {
+// needs checking until the shopper ticks it. A line with no amount says whose text gave none,
+// rather than calling a missing amount "stated".
+export function basisBadge(line: Pick<RecipeLine, 'amount_basis' | 'confirmed' | 'quantity'>): { text: string; tone: Tone } {
   const b: AmountBasis = line.amount_basis;
   if (b === 'transcribed_confirmed_by_you') {
     return line.confirmed ? { text: 'transcribed, checked by you', tone: 'ok' }
       : { text: 'transcribed: check it', tone: 'warn' };
+  }
+  if (line.quantity == null) {
+    const none: Record<Exclude<AmountBasis, 'transcribed_confirmed_by_you'>, string> = {
+      stated_by_source: 'the source gives none', parsed_from_your_paste: 'none in your paste',
+      demo_house_amounts: 'no demo amount', written_by_assistant: 'none written',
+    };
+    return { text: none[b], tone: 'muted' };
   }
   if (b === 'stated_by_source') return { text: 'stated by the source', tone: 'ok' };
   if (b === 'parsed_from_your_paste') return { text: 'from your paste', tone: 'muted' };
@@ -155,12 +163,20 @@ export function removeLine(doc: RecipeDoc, lineNo: number): RecipeDoc {
 
 export const retitle = (doc: RecipeDoc, title: string): RecipeDoc => ({ ...doc, title });
 
+// parse-lines' note for a recipe that states no servings count
+const NOT_STATED = 'servings not stated';
+
 // The shopper's answer to "How many does this recipe serve?", labelled as theirs. A source's
-// own count is not replaced. Anything but a whole 1..100 clears the answer.
+// own count is not replaced. Anything but a whole 1..100 clears the answer. Once answered, the
+// reader's "servings not stated" note goes, so the doc does not say both; the label says whose
+// number it is.
 export function withServings(doc: RecipeDoc, servings: number | null): RecipeDoc {
   if (doc.servings_stated) return doc;
   const ok = servings != null && Number.isInteger(servings) && servings >= 1 && servings <= MAX_SERVINGS;
-  return { ...doc, servings: ok ? servings : null, servings_basis: ok ? 'your_setting' : null };
+  const warnings = doc.warnings.filter((w) => w !== NOT_STATED);
+  return { ...doc, servings: ok ? servings : null, servings_basis: ok ? 'your_setting' : null,
+           warnings: ok ? warnings : warnings.length < doc.warnings.length ? doc.warnings
+             : [NOT_STATED, ...doc.warnings].slice(0, 20) };
 }
 
 // Why the doc cannot be planned, saved or added yet, or null when it can.
