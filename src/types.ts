@@ -13,6 +13,63 @@ export interface Recipe {
   ingredients: RecipeIngredient[];
 }
 
+// ─── a recipe as reviewed lines (RecipeDoc) ──────────────────
+// One shape for every recipe the meal plan and the planner take: library recipes, demo
+// starters, the shopper's own, imported pages and videos, and dishes the Assistant writes. What
+// the shopper reviews is exactly what gets planned (POST /plan/spec), so every amount says where
+// it came from. pantry-api's models.py is to define the same model; until it does, this follows
+// the agreed design, so check the two against each other when it lands.
+
+export type RecipeKey = `lib:${string}` | `starter:${string}` | `my:${string}` | `imp:${number}`
+  | `asst:${number}`;
+
+// Shown next to every amount: never presented as more certain than its source.
+export type AmountBasis = 'stated_by_source' | 'demo_house_amounts' | 'parsed_from_your_paste'
+  | 'transcribed_confirmed_by_you' | 'written_by_assistant';
+
+export interface RecipeLine {
+  line_no: number;
+  text: string;                    // verbatim, as the source wrote it
+  name: string;
+  quantity: number | null;         // null: the source states no amount
+  unit: string;
+  note: string;
+  // where in the source the line is: a quote, or mm:ss in a video
+  evidence: { quote?: string | null; at?: string | null } | null;
+  // false only for lines transcribed from a video, until the shopper ticks them; such a line
+  // is never planned
+  confirmed: boolean;
+  amount_basis: AmountBasis;
+}
+
+export interface RecipeSource {
+  kind: 'library' | 'starter' | 'pasted' | 'web' | 'youtube' | 'assistant';
+  method: 'db' | 'seed' | 'paste' | 'jsonld' | 'microdata' | 'youtube_description'
+    | 'youtube_linked_page' | 'gemini_video' | 'agent_written';
+  url?: string | null;
+  site?: string | null;
+  page_title?: string | null;
+  author?: string | null;
+  channel?: string | null;
+  retrieved_at?: string | null;
+  extractor?: string | null;
+  model?: string | null;
+  label?: string | null;           // e.g. "demo recipe"
+}
+
+export interface RecipeDoc {
+  v: 1;
+  key: RecipeKey;
+  title: string;
+  servings: number | null;         // null: not stated, and never taken as 1
+  servings_stated: boolean;
+  servings_basis: 'source' | 'your_setting' | null;
+  yield_text: string;              // verbatim
+  lines: RecipeLine[];             // ingredient lines only, at most 60; method text is never kept
+  source: RecipeSource;
+  warnings: string[];
+}
+
 export interface PlanLineItem {
   line_no: number;
   ingredient_name: string;
@@ -31,6 +88,9 @@ export interface PlanLineItem {
   match?: 'exact' | 'form' | 'generic';
   also_lines?: number[];
   packs?: number;
+  // how much the recipe needs, when it says (from pantry-api's planning with amounts)
+  need_qty?: number | null;
+  need_uom?: string | null;
 }
 
 // An ingredient a partial plan (allow_partial) left out instead of aborting.
@@ -135,6 +195,69 @@ export interface ShoppingPlan {
   out_of_range?: DroppedIngredient[];
   skipped?: DroppedIngredient[];
   ingredient_count?: number;
+  servings?: number;
+  basis?: PlanBasis | null;
+}
+
+// ─── what a plan was built from (PlanBasis) ──────────────────
+// Everything needed to re-rank or re-price a plan without asking a model again: the planned
+// lines, the constraints, the location and origin rules, what was left out, and the shopper's
+// pins. The console never reads into it; it holds a meal plan's basis and sends it back to the
+// alternatives and re-pricing endpoints, which validate it. As with RecipeDoc, pantry-api's
+// models.py is to define it, and this follows the agreed design until then.
+
+export interface BasisLine {
+  line_no: number;
+  name: string;
+  form: string | null;
+  prep: string | null;
+  quantity: number | null;
+  unit: string | null;
+  level: 'exact' | 'form' | 'generic';
+  product_id: number | null;
+  confidence: number | null;
+}
+
+// The shopper's own choice for a line, which the planner keeps.
+export interface Pin {
+  line_no: number;
+  product_id: number;
+}
+
+// nlsearch Constraints, as parsed from the request.
+export interface PlanConstraints {
+  max_item_price: number | null;
+  max_total_budget: number | null;
+  max_distance_km: number | null;
+  exclude_tags: string[];
+  require_tags: string[];
+  categories: string[];
+  exclude_categories: string[];
+  subcategories: string[];
+  exclude_subcategories: string[];
+  soft_text: string;
+}
+
+export interface PlanBasis {
+  v: 1;
+  path: 'nl' | 'library';
+  recipe_slug: string | null;
+  recipe_name: string;
+  lines: BasisLine[];
+  constraints: PlanConstraints;
+  lat: number | null;
+  lon: number | null;
+  max_km: number | null;
+  exclude_origin: string[];
+  preference: string[];
+  origin_requested: boolean;
+  origin_dropped: unknown[];       // pantry-api's own record; passed back as it came
+  interpretation: string[];
+  not_stocked: DroppedIngredient[];
+  out_of_range: DroppedIngredient[];
+  skipped: DroppedIngredient[];
+  ingredient_count: number;
+  pins: Pin[];
 }
 
 // 5A: weekly menu optimizer (/plan/week)
@@ -368,6 +491,38 @@ export interface JsonSchema {
   title?: string;
   [key: string]: unknown;
 }
+
+// ─── a plan as a shopping cart (the hub's plan cards) ────────
+// The Assistant's answer carries each plan as a card (`plans` on the 'assistant' event), drawn
+// by components/cart.tsx. The types live here so pure modules can build carts too (a meal-plan
+// trip is drawn as one). The fields marked "with …" come from hubs that have that feature; all
+// are optional, so a card from an older hub renders as before.
+
+export type CartLine = {
+  ingredient: string; product: string; product_id?: number; store?: string; price?: number;
+  trip_store?: string; trip_price?: number | null; origin_country?: string; origin_status?: string;
+  confidence?: number; match?: string; packs?: number;
+  // with cart alternatives: the recipe line this purchase is for, and the other lines it covers
+  line_no?: number; also_lines?: number[];
+  brand?: string; size?: string;
+  // with the meal plan: a muted note ("for 3 meals: …") and a warning ("amount unknown")
+  note?: string; warn?: string;
+};
+export type LeftOut = { ingredient: string; reason?: string; suggestions?: string[] };
+export type CartSummary = {
+  recipe_name?: string; total_cost?: number; lines?: CartLine[]; origin_status?: string;
+  coverage?: { spend_fraction?: number; lines_known?: number; lines_total?: number } | null;
+  trip?: { stores: string[]; total_cost: number; basket_cost?: number; travel_cost?: number } | null;
+  not_stocked?: LeftOut[]; out_of_range?: LeftOut[]; skipped?: LeftOut[];
+};
+export type PlanCardData = {
+  kind: 'plan' | 'week'; summary: CartSummary;
+  // with cart alternatives: the hub's tool_log index of the plan behind the card, which the
+  // Options dialog and a swap name, and the lines the shopper has pinned
+  ref?: number; pinned_lines?: number[];
+  // with the meal plan: links the card offers, such as a week card's "Open in Meal plan"
+  links?: { label: string; href: string }[];
+};
 
 // Every event is stamped by the hub: `ts` ms since the turn began, `at` epoch ms when it was sent
 // (the browser measures how late it arrived).

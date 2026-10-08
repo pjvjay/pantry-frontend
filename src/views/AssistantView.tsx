@@ -2,12 +2,13 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBanner, JsonView } from '../components/common';
 import Markdown from '../components/Markdown';
 import { AskContext, CartCard, PlanStrip } from '../components/cart';
-import type { CartSummary, PlanCardData } from '../components/cart';
 import { EvalCard, Reasoning, RecipeImages, imagesIn } from '../components/flow';
 import { BurrLink, LlmCalls } from '../components/plan';
 import { agentChat, agentOptions, agentWarm } from '../hub';
 import { ChatMeter } from '../telemetry';
-import type { AgentEvent, AgentOptions, Evals, LlmCallTrace } from '../types';
+import type {
+  AgentEvent, AgentOptions, CartSummary, Evals, LlmCallTrace, PlanCardData,
+} from '../types';
 
 const SUGGESTIONS = [
   'I want to make https://omnivorescookbook.com/mala-chicken/ this week. What should I buy at stores within 5 km of downtown, what does it cost, and what won’t I find?',
