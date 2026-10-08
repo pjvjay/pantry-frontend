@@ -17,8 +17,7 @@ export interface Recipe {
 // One shape for every recipe the meal plan and the planner take: library recipes, demo
 // starters, the shopper's own, imported pages and videos, and dishes the Assistant writes. What
 // the shopper reviews is exactly what gets planned (POST /plan/spec), so every amount says where
-// it came from. pantry-api's models.py is to define the same model; until it does, this follows
-// the agreed design, so check the two against each other when it lands.
+// it came from. Mirrors RecipeDoc in pantry-api's models.py, which validates it.
 
 export type RecipeKey = `lib:${string}` | `starter:${string}` | `my:${string}` | `imp:${number}`
   | `asst:${number}`;
@@ -88,9 +87,10 @@ export interface PlanLineItem {
   match?: 'exact' | 'form' | 'generic';
   also_lines?: number[];
   packs?: number;
-  // how much the recipe needs, when it says (from pantry-api's planning with amounts)
+  // the summed need of every line this purchase covers; null when one of them states no amount,
+  // or they are in different units
   need_qty?: number | null;
-  need_uom?: string | null;
+  need_uom?: 'g' | 'ml' | 'each' | null;
 }
 
 // An ingredient a partial plan (allow_partial) left out instead of aborting.
@@ -195,7 +195,7 @@ export interface ShoppingPlan {
   out_of_range?: DroppedIngredient[];
   skipped?: DroppedIngredient[];
   ingredient_count?: number;
-  servings?: number;
+  servings?: number | null;     // null: the recipe does not say, and the plan never claims 1
   basis?: PlanBasis | null;
 }
 
@@ -203,8 +203,8 @@ export interface ShoppingPlan {
 // Everything needed to re-rank or re-price a plan without asking a model again: the planned
 // lines, the constraints, the location and origin rules, what was left out, and the shopper's
 // pins. The console never reads into it; it holds a meal plan's basis and sends it back to the
-// alternatives and re-pricing endpoints, which validate it. As with RecipeDoc, pantry-api's
-// models.py is to define it, and this follows the agreed design until then.
+// alternatives and re-pricing endpoints, which validate it. Mirrors PlanBasis in pantry-api's
+// models.py.
 
 export interface BasisLine {
   line_no: number;
@@ -240,8 +240,10 @@ export interface PlanConstraints {
 
 export interface PlanBasis {
   v: 1;
-  path: 'nl' | 'library';
-  recipe_slug: string | null;
+  // library: a seeded recipe; nl: typed text through the parser; spec: reviewed lines (a
+  // RecipeDoc), planned with no parse
+  path: 'library' | 'nl' | 'spec';
+  recipe_slug: string;
   recipe_name: string;
   lines: BasisLine[];
   constraints: PlanConstraints;
@@ -251,7 +253,7 @@ export interface PlanBasis {
   exclude_origin: string[];
   preference: string[];
   origin_requested: boolean;
-  origin_dropped: unknown[];       // pantry-api's own record; passed back as it came
+  origin_dropped: number;          // how many products the origin exclusion removed
   interpretation: string[];
   not_stocked: DroppedIngredient[];
   out_of_range: DroppedIngredient[];
