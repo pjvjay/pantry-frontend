@@ -81,6 +81,7 @@ test('a day footer reads "≥ N kcal · demo amounts" and says why it is incompl
   assert.deepEqual(dayLine(null, 'unknown'),
     { chip: null, status: 'nutrition unknown: this API does not compute nutrition' });
   assert.match(dayLine(null, 'not_deployed').status, /not deployed/);
+  assert.equal(dayLine(null, undefined).status, 'nutrition not checked yet');
   assert.equal(dayLine(day({ meals: [] }), 'computed').status, 'no meals planned');
 });
 

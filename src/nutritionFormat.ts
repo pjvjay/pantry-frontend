@@ -128,8 +128,10 @@ const BASIS_WORDS: Record<string, string> = {
 export const amountsBasisText = (basis: string[]): string[] =>
   basis.map((b) => BASIS_WORDS[b] ?? b.replace(/_/g, ' '));
 
-// Why there is no figure at all: the API has no nutrition, or its tables are not deployed.
+// Why there is no figure at all: nothing has been checked yet (no answer), the API has no
+// nutrition ('unknown', from an API before it), or its tables are not deployed.
 export function nutritionMissing(coverage: PlanCoverage['nutrition'] | undefined): string {
+  if (coverage === undefined) return 'nutrition not checked yet';
   if (coverage === 'not_deployed') return 'nutrition unknown: the nutrition tables are not deployed';
   if (coverage === 'computed') return 'nutrition unknown';
   return 'nutrition unknown: this API does not compute nutrition';
