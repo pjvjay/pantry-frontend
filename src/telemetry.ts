@@ -152,9 +152,10 @@ export class ChatMeter {
   private lags: number[] = [];
   private renders: number[] = [];
   private events = 0;
+  private model: string;
   traceId = '';
 
-  constructor(private model: string) {}
+  constructor(model: string) { this.model = model; }
 
   opened(): void { this.ttfb = performance.now() - this.started; }
 
