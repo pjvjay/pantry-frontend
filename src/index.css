@@ -721,6 +721,78 @@ tr.row-active td { background: var(--accent-soft); }
   .alt-use { width: 100%; }
 }
 
+/* --- recipe import (components/ImportSheet.tsx) --------------------------------------------- */
+.sheet.import-sheet { width: min(860px, 100%); }
+.import-no-hub {
+  margin: 0 0 10px; padding: 6px 10px; border: 1px dashed var(--line-strong); border-radius: 8px;
+  font-size: 13px;
+}
+.import-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); }
+.import-tab {
+  margin: 0 0 -1px; padding: 8px 14px; min-height: 44px; border-radius: 0; background: none;
+  color: var(--muted); border-bottom: 2px solid transparent;
+}
+.import-tab:hover { color: var(--text); }
+/* the selected tab is said by aria-selected and shown by the underline and the colour */
+.import-tab-active { color: var(--accent); border-bottom-color: var(--accent); }
+.import-panel { padding-top: 10px; }
+.import-form { display: flex; flex-direction: column; gap: 6px; }
+.import-form > button { align-self: flex-start; margin-top: 4px; }
+.import-form p { margin: 0; }
+.import-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.import-field input, .import-field textarea { color: var(--text); }
+.import-field textarea { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.import-error { margin-top: 12px; }
+.import-video { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.import-video p { margin: 0 0 4px; }
+.import-video-title { font-weight: 600; overflow-wrap: anywhere; }
+.import-ways { margin-top: 10px; }
+.import-ways h4 { margin: 0 0 4px; }
+.import-ways p { margin: 0 0 6px; }
+.import-ways button { margin-top: 0; }
+.import-links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.import-links li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.import-link-url { overflow-wrap: anywhere; }
+.import-review { margin-top: 16px; }
+.import-review h3 { margin: 0 0 8px; }
+.import-review > p { margin: 8px 0 0; font-size: 13px; }
+.import-source { color: var(--text); }
+.import-servings { margin-top: 8px; max-width: 360px; }
+.import-check {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 10px;
+  padding: 8px 10px; border: 1px dashed var(--warn); border-radius: 8px;
+}
+.import-table-wrap { margin-top: 10px; }
+.import-table th, .import-table td { padding: 6px 8px; font-size: 13px; }
+.import-table input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+.import-verbatim { overflow-wrap: anywhere; }
+.import-amount { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* said in words ("amount not stated"); the style only quiets it */
+.import-unstated { color: var(--muted); font-style: italic; }
+.import-row-unchecked td { background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.import-badge { white-space: normal; font-weight: 500; }
+.import-quote { font-style: italic; }
+.import-notes { margin: 8px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--muted); }
+.import-notice { min-height: 1.4em; color: var(--accent); }
+.import-ready { margin: 0 auto 0 0; align-self: center; font-size: 12.5px; color: var(--warn); }
+.import-plan { margin-top: 16px; }
+.import-card {
+  margin-top: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); font-size: 13.5px; max-width: 88%;
+}
+.import-card p { margin: 0 0 4px; }
+.import-card-title { overflow-wrap: anywhere; }
+.import-card-failed { border-style: dashed; border-color: var(--warn); }
+.import-card-lines summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+.import-card button { margin-top: 6px; }
+@media (max-width: 640px) {
+  .import-card { max-width: 100%; }
+  .import-form > button, .import-ways button { width: 100%; }
+  /* three actions share two rows instead of taking one each, leaving room for the lines */
+  .import-sheet .sheet-foot button { flex: 1 1 auto; }
+  .import-ready { flex-basis: 100%; }
+}
+
 /* --- the shopper's display settings: these stay last so they win over every rule above ----- */
 
 /* Reduced motion: nothing slides or animates; changes simply appear. */
@@ -743,4 +815,7 @@ tr.row-active td { background: var(--accent-soft); }
   /* a choice that cannot be made now is dimmed by opacity, which forced colours keep; say it
      with the system's disabled colour as well */
   .alt-use[aria-disabled="true"], .cart-item-open[aria-disabled="true"] { color: GrayText; }
+  /* the import tabs' underline is a border, kept; the unselected ones hide theirs */
+  .import-tab { border: none; border-bottom: 2px solid Canvas; }
+  .import-tab-active { border-bottom-color: Highlight; }
 }
