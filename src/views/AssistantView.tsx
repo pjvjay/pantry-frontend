@@ -209,7 +209,18 @@ const ChatItem = memo(function ChatItem({ it }: { it: Item }) {
         </div>
       );
     }
-    return <div className="bubble bubble-agent"><Markdown text={it.text} /></div>;
+    // a week card offers to open the week in the Meal plan; only the console's own routes
+    const links = plans.flatMap((c) => c.links ?? []).filter((l) => l.href.startsWith('#/'));
+    return (
+      <div className="bubble bubble-agent">
+        <Markdown text={it.text} />
+        {links.length > 0 && (
+          <p className="card-links">
+            {links.map((l) => <a key={l.href} className="card-link" href={l.href}>{l.label}</a>)}
+          </p>
+        )}
+      </div>
+    );
   }
   if (it.kind === 'tool') return <ToolCard item={it} />;
   if (it.kind === 'reasoning') return <Reasoning text={it.text} label={`step ${it.step} reasoning`} />;
