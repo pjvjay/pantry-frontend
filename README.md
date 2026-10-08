@@ -19,6 +19,18 @@ npm run dev
 Run the API alongside it (`uvicorn pantry_planner.api:app` in pantry-api), or
 bring up the whole stack with docker-compose from pantry-platform.
 
+## Tests
+
+Logic that needs no browser lives in pure modules (`src/mealplan/*.ts` and
+the others named in `tests/pure-modules.test.ts`): no React, DOM or
+`import.meta.env`, and sibling imports name the `.ts` file. Node runs them
+and `tests/*.test.ts` as they are, stripping the types itself, so there is no
+test framework to install. It needs Node 22.18 or later (CI uses 24):
+
+```bash
+npm test   # node --test "tests/**/*.test.ts"
+```
+
 ## Build the image
 
 ```bash
