@@ -1,13 +1,19 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { RefObject } from 'react';
+import {
+  cartChangeText, cartLineKey, replaceCard, swapAnnouncement, swapBlocked, swapNotice,
+} from '../alternatives';
+import { AlternativesDialog } from '../components/alternatives';
+import type { OptionsTarget } from '../components/alternatives';
 import { ErrorBanner, JsonView } from '../components/common';
 import Markdown from '../components/Markdown';
-import { AskContext, CartCard, PlanStrip } from '../components/cart';
+import { AskContext, CartActions, CartCard, PlanStrip } from '../components/cart';
 import { EvalCard, Reasoning, RecipeImages, imagesIn } from '../components/flow';
 import { BurrLink, LlmCalls } from '../components/plan';
-import { agentChat, agentOptions, agentWarm } from '../hub';
+import { agentChat, agentOptions, agentSwap, agentWarm } from '../hub';
 import { ChatMeter } from '../telemetry';
 import type {
-  AgentEvent, AgentOptions, CartSummary, Evals, LlmCallTrace, PlanCardData,
+  AgentEvent, AgentOptions, CartLine, CartSummary, Evals, LlmCallTrace, PlanCardData, SwapResult,
 } from '../types';
 
 const SUGGESTIONS = [
@@ -126,8 +132,9 @@ function CallProgress({ w }: { w: Waiting }) {
 
 type Item =
   | { kind: 'user'; text: string }
-  // `plans`: the turn's plans, drawn as carts under the model's own sentences (`reply`)
-  | { kind: 'assistant'; text: string; reply?: string; plans?: PlanCardData[] }
+  // `plans`: the turn's plans, drawn as carts under the model's own sentences (`reply`);
+  // `notice`: the shopper changed one of those carts since, which the model has yet to hear
+  | { kind: 'assistant'; text: string; reply?: string; plans?: PlanCardData[]; notice?: string }
   | { kind: 'tool'; id: string; name: string; arguments: Record<string, unknown>;
       result?: Extract<AgentEvent, { type: 'tool_result' }> }
   | { kind: 'error'; text: string }
@@ -195,7 +202,10 @@ const ChatItem = memo(function ChatItem({ it }: { it: Item }) {
       return (
         <div className="bubble bubble-agent bubble-cart">
           {it.reply && <Markdown text={it.reply} />}
-          {plans.map((c, i) => <CartCard key={i} summary={c.summary} />)}
+          {plans.map((c, i) => (
+            <CartCard key={i} summary={c.summary} cardRef={c.ref} pinned={c.pinned_lines} />
+          ))}
+          {it.notice && <p className="cart-notice">{it.notice}</p>}
         </div>
       );
     }
@@ -222,6 +232,8 @@ export default function AssistantView() {
   const [target, setTarget] = useState('');
   const [disclosure, setDisclosure] = useState('progressive');
   const [conversation, setConversation] = useState<string | null>(null);
+  // the conversation's MCP server, from its 'start' event: the sim gateway cannot re-price
+  const [convTarget, setConvTarget] = useState('');
   const [items, setItems] = useState<Item[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -234,6 +246,63 @@ export default function AssistantView() {
   // a cart's swap button: the request goes in the message box, for the shopper to send or edit
   const ask = useCallback((text: string) => { setInput(text); box.current?.focus(); }, []);
 
+  // The cart line whose Options are open, a swap in flight, and what a screen reader hears
+  // after one.
+  const [optionsFor, setOptionsFor] = useState<OptionsTarget | null>(null);
+  const [swapping, setSwapping] = useState(false);
+  const [announce, setAnnounce] = useState('');
+  const itemsNow = useRef(items);
+  itemsNow.current = items;
+  // A swap redraws its card in place; the chat must not scroll away from it.
+  const keepScroll = useRef(false);
+  // The line focus returns to when the dialog closes: the one it was opened from, or the same
+  // line of the card a swap drew in its place (a new element, found by its data-cart-line).
+  const focusLine = useRef('');
+  const returnFocus = useMemo<RefObject<HTMLElement | null>>(() => ({
+    get current() {
+      return focusLine.current
+        ? document.querySelector<HTMLElement>(`[data-cart-line="${focusLine.current}"]`) : null;
+    },
+  }), []);
+
+  const openOptions = useCallback((ref: number, line: CartLine, pinned: boolean) => {
+    if (line.line_no == null) return;
+    focusLine.current = cartLineKey(ref, line.line_no);
+    setOptionsFor({ ref, line, pinned });
+  }, []);
+  const cartActions = useMemo(() => ({ open: openOptions, busy: swapping }),
+    [openOptions, swapping]);
+
+  // "Use this" (or back to the planner's pick): the hub re-prices with no model call, and the
+  // card it returns replaces the one the choice was made in. A refusal is thrown back to the
+  // dialog, which shows it.
+  const choose = async (productId: number | null) => {
+    const t = optionsFor;
+    if (!t || !conversation || t.line.line_no == null) return;
+    const lineNo = t.line.line_no;
+    setSwapping(true);
+    let result: SwapResult;
+    try {
+      result = await agentSwap(conversation, { ref: t.ref, line_no: lineNo, product_id: productId });
+    } catch (e) {
+      setSwapping(false);
+      throw e;
+    }
+    const { card, note } = result;
+    const before = itemsNow.current.flatMap((it) => (it.kind === 'assistant' ? it.plans ?? [] : []))
+      .find((c) => c.ref === t.ref);
+    focusLine.current = cartLineKey(card.ref ?? t.ref, lineNo);
+    keepScroll.current = true;
+    setItems((prev) => prev.map((it) => {
+      if (it.kind !== 'assistant' || !it.plans) return it;
+      const plans = replaceCard(it.plans, t.ref, card);
+      return plans ? { ...it, plans, notice: swapNotice(note) } : it;
+    }));
+    if (before) setAnnounce(swapAnnouncement(before.summary, card.summary, lineNo));
+    setOptionsFor(null);
+    setSwapping(false);
+  };
+
   useEffect(() => {
     agentOptions().then((o) => {
       setOptions(o);
@@ -243,7 +312,10 @@ export default function AssistantView() {
     }).catch((e: Error) => setError(`The demo hub is not reachable: ${e.message}`));
   }, []);
 
-  useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [items]);
+  useEffect(() => {
+    if (keepScroll.current) { keepScroll.current = false; return; }
+    bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [items]);
 
   // A local model starts reading its instructions as soon as it is chosen: by the time the
   // question is typed, the first step has only the question left to read.
@@ -266,11 +338,13 @@ export default function AssistantView() {
   }, [model, target, disclosure]);
 
   const send = async (message: string) => {
-    if (!message.trim() || busy) return;
+    if (!message.trim() || busy || swapping) return;
     setBusy(true);
     setError('');
     setInput('');
-    setItems((prev) => [...prev, { kind: 'user', text: message }]);
+    // a swap's "the assistant sees this with your next message" is answered by this message
+    setItems((prev) => [...prev.map((it) => (it.kind === 'assistant' && it.notice
+      ? { ...it, notice: undefined } : it)), { kind: 'user', text: message }]);
     const controller = new AbortController();
     abort.current = controller;
     let finished = false;
@@ -279,7 +353,10 @@ export default function AssistantView() {
     try {
       await agentChat({ message, conversation_id: conversation, model, target, disclosure }, (e) => {
         meter.event(e as { at?: number; trace_id?: string });
-        if (e.type === 'start') setConversation(e.conversation_id);
+        if (e.type === 'start') {
+          setConversation(e.conversation_id);
+          setConvTarget(e.target);
+        }
         if (e.type === 'done') finished = true;
         if (e.type === 'thinking') setWaiting({ step: e.step, model: e.model, since: Date.now() });
         else if (e.type === 'progress') {
@@ -316,8 +393,10 @@ export default function AssistantView() {
             case 'tools_offered':
               return [...prev, { kind: 'observe', tone: 'tools', label: `discover_tools → + ${short(e.added)}`, detail: e.reason.replace(/^discover_tools:/, 'asked for: ') }];
             case 'assistant':
-              return [...prev, { kind: 'assistant', text: e.text, reply: e.reply,
-                                 plans: e.plans as PlanCardData[] | undefined }];
+              return [...prev, { kind: 'assistant', text: e.text, reply: e.reply, plans: e.plans }];
+            case 'cart_change':
+              // the shopper's change, told to the model ahead of this message
+              return [...prev, { kind: 'meta', text: cartChangeText(e) }];
             case 'tool_call':
               return [...prev, { kind: 'tool', id: e.id, name: e.name, arguments: e.arguments }];
             case 'tool_result':
@@ -353,7 +432,9 @@ export default function AssistantView() {
 
   const reset = () => {
     abort.current?.abort();
+    setOptionsFor(null);
     setConversation(null);
+    setConvTarget('');
     setItems([]);
     setError('');
   };
@@ -410,8 +491,11 @@ export default function AssistantView() {
           </div>
         )}
         <AskContext.Provider value={ask}>
-          {items.map((it, i) => <ChatItem key={i} it={it} />)}
+          <CartActions.Provider value={cartActions}>
+            {items.map((it, i) => <ChatItem key={i} it={it} />)}
+          </CartActions.Provider>
         </AskContext.Provider>
+        <div className="sr-only" role="status">{announce}</div>
         {busy && (
           <div className="chat-meta">
             {waiting ? <CallProgress w={waiting} /> : 'working…'}
@@ -419,6 +503,15 @@ export default function AssistantView() {
         )}
         <div ref={bottom} />
       </div>
+
+      <AlternativesDialog
+        conversationId={conversation}
+        target={optionsFor}
+        blocked={swapBlocked(busy, convTarget)}
+        returnFocus={returnFocus}
+        onChoose={choose}
+        onClose={() => setOptionsFor(null)}
+      />
 
       <form className="chat-input" onSubmit={(e) => { e.preventDefault(); void send(input); }}>
         <textarea ref={box} rows={2} value={input} placeholder="Ask about a recipe link, a product, a week of dinners…"
@@ -428,7 +521,7 @@ export default function AssistantView() {
                   }} />
         {busy
           ? <button type="button" className="secondary" onClick={() => abort.current?.abort()}>Stop</button>
-          : <button disabled={!input.trim() || !options}>Send</button>}
+          : <button disabled={!input.trim() || !options || swapping}>Send</button>}
       </form>
     </div>
   );

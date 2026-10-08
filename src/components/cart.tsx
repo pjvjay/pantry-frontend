@@ -1,11 +1,22 @@
 // A plan as a shopping cart: what to pick up at each store, what it costs, and what could not go
 // in the cart with the swaps the planner found. The tool's JSON stays in its step above.
 import { createContext, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
+import { cartLineKey, isPinned, optionsLabel } from '../alternatives';
 import type { CartLine, CartSummary, LeftOut } from '../types';
 import { IngredientImage } from './flow';
 
 // What a swap button does: put a request in the message box, for the shopper to send or edit.
 export const AskContext = createContext<(text: string) => void>(() => {});
+
+// What a cart line can open: its Options (components/alternatives.tsx). Provided by the
+// Assistant for carts whose plan the hub holds; a line is a button only when the card has a ref
+// and this exists, so a cart from an older hub, or anywhere else, is drawn as before. `busy`
+// while a swap is being made, when a second one would be refused.
+export const CartActions = createContext<{
+  open: (ref: number, line: CartLine, pinned: boolean) => void;
+  busy: boolean;
+} | null>(null);
 
 const money = (v: number | null | undefined) => (typeof v === 'number' ? `$${v.toFixed(2)}` : '–');
 const stem = (w: string) => w.replace(/(es|s)$/, '');
@@ -75,8 +86,14 @@ function listText(summary: CartSummary, groups: Group[], total: number | undefin
   return out.join('\n');
 }
 
-export function CartCard({ summary }: { summary: CartSummary }) {
+export function CartCard({ summary, cardRef, pinned }: {
+  summary: CartSummary;
+  // the hub's ref for the plan behind the card, and the lines the shopper chose the product for
+  cardRef?: number;
+  pinned?: number[];
+}) {
   const ask = useContext(AskContext);
+  const actions = useContext(CartActions);
   const [got, setGot] = useState<Set<string>>(() => new Set());
   const [copied, setCopied] = useState(false);
   const lines = summary.lines ?? [];
@@ -96,6 +113,21 @@ export function CartCard({ summary }: { summary: CartSummary }) {
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
+  // A line the shopper can open Options for is one button (name, notes and "Options"); the
+  // basket checkbox and the price stay outside it.
+  const wrap = (l: CartLine, mine: boolean, body: ReactNode) => {
+    if (!actions || cardRef == null || l.line_no == null) return body;
+    const lineNo = l.line_no;
+    return (
+      <button type="button" className="cart-item-open" aria-haspopup="dialog"
+              aria-label={optionsLabel(l, mine)} data-cart-line={cartLineKey(cardRef, lineNo)}
+              aria-disabled={actions.busy || undefined}
+              onClick={() => { if (!actions.busy) actions.open(cardRef, l, mine); }}>
+        {body}
+        <span className="cart-item-more" aria-hidden="true">Options ›</span>
+      </button>
+    );
+  };
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(listText(summary, groups, total));
@@ -132,16 +164,18 @@ export function CartCard({ summary }: { summary: CartSummary }) {
               const key = `${l.product_id ?? l.product}`;
               const done = got.has(key);
               const unclear = originAsked && !l.origin_country;
+              const mine = isPinned(l, pinned);
               return (
                 <li key={key} className={`cart-item${done ? ' cart-item-done' : ''}`}>
                   <input type="checkbox" checked={done} onChange={() => toggle(key)}
                          aria-label={`${l.product}: in the basket`} />
                   <IngredientImage name={l.ingredient} size={36} />
-                  <div className="cart-item-body">
-                    <div className="cart-item-name">
+                  {wrap(l, mine, <span className="cart-item-body">
+                    <span className="cart-item-name">
                       {l.product}{(l.packs ?? 1) > 1 && <span className="muted"> ×{l.packs}</span>}
-                    </div>
-                    <div className="cart-item-meta">
+                    </span>
+                    <span className="cart-item-meta">
+                      {mine && <span className="cart-mine">Changed by you</span>}
                       {!namesIngredient(l) && <span>for {l.ingredient}</span>}
                       {l.origin_country && <span>{l.origin_country}</span>}
                       {unclear && <span className="cart-flag" title={`origin ${l.origin_status ?? 'unknown'}`}>origin unclear</span>}
@@ -151,8 +185,8 @@ export function CartCard({ summary }: { summary: CartSummary }) {
                           check this pick
                         </span>
                       )}
-                    </div>
-                  </div>
+                    </span>
+                  </span>)}
                   <div className="cart-item-price">{money(priceOf(l))}</div>
                 </li>
               );

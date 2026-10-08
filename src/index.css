@@ -527,7 +527,8 @@ tr.row-active td { background: var(--accent-soft); }
 .cart-item { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 14px; }
 .cart-item input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 .cart .ing-img { width: 36px; height: 36px; border-radius: 6px; }
-.cart-item-name { font-weight: 500; overflow-wrap: anywhere; }
+.cart-item-body { display: block; min-width: 0; }
+.cart-item-name { display: block; font-weight: 500; overflow-wrap: anywhere; }
 .cart-item-meta { display: flex; flex-wrap: wrap; gap: 0 10px; font-size: 12.5px; color: var(--muted); }
 .cart-flag { color: var(--warn); }
 .cart-item-price { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -655,6 +656,19 @@ tr.row-active td { background: var(--accent-soft); }
 }
 
 /* --- the cart's Options (components/alternatives.tsx) ---------------------------------------- */
+/* A cart line that opens Options: a text-styled button, at least 44 px tall for a finger. */
+.cart-item-open {
+  display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; width: 100%;
+  margin: 0 0 0 -6px; padding: 4px 6px; border: 1px solid transparent; border-radius: 8px;
+  background: none; color: inherit; font: inherit; font-weight: inherit; text-align: left;
+}
+.cart-item-open .cart-item-body { flex: 1; }
+.cart-item-open:hover { background: var(--accent-soft); }
+.cart-item-open[aria-disabled="true"] { cursor: default; }
+.cart-item-more { color: var(--accent); font-size: 12.5px; white-space: nowrap; }
+/* said in words, so it does not rest on colour */
+.cart-mine { color: var(--accent); font-weight: 600; }
+.cart-notice { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
 .sheet.alt-sheet { width: min(720px, 100%); }
 .alt-section h3 {
   margin: 14px 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
@@ -721,5 +735,5 @@ tr.row-active td { background: var(--accent-soft); }
   .tab-active { border-bottom-color: Highlight; }
   /* a choice that cannot be made now is dimmed by opacity, which forced colours keep; say it
      with the system's disabled colour as well */
-  .alt-use[aria-disabled="true"] { color: GrayText; }
+  .alt-use[aria-disabled="true"], .cart-item-open[aria-disabled="true"] { color: GrayText; }
 }
