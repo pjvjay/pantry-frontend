@@ -6,6 +6,7 @@
 //   chat: one Assistant turn's stream: time to first byte and to the first event, how late each
 //         event arrived after the hub sent it, how long the page took to paint it.
 // Nothing leaves the machine: the hub stores it next to the traces.
+import { fromConsole } from './consoleRequest';
 
 const ENDPOINT = '/hub/telemetry';
 const FLUSH_MS = 15_000;
@@ -15,6 +16,9 @@ type ApiEntry = { path: string; method: string; status: number; ms: number; serv
 let apiQueue: ApiEntry[] = [];
 let installed = false;
 
+// The regular reports say they come from the console, like every other request that posts to
+// the hub, so the hub's guard lets them in. The beacon (sent as the page is hidden) cannot carry
+// a header at all: the guard has to allow it on this one route.
 function send(record: Record<string, unknown>, beacon = false): void {
   const body = JSON.stringify(record);
   try {
@@ -22,8 +26,8 @@ function send(record: Record<string, unknown>, beacon = false): void {
       navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'application/json' }));
       return;
     }
-    void originalFetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body, keepalive: true }).catch(() => undefined);
+    void originalFetch(ENDPOINT, fromConsole({ method: 'POST', body, keepalive: true }))
+      .catch(() => undefined);
   } catch {
     /* telemetry never breaks the page */
   }
