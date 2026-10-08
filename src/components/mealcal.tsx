@@ -333,7 +333,11 @@ export function MoveSheet({ ctl, mealId, onClose }: {
                 {c.consequence.level === 'warn' && <span aria-hidden="true">⚠ </span>}
                 {SLOT_LABELS[c.slot]}{c.swapWith && !c.blocked ? ' (swap)' : ''}
               </span>
-              <span className="mp-move-why">{c.blocked ?? c.consequence.lines.join(' ')}</span>
+              <span className="mp-move-why" title={c.consequence.lines.join(' ')}>
+                {c.blocked ?? (c.consequence.lines.length > 2
+                  ? `${c.consequence.lines.slice(0, 2).join(' ')} And ${c.consequence.lines.length - 2} more.`
+                  : c.consequence.lines.join(' '))}
+              </span>
             </button>
           ))}
         </div>
