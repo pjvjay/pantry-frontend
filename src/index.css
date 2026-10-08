@@ -654,6 +654,52 @@ tr.row-active td { background: var(--accent-soft); }
   }
 }
 
+/* --- the cart's Options (components/alternatives.tsx) ---------------------------------------- */
+.sheet.alt-sheet { width: min(720px, 100%); }
+.alt-section h3 {
+  margin: 14px 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--muted);
+}
+.alt-section:first-of-type h3 { margin-top: 4px; }
+.alt-section-other h3 { color: var(--warn); }
+.alt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.alt-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: start;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+}
+.alt-row-current { border-color: var(--accent); }
+.alt-name { overflow-wrap: anywhere; }
+.alt-rank { color: var(--muted); font-variant-numeric: tabular-nums; }
+.alt-price { margin-top: 2px; font-variant-numeric: tabular-nums; }
+.alt-note { font-size: 12.5px; color: var(--muted); }
+.alt-facts { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 2px; font-size: 13px; }
+.alt-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; padding: 0; }
+.alt-chip { padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; }
+/* tones add colour to words that already say plus, minus or unknown */
+.alt-tone-plus { color: var(--accent); }
+.alt-tone-minus { color: var(--warn); }
+.alt-tone-unknown { color: var(--muted); }
+.alt-all, .alt-held, .alt-how { margin-top: 6px; font-size: 12.5px; }
+.alt-all summary, .alt-held summary, .alt-how summary { cursor: pointer; color: var(--muted); }
+.alt-all ul, .alt-held ul { margin: 4px 0 0; padding-left: 18px; }
+.alt-how p { margin: 4px 0 0; }
+.alt-held, .alt-how { margin-top: 12px; }
+.alt-why { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.alt-use { margin: 0; min-height: 44px; white-space: nowrap; }
+.alt-use[aria-disabled="true"] { opacity: 0.55; cursor: default; }
+.alt-blocked {
+  margin: 0 0 10px; padding: 6px 10px; border: 1px dashed var(--warn); border-radius: 8px;
+  color: var(--warn); font-size: 13px;
+}
+.alt-error { margin: 0 0 10px; }
+.alt-skeleton { min-height: 96px; background: var(--bg); }
+.alt-foot { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+.alt-data-note { margin: 0 auto 0 0; align-self: center; font-size: 12px; color: var(--muted); }
+@media (max-width: 640px) {
+  .alt-row { grid-template-columns: minmax(0, 1fr); }
+  .alt-use { width: 100%; }
+}
+
 /* --- the shopper's display settings: these stay last so they win over every rule above ----- */
 
 /* Reduced motion: nothing slides or animates; changes simply appear. */
@@ -673,4 +719,7 @@ tr.row-active td { background: var(--accent-soft); }
   /* a transparent border shows in forced colours, so the inactive tabs hide theirs */
   .tab { border-bottom-color: Canvas; }
   .tab-active { border-bottom-color: Highlight; }
+  /* a choice that cannot be made now is dimmed by opacity, which forced colours keep; say it
+     with the system's disabled colour as well */
+  .alt-use[aria-disabled="true"] { color: GrayText; }
 }
