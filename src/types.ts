@@ -953,3 +953,476 @@ export interface Metrics {
   prices_source: string;
   free_tier_requests_per_day: number;
 }
+
+// ─── meal plan (/mealplan/*, /shelf-life) ────────────────────
+// Mirrors pantry-api's pantry_planner/mealplan/models.py and the meal-plan routes in api.py.
+// The plan itself (MealPlanDraft) lives in this browser; the server is stateless, trusts only
+// ids from the draft and re-reads every fact (names, sizes, prices, storage times) on each
+// call. Dates are calendar dates, 'YYYY-MM-DD'.
+
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export type TripStrategy = 'fresh' | 'fewest_trips';
+export type Storage = 'fridge' | 'freezer' | 'pantry';
+
+// Which recipe: give exactly one of slug, starter or doc. key is 'lib:<slug>',
+// 'starter:<key>' or doc.key, or the server answers 422.
+export interface RecipeRef {
+  key: string;
+  slug?: string;
+  starter?: string;
+  doc?: RecipeDoc;
+  servings?: number | null;        // the shopper's answer when the recipe does not say
+}
+
+export interface ResolvedLine {
+  line_no: number;
+  name: string;
+  quantity: number | null;
+  unit: string;
+  need_qty: number | null;         // one batch of the recipe, in g, ml or each
+  need_uom: string | null;
+  product_id: number | null;       // null: nothing chosen (not stocked, out of range, skipped)
+  product_name: string | null;
+  match: 'exact' | 'form' | 'generic' | null;
+  amount_basis: string | null;
+}
+
+export type ResolveStatus = 'ok' | 'needs_servings' | 'unconfirmed_lines' | 'not_found'
+  | 'unparseable' | 'aborted' | 'llm_error';
+
+// A recipe after its one slow resolve: which product each line buys. A recipe that failed
+// keeps its own status and never fails the plan.
+export interface ResolvedRecipe {
+  key: string;
+  title: string;
+  status: ResolveStatus;
+  message: string;
+  servings: number | null;
+  servings_basis: 'source' | 'your_setting' | null;
+  label: string | null;            // 'demo recipe', 'demo house amounts' or null
+  lines: ResolvedLine[];
+  not_stocked: DroppedIngredient[];
+  out_of_range: DroppedIngredient[];
+  skipped: DroppedIngredient[];
+  llm_cost_usd: number;
+  model_used: string;
+  burr_run: string;
+  cached: boolean;
+}
+
+// A recipe in the tray. servings is how many the recipe serves (the shopper's answer to
+// needs_servings), never a meal's head count: that is Meal.servings.
+export interface DraftRecipe {
+  ref: RecipeRef;
+  wanted: number;                  // 0..28 meals of it
+  slot: MealSlot;
+  servings?: number | null;
+}
+
+// One meal occasion. A meal with a date never moves; with no date it is spread by the server
+// unless pinned, and a pinned meal with no date stays in the tray. servings null: the
+// household's.
+export interface Meal {
+  id: string;
+  recipe_key: string;
+  date: string | null;
+  slot: MealSlot | null;
+  servings?: number | null;
+  pinned: boolean;
+}
+
+export interface MealPrefs {
+  household_servings: number;      // 1..20
+  slots_on: MealSlot[];
+  shop_weekdays: number[];         // Monday 0 .. Sunday 6
+  max_trips?: number | null;
+  buy_ahead_days: number;          // the shopper's limit for a perishable with no cited time
+  thaw_reminder: 'evening_before' | 'morning_of';
+  allow_freezer: boolean;
+  strategy: TripStrategy;
+}
+
+// One line of a trip as the shopper approved it; price is kept for the delta only.
+export interface SnapshotLine {
+  product_id: number;
+  packs: number | null;
+  storage: Storage;
+  price_at_approval: number | null;
+}
+
+export interface ApprovedTrip {
+  date: string;
+  fingerprint: string;             // 64 hex, copied from the Trip
+  strategy: TripStrategy;
+  snapshot: SnapshotLine[];
+}
+
+export interface PlanSettings {
+  lat?: number | null;
+  lon?: number | null;
+  max_km?: number | null;
+}
+
+// The browser's plan, sent whole to /mealplan/schedule and /mealplan/suggest-cook-days.
+//   pins: recipe_key -> {'<line_no>': product_id}
+//   packs_override: '<YYYY-MM-DD>:<product_id>' -> packs on that trip, 0 dismisses the line
+//   storage_overrides: '<product_id>' -> 'fridge' (never freeze) or 'freezer'
+export interface MealPlanDraft {
+  v: 1;
+  id: string;
+  rev: number;
+  start_date: string;
+  days: number;                    // 1..14
+  prefs: MealPrefs;
+  recipes: Record<string, DraftRecipe>;
+  resolved: Record<string, ResolvedRecipe>;
+  meals: Meal[];
+  pins: Record<string, Record<string, number>>;
+  trips: ApprovedTrip[];
+  dismissed_dates: string[];
+  fixed_dates: string[];
+  packs_override: Record<string, number>;
+  storage_overrides: Record<string, 'fridge' | 'freezer'>;
+  settings: PlanSettings;
+}
+
+// A meal where the schedule put it. placed_by 'spread': the server chose the date, and the
+// console stores it back. date null: unplaced.
+export interface PlacedMeal {
+  id: string;
+  recipe_key: string;
+  title: string;
+  date: string | null;
+  slot: MealSlot;
+  servings: number;
+  pinned: boolean;
+  placed_by: 'you' | 'spread' | null;
+}
+
+// What a line's storage time rests on. cited: rows quoted verbatim; your_setting: the
+// shopper's buy-ahead limit (days_planned), no verbatim; unknown: nothing claimed.
+export interface ShelfLifeInfo {
+  status: 'cited' | 'your_setting' | 'unknown';
+  verbatim: string[];
+  rule_ids: string[];
+  source: string | null;
+  url: string | null;
+  page_date: string | null;
+  days_planned: number | null;
+  note: string;
+}
+
+export interface LineProduct {
+  id: number;
+  name: string;
+  unit_size: string;
+  category: string | null;
+  demo_product: boolean;           // products 166-169: label them "(demo)"
+}
+
+export interface MealRefOnLine {
+  meal_id: string;
+  recipe_key: string;
+  title: string;
+  date: string;
+  slot: MealSlot;
+}
+
+// One product bought on one trip. packs null: the amount is unknown (packs_basis says why), and
+// so is the price. store and price are null when unknown or not stocked.
+export interface TripLine {
+  product: LineProduct;
+  category: string | null;
+  packs: number | null;
+  packs_basis: 'computed' | 'your_setting' | 'amount_unknown' | 'needs_servings';
+  need_qty: number | null;
+  need_uom: string | null;
+  leftover_qty: number | null;
+  leftover_until: string | null;   // only when the storage time is cited
+  storage: Storage;
+  freeze_on_arrival: boolean;
+  shelf_life: ShelfLifeInfo;
+  for_meals: MealRefOnLine[];
+  store: string | null;
+  price: number | null;
+  price_at_approval: number | null;
+  price_delta: number | null;
+  stocked: boolean;
+}
+
+export interface TripDiffLine {
+  product_id: number;
+  name: string;
+  packs?: number | null;
+  packs_before?: number | null;
+  packs_after?: number | null;
+  storage: Storage;
+}
+
+export interface TripDiff {
+  added: TripDiffLine[];
+  removed: TripDiffLine[];
+  changed: TripDiffLine[];
+  text: string[];                  // '+1 Whole Milk 1L (fridge)'
+}
+
+export interface Trip {
+  id: string;                      // '<strategy>-<date>'
+  date: string;
+  status: 'suggested' | 'approved' | 'needs_review';
+  reason: string;
+  lines: TripLine[];
+  dismissed: LineProduct[];
+  stores: string[];
+  recommended: TripOption | null;
+  frontier: TripOption[];
+  not_stocked: string[];
+  total_cost: number;              // known prices only
+  total_is_floor: boolean;         // some price is unknown: show "at least"
+  price_delta: number | null;
+  fingerprint: string;
+  diff: TripDiff | null;
+  list_text: string;
+}
+
+export interface PlanAction {
+  kind: 'shop' | 'freeze' | 'thaw' | 'cook';
+  date: string;
+  text: string;
+  trip_id?: string | null;
+  meal_id?: string | null;
+  product_id?: number | null;
+  rule_ids: string[];
+  basis: 'cited' | 'your_setting' | null;
+}
+
+// Edits a warning offers. The engine never applies them; the console does, or asks first.
+export type RemedyOp =
+  | { op: 'move_meal'; meal_id: string; date: string; slot: MealSlot }
+  | { op: 'set_storage'; product_id: number; storage: Storage }
+  | { op: 'add_trip'; date: string }
+  | { op: 'set_servings'; recipe_key: string }
+  | { op: 'set_packs'; date: string; product_id: number; packs?: number }
+  | { op: 'open_options'; date: string; product_id: number }
+  | { op: 'resolve'; recipe_key: string }
+  | { op: 'set_strategy'; strategy: TripStrategy }
+  | { op: 'set_pref'; field: string; value: unknown }
+  | { op: 'approve_trip'; date: string; strategy: TripStrategy }
+  | { op: 'remove_meal'; meal_id: string };
+
+export type WarningLevel = 'must_fix' | 'decide' | 'note';
+
+// must_fix: unplaced, fridge_window_exceeded, meal_before_trip, needs_servings,
+// no_longer_stocked. decide: needs_review, not_stocked, buy_ahead_exceeded, trip_cap_exceeded,
+// unresolved_recipe. note: amount_unknown, shelf_life_unknown, price_changed.
+export interface PlanWarning {
+  level: WarningLevel;
+  code: string;
+  message: string;
+  strategy: TripStrategy | null;   // null: the whole plan, whatever the strategy
+  remedies: RemedyOp[];
+  meal_ids: string[];
+  product_id: number | null;
+  trip_date: string | null;
+  recipe_key: string | null;
+}
+
+export type WarningCounts = Record<WarningLevel, number>;
+
+export interface StrategyResult {
+  name: TripStrategy;
+  recommended: boolean;
+  trips: Trip[];
+  actions: PlanAction[];
+  total_cost: number;
+  total_is_floor: boolean;
+  warning_counts: WarningCounts;
+}
+
+export interface PlanDay {
+  date: string;
+  weekday: string;                 // 'Fri'
+  meal_ids: string[];
+  nutrition: null;                 // until the nutrition data lands
+}
+
+export interface PlanCoverage {
+  products: number;
+  freshness_cited: number;
+  freshness_your_setting: number;
+  freshness_unknown: number;
+  needs: number;
+  amounts_known: number;
+  nutrition: 'unknown';
+}
+
+export interface ScheduleSource {
+  id: string;
+  title: string;
+  publisher: string;
+  url: string | null;
+  page_date: string | null;
+  retrieved: string | null;
+  credit: string;
+}
+
+export interface ApprovedScheduleTrip {
+  id: string;
+  strategy: TripStrategy;
+  date: string;
+  status: Trip['status'];
+  stores: string[];
+  total_cost: number;
+  total_is_floor: boolean;
+  list_text: string;
+}
+
+export interface ApprovedSchedule {
+  trips: ApprovedScheduleTrip[];
+  actions: PlanAction[];
+  exportable: boolean;             // false while any approved trip needs review
+}
+
+export interface MealSchedule {
+  v: 1;
+  rev: number;                     // the draft's rev, echoed: apply only when it still matches
+  start_date: string;
+  meals: PlacedMeal[];
+  unplaced: string[];
+  strategies: StrategyResult[];
+  recommended_strategy: TripStrategy;
+  warnings: PlanWarning[];
+  days: PlanDay[];
+  period_nutrition: null;
+  coverage: PlanCoverage;
+  approved_schedule: ApprovedSchedule | null;
+  sources: ScheduleSource[];
+  synthetic_notice: string;
+}
+
+export interface ResolveRequest {
+  recipes: RecipeRef[];            // 1..12
+  lat?: number | null;
+  lon?: number | null;
+  max_km?: number | null;
+  exclude_origin?: string[];
+  preference?: string[];
+}
+
+export interface ResolveResponse {
+  resolved: ResolvedRecipe[];
+  llm_cost_usd: number;
+  latency_ms: number;
+}
+
+// Quick add. The shopper's own recipes are sent so the parse can match them too.
+export interface SelectionParseRequest {
+  text: string;                    // at most 8000 characters
+  recipes?: { key: string; title: string; slot?: MealSlot | null; aliases?: string[] }[];
+  household_servings?: number;
+}
+
+export type RecipeKind = 'library' | 'starter' | 'my';
+
+export interface SelectionCandidate {
+  recipe_key: string;
+  title: string;
+  kind: RecipeKind;
+  label: string;                   // 'library', 'demo starter' or 'my recipe'
+}
+
+export interface SelectionMatch extends SelectionCandidate {
+  slot: MealSlot;
+  how: 'exact' | 'plural' | 'alias' | 'fuzzy';
+  distance: number;
+}
+
+export interface Selection {
+  input: string;
+  name: string;
+  count: number;
+  count_stated: boolean;
+  slot_hint: MealSlot | null;
+  status: 'matched' | 'ambiguous' | 'unmatched';
+  matched_as: SelectionMatch | null;
+  // only false (exact or plural) may be accepted without asking the shopper
+  needs_confirmation: boolean;
+  candidates: SelectionCandidate[];
+  meaning: string | null;          // '3 × Pepperoni Pizza = 3 dinners for 2 people'
+}
+
+export interface SelectionParseResult {
+  selections: Selection[];
+  unmatched: string[];
+  period_days: number | null;
+  warnings: string[];
+}
+
+export interface CookDayMove {
+  op: 'move_meal';
+  meal_id: string;
+  from: { date: string | null; slot: MealSlot };
+  to: { date: string | null; slot: MealSlot };
+  reason: string;                  // built by code from the cited row or the shopper's setting
+}
+
+// Suggest cook days: a proposal. Applying it replaces draft.meals with meals, as one step.
+export interface CookDaysProposal {
+  rev: number;
+  ops: CookDayMove[];
+  meals: Meal[];
+  warnings_before: WarningCounts;
+  warnings_after: WarningCounts;
+}
+
+export interface MealStarter {
+  key: string;
+  doc_key: string;                 // 'starter:<key>'
+  title: string;
+  servings: number;
+  slot: MealSlot;
+  label: string;                   // 'demo recipe'
+  aliases: string[];
+  doc: RecipeDoc;
+  text: string;
+}
+
+// One cited row of shelf_life.json, verbatim. days_min null: a time in months or years, only
+// ever longer than a plan.
+export interface ShelfRule {
+  id: string;
+  source: string;
+  verbatim: string;
+  storage?: string;
+  item?: string;
+  type?: string;
+  basis?: string;
+  days_min?: number | null;
+  days_max?: number | null;
+  [field: string]: unknown;
+}
+
+export interface ShelfLifeProduct {
+  product_id: number;
+  name: string;
+  mapped: boolean;
+  status: 'cited' | 'unknown';
+  storage_class: string | null;
+  bought_state: string | null;
+  rules: { fridge?: ShelfRule[]; freezer?: ShelfRule[]; after_thaw_fridge?: ShelfRule[];
+    thaw?: ShelfRule[] };
+  note: string;
+  reason: string;
+  synthetic_product: boolean;
+}
+
+export interface ShelfLifeSource extends ScheduleSource {
+  page_date_text?: string;
+  licence?: string;
+}
+
+export interface ShelfLife {
+  sources: ShelfLifeSource[];
+  rules_of_use: string[];
+  products: ShelfLifeProduct[];
+}
