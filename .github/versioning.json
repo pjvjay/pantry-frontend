@@ -1,0 +1,15 @@
+{
+  "component": "pantry-frontend",
+  "image": "ghcr.io/pjvjay/pantry-frontend",
+  "baseline": "0.1.0",
+  "shipped_paths": [
+    "Dockerfile",
+    "nginx.conf",
+    "package*.json",
+    "vite.config.ts",
+    "tsconfig.json",
+    "index.html",
+    "src/**"
+  ],
+  "build_workflow": ".github/workflows/build.yml"
+}
