@@ -6,11 +6,13 @@ import type {
   AgentOptions,
   AlternativeRanking,
   HubStatus,
+  ImportResult,
   McpCatalog,
   McpTarget,
   Metrics,
   PlanExecution,
   Product,
+  RecipeDoc,
   RunDetail,
   RuntimeSettings,
   ShoppingPlan,
@@ -26,6 +28,21 @@ import { fromConsole } from './consoleRequest';
 const API = `${import.meta.env.BASE_URL}api`;
 const HUB = '/hub';
 
+// A refusal from the hub, with the status and the detail as sent: routes that name a reason
+// send {code, message, ...}, which the caller can switch on (recipe import does). The message
+// is the same text as before, so callers that only show it are unchanged.
+export class HubError extends Error {
+  status: number;
+  detail: unknown;
+
+  constructor(message: string, status: number, detail: unknown) {
+    super(message);
+    this.name = 'HubError';
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, fromConsole(init));
   if (!res.ok) {
@@ -40,7 +57,7 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
     }
     const text = typeof detail === 'string' ? detail
       : detail ? JSON.stringify(detail) : `${res.status} ${res.statusText}`;
-    throw new Error(text);
+    throw new HubError(text, res.status, detail);
   }
   return res.json() as Promise<T>;
 }
@@ -129,9 +146,11 @@ export const agentWarm = (body: { model: string; target: string; disclosure?: st
     body: JSON.stringify(body) });
 
 // One Assistant turn, streamed: the hub answers with server-sent events (one JSON per event).
+// `recipe_doc`: a recipe the shopper reviewed in the import sheet, every line confirmed; the hub
+// keeps it as the conversation's next imp:N and the model plans exactly those lines.
 export async function agentChat(
   body: { message: string; conversation_id?: string | null; model: string; target: string;
-          disclosure?: string },
+          disclosure?: string; recipe_doc?: RecipeDoc },
   onEvent: (e: AgentEvent) => void,
   signal?: AbortSignal,
   onOpen?: () => void,
@@ -139,13 +158,18 @@ export async function agentChat(
   const res = await fetch(`${HUB}/agent/chat`, fromConsole({ ...post(body), signal }));
   onOpen?.();
   if (!res.ok || !res.body) {
-    let detail = `${res.status} ${res.statusText}`;
+    let detail: unknown = null;
     try {
-      detail = (await res.json()).detail ?? detail;
+      detail = (await res.json()).detail;
     } catch {
       /* keep the status */
     }
-    throw new Error(detail);
+    // a refusal of a reviewed recipe is {code, message}: say the message, not "[object Object]"
+    const said = detail && typeof detail === 'object' && 'message' in detail
+      ? String((detail as { message: unknown }).message) : detail;
+    const text = typeof said === 'string' ? said
+      : said ? JSON.stringify(said) : `${res.status} ${res.statusText}`;
+    throw new HubError(text, res.status, detail);
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -178,6 +202,21 @@ export const agentSwap = (conversationId: string,
                           body: { ref: number; line_no: number; product_id: number | null }) =>
   json<SwapResult>(
     `${HUB}/agent/conversations/${encodeURIComponent(conversationId)}/swap`, post(body));
+
+// Recipe import: the hub reads a recipe page or a YouTube link (a guarded fetch on the shopper's
+// own machine; pantry-api never fetches) into a RecipeDoc for the shopper to review. No model is
+// called. A refusal is a HubError whose detail is {code, message, ...}.
+export const importRecipe = (url: string) =>
+  json<ImportResult>(`${HUB}/recipes/import`, post({ url }));
+
+// Gemini watches a public video for its ingredient lines: only on the shopper's click, which is
+// the consent the hub requires. Every line comes back unconfirmed until the shopper ticks it.
+// duration_s is the shopper's estimate when the hub cannot read the video's length.
+export const importVideo = (body: { video_id: string; duration_s?: number | null }) =>
+  json<ImportResult>(`${HUB}/recipes/import/video`, post({
+    video_id: body.video_id, consent: true,
+    ...(body.duration_s != null ? { duration_s: body.duration_s } : {}),
+  }));
 
 // Traces of Assistant turns and the metrics rolled up from them (every layer, the browser's too).
 export const traceList = (limit = 50) => json<TraceSummary[]>(`${HUB}/traces?limit=${limit}`);
