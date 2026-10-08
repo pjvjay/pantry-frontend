@@ -177,6 +177,11 @@ export interface Health {
   escalation_model: string;
   confidence_threshold: number;
   demo_mode?: boolean;
+  // The running release (pantry_planner/version.py): X.Y.Z, a git describe
+  // string, or 'unknown'. Absent from APIs older than versioning.
+  version?: string;
+  revision?: string | null;
+  build?: { release: string | null; built_at: string | null };
 }
 
 // ─── Provenance (pantry-api origins.py) ──────────────────────
