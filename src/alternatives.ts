@@ -31,12 +31,36 @@ export function whereBought(line: CartLine): { store: string; price: number | nu
   return { store: line.store ?? '', price: line.price ?? null };
 }
 
-// The cart line's button name: what it opens, for which ingredient, and what the cart holds now
-// ("See options for Garlic: now Fresh Garlic, $0.89 at Pantry Mart Downtown").
-export function optionsLabel(line: CartLine, pinned: boolean): string {
+// The notes under a cart line's name, as the cart shows them: where the product is from, and the
+// planner's own doubts about the pick. `flag` marks a warning; `title` is the longer wording a
+// pointer shows.
+export type LineNote = { text: string; flag: boolean; title?: string };
+
+export function lineNotes(line: CartLine, originAsked: boolean): LineNote[] {
+  const out: LineNote[] = [];
+  if (line.origin_country) out.push({ text: line.origin_country, flag: false });
+  else if (originAsked) {
+    out.push({ text: 'origin unclear', flag: true, title: `origin ${line.origin_status ?? 'unknown'}` });
+  }
+  if (line.match && line.match !== 'exact') out.push({ text: 'closest match', flag: true });
+  if (line.confidence != null && line.confidence < 0.85) {
+    out.push({ text: 'check this pick', flag: true,
+               title: `the planner is ${Math.round(line.confidence * 100)}% sure of this pick` });
+  }
+  return out;
+}
+
+// The cart line's button name: what it opens, for which ingredient, what the cart holds now, and
+// the line's notes ("See options for Garlic: now Fresh Garlic, $0.89 at Pantry Mart Downtown;
+// closest match"). A button's name is all a screen reader says of it, so the notes drawn inside
+// it are repeated here, in the order they are drawn.
+export function optionsLabel(line: CartLine, pinned: boolean, originAsked = false): string {
   const { store, price } = whereBought(line);
-  const now = `${line.product}, ${money(price)}${store ? ` at ${store}` : ''}`;
-  return `See options for ${line.ingredient}: now ${now}${pinned ? ' (changed by you)' : ''}`;
+  const packs = (line.packs ?? 1) > 1 ? ` ×${line.packs}` : '';
+  const now = `${line.product}${packs}, ${money(price)}${store ? ` at ${store}` : ''}`;
+  const notes = lineNotes(line, originAsked).map((n) => n.text);
+  return `See options for ${line.ingredient}: now ${now}${pinned ? ' (changed by you)' : ''}`
+    + (notes.length ? `; ${notes.join(', ')}` : '');
 }
 
 // Names one line of one card in the page, so focus can find that line again after a swap has

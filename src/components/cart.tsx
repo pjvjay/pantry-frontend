@@ -2,7 +2,7 @@
 // in the cart with the swaps the planner found. The tool's JSON stays in its step above.
 import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
-import { cartLineKey, isPinned, optionsLabel } from '../alternatives';
+import { cartLineKey, isPinned, lineNotes, optionsLabel } from '../alternatives';
 import type { CartLine, CartSummary, LeftOut } from '../types';
 import { IngredientImage } from './flow';
 
@@ -114,13 +114,15 @@ export function CartCard({ summary, cardRef, pinned }: {
     return next;
   });
   // A line the shopper can open Options for is one button (name, notes and "Options"); the
-  // basket checkbox and the price stay outside it.
+  // basket checkbox and the price stay outside it. Its aria-label repeats the notes, since a
+  // screen reader reads a button's name and not what is drawn inside it.
   const wrap = (l: CartLine, mine: boolean, body: ReactNode) => {
     if (!actions || cardRef == null || l.line_no == null) return body;
     const lineNo = l.line_no;
     return (
       <button type="button" className="cart-item-open" aria-haspopup="dialog"
-              aria-label={optionsLabel(l, mine)} data-cart-line={cartLineKey(cardRef, lineNo)}
+              aria-label={optionsLabel(l, mine, originAsked)}
+              data-cart-line={cartLineKey(cardRef, lineNo)}
               aria-disabled={actions.busy || undefined}
               onClick={() => { if (!actions.busy) actions.open(cardRef, l, mine); }}>
         {body}
@@ -163,7 +165,6 @@ export function CartCard({ summary, cardRef, pinned }: {
             {g.lines.map((l) => {
               const key = `${l.product_id ?? l.product}`;
               const done = got.has(key);
-              const unclear = originAsked && !l.origin_country;
               const mine = isPinned(l, pinned);
               return (
                 <li key={key} className={`cart-item${done ? ' cart-item-done' : ''}`}>
@@ -177,14 +178,11 @@ export function CartCard({ summary, cardRef, pinned }: {
                     <span className="cart-item-meta">
                       {mine && <span className="cart-mine">Changed by you</span>}
                       {!namesIngredient(l) && <span>for {l.ingredient}</span>}
-                      {l.origin_country && <span>{l.origin_country}</span>}
-                      {unclear && <span className="cart-flag" title={`origin ${l.origin_status ?? 'unknown'}`}>origin unclear</span>}
-                      {l.match && l.match !== 'exact' && <span className="cart-flag">closest match</span>}
-                      {l.confidence != null && l.confidence < 0.85 && (
-                        <span className="cart-flag" title={`the planner is ${Math.round(l.confidence * 100)}% sure of this pick`}>
-                          check this pick
+                      {lineNotes(l, originAsked).map((n) => (
+                        <span key={n.text} className={n.flag ? 'cart-flag' : undefined} title={n.title}>
+                          {n.text}
                         </span>
-                      )}
+                      ))}
                     </span>
                   </span>)}
                   <div className="cart-item-price">{money(priceOf(l))}</div>

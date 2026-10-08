@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  cartChangeText, cartLineKey, cartTotal, chipReasons, coversText, footText, isPinned, linesOf,
-  money, movedText, needText, optionsLabel, priceLine, replaceCard, rowsOf, storeText,
+  cartChangeText, cartLineKey, cartTotal, chipReasons, coversText, footText, isPinned, lineNotes,
+  linesOf, money, movedText, needText, optionsLabel, priceLine, replaceCard, rowsOf, storeText,
   swapAnnouncement, swapBlocked, swapNotice, unitPriceText,
 } from '../src/alternatives.ts';
 import type {
@@ -82,6 +82,25 @@ test("the line's button says what it opens and what the cart holds now", () => {
   assert.equal(optionsLabel({ ingredient: 'Salt', product: 'Sea Salt' }, false),
     'See options for Salt: now Sea Salt, price unknown');
   assert.equal(cartLineKey(4, 2), '4:2');
+});
+
+test("the button's name keeps every note drawn inside it, so a screen reader hears them", () => {
+  const doubtful: CartLine = { ...line, packs: 2, match: 'generic', confidence: 0.72,
+                               origin_status: 'unknown' };
+  assert.deepEqual(lineNotes(doubtful, true), [
+    { text: 'origin unclear', flag: true, title: 'origin unknown' },
+    { text: 'closest match', flag: true },
+    { text: 'check this pick', flag: true, title: 'the planner is 72% sure of this pick' },
+  ]);
+  assert.equal(optionsLabel(doubtful, true, true), 'See options for Ground Beef: now Ground Beef '
+    + 'Extra Lean 300g ×2, $6.27 at Pantry Mart Downtown (changed by you); origin unclear, '
+    + 'closest match, check this pick');
+  // a known origin is a plain note; with no origin asked for, its absence is not a flag
+  const sure: CartLine = { ...line, origin_country: 'Canada', match: 'exact', confidence: 0.95 };
+  assert.deepEqual(lineNotes(sure, true), [{ text: 'Canada', flag: false }]);
+  assert.match(optionsLabel(sure, false, true), /Pantry Mart Downtown; Canada$/);
+  assert.deepEqual(lineNotes(line, false), []);
+  assert.equal(optionsLabel(line, false, false), optionsLabel(line, false));
 });
 
 test("the cart's pick sits on top and the rest split by tier, in rank order", () => {
