@@ -19,6 +19,34 @@ npm run dev
 Run the API alongside it (`uvicorn pantry_planner.api:app` in pantry-api), or
 bring up the whole stack with docker-compose from pantry-platform.
 
+## Recipe import
+
+"Import a recipe" (the Assistant's composer and the Planner) reads a recipe
+into ingredient lines the shopper reviews before anything is planned
+(`components/ImportSheet.tsx`). What was reviewed is what gets planned: lines
+can be ticked or removed, never rewritten.
+
+| Tab | Read by | Where |
+|---|---|---|
+| Link | the demo hub's `POST /hub/recipes/import` (the hub fetches; pantry-api never does) | local stack only |
+| YouTube | the same route: title and channel, and with the hub's YouTube key the description; Gemini watches the video only on a click (`/hub/recipes/import/video`) | local stack only |
+| Paste | pantry-api's `POST /recipes/parse-lines`, no AI | everywhere |
+
+Without a hub (`/hub/status` does not answer) only Paste is offered, with
+"Reading links needs the local demo hub". "Plan this now" sends the reviewed
+doc into the chat (`recipe_doc`) in the Assistant, and to `POST /plan/spec`
+otherwise. A link pasted in chat is read by the hub before the model starts;
+its `recipe_import` event is drawn as an import card.
+
+`src/recipes.ts` (pure, tested) holds the sheet's words and edits and the
+browser storage contract, in its header:
+
+- `pantry.recipes.v1`: `{v: 1, recipes: RecipeDoc[]}`, each keyed `my:<id>`
+  ("Save to my recipes"); the meal plan reads the same key.
+- `pantry.mealplan.inbox.v1`: `{v: 1, entries: [{key, title, added_at}]}`
+  ("Add to meal plan"): saved recipes waiting for the meal plan's tray, which
+  takes them with `takeInbox`.
+
 ## Tests
 
 Logic that needs no browser lives in pure modules (`src/mealplan/*.ts` and
