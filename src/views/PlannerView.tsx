@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { PlanAbortError, getRecipes } from '../api';
 import { ErrorBanner, parseList } from '../components/common';
+import { ImportSheet } from '../components/ImportSheet';
 import { AbortAlert, PlanView, WeekView } from '../components/plan';
 import { planNLWith, planRecipeWith, planWeekWith } from '../hub';
 import type { PlanExecution, Recipe, ShoppingPlan, WeekPlan } from '../types';
@@ -61,6 +62,7 @@ export default function PlannerView() {
   const [week, setWeek] = useState<WeekPlan | null>(null);
   const [planError, setPlanError] = useState('');
   const [planAbort, setPlanAbort] = useState<PlanExecution | null>(null);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     getRecipes().then(setRecipes).catch((e: Error) => setLoadError(e.message));
@@ -106,6 +108,20 @@ export default function PlannerView() {
     }));
   });
 
+  // The import sheet's reviewed recipe, planned by /plan/spec with this page's options and shown
+  // here like any other plan.
+  const p = PLACES[place];
+  const specOptions = {
+    lat: p.lat, lon: p.lon, max_km: maxKm.trim() ? Number(maxKm) : null,
+    allow_partial: allowPartial, ...origins(),
+  };
+  const onImported = (planned: ShoppingPlan) => {
+    setWeek(null);
+    setPlanError('');
+    setPlanAbort(null);
+    setPlan(planned);
+  };
+
   const busy = planning !== null;
   return (
     <div className="view">
@@ -117,7 +133,9 @@ export default function PlannerView() {
         <p className="card-sub">
           Paste any recipe. The recipe is parsed into ingredient lines, every line is matched
           against the store catalog with SQL, and products are chosen per line. The query plan,
-          trip optimizer and coverage below are what the server actually ran.
+          trip optimizer and coverage below are what the server actually ran.{' '}
+          <strong>Import a recipe</strong> instead reads a link (with the local demo hub) or a
+          pasted ingredient list into lines you review, and plans exactly those, with no AI parse.
         </p>
         <form className="recipe-input" onSubmit={(e) => { e.preventDefault(); void onPlanText(); }}>
           <textarea rows={9} value={text} onChange={(e) => setText(e.target.value)}
@@ -144,6 +162,9 @@ export default function PlannerView() {
             <OriginInputs prefer={prefer} exclude={exclude} setPrefer={setPrefer} setExclude={setExclude} />
             <button type="button" className="secondary" onClick={() => setText(RECIPE_SAMPLE)}>
               Use sample
+            </button>
+            <button type="button" className="secondary" disabled={busy} onClick={() => setImporting(true)}>
+              Import a recipe
             </button>
             <button disabled={busy || !text.trim()}>
               {planning === '__nl__' ? 'Planning…' : 'Plan my shopping'}
@@ -200,6 +221,9 @@ export default function PlannerView() {
       {planAbort && <AbortAlert execution={planAbort} />}
       {plan && <PlanView plan={plan} />}
       {week && <WeekView week={week} />}
+
+      <ImportSheet open={importing} onClose={() => setImporting(false)} onPlanned={onImported}
+                   planOptions={specOptions} />
     </div>
   );
 }
