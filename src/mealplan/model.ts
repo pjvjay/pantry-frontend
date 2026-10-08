@@ -440,6 +440,18 @@ const PREF_CHECKS: { [K in keyof MealPrefs]-?: (v: unknown) => boolean } = {
 
 export const isPrefField = (f: string): f is keyof MealPrefs => f in PREF_CHECKS;
 
+// A whole set of settings, as a saved plan carries it: every field but max_trips is required.
+export function prefsProblem(p: unknown): string | null {
+  if (typeof p !== 'object' || p === null) return 'settings are missing';
+  const prefs = p as Record<string, unknown>;
+  for (const [field, ok] of Object.entries(PREF_CHECKS)) {
+    if ((field !== 'max_trips' && !(field in prefs)) || !ok(prefs[field])) {
+      return `the setting ${field.replace(/_/g, ' ')} is not valid`;
+    }
+  }
+  return null;
+}
+
 function setPrefs(s: MealPlanState, patch: Partial<MealPrefs>): Applied {
   const d = s.draft;
   for (const [field, value] of Object.entries(patch)) {
