@@ -97,18 +97,20 @@ test('the period band counts complete days and averages over them only', () => {
   assert.deepEqual(periodBand(period(), 'computed').parts, [
     '0 of 14 days complete',
     'no complete day, so no daily average',
-    'fortnight total ≥ 7,767 kcal, ≥ 383 g protein (demo amounts)',
+    'fortnight total ≥ 7,767 kcal, ≥ 383 g protein',
   ]);
+  assert.equal(periodBand(period(), 'computed').badge, true);
   const nine = periodBand(period({ days_complete: 9,
     per_day_average_over_complete_days: { energy_kcal: 1840.2, protein_g: 96.4 } }), 'computed');
   assert.deepEqual(nine.parts, [
     '9 of 14 days complete',
-    'average 1,840 kcal, 96 g protein per day over complete days (demo amounts)',
+    'average 1,840 kcal, 96 g protein per day over complete days',
     'fortnight total ≥ 7,767 kcal, ≥ 383 g protein',
   ]);
   assert.equal(nine.badge, true);
-  assert.equal(periodBand(period({ days_total: 7, demo_amounts: false }), 'computed').parts[2],
-    'week total ≥ 7,767 kcal, ≥ 383 g protein');
+  const plain = periodBand(period({ days_total: 7, demo_amounts: false }), 'computed');
+  assert.equal(plain.parts[2], 'week total ≥ 7,767 kcal, ≥ 383 g protein');
+  assert.equal(plain.badge, false);
   assert.deepEqual(periodBand(null, 'unknown').parts, ['nutrition unknown: this API does not compute nutrition']);
 });
 

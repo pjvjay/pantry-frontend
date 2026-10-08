@@ -157,12 +157,12 @@ const periodName = (days: number) =>
   (days === 14 ? 'fortnight' : days === 7 ? 'week' : `${days}-day`);
 
 // The band above the board, for example "9 of 14 days complete · average 1,840 kcal, 96 g
-// protein per day over complete days (demo amounts) · fortnight total ≥ 23,100 kcal". With no
-// complete day there is no average, and it says so rather than dividing what is known.
+// protein per day over complete days · fortnight total ≥ 23,100 kcal", with badge true when
+// the view must add the "demo amounts" badge. With no complete day there is no average, and
+// it says so rather than dividing what is known.
 export function periodBand(p: PeriodNutrition | null | undefined,
   coverage: PlanCoverage['nutrition'] | undefined): { parts: string[]; badge: boolean } {
   if (!p) return { parts: [nutritionMissing(coverage)], badge: false };
-  const demo = p.demo_amounts ? ` (${DEMO_BADGE})` : '';
   const parts = [`${p.days_complete} of ${p.days_total} days complete`];
   const avg = p.per_day_average_over_complete_days;
   if (avg && p.days_complete > 0) {
@@ -173,7 +173,7 @@ export function periodBand(p: PeriodNutrition | null | undefined,
       return k === 'energy_kcal' ? `${formatAmount(v, unit)} kcal`
         : `${formatAmount(v, unit)} ${unit} ${META.get(k)?.label}`;
     });
-    parts.push(`average ${bits.join(', ')} per day over complete days${demo}`);
+    parts.push(`average ${bits.join(', ')} per day over complete days`);
   } else {
     parts.push('no complete day, so no daily average');
   }
@@ -184,7 +184,7 @@ export function periodBand(p: PeriodNutrition | null | undefined,
     const n = `${t.complete ? '' : '≥ '}${formatAmount(t.amount, unit)}`;
     return k === 'energy_kcal' ? `${n} kcal` : `${n} ${unit} ${META.get(k)?.label}`;
   });
-  parts.push(`${periodName(p.days_total)} total ${totals.join(', ')}${avg && p.days_complete > 0 ? '' : demo}`);
+  parts.push(`${periodName(p.days_total)} total ${totals.join(', ')}`);
   return { parts, badge: p.demo_amounts };
 }
 

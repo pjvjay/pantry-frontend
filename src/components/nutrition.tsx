@@ -35,9 +35,18 @@ export function NutritionChipView({ chip, label }: { chip: NutritionChip; label?
   );
 }
 
-// The energy per serving of one meal, small enough for a calendar chip.
+// The energy per serving of one meal, small enough for a calendar chip. A recipe that does
+// not say how many it serves has only a whole-recipe figure, so a serving's is unknown.
 export function MealEnergy({ n }: { n: MealNutrition | undefined }) {
   if (!n) return null;
+  if (n.basis === 'per_recipe') {
+    return (
+      <span className="nut-unknown"
+            title={`Whole recipe: ${amountText(n.totals.energy_kcal)}. How many it serves is not known yet.`}>
+        kcal per serving unknown
+      </span>
+    );
+  }
   const chip = nutritionChip(n.totals, n.demo_amounts, ['energy_kcal']);
   return <NutritionChipView chip={chip} label="per serving" />;
 }
