@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   cartChangeText, cartLineKey, cartTotal, chipReasons, coversText, footText, isPinned, lineNotes,
-  linesOf, money, movedText, needText, optionsLabel, priceLine, replaceCard, rowsOf, storeText,
+  linesOf, money, movedText, needText, optionsLabel, priceLine, purchaseLineNo, replaceCard,
+  rowsOf, storeText,
   swapAnnouncement, swapBlocked, swapNotice, unitPriceText,
 } from '../src/alternatives.ts';
 import type {
@@ -188,6 +189,18 @@ test("the announcement reads the new product and both totals from the carts' num
   // a line found through also_lines
   assert.match(swapAnnouncement(before, { lines: [{ ...line, line_no: 1, also_lines: [2] }] }, 2),
     /^Ground Beef now/);
+});
+
+test('after a swap that joins another purchase, focus goes to the purchase that holds the line', () => {
+  // red onion (line 6) swapped to Fresh Garlic, which line 2 already buys: one purchase, line 2
+  const garlic: CartLine = { ingredient: 'garlic + red onion', product: 'Fresh Garlic',
+                             line_no: 2, also_lines: [6] };
+  const merged: CartSummary = { lines: [{ ...line, line_no: 1 }, garlic] };
+  assert.equal(purchaseLineNo(merged, 6), 2);
+  assert.equal(purchaseLineNo(merged, 2), 2);
+  assert.equal(purchaseLineNo(merged, 1), 1);
+  // a line the cart no longer holds keeps its own number (nothing to focus, nothing made up)
+  assert.equal(purchaseLineNo(merged, 9), 9);
 });
 
 test('the chat says whether the assistant still has to hear about a swap', () => {

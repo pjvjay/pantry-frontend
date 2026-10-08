@@ -1,7 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import {
-  cartChangeText, cartLineKey, replaceCard, swapAnnouncement, swapBlocked, swapNotice,
+  cartChangeText, cartLineKey, purchaseLineNo, replaceCard, swapAnnouncement, swapBlocked,
+  swapNotice,
 } from '../alternatives';
 import { AlternativesDialog } from '../components/alternatives';
 import type { OptionsTarget } from '../components/alternatives';
@@ -302,7 +303,7 @@ export default function AssistantView() {
     const { card, note } = result;
     const before = itemsNow.current.flatMap((it) => (it.kind === 'assistant' ? it.plans ?? [] : []))
       .find((c) => c.ref === t.ref);
-    focusLine.current = cartLineKey(card.ref ?? t.ref, lineNo);
+    focusLine.current = cartLineKey(card.ref ?? t.ref, purchaseLineNo(card.summary, lineNo));
     keepScroll.current = true;
     setItems((prev) => prev.map((it) => {
       if (it.kind !== 'assistant' || !it.plans) return it;

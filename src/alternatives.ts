@@ -160,6 +160,12 @@ export function replaceCard(cards: readonly PlanCardData[], oldRef: number,
 const lineFor = (summary: CartSummary, lineNo: number) =>
   (summary.lines ?? []).find((l) => linesOf(l).includes(lineNo));
 
+// The cart line that holds recipe line `lineNo`: its own, or the purchase it joined. Choosing a
+// product another line already buys makes one purchase, numbered by the lower line, so after
+// such a swap the line the shopper chose from has no element of its own and focus goes there.
+export const purchaseLineNo = (summary: CartSummary, lineNo: number): number =>
+  lineFor(summary, lineNo)?.line_no ?? lineNo;
+
 // What a screen reader hears after a swap, from the two carts' own numbers:
 // "Garlic now Fraser Farms Garlic 200g. Trip $41.20, was $41.70."
 export function swapAnnouncement(before: CartSummary, after: CartSummary, lineNo: number): string {
