@@ -60,7 +60,7 @@ test framework to install. It needs Node 22.18 or later (CI uses 24):
 npm test   # node --test "tests/**/*.test.ts"
 ```
 
-## Meal plan (logic only so far)
+## Meal plan (`#/mealplan`)
 
 The meal plan is pantry-api's `MealPlanDraft`, held in this browser; the
 server computes its schedule, trips and freshness on every change and keeps
@@ -75,6 +75,36 @@ nothing. The logic is in pure modules under `src/mealplan/`:
 | `consequences.ts` | what a move means for freshness, from the last answer; remedies as edits |
 | `dnd.ts` | the drag gesture, hit-testing and the keyboard route |
 | `selectionPreview.ts` | Quick add's chips: only exact and plural matches are accepted without asking |
+| `board.ts` | what the views draw: cells, trip chips and lines, a trip as a cart card, the summary line, a Planner week as a plan |
+
+`src/nutritionFormat.ts` words nutrition the same way everywhere: a complete
+total is a number, a partial one "≥ N" with the missing lines in its title, a
+missing one "unknown" (never 0), and every figure built from demo house amounts
+carries the "demo amounts" badge.
+
+The tab has three bands. **Pick** (`components/mealtray.tsx`): Quick add, each
+recipe's count ("3 meals × 2 people"), slot and servings question, and the demo
+starters, library and My recipes. **Place** (`components/mealcal.tsx`): 7 or 14
+days of Breakfast, Lunch, Dinner and Snack, the nutrition band
+(`components/nutrition.tsx`) and Suggest cook days. **Shop**
+(`components/mealtrips.tsx`): the trips code suggests, each opened as a sheet
+with its cart per store and Copy list / Print list, the warnings with their
+fixes, and what the data covers. `views/MealPlanView.tsx` puts them together.
+The Planner's week plan has "Open in Meal plan".
+
+How a meal moves (all four end in one reducer edit):
+
+| Way | How |
+|---|---|
+| Drag | the grip (the only element with `touch-action: none`, so the page still scrolls); a press that moves under 6 px is a tap |
+| Tap | tap a meal, then a highlighted slot; the bar at the bottom has Back to tray and Cancel |
+| Menu | ⋯ opens the Move sheet: every cell with its freshness preview, servings, the pin, the nutrition receipt |
+| Keyboard | Enter or Space picks up; Tab reaches slot buttons named "Place X in Dinner, Fri 16 Oct"; arrows, Page Up/Down, Home and End move between them; Enter places; Escape cancels; Delete sends a meal back to the tray; Ctrl/Cmd+Z undoes |
+
+Trips move the same ways along the Shop rows, while they are suggestions; an
+approved trip stays put and shows "Changed since approved" with the diff when
+edits change it. The tab works with only `/pantry/api` (no hub), so it runs on
+the public demo and on AKS as well as in the local stack.
 
 `src/myRecipes.ts` is the contract for the shopper's own recipes:
 `pantry.recipes.v1` holds `{v: 1, recipes: RecipeDoc[]}`, each keyed
