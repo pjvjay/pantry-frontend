@@ -4,6 +4,7 @@
 import type {
   AgentEvent,
   AgentOptions,
+  AlternativeRanking,
   HubStatus,
   McpCatalog,
   McpTarget,
@@ -13,6 +14,7 @@ import type {
   RunDetail,
   RuntimeSettings,
   ShoppingPlan,
+  SwapResult,
   ToolResult,
   Trace,
   TraceSummary,
@@ -161,6 +163,21 @@ export async function agentChat(
     }
   }
 }
+
+// A chat cart's line: the other products that could fill it, ranked by pantry from the plan the
+// hub holds (the browser never sends the plan). `ref` names the card's plan. Read-only: no model
+// call, and it works while the assistant is answering.
+export const agentAlternatives = (conversationId: string,
+                                  body: { ref: number; line_no: number; limit?: number }) =>
+  json<AlternativeRanking>(
+    `${HUB}/agent/conversations/${encodeURIComponent(conversationId)}/alternatives`, post(body));
+
+// The shopper's choice for a line: the hub re-prices the plan with it (no model call) and the
+// model hears about it with the next message. product_id null puts the planner's pick back.
+export const agentSwap = (conversationId: string,
+                          body: { ref: number; line_no: number; product_id: number | null }) =>
+  json<SwapResult>(
+    `${HUB}/agent/conversations/${encodeURIComponent(conversationId)}/swap`, post(body));
 
 // Traces of Assistant turns and the metrics rolled up from them (every layer, the browser's too).
 export const traceList = (limit = 50) => json<TraceSummary[]>(`${HUB}/traces?limit=${limit}`);
