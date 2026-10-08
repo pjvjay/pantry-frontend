@@ -17,9 +17,10 @@ import { addDays, dayLabel, daysBetween, isCivilDate, range } from './dates.ts';
 import type { CivilDate } from './dates.ts';
 import { record, replace, undo as undoHistory, redo as redoHistory } from './undo.ts';
 import type { History } from './undo.ts';
+import { targetsProblem } from '../nutritionFormat.ts';
 import type {
   ApprovedTrip, CookDaysProposal, Meal, MealPlanDraft, MealPrefs, MealSchedule, MealSlot,
-  PlanSettings, RecipeDoc, RecipeRef, ResolvedRecipe, Trip, TripStrategy,
+  NutritionTargets, PlanSettings, RecipeDoc, RecipeRef, ResolvedRecipe, Trip, TripStrategy,
 } from '../types.ts';
 
 export type Slot = MealSlot;
@@ -203,6 +204,8 @@ export type PlanEdit =
   | { type: 'setPacks'; date: CivilDate; productId: number; packs: number | null }
   | { type: 'setStorage'; productId: number; storage: 'fridge' | 'freezer' | null }
   | { type: 'pinProduct'; recipeKey: string; lineNo: number; productId: number | null }
+  // the shopper's daily nutrition targets, all of them at once ({} clears them)
+  | { type: 'setTargets'; targets: NutritionTargets }
   | { type: 'applyCookDays'; proposal: CookDaysProposal }
   | { type: 'mergeSchedule'; schedule: MealSchedule }
   | { type: 'batch'; edits: PlanEdit[] }
@@ -733,6 +736,18 @@ function apply(s: MealPlanState, e: PlanEdit): Applied {
       return { state: set(s, { pins }),
         said: e.productId === null ? 'Back to the planner’s product.' : 'Your product is used for this line.' };
     }
+    case 'setTargets': {
+      const problem = targetsProblem(e.targets);
+      if (problem) return problem;
+      const targets: NutritionTargets = {};
+      for (const [k, t] of Object.entries(e.targets)) {
+        if (t) targets[k as keyof NutritionTargets] = { ...t, source: t.source ?? 'you' };
+      }
+      if (JSON.stringify(targets) === JSON.stringify(d.nutrition_targets ?? {})) return { state: s, said: '' };
+      const n = Object.keys(targets).length;
+      return { state: set(s, { nutrition_targets: targets }),
+        said: n ? `${plural(n, 'daily target', 'daily targets')} saved in this browser.` : 'Daily targets cleared.' };
+    }
     case 'applyCookDays': return applyCookDays(s, e.proposal);
     case 'mergeSchedule': return mergeSchedule(s, e.schedule);
     case 'batch': {
@@ -752,8 +767,14 @@ function apply(s: MealPlanState, e: PlanEdit): Applied {
     }
     case 'replace':
       return { state: e.state, said: 'Plan loaded.' };
-    case 'clear':
-      return { state: newPlan(e.today, e.id, d.days), said: 'Plan cleared.' };
+    case 'clear': {
+      // The shopper's daily targets are theirs, not the plan's, so a new plan keeps them.
+      const fresh = newPlan(e.today, e.id, d.days);
+      if (d.nutrition_targets && Object.keys(d.nutrition_targets).length) {
+        fresh.draft.nutrition_targets = d.nutrition_targets;
+      }
+      return { state: fresh, said: 'Plan cleared.' };
+    }
   }
 }
 

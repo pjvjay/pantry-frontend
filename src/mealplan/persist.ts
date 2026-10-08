@@ -14,6 +14,7 @@ import { isCivilDate } from './dates.ts';
 import { MAX_DAYS, MAX_MEALS, MAX_RECIPES, MAX_WANTED, SLOTS, prefsProblem, refProblem }
   from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
+import { targetsProblem } from '../nutritionFormat.ts';
 import type { MealPlanDraft } from '../types.ts';
 
 export const PLAN_KEY = 'pantry.mealplan.v1';
@@ -92,6 +93,11 @@ export function draftProblem(x: unknown): string | null {
     return 'the storage choices are not readable';
   }
   if (!isObject(x.settings)) return 'the shopping area is not readable';
+  // Targets came with nutrition; a plan saved before them has none.
+  if (x.nutrition_targets !== undefined) {
+    const targets = targetsProblem(x.nutrition_targets);
+    if (targets) return targets;
+  }
   return null;
 }
 

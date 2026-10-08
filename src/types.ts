@@ -1084,6 +1084,8 @@ export interface MealPlanDraft {
   packs_override: Record<string, number>;
   storage_overrides: Record<string, 'fridge' | 'freezer'>;
   settings: PlanSettings;
+  // the shopper's own daily targets; an API without nutrition ignores the field
+  nutrition_targets?: NutritionTargets;
 }
 
 // A meal where the schedule put it. placed_by 'spread': the server chose the date, and the
@@ -1243,7 +1245,9 @@ export interface PlanDay {
   date: string;
   weekday: string;                 // 'Fri'
   meal_ids: string[];
-  nutrition: null;                 // until the nutrition data lands
+  // what one person eats that day; null before the nutrition tables are deployed (and from
+  // an API without nutrition)
+  nutrition: DayNutrition | null;
 }
 
 export interface PlanCoverage {
@@ -1253,7 +1257,8 @@ export interface PlanCoverage {
   freshness_unknown: number;
   needs: number;
   amounts_known: number;
-  nutrition: 'unknown';
+  // 'unknown' comes from an API without nutrition
+  nutrition: 'computed' | 'not_deployed' | 'unknown';
 }
 
 export interface ScheduleSource {
@@ -1293,7 +1298,9 @@ export interface MealSchedule {
   recommended_strategy: TripStrategy;
   warnings: PlanWarning[];
   days: PlanDay[];
-  period_nutrition: null;
+  period_nutrition: PeriodNutrition | null;
+  // per serving, with every line's receipt; absent from an API without nutrition
+  recipe_nutrition?: Record<string, MealNutrition>;
   coverage: PlanCoverage;
   approved_schedule: ApprovedSchedule | null;
   sources: ScheduleSource[];
@@ -1425,4 +1432,143 @@ export interface ShelfLife {
   sources: ShelfLifeSource[];
   rules_of_use: string[];
   products: ShelfLifeProduct[];
+}
+
+// ─── nutrition (P6) ──────────────────────────────────────────
+// Mirrors the nutrition models in pantry-api's models.py. Computed by code from a recipe's
+// amounts and one Canadian Nutrient File reference food per ingredient. An amount of null is
+// unknown, never 0, and a total that misses a line is a lower bound ("at_least").
+
+export type NutrientKey = 'energy_kcal' | 'protein_g' | 'fat_g' | 'satfat_g' | 'carbohydrate_g'
+  | 'fibre_g' | 'sugars_g' | 'sodium_mg';
+
+export interface NutrientTotal {
+  amount: number | null;
+  unit: string;                    // 'kcal', 'g' or 'mg'
+  status: 'complete' | 'at_least' | 'unknown';
+  complete: boolean;
+  lines_counted: number;
+  lines_total: number;
+  gaps: string[];                  // the lines it misses, for the chip's title
+}
+
+export interface NutritionLine {
+  line_no: number;
+  ingredient: string;
+  quantity: number | null;
+  unit: string;
+  grams: number | null;
+  status: 'counted' | 'no_quantity' | 'no_conversion' | 'no_reference' | 'excluded';
+  reason: string;
+  key: string;
+  match_kind: 'generic' | 'close' | 'none' | null;
+  match_note: string;
+  ref_id: string | null;
+  ref_description: string | null;  // CNF's own words
+  state_note: string | null;
+  source: string | null;
+  conversion: string | null;       // how grams were reached, quoted
+  values: Partial<Record<NutrientKey, number>>;
+  absent: NutrientKey[];
+  amount_basis: string | null;
+}
+
+export interface NutritionCoverage {
+  lines_total: number;
+  lines_counted: number;
+  count_fraction: number | null;
+  grams_weighed: number;
+  grams_known: number;
+  mass_fraction: number | null;
+  lines_mass_unknown: number;
+  floor: number;
+  meets_floor: boolean;
+  note: string;
+}
+
+export interface MissingLine {
+  line_no: number;
+  ingredient: string;
+  reason: 'no_quantity' | 'no_conversion' | 'no_reference';
+  detail: string;
+}
+
+export type NutritionStatus = 'complete' | 'incomplete' | 'below_floor';
+
+export interface MealNutrition {
+  basis: 'per_serving' | 'per_recipe';
+  servings: number | null;
+  portions: number;
+  totals: Partial<Record<NutrientKey, NutrientTotal>>;
+  status: NutritionStatus;
+  coverage: NutritionCoverage;
+  missing: MissingLine[];
+  lines: NutritionLine[];
+  source_ids: string[];
+  amounts_basis: string[];
+  demo_amounts: boolean;           // any counted amount is a demo house amount: show the badge
+  note: string;
+}
+
+// A target the shopper typed, kept in this browser and sent with each schedule call.
+export interface NutritionTarget {
+  min?: number | null;
+  max?: number | null;
+  source?: 'you' | 'health_canada_dv';
+}
+
+export type NutritionTargets = Partial<Record<NutrientKey, NutritionTarget>>;
+
+// A verdict only where the data proves it: met and over hold for a lower bound; within and
+// short need a complete total.
+export interface TargetCheck {
+  amount: number | null;
+  complete: boolean;
+  min: 'met' | 'short' | 'unknown' | null;
+  max: 'over' | 'within' | 'unknown' | null;
+}
+
+export interface DayMeal {
+  meal_id: string;
+  recipe_key: string;
+  title: string;
+  slot: string;
+  basis: 'per_serving' | 'per_recipe';
+  status: NutritionStatus;
+  totals: Partial<Record<NutrientKey, NutrientTotal>>;
+  amounts_basis: string[];
+  demo_amounts: boolean;
+}
+
+// One person's day: one serving of every meal on that date. complete only when every slot
+// switched on has a meal and every meal's totals are complete.
+export interface DayNutrition {
+  date: string | null;
+  meals: DayMeal[];
+  meals_counted: string[];
+  all_meals_planned: boolean;
+  totals: Partial<Record<NutrientKey, NutrientTotal>>;
+  complete: boolean;
+  amounts_basis: string[];
+  demo_amounts: boolean;
+  note: string;
+  targets: Partial<Record<NutrientKey, TargetCheck>> | null;
+}
+
+export interface PeriodTotal {
+  amount: number | null;
+  complete: boolean;
+}
+
+export interface PeriodNutrition {
+  days_total: number;
+  days_complete: number;
+  incomplete_days: string[];
+  // null when no day is complete
+  per_day_average_over_complete_days: Partial<Record<NutrientKey, number | null>> | null;
+  lower_bound_total: Partial<Record<NutrientKey, PeriodTotal>>;
+  slots_counted: string[];
+  amounts_basis: string[];
+  demo_amounts: boolean;
+  note: string;
 }
