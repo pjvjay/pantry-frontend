@@ -102,7 +102,7 @@ a { color: var(--accent); }
 }
 button {
   margin-top: 8px; padding: 8px 12px; border: none; border-radius: 8px;
-  background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+  background: var(--accent); color: var(--on-accent); font-weight: 600; cursor: pointer;
 }
 button:disabled { opacity: 0.55; cursor: default; }
 
@@ -301,7 +301,7 @@ input, select, textarea {
   background: var(--bg); color: var(--text); font: inherit; font-size: 14px;
 }
 button.secondary { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
-button.danger { background: #dc2626; }
+button.danger { background: #dc2626; color: #fff; }
 button.mini { margin: 0; padding: 3px 9px; font-size: 12px; }
 .form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-top: 10px; }
 .form-row.compact { margin-top: 0; align-items: center; }
@@ -356,7 +356,7 @@ tr.row-active td { background: var(--accent-soft); }
 /* Assistant */
 .chat { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; min-height: 200px; }
 .bubble { padding: 10px 14px; border-radius: 12px; max-width: 88%; font-size: 14px; }
-.bubble-user { align-self: flex-end; background: var(--accent); color: #fff; white-space: pre-wrap; }
+.bubble-user { align-self: flex-end; background: var(--accent); color: var(--on-accent); white-space: pre-wrap; }
 .bubble-agent { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); }
 .chat-meta { color: var(--muted); font-size: 12px; text-align: center; }
 .chat-input { display: flex; gap: 10px; margin-top: 14px; position: sticky; bottom: 0; background: var(--bg); padding: 8px 0; }
@@ -470,7 +470,7 @@ tr.row-active td { background: var(--accent-soft); }
 .tour-card:hover { border-color: var(--accent); }
 .tour-card span:last-child { color: var(--muted); font-size: 13px; }
 .tour-n {
-  width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff;
+  width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--on-accent);
   display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
 }
 
