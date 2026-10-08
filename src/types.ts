@@ -722,6 +722,8 @@ export type CartSummary = {
   coverage?: { spend_fraction?: number; lines_known?: number; lines_total?: number } | null;
   trip?: { stores: string[]; total_cost: number; basket_cost?: number; travel_cost?: number } | null;
   not_stocked?: LeftOut[]; out_of_range?: LeftOut[]; skipped?: LeftOut[];
+  // with the meal plan: some price is unknown, so the totals are lower bounds ("at least")
+  total_is_floor?: boolean;
 };
 export type PlanCardData = {
   kind: 'plan' | 'week'; summary: CartSummary;

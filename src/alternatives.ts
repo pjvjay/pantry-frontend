@@ -43,6 +43,9 @@ export function lineNotes(line: CartLine, originAsked: boolean): LineNote[] {
     out.push({ text: 'origin unclear', flag: true, title: `origin ${line.origin_status ?? 'unknown'}` });
   }
   if (line.match && line.match !== 'exact') out.push({ text: 'closest match', flag: true });
+  // a meal-plan trip line: which meals it is for, and an amount or price it does not know
+  if (line.note) out.push({ text: line.note, flag: false });
+  if (line.warn) out.push({ text: line.warn, flag: true });
   if (line.confidence != null && line.confidence < 0.85) {
     out.push({ text: 'check this pick', flag: true,
                title: `the planner is ${Math.round(line.confidence * 100)}% sure of this pick` });
