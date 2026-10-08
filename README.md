@@ -60,6 +60,28 @@ test framework to install. It needs Node 22.18 or later (CI uses 24):
 npm test   # node --test "tests/**/*.test.ts"
 ```
 
+## Meal plan (logic only so far)
+
+The meal plan is pantry-api's `MealPlanDraft`, held in this browser; the
+server computes its schedule, trips and freshness on every change and keeps
+nothing. The logic is in pure modules under `src/mealplan/`:
+
+| Module | What it holds |
+|---|---|
+| `dates.ts` | calendar dates as `YYYY-MM-DD`, arithmetic on whole days |
+| `model.ts` | the plan's frame and the reducer for every edit; each edit bumps `rev`, and a server answer is used only for the rev it was computed from |
+| `undo.ts` | 50 snapshots of undo, in memory |
+| `persist.ts` | saving under `pantry.mealplan.v1` (a value it cannot read is kept under `pantry.mealplan.v1.backup`), JSON export and import |
+| `consequences.ts` | what a move means for freshness, from the last answer; remedies as edits |
+| `dnd.ts` | the drag gesture, hit-testing and the keyboard route |
+| `selectionPreview.ts` | Quick add's chips: only exact and plural matches are accepted without asking |
+
+`src/myRecipes.ts` is the contract for the shopper's own recipes:
+`pantry.recipes.v1` holds `{v: 1, recipes: RecipeDoc[]}`, each keyed
+`my:<id>`. `src/mealplan/store.tsx` (`MealPlanProvider`, `useMealPlan`) wraps
+the reducer with saving, the schedule call and the other `/mealplan/*`
+requests in `api.ts`.
+
 ## Build the image
 
 ```bash
