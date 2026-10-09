@@ -6,7 +6,7 @@ import {
   chatMessageFor, confirmAll, dailyText, docFromParsed, durationText, estimateSeconds,
   evidenceHref, fitsDaily, hasTranscribed, importError, importSupport, parseInbox, pasteLines,
   pastedFromVideo, readInbox, readyProblem, removeLine, retitle, saveRecipe, savedKeyFor,
-  secondsOf, setConfirmed, sourceText, takeInbox, unconfirmedLines, withServings,
+  secondsOf, setConfirmed, sourceText, takeInbox, unconfirmedLines, usageText, withServings,
 } from '../src/recipes.ts';
 import type { StorageLike } from '../src/recipes.ts';
 import type { HubStatus, ParsedLines, RecipeDoc, RecipeLine } from '../src/types.ts';
@@ -285,6 +285,16 @@ test('the daily video allowance is said in time, and an unknown length is not gu
   assert.equal(estimateSeconds('12'), 720);
   assert.equal(estimateSeconds(' 0.5 '), 30);
   for (const bad of ['', '0', '-3', 'abc', '721']) assert.equal(estimateSeconds(bad), null, bad);
+});
+
+test('a transcription\'s cost is the hub\'s figure, and with no rate set no cost is shown as $0', () => {
+  const u = { model: 'gemini-3-flash-preview', total_tokens: 41250, llm_cost_usd: 0,
+              pricing: 'preview pricing' };
+  assert.equal(usageText(u), 'Gemini (gemini-3-flash-preview) read 41,250 tokens; no rate is set '
+    + 'on this hub, so no cost is counted (preview pricing).');
+  assert.doesNotMatch(usageText(u), /\$/);
+  assert.equal(usageText({ ...u, llm_cost_usd: 0.012375 }), 'Gemini (gemini-3-flash-preview) read '
+    + '41,250 tokens: $0.0124 at the rate set on this hub (preview pricing).');
 });
 
 // ─── saved in this browser ───────────────────────────────────

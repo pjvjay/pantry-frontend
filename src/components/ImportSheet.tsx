@@ -19,7 +19,7 @@ import {
   addToMealPlan, amountText, basisBadge, confirmAll, dailyText, docFromParsed, durationText,
   estimateSeconds, evidenceHref, finished, fitsDaily, hasTranscribed, importError,
   importSupport, pasteLines, pastedFromVideo, readyProblem, removeLine, retitle, saveRecipe,
-  setConfirmed, sourceText, unconfirmedLines, withServings,
+  setConfirmed, sourceText, unconfirmedLines, usageText, withServings,
 } from '../recipes';
 import type { ImportSupport, StorageLike } from '../recipes';
 import type {
@@ -230,12 +230,7 @@ function VideoPanel({ video, result, hasDoc, support, busy, onReadLink, onPaste,
           </div>
         </>
       )}
-      {result.usage && (
-        <p className="muted">
-          Gemini ({result.usage.model}) read {result.usage.total_tokens.toLocaleString()} tokens:
-          {' '}${result.usage.llm_cost_usd.toFixed(4)} ({result.usage.pricing}).
-        </p>
-      )}
+      {result.usage && <p className="muted">{usageText(result.usage)}</p>}
     </section>
   );
 }

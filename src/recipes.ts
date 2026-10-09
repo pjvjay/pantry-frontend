@@ -24,7 +24,7 @@
 //     is there already, and says so for an entry whose recipe is no longer saved. At most one
 //     entry per key; added_at is an ISO time, for the order they were added.
 import type {
-  AmountBasis, HubStatus, ImportVideo, ParsedLines, RecipeDoc, RecipeLine, RecipeSource,
+  AmountBasis, HubStatus, ImportUsage, ImportVideo, ParsedLines, RecipeDoc, RecipeLine, RecipeSource,
   VideoDaily, VideoTranscribe,
 } from './types.ts';
 
@@ -293,7 +293,18 @@ export function importError(detail: unknown, fallback: string): { code: string; 
   return { code: '', text: fallback };
 }
 
-// ─── Gemini's daily allowance ────────────────────────────────
+// ─── Gemini's daily allowance and cost ───────────────────────
+
+// What a transcription read and cost, as the hub priced it. The hub prices video input at a rate
+// set in its own settings (0 unless set, while YouTube input is a free preview), so a zero is
+// said to be "no rate set", never shown as a price of $0.
+export function usageText(u: Pick<ImportUsage, 'model' | 'total_tokens' | 'llm_cost_usd' | 'pricing'>): string {
+  const tokens = `Gemini (${u.model}) read ${u.total_tokens.toLocaleString('en-US')} tokens`;
+  const label = u.pricing ? ` (${u.pricing})` : '';
+  return u.llm_cost_usd > 0
+    ? `${tokens}: $${u.llm_cost_usd.toFixed(4)} at the rate set on this hub${label}.`
+    : `${tokens}; no rate is set on this hub, so no cost is counted${label}.`;
+}
 
 // "1:10:00 of 6:00:00 used today (UTC)".
 export const dailyText = (d: VideoDaily) =>
