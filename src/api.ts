@@ -6,6 +6,7 @@ import type {
   ShoppingPlan,
   WeekPlan,
 } from './types';
+import { fromConsole } from './consoleRequest';
 
 // BASE_URL is '/pantry/' (vite.config.ts `base`). Building URLs from it
 // keeps fetches correct regardless of how the current page path looks.
@@ -24,7 +25,7 @@ export class PlanAbortError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}${path}`, init);
+  const res = await fetch(`${API}${path}`, fromConsole(init));
   if (!res.ok) {
     let detail: unknown = null;
     try {

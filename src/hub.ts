@@ -19,12 +19,13 @@ import type {
   WeekPlan,
 } from './types';
 import { PlanAbortError } from './api';
+import { fromConsole } from './consoleRequest';
 
 const API = `${import.meta.env.BASE_URL}api`;
 const HUB = '/hub';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const res = await fetch(url, fromConsole(init));
   if (!res.ok) {
     let detail: unknown = null;
     try {
@@ -133,7 +134,7 @@ export async function agentChat(
   signal?: AbortSignal,
   onOpen?: () => void,
 ): Promise<void> {
-  const res = await fetch(`${HUB}/agent/chat`, { ...post(body), signal });
+  const res = await fetch(`${HUB}/agent/chat`, fromConsole({ ...post(body), signal }));
   onOpen?.();
   if (!res.ok || !res.body) {
     let detail = `${res.status} ${res.statusText}`;

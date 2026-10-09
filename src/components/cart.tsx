@@ -1,21 +1,8 @@
 // A plan as a shopping cart: what to pick up at each store, what it costs, and what could not go
 // in the cart with the swaps the planner found. The tool's JSON stays in its step above.
 import { createContext, useContext, useState } from 'react';
+import type { CartLine, CartSummary, LeftOut } from '../types';
 import { IngredientImage } from './flow';
-
-export type CartLine = {
-  ingredient: string; product: string; product_id?: number; store?: string; price?: number;
-  trip_store?: string; trip_price?: number | null; origin_country?: string; origin_status?: string;
-  confidence?: number; match?: string; packs?: number;
-};
-export type LeftOut = { ingredient: string; reason?: string; suggestions?: string[] };
-export type CartSummary = {
-  recipe_name?: string; total_cost?: number; lines?: CartLine[]; origin_status?: string;
-  coverage?: { spend_fraction?: number; lines_known?: number; lines_total?: number } | null;
-  trip?: { stores: string[]; total_cost: number; basket_cost?: number; travel_cost?: number } | null;
-  not_stocked?: LeftOut[]; out_of_range?: LeftOut[]; skipped?: LeftOut[];
-};
-export type PlanCardData = { kind: 'plan' | 'week'; summary: CartSummary };
 
 // What a swap button does: put a request in the message box, for the shopper to send or edit.
 export const AskContext = createContext<(text: string) => void>(() => {});
