@@ -22,8 +22,9 @@ export const money = (v: number): string => `$${v.toFixed(2)}`;
 // A total of known prices: "$41.20", "at least $41.20" when some price is unknown, and "price
 // unknown" when none is known. The engine sums known prices only, so a trip whose every price
 // is unknown has a total of 0, which is not a price anybody quoted.
-export function costText(total: number, floor: boolean, anyKnown: boolean, atLeast = 'at least '): string {
-  if (floor && !anyKnown) return 'price unknown';
+export function costText(total: number | null, floor: boolean, anyKnown: boolean, atLeast = 'at least '): string {
+  // null: pantry-api found no price on any line (an older one sent 0 with the floor set)
+  if (total === null || (floor && !anyKnown)) return 'price unknown';
   return `${floor ? atLeast : ''}${money(total)}`;
 }
 
@@ -183,10 +184,10 @@ export function tripToCartSummary(t: Trip): CartSummary {
   return {
     recipe_name: `Shopping trip ${dayLabel(t.date)}`,
     lines,
-    total_cost: t.total_cost,
+    total_cost: t.total_cost ?? undefined,
     total_is_floor: t.total_is_floor,
-    trip: { stores: t.stores, basket_cost: t.total_cost, travel_cost: travel,
-      total_cost: t.total_cost + (travel ?? 0) },
+    trip: { stores: t.stores, basket_cost: t.total_cost ?? undefined, travel_cost: travel,
+      total_cost: t.total_cost === null ? null : t.total_cost + (travel ?? 0) },
   };
 }
 

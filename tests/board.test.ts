@@ -127,6 +127,23 @@ test('a total with no known price is "price unknown", never "at least $0.00"', (
   assert.equal(summaryLine(s, sc), '1 meal · 1 placed · 1 trip · price unknown');
 });
 
+test('a null total from pantry-api is "price unknown" on the chip, the summary and the cart', () => {
+  const unknown = trip(D(1), [line(10, 'Chicken', { packs: null, price: null, packs_basis: 'needs_servings' })],
+    { total_cost: null, total_is_floor: true });
+  assert.equal(costText(null, true, false), 'price unknown');
+  assert.equal(tripChipText(unknown), 'Suggested · 1 store · price unknown · 1 item');
+  const c = tripToCartSummary(unknown);
+  assert.equal(c.total_cost, undefined);
+  assert.equal(c.trip?.total_cost, null);
+  assert.equal(c.trip?.basket_cost, undefined);
+  const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1)),
+    { type: 'place', mealId: `${PIZZA}#1`, date: D(2), slot: 'dinner' });
+  const sc = schedule(s.draft.rev, [], [unknown]);
+  sc.strategies[0].total_cost = null;
+  sc.strategies[0].total_is_floor = true;
+  assert.equal(summaryLine(s, sc), '1 meal · 1 placed · 1 trip · price unknown');
+});
+
 test('a day approved under the other strategy says so, and is counted apart', () => {
   let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1));
   s = run(s, { type: 'approveTrip', trip: trip(D(1), []), strategy: 'fresh', rev: s.draft.rev },

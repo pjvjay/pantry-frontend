@@ -721,7 +721,7 @@ export type LeftOut = { ingredient: string; reason?: string; suggestions?: strin
 export type CartSummary = {
   recipe_name?: string; total_cost?: number; lines?: CartLine[]; origin_status?: string;
   coverage?: { spend_fraction?: number; lines_known?: number; lines_total?: number } | null;
-  trip?: { stores: string[]; total_cost: number; basket_cost?: number; travel_cost?: number } | null;
+  trip?: { stores: string[]; total_cost: number | null; basket_cost?: number; travel_cost?: number } | null;
   not_stocked?: LeftOut[]; out_of_range?: LeftOut[]; skipped?: LeftOut[];
   // with the meal plan: some price is unknown, so the totals are lower bounds ("at least")
   total_is_floor?: boolean;
@@ -1182,7 +1182,7 @@ export interface Trip {
   recommended: TripOption | null;
   frontier: TripOption[];
   not_stocked: string[];
-  total_cost: number;              // known prices only
+  total_cost: number | null;       // known prices only; null when no line has a price
   total_is_floor: boolean;         // some price is unknown: show "at least"
   price_delta: number | null;
   fingerprint: string;
@@ -1239,7 +1239,7 @@ export interface StrategyResult {
   recommended: boolean;
   trips: Trip[];
   actions: PlanAction[];
-  total_cost: number;
+  total_cost: number | null;       // null when no line on any trip has a price
   total_is_floor: boolean;
   warning_counts: WarningCounts;
 }
@@ -1280,7 +1280,7 @@ export interface ApprovedScheduleTrip {
   date: string;
   status: Trip['status'];
   stores: string[];
-  total_cost: number;
+  total_cost: number | null;
   total_is_floor: boolean;
   list_text: string;
 }
