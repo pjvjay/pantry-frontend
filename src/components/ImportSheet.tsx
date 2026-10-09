@@ -430,7 +430,7 @@ export function ImportSheet({ open, onClose, start, planInChat, chatBlocked, onP
   const planNow = async () => {
     if (!doc || problem) return;
     const reviewed = finished(doc);
-    if (support?.hub && planInChat) {
+    if (support?.chatDocs && planInChat) {
       if (chatBlocked) return;
       planInChat(reviewed);
       onClose();
@@ -494,8 +494,10 @@ export function ImportSheet({ open, onClose, start, planInChat, chatBlocked, onP
     document.getElementById(`${tabIds}-tab-${next}`)?.focus();
   };
 
-  const inChat = !!(support?.hub && planInChat);
-  const planBlocked = problem ?? (inChat ? chatBlocked ?? null : null);
+  const inChat = !!(support?.chatDocs && planInChat);
+  // until /hub/status answers it is not known whether the chat can take the doc
+  const planBlocked = problem ?? (planInChat && support === null ? 'Checking whether the chat can '
+    + 'take the recipe…' : inChat ? chatBlocked ?? null : null);
 
   let panel: ReactNode;
   if (shown === 'link') {

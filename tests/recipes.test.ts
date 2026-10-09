@@ -239,6 +239,7 @@ test('without a hub only a paste is offered, with the note the plan names', () =
   const s = importSupport(null);
   assert.equal(s.links, false);
   assert.equal(s.hub, false);
+  assert.equal(s.chatDocs, false);
   assert.equal(s.note, NO_HUB_NOTE);
   assert.equal(NO_HUB_NOTE, 'Reading links needs the local demo hub');
   assert.equal(s.video.enabled, false);
@@ -246,16 +247,21 @@ test('without a hub only a paste is offered, with the note the plan names', () =
 
 test('a hub says what it can read, and why not', () => {
   const ok = importSupport(status());
-  assert.deepEqual([ok.hub, ok.links, ok.youtubeDescription, ok.note], [true, true, false, null]);
+  assert.deepEqual([ok.hub, ok.chatDocs, ok.links, ok.youtubeDescription, ok.note],
+                   [true, true, true, false, null]);
   assert.match(ok.video.reason, /Gemini API key/);
   assert.equal(importSupport(status({ recipe_import: { links: true, youtube_description: true } }))
     .youtubeDescription, true);
   const broken = importSupport(status({ recipe_import: { links: false, youtube_description: false,
                                                          reason: 'extractor not found' } }));
   assert.deepEqual([broken.links, broken.note], [false, 'The demo hub cannot read links right now: extractor not found']);
+  // without its extractor the hub still takes a reviewed paste in chat
+  assert.equal(broken.chatDocs, true);
   const old = importSupport(status({ recipe_import: undefined, video_import: undefined }));
   assert.equal(old.links, false);
   assert.match(old.note ?? '', /predates recipe import/);
+  // a hub that predates recipe import would drop recipe_doc and send the model a bare title
+  assert.equal(old.chatDocs, false);
   assert.equal(old.video.enabled, false);
 });
 

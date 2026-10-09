@@ -34,8 +34,9 @@ can be ticked or removed, never rewritten.
 
 Without a hub (`/hub/status` does not answer) only Paste is offered, with
 "Reading links needs the local demo hub". "Plan this now" sends the reviewed
-doc into the chat (`recipe_doc`) in the Assistant, and to `POST /plan/spec`
-otherwise. A link pasted in chat is read by the hub before the model starts;
+doc into the chat (`recipe_doc`) in the Assistant when the hub reports
+`recipe_import` in `/hub/status` (an older hub would drop the doc), and to
+`POST /plan/spec` otherwise. A link pasted in chat is read by the hub before the model starts;
 its `recipe_import` event is drawn as an import card.
 
 `src/recipes.ts` (pure, tested) holds the sheet's words and edits and the

@@ -246,6 +246,10 @@ export const pastedFromVideo = (video: Pick<ImportVideo, 'url' | 'title' | 'chan
 
 export interface ImportSupport {
   hub: boolean;
+  // The hub takes a reviewed doc in chat (ChatBody.recipe_doc). A hub older than recipe import
+  // ignores a field it does not know, so the model would get the title with no lines: "Plan
+  // this now" then plans with /plan/spec in the sheet instead.
+  chatDocs: boolean;
   links: boolean;                  // Link and YouTube tabs
   youtubeDescription: boolean;     // the hub has a YouTube key
   video: VideoTranscribe;          // Gemini on a click
@@ -258,20 +262,21 @@ export const NO_HUB_NOTE = 'Reading links needs the local demo hub';
 export function importSupport(status: HubStatus | null): ImportSupport {
   const off = (reason: string): VideoTranscribe => ({ enabled: false, reason });
   if (!status) {
-    return { hub: false, links: false, youtubeDescription: false,
+    return { hub: false, chatDocs: false, links: false, youtubeDescription: false,
              video: off('Needs the local demo hub.'), note: NO_HUB_NOTE };
   }
   const ri = status.recipe_import;
   const video = status.video_import ?? off('This demo hub has no video import.');
   if (!ri) {
-    return { hub: true, links: false, youtubeDescription: false, video,
+    return { hub: true, chatDocs: false, links: false, youtubeDescription: false, video,
              note: 'This demo hub cannot read links: it predates recipe import.' };
   }
   if (!ri.links) {
-    return { hub: true, links: false, youtubeDescription: false, video,
+    return { hub: true, chatDocs: true, links: false, youtubeDescription: false, video,
              note: `The demo hub cannot read links right now${ri.reason ? `: ${ri.reason}` : '.'}` };
   }
-  return { hub: true, links: true, youtubeDescription: ri.youtube_description, video, note: null };
+  return { hub: true, chatDocs: true, links: true, youtubeDescription: ri.youtube_description, video,
+           note: null };
 }
 
 // ─── the hub's refusals ──────────────────────────────────────
