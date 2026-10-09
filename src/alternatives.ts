@@ -88,17 +88,24 @@ export const reasonOf = (item: RankedAlternative, code: string): AltReason | und
 export const chipReasons = (item: RankedAlternative): AltReason[] =>
   ['match', 'origin', 'rating'].flatMap((code) => reasonOf(item, code) ?? []);
 
+// What a pack costs the cart if the shopper chooses the row: the price where the row's trip buys
+// it (pantry's buys_at), which is what the re-priced cart charges, or the offer's when the trip
+// was not worked out (or the plan has no shopping location).
+export const packPrice = (item: RankedAlternative): number =>
+  item.trip?.buys_at?.price ?? item.offer.price;
+
 // The row's price in bold, and the note under it. With the recipe's amount and the pack size
-// known: what that amount costs. Otherwise the pack's price, with pantry's reason the amount was
-// not compared ("Recipe gives no amount", "Pack in ml, recipe in g").
+// known: what that amount costs (pantry prices it as packPrice does). Otherwise the pack's price,
+// with pantry's reason the amount was not compared ("Recipe gives no amount", "Pack in ml, recipe
+// in g").
 export function priceLine(item: RankedAlternative): { main: string; note: string } {
   const pack = reasonOf(item, 'pack')?.text ?? '';
   const packs = item.packs > 1 ? `; the cart buys ${item.packs}` : '';
   if (item.cost_for_need != null) {
     return { main: `For this recipe ${money(item.cost_for_need)}`,
-             note: `${money(item.offer.price)} a pack${packs}${pack ? `. ${pack}` : ''}` };
+             note: `${money(packPrice(item))} a pack${packs}${pack ? `. ${pack}` : ''}` };
   }
-  return { main: `${money(item.offer.price)} a pack`,
+  return { main: `${money(packPrice(item))} a pack`,
            note: `Amount not compared${pack ? `: ${pack}` : ''}${packs}` };
 }
 
@@ -109,20 +116,30 @@ export const unitPriceText = (item: RankedAlternative) =>
 const listOf = (names: string[]) => (names.length < 2 ? names.join('')
   : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`);
 
-// Where the offer is: the store and its distance, or the catalog price when the plan has no
-// shopping location. The offer is the lowest price in range, but the trip re-optimised with this
-// product may not stop there (a second stop can cost more than it saves); then the cart would buy
-// it at one of the trip's stores, at a price the ranking does not give. The row says so, so the
-// cart's price after "Use this" is not a surprise; the trip total is still the row's own.
+const kmText = (km: number | null | undefined) => (km != null ? `, ${km.toFixed(1)} km` : '');
+
+// Where the cart would buy the row's product, or the catalog price when the plan has no shopping
+// location. The offer is the lowest price in range, but the trip re-optimised with this product
+// may not stop there (a second stop can cost more than it saves): then the row names the store the
+// trip buys it at, whose price packPrice shows, and quotes the lowest price as the trip's to skip,
+// so the cart's price after "Use this" is the one the row showed. A row whose trip was not worked
+// out shows the offer as what it is, the lowest price in range.
 export function storeText(item: RankedAlternative): string {
   const o = item.offer;
   if (!o.store) return 'catalog price (the plan has no shopping location)';
-  const km = o.distance_km != null ? `, ${o.distance_km.toFixed(1)} km` : '';
-  const stops = item.trip?.stores ?? [];
-  if (stops.length > 0 && !stops.includes(o.store)) {
-    return `Lowest price at ${o.store}${km}; your best trip buys it at ${listOf(stops)} instead`;
+  const lowest = `${o.store}${kmText(o.distance_km)}`;
+  const buys = item.trip?.buys_at;
+  if (buys && buys.store !== o.store) {
+    return `${buys.store}${kmText(buys.distance_km)}, where your best trip buys it (lowest price `
+      + `in range: ${money(o.price)} at ${lowest})`;
   }
-  return `${o.store}${km}${o.on_trip ? ' · on your trip' : ''}`;
+  const stops = item.trip?.stores ?? [];
+  if (!item.trip) return `${lowest} · lowest price in range`;
+  if (!buys && stops.length > 0 && !stops.includes(o.store)) {
+    // an older pantry, without buys_at: the store is known, its price is not
+    return `Lowest price at ${lowest}; your best trip buys it at ${listOf(stops)} instead`;
+  }
+  return `${lowest}${o.on_trip ? ' · on your trip' : ''}`;
 }
 
 // The other purchases a swap would send to another store.

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   cartChangeText, cartLineKey, cartTotal, chipReasons, coversText, footText, isPinned, lineNotes,
-  linesOf, money, movedText, needText, optionsLabel, priceLine, purchaseLineNo, replaceCard,
+  linesOf, money, movedText, needText, optionsLabel, packPrice, priceLine, purchaseLineNo,
+  replaceCard,
   replyBeforeChange, rowsOf, storeText,
   swapAnnouncement, swapBlocked, swapNotice, unitPriceText,
 } from '../src/alternatives.ts';
@@ -17,8 +18,10 @@ function row(over: Partial<RankedAlternative> = {}): RankedAlternative {
     rank: 2, current: false, product_id: 37, product: 'Ground Beef Lean', brand: 'Fraser Farms',
     size: '450g', tier: 'same', match: 'exact',
     offer: { store: 'GreenLeaf Grocers Kitsilano', price: 6.79, distance_km: 3.0, on_trip: false },
-    packs: 1, pack_fit: 'unknown', cost_for_need: null, unit_price: 1.51, unit_basis: '100 g',
+    packs: 1, pack_fit: 'unknown', cost_for_need: null, unit_price: 1.77, unit_basis: '100 g',
+    // the lowest price in range is GreenLeaf's, but the best trip stays at Pantry Mart Downtown
     trip: { total: 28.54, delta: 1.68, stores: ['Pantry Mart Downtown'], stops_delta: 0,
+            buys_at: { store: 'Pantry Mart Downtown', price: 7.95, distance_km: 0.2 },
             merges_with_line: null, moved_items: [] },
     origin: { status: 'unknown', country: '', claim: '', label: 'Origin not checked',
               verbatim: '', source: '', demo: false },
@@ -125,40 +128,55 @@ test('chips are the match, origin and rating reasons, in that order', () => {
 
 test('the price says what the recipe costs only when the amount was compared', () => {
   assert.deepEqual(priceLine(row()), {
-    main: '$6.79 a pack', note: 'Amount not compared: Recipe gives no amount' });
+    main: '$7.95 a pack', note: 'Amount not compared: Recipe gives no amount' });
   const compared = row({
-    cost_for_need: 13.58, packs: 2, pack_fit: 'covers',
+    cost_for_need: 15.9, packs: 2, pack_fit: 'covers',
     reasons: [{ code: 'pack', text: "Covers the recipe's 900 g in 2 packs", tone: 'plus' }],
   });
   assert.deepEqual(priceLine(compared), {
-    main: 'For this recipe $13.58',
-    note: "$6.79 a pack; the cart buys 2. Covers the recipe's 900 g in 2 packs" });
+    main: 'For this recipe $15.90',
+    note: "$7.95 a pack; the cart buys 2. Covers the recipe's 900 g in 2 packs" });
+});
+
+test("a row's price is what the cart charges after the swap, not the lowest price in range", () => {
+  // live: Ground Beef Lean is $6.79 at GreenLeaf, but the trip stays at Pantry Mart Downtown and
+  // the re-priced cart charged $7.95 there; the bold price is that one
+  assert.equal(packPrice(row()), 7.95);
+  assert.doesNotMatch(priceLine(row()).main, /6\.79/);
+  // with no trip worked out (or an older pantry without buys_at), the offer is all there is
+  assert.equal(packPrice(row({ trip: null })), 6.79);
+  const older = row({ trip: { total: 28.54, delta: 1.68, stores: ['Pantry Mart Downtown'],
+    stops_delta: 0, merges_with_line: null, moved_items: [] } });
+  assert.equal(packPrice(older), 6.79);
 });
 
 test('unit price and store say unknown or catalog price instead of guessing', () => {
-  assert.equal(unitPriceText(row()), '$1.51 / 100 g');
+  assert.equal(unitPriceText(row()), '$1.77 / 100 g');
   assert.equal(unitPriceText(row({ unit_price: null, unit_basis: '' })), 'unit price unknown');
-  assert.equal(storeText(row({ trip: null })), 'GreenLeaf Grocers Kitsilano, 3.0 km');
-  assert.equal(storeText(row({ offer: { store: 'Pantry Mart Downtown', price: 1, distance_km: 0.2,
-    on_trip: true } })), 'Pantry Mart Downtown, 0.2 km · on your trip');
+  // no trip worked out: the offer is named for what it is
+  assert.equal(storeText(row({ trip: null })),
+    'GreenLeaf Grocers Kitsilano, 3.0 km · lowest price in range');
+  assert.equal(storeText(row({ offer: { store: 'Pantry Mart Downtown', price: 7.95,
+    distance_km: 0.2, on_trip: true } })), 'Pantry Mart Downtown, 0.2 km · on your trip');
   assert.equal(storeText(row({ offer: { store: '', price: 1, distance_km: null, on_trip: false } })),
     'catalog price (the plan has no shopping location)');
 });
 
 test("a row whose best trip skips the lowest-price store says where the trip buys it", () => {
-  // live: Ground Beef Lean is $6.79 at GreenLeaf, but the trip stays at Pantry Mart Downtown and
-  // the re-priced cart pays that store's price; the row must not imply the cart pays $6.79 there
-  assert.equal(storeText(row()), 'Lowest price at GreenLeaf Grocers Kitsilano, 3.0 km; '
-    + 'your best trip buys it at Pantry Mart Downtown instead');
-  const two = row({ trip: { total: 30, delta: 1, stores: ['A', 'B', 'C'], stops_delta: 1,
-    merges_with_line: null, moved_items: [] } });
-  assert.match(storeText(two), /buys it at A, B or C instead$/);
-  // the trip does stop at the offer's store: nothing to add
+  // the store the price is from, then the lowest price in range as the one the trip skips
+  assert.equal(storeText(row()), 'Pantry Mart Downtown, 0.2 km, where your best trip buys it '
+    + '(lowest price in range: $6.79 at GreenLeaf Grocers Kitsilano, 3.0 km)');
+  // the trip buys it at the offer's store: nothing to add
   const at = row({ trip: { total: 30, delta: 1, stores: ['A', 'GreenLeaf Grocers Kitsilano'],
-    stops_delta: 1, merges_with_line: null, moved_items: [] } });
+    stops_delta: 1, buys_at: { store: 'GreenLeaf Grocers Kitsilano', price: 6.79, distance_km: 3 },
+    merges_with_line: null, moved_items: [] } });
   assert.equal(storeText(at), 'GreenLeaf Grocers Kitsilano, 3.0 km');
-  // no figure is made up for the trip store's price
-  assert.doesNotMatch(storeText(row()), /\$/);
+  // an older pantry gives the trip's stores but not buys_at: the store is named, no price is
+  // made up for it
+  const older = row({ trip: { total: 30, delta: 1, stores: ['A', 'B', 'C'], stops_delta: 1,
+    merges_with_line: null, moved_items: [] } });
+  assert.match(storeText(older), /^Lowest price at GreenLeaf .*buys it at A, B or C instead$/);
+  assert.doesNotMatch(storeText(older), /\$/);
 });
 
 test('moved purchases are named with both stores', () => {

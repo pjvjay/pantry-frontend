@@ -295,12 +295,23 @@ export interface AltMove {
   to_store: string;
 }
 
+// Where a trip buys a product, and its price a pack there.
+export interface AltBuy {
+  store: string;
+  price: number;
+  distance_km: number | null;
+}
+
 // The cart's trip re-optimised with this product on the line, exactly as a swap would price it.
+// `buys_at`: the store that trip buys the product at and its price a pack there, which is what
+// the cart charges after the swap (the row's offer is the lowest price in range, which the trip
+// may skip when the stop costs more than it saves). Absent from an older pantry.
 export interface AltTrip {
   total: number;
   delta: number;                   // 0 for the cart's own pick
   stores: string[];
   stops_delta: number;
+  buys_at?: AltBuy | null;
   merges_with_line: number | null;
   moved_items: AltMove[];
 }
