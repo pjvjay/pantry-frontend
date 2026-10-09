@@ -23,6 +23,7 @@ import { dropEdit, keyIntent, parseTarget } from '../mealplan/dnd';
 import type { DragEffect, DragPayload } from '../mealplan/dnd';
 import { SETTING_RULES, SLOTS, SLOT_LABELS, readNumber, recipeTitle } from '../mealplan/model';
 import type { NumberRule, PlanEdit, Slot } from '../mealplan/model';
+import { pinFix } from '../mealplan/options';
 import { exportFileName } from '../mealplan/persist';
 import { useMealPlan } from '../mealplan/store';
 import type { RemedyOp } from '../types';
@@ -175,6 +176,8 @@ export default function MealPlanView() {
   const pickRef = useRef<(p: DragPayload) => void>(() => undefined);
   const [mealSheet, setMealSheet] = useState<string | null>(null);
   const [tripSheet, setTripSheet] = useState<string | null>(null);
+  // a product whose Options open with the trip sheet (a warning's open_options remedy)
+  const [tripOptions, setTripOptions] = useState<number | null>(null);
   const [targetsOpen, setTargetsOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [hideEmpty, setHideEmpty] = useState(false);
@@ -348,8 +351,12 @@ export default function MealPlanView() {
         if (!input) mp.announce('Say how many the recipe serves in the Pick band.');
         break;
       }
-      case 'set_packs': case 'approve_trip': case 'open_options':
+      case 'set_packs': case 'approve_trip':
         setTripSheet(op.date);
+        break;
+      case 'open_options':
+        setTripSheet(op.date);
+        setTripOptions(op.product_id);
         break;
       case 'resolve':
         mp.retryResolve(op.recipe_key);
@@ -365,6 +372,9 @@ export default function MealPlanView() {
     schedule.status === 'checking' ? 'checking…' : schedule.status === 'error' ? 'check failed'
       : schedule.current ? 'checked' : '',
   ].filter(Boolean).join(' · ');
+  // A pin the schedule now refuses (its product held back or no longer sold in range) can be
+  // taken off from here, so the plan is never stuck on it.
+  const fix = schedule.status === 'error' ? pinFix(schedule.errorCode ?? null, schedule.errorDetail) : null;
   const placedAny = d.meals.some((m) => m.date !== null);
   const trayCount = d.meals.filter((m) => m.date === null).length;
 
@@ -421,6 +431,7 @@ export default function MealPlanView() {
           <span className="muted"> · {status}</span>
           {schedule.status === 'error' && (
             <> <span className="cart-flag">{schedule.error}</span>{' '}
+              {fix && <><button type="button" className="linkish" onClick={() => mp.dispatch(fix.edit)}>{fix.label}</button>{' '}</>}
               <button type="button" className="linkish" onClick={mp.recheck}>Retry</button></>
           )}
         </p>
@@ -467,7 +478,8 @@ export default function MealPlanView() {
       <ActionBar ctl={ctl} onCancel={cancelHeld} onTray={() => dropOn('tray')} />
       <DragGhost ctl={ctl} ghostRef={ghost} preview={preview} />
       <MoveSheet ctl={ctl} mealId={mealSheet} onClose={() => setMealSheet(null)} />
-      <TripSheet date={tripSheet} onClose={() => setTripSheet(null)} />
+      <TripSheet date={tripSheet} optionsFor={tripOptions}
+                 onClose={() => { setTripSheet(null); setTripOptions(null); }} />
       <CalendarExportDialog open={calendarOpen} onClose={() => setCalendarOpen(false)}
                             schedule={answer?.approved_schedule ?? null} current={schedule.current} />
       <TargetsEditor open={targetsOpen} onClose={() => setTargetsOpen(false)} targets={d.nutrition_targets}

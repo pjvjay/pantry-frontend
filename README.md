@@ -76,6 +76,7 @@ nothing. The logic is in pure modules under `src/mealplan/`:
 | `dnd.ts` | the drag gesture, hit-testing and the keyboard route |
 | `selectionPreview.ts` | Quick add's chips: only exact and plural matches are accepted without asking |
 | `board.ts` | what the views draw: cells, trip chips and lines, a trip as a cart card, the summary line, a Planner week as a plan |
+| `options.ts` | Options on a trip line: the pins a choice makes (one edit), the dialog's words, the fix for a pin the schedule refuses |
 
 `src/nutritionFormat.ts` words nutrition the same way everywhere: a complete
 total is a number, a partial one "≥ N" with the missing lines in its title, a
@@ -117,6 +118,22 @@ Export and Import (.json). A saved plan this console cannot read is kept under
 Print list prints only the trip's list: the button adds `mp-printing` to the
 page, and the `@media print` rules hide everything but that list. Printing the
 page any other way prints the page.
+
+**Options on a trip line.** Every line of a trip sheet has Options, the chat
+cart's dialog (`components/alternatives.tsx`) opened by
+`components/tripoptions.tsx` with pantry-api's `/mealplan/alternatives` (REST, no
+hub): the products that could take the line's place, ranked for every recipe line
+the purchase covers, each with what it costs on this trip and what it does to the
+plan's total, unknowns shown as unknown and the demo-data note. The header names
+the recipe and line. "Use this" pins the product on each of those lines as one
+edit (Undo puts it back); the plan as it would be is scheduled first with no model
+call, so a choice pantry-api refuses says why and changes nothing, and otherwise
+that answer is shown at once and focus goes to the trip line that now buys it. An
+approved trip whose products change reads "Changed since approved". The
+`open_options` remedy of a warning (a product no longer stocked, for one) opens
+the trip sheet with that line's Options. A pin the schedule later refuses (its
+product since held back by the plan's origin rules, or no longer sold in range)
+gets "Use the planner's product for that line" beside the error.
 
 **Add to calendar** (in the Shop band, `components/CalendarExportDialog.tsx`)
 posts the answer's `approved_schedule` back to pantry-api's `/calendar/preview`

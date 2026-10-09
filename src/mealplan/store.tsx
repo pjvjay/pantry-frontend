@@ -8,7 +8,9 @@
 //   carries the draft's rev and the answer is used only while the rev still matches, so a slow
 //   answer never paints over a newer plan; while a call runs the last answer stays on screen,
 //   marked as not current, and approving waits for a current one. The dates the server spread
-//   meals to are stored back on the plan (mergeSchedule).
+//   meals to are stored back on the plan (mergeSchedule). An answer the console already holds
+//   for the rev an edit just made (Options checks a choice before making it) is used as it is,
+//   with no second call (adoptSchedule).
 // - Resolve: each recipe once, as it enters the tray, never on a drag (the one call that may
 //   use a model). A failure is not retried on its own; retryResolve does that, both for a call
 //   that failed and for a recipe the server answered with a failure status (llm_error,
@@ -50,6 +52,9 @@ export interface ScheduleView {
   answer: MealSchedule | null;     // the last answer, kept while a newer one is on its way
   current: boolean;                // the answer is for the plan as it is now
   error: string | null;
+  // the refusal's code and detail as pantry-api sent them (422 pin_invalid names the line)
+  errorCode?: string | null;
+  errorDetail?: unknown;
 }
 
 export interface ProposalView {
@@ -71,6 +76,9 @@ export interface MealPlanApi {
   loadProblem: string | null;      // why a saved plan could not be read (it was kept as a backup)
   schedule: ScheduleView;
   recheck: () => void;
+  // An answer computed for the draft as the last edit made it (its rev): shown at once, instead
+  // of asking the server again. An answer for any other rev is ignored.
+  adoptSchedule: (answer: MealSchedule) => void;
   setDragging: (dragging: boolean) => void;
   resolve: { status: CallStatus; error: string | null; pending: string[] };
   retryResolve: (recipeKey?: string) => void;
@@ -198,11 +206,19 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
   const [dragging, setDragging] = useState(false);
   const [recheckTick, setRecheckTick] = useState(0);
   const hasRecipes = Object.keys(draft.recipes).length > 0;
+  const adopted = useRef<MealSchedule | null>(null);
 
   useEffect(() => {
     if (dragging) return;
     if (!hasRecipes) {
       setSchedule({ status: 'idle', answer: null, error: null });
+      return;
+    }
+    const held = adopted.current;
+    adopted.current = null;
+    if (held && held.rev === historyRef.current.present.draft.rev) {
+      setSchedule({ status: 'ok', answer: held, error: null });
+      dispatch({ type: 'mergeSchedule', schedule: held });
       return;
     }
     const ctl = new AbortController();
@@ -216,7 +232,9 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'mergeSchedule', schedule: answer });
       }).catch((e) => {
         if (aborted(e)) return;
-        setSchedule((s) => ({ ...s, status: 'error', error: message(e) }));
+        setSchedule((s) => ({ ...s, status: 'error', error: message(e),
+          errorCode: e instanceof ApiError ? e.code : null,
+          errorDetail: e instanceof ApiError ? e.detail : null }));
       });
     }, SCHEDULE_DELAY_MS);
     return () => {
@@ -226,6 +244,13 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
   }, [draft.rev, dragging, hasRecipes, recheckTick, dispatch]);
 
   const recheck = useCallback(() => setRecheckTick((n) => n + 1), []);
+  // Shown in the same render as the edit it was computed for, so what the edit redraws (a trip
+  // line with another product) is on screen when focus looks for it.
+  const adoptSchedule = useCallback((answer: MealSchedule) => {
+    if (answer.rev !== historyRef.current.present.draft.rev) return;
+    adopted.current = answer;
+    setSchedule({ status: 'ok', answer, error: null });
+  }, []);
 
   // ─── Resolve ───────────────────────────────────────────────
   const [resolve, setResolve] = useState<{ status: CallStatus; error: string | null }>(
@@ -392,14 +417,14 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
     state, dispatch, undo, redo, canUndo: canUndo(history), canRedo: canRedo(history), announce,
     persist, loadProblem: boot.loadProblem,
     schedule: { ...schedule, current: schedule.answer?.rev === draft.rev && schedule.status === 'ok' },
-    recheck, setDragging,
+    recheck, adoptSchedule, setDragging,
     resolve: { ...resolve, pending },
     retryResolve, starters, myRecipes: mine.recipes, myRecipesProblem: [mine.problem, inboxNote].filter(Boolean).join(' ') || null,
     syncSaved,
     quickAdd, acceptPreview, cookDays, proposeCookDays, applyCookDays, dismissCookDays, approveTrip,
     exportText, importText, clear,
   }), [state, dispatch, undo, redo, history, announce, persist, boot.loadProblem, schedule, draft.rev,
-    recheck, resolve, pending, retryResolve, starters, mine, inboxNote, syncSaved, quickAdd, acceptPreview, cookDays,
+    recheck, adoptSchedule, resolve, pending, retryResolve, starters, mine, inboxNote, syncSaved, quickAdd, acceptPreview, cookDays,
     proposeCookDays, applyCookDays, dismissCookDays, approveTrip, exportText, importText, clear]);
 
   return (

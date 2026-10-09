@@ -951,6 +951,8 @@ tr.row-active td { background: var(--accent-soft); }
 .mp-line { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .mp-line-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
 .mp-line-price { margin-left: auto; font-variant-numeric: tabular-nums; }
+/* a trip line's Options (the chat cart's dialog): after the price, at the end of the row */
+.mp-line-options { align-self: center; }
 .mp-line-ctl { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin: 4px 0; }
 .mp-warnings { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
 .mp-warn-group { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 13.5px; }
@@ -1018,6 +1020,7 @@ tr.row-active td { background: var(--accent-soft); }
   .mp-grip, .mp-chip-more { width: 44px; height: 44px; }
   .mp-grip { padding: 14px; }
   .mp-chip-main, .mp-trip-main { min-height: 44px; }
+  .mp-line-options { min-height: 44px; }
 }
 
 @media print {

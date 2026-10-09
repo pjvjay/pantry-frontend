@@ -15,6 +15,7 @@ import {
 import { productNames, remedyLabel, remedyStep, tripMoveConsequence, warningsFor } from '../mealplan/consequences';
 import { dayLabel } from '../mealplan/dates';
 import { MAX_PACKS, STRATEGY_NAMES, approvedElsewhere, inWindow, windowDates, windowOf } from '../mealplan/model';
+import { tripLineKey, tripOptionsLabel } from '../mealplan/options';
 import { useMealPlan } from '../mealplan/store';
 import type {
   MealSchedule, PlanAction, PlanCoverage, PlanWarning, RemedyOp, Trip, TripLine, WarningCounts,
@@ -22,6 +23,7 @@ import type {
 import { CartCard, copyText } from './cart';
 import { SourceCredits } from './nutrition';
 import { Sheet } from './Sheet';
+import { TripLineOptionsDialog } from './tripoptions';
 
 const counts = (c: WarningCounts) =>
   [c.must_fix && `${c.must_fix} must fix`, c.decide && `${c.decide} to decide`,
@@ -51,7 +53,8 @@ function useListActions(text: string) {
   return { copied, copy, print };
 }
 
-function LineRow({ ln, trip, allowFreezer }: { ln: TripLine; trip: Trip; allowFreezer: boolean }) {
+function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Trip; allowFreezer: boolean;
+  onOptions: (ln: TripLine) => void }) {
   const { dispatch, state } = useMealPlan();
   const overrides = state.draft.storage_overrides;
   const shelf = shelfText(ln);
@@ -69,6 +72,10 @@ function LineRow({ ln, trip, allowFreezer }: { ln: TripLine; trip: Trip; allowFr
           {ln.price === null ? <span className="cart-flag">price unknown</span> : `$${ln.price.toFixed(2)}`}
           {ln.store && <span className="muted"> at {ln.store}</span>}
         </span>
+        {/* The chat cart's Options dialog, for this purchase (components/tripoptions.tsx). */}
+        <button type="button" className="secondary mini mp-line-options" aria-haspopup="dialog"
+                aria-label={tripOptionsLabel(ln)} data-trip-line={tripLineKey(trip.date, ln.product.id)}
+                onClick={() => onOptions(ln)}>Options ›</button>
       </div>
       <div className="muted">{forMealsText(ln)}</div>
       <div className="mp-line-ctl">
@@ -115,14 +122,26 @@ function LineRow({ ln, trip, allowFreezer }: { ln: TripLine; trip: Trip; allowFr
   );
 }
 
-export function TripSheet({ date, onClose }: { date: string | null; onClose: () => void }) {
+// optionsFor: a product whose Options open with the sheet (a warning's open_options remedy).
+export function TripSheet({ date, onClose, optionsFor = null }: { date: string | null; onClose: () => void;
+  optionsFor?: number | null }) {
   const mp = useMealPlan();
   const d = mp.state.draft;
   const strategy = d.prefs.strategy;
   const trip = date ? strategyOf(mp.schedule.answer, strategy)?.trips.find((t) => t.date === date) : undefined;
   const [moveTo, setMoveTo] = useState('');
+  const [options, setOptions] = useState<{ productId: number; name: string } | null>(null);
   const list = useListActions(trip?.list_text ?? '');
   useEffect(() => setMoveTo(''), [date]);
+  useEffect(() => {
+    setOptions(date && optionsFor !== null ? { productId: optionsFor, name: '' } : null);
+  }, [date, optionsFor]);
+  const optionsName = options?.name
+    || trip?.lines.find((ln) => ln.product.id === options?.productId)?.product.name || '';
+  const optionsDialog = date && (
+    <TripLineOptionsDialog date={date} productId={options?.productId ?? null} productName={optionsName}
+                           onClose={() => setOptions(null)} />
+  );
   const others = useMemo(() => windowDates(windowOf(d)).filter((x) => x !== date
     && !d.trips.some((t) => t.date === x)), [d, date]);
   if (!date) return null;
@@ -130,6 +149,7 @@ export function TripSheet({ date, onClose }: { date: string | null; onClose: () 
     return (
       <Sheet open onClose={onClose} title={`Shopping trip ${dayLabel(date)}`}>
         <p className="muted">This trip is not in the latest answer: the plan changed. Close and open it again from its Shop row.</p>
+        {optionsDialog}
       </Sheet>
     );
   }
@@ -201,7 +221,8 @@ export function TripSheet({ date, onClose }: { date: string | null; onClose: () 
       <ul className="mp-lines">
         {/* The engine groups lines by product and storage, so a product can be here twice. */}
         {trip.lines.map((ln) => (
-          <LineRow key={`${ln.product.id}:${ln.storage}`} ln={ln} trip={trip} allowFreezer={d.prefs.allow_freezer} />
+          <LineRow key={`${ln.product.id}:${ln.storage}`} ln={ln} trip={trip} allowFreezer={d.prefs.allow_freezer}
+                   onOptions={(l) => setOptions({ productId: l.product.id, name: l.product.name })} />
         ))}
       </ul>
       {trip.dismissed.length > 0 && (
@@ -240,6 +261,8 @@ export function TripSheet({ date, onClose }: { date: string | null; onClose: () 
       )}
       <p className="muted">Store hours not checked. {mp.schedule.answer?.synthetic_notice}</p>
       {createPortal(<pre className="mp-print">{trip.list_text}</pre>, document.body)}
+      {/* a modal on top of this one; its focus comes back to the trip line */}
+      {optionsDialog}
     </Sheet>
   );
 }
@@ -247,10 +270,6 @@ export function TripSheet({ date, onClose }: { date: string | null; onClose: () 
 // ─── Warnings ────────────────────────────────────────────────
 
 const LEVEL_NAMES = { must_fix: 'Must fix', decide: 'To decide', note: 'Notes' } as const;
-
-// Other products for a line come with the alternatives dialog, which this console does not have
-// yet, so that remedy is not offered rather than offered and not kept.
-const shown = (op: RemedyOp) => op.op !== 'open_options';
 
 export function WarningsPanel({ schedule, onAsk }: {
   schedule: MealSchedule;
@@ -279,9 +298,9 @@ export function WarningsPanel({ schedule, onAsk }: {
             {ws.map((w: PlanWarning, i) => (
               <li key={`${w.code}-${i}`}>
                 <span>{w.message}</span>
-                {w.remedies.some(shown) && (
+                {w.remedies.length > 0 && (
                   <span className="mp-remedies">
-                    {w.remedies.filter(shown).map((op, j) => (
+                    {w.remedies.map((op, j) => (
                       <button key={j} type="button" className="secondary mini" onClick={() => run(op)}>
                         {remedyLabel(op, mp.state, names)}
                       </button>
