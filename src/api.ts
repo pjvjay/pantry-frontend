@@ -18,6 +18,8 @@ import type {
   SelectionParseResult,
   ShelfLife,
   ShoppingPlan,
+  TripLineOptions,
+  TripLineOptionsRequest,
   WeekPlan,
 } from './types';
 import { apiError } from './apiError';
@@ -133,6 +135,10 @@ export const parseSelection = (body: SelectionParseRequest, signal?: AbortSignal
 
 export const suggestCookDays = (draft: MealPlanDraft, signal?: AbortSignal) =>
   post<CookDaysProposal>('/mealplan/suggest-cook-days', draft, signal);
+
+// Options for one trip line: no LLM; one re-schedule per candidate, so slower than schedule.
+export const tripLineOptions = (body: TripLineOptionsRequest, signal?: AbortSignal) =>
+  post<TripLineOptions>('/mealplan/alternatives', body, signal);
 
 export const getMealStarters = (signal?: AbortSignal) =>
   request<MealStarter[]>('/mealplan/starters', { signal });

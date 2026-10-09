@@ -1064,6 +1064,10 @@ export interface PlanSettings {
   lat?: number | null;
   lon?: number | null;
   max_km?: number | null;
+  // the plan's origin rules, as resolve takes them; every pin and Options list is checked
+  // against them (absent: none)
+  exclude_origin?: string[];
+  preference?: string[];
 }
 
 // The browser's plan, sent whole to /mealplan/schedule and /mealplan/suggest-cook-days.
@@ -1442,6 +1446,45 @@ export interface ResolveRequest {
   max_km?: number | null;
   exclude_origin?: string[];
   preference?: string[];
+}
+
+// Options for one trip line (/mealplan/alternatives): the chat cart's ranking for every recipe
+// line the purchase covers, each row's trip the plan re-scheduled with that product pinned.
+//   lines: what choosing pins (pins[recipe_key][line_no]); a pin equal to planner_product_id
+//     is no pin
+//   ranking: trip.total/delta are the strategy's total of all its trips and its change; packs
+//     and cost_for_need what that trip line then buys and charges
+//   stocked: false when no store in range sells the line's product any more (it is then not
+//     among the rows)
+export interface CoveredLine {
+  recipe_key: string;
+  title: string;
+  line_no: number;
+  ingredient: string;
+  planner_product_id: number | null;
+  pinned_product_id: number | null;
+}
+
+export interface TripLineOptionsRequest {
+  draft: MealPlanDraft;
+  trip_date: string;
+  product_id: number;
+  strategy?: TripStrategy;
+  limit?: number;                  // 1..25
+}
+
+export interface TripLineOptions {
+  v: 1;
+  rev: number;
+  strategy: TripStrategy;
+  trip_date: string;
+  product_id: number;
+  product: string;
+  stocked: boolean;
+  pinned: boolean;
+  lines: CoveredLine[];
+  plan_total: number | null;
+  ranking: AlternativeRanking;
 }
 
 export interface ResolveResponse {
