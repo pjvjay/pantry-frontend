@@ -8,9 +8,9 @@ import {
 } from '../src/mealplan/persist.ts';
 import type { StorageLike } from '../src/mealplan/persist.ts';
 import {
-  RECIPES_KEY, forSelection, myDocProblem, parseMyRecipes, readMyRecipes, upsertMyRecipe,
-  writeMyRecipes,
+  RECIPES_KEY, forSelection, myDocProblem, parseMyRecipes, readMyRecipes,
 } from '../src/myRecipes.ts';
+import * as myRecipes from '../src/myRecipes.ts';
 import { docRef, step } from '../src/mealplan/model.ts';
 import type { RecipeDoc } from '../src/types.ts';
 import { D, add, planWith, run } from './helpers/mealplan.ts';
@@ -147,10 +147,9 @@ function myDoc(id: string, title: string, over: Partial<RecipeDoc> = {}): Recipe
 test('my recipes are read from pantry.recipes.v1 as reviewed docs, and sent as they are', () => {
   const docs = [myDoc('a1', 'Dal Tadka'), myDoc('b2', 'Lemon Rice', { servings: null,
     servings_stated: false, servings_basis: null })];
-  const store = memory();
-  assert.equal(writeMyRecipes(store, docs), true);
+  // as recipe import's "Save to my recipes" writes it
+  const store = memory({ [RECIPES_KEY]: JSON.stringify({ v: 1, recipes: docs }) });
   assert.equal(RECIPES_KEY, 'pantry.recipes.v1');
-  assert.deepEqual(JSON.parse(store.data[RECIPES_KEY]), { v: 1, recipes: docs });
   const read = readMyRecipes(store);
   assert.deepEqual(read, { recipes: docs, problem: null });
   assert.deepEqual(docRef(read.recipes[0]), { key: 'my:a1', doc: docs[0] });
@@ -175,11 +174,34 @@ test('my recipes that cannot be read at all read as none, and say why', () => {
   assert.match(parseMyRecipes('[]').problem ?? '', /not in a shape/);
   assert.match(parseMyRecipes(JSON.stringify({ v: 2, recipes: [] })).problem ?? '', /version 2/);
   assert.match(readMyRecipes(refusing).problem ?? '', /not letting/);
-  assert.equal(writeMyRecipes(refusing, []), false);
 });
 
-test('saving a recipe again replaces it', () => {
-  const a = myDoc('a1', 'Dal Tadka');
-  const docs = upsertMyRecipe(upsertMyRecipe([a], myDoc('b2', 'Lemon Rice')), { ...a, title: 'Dal' });
-  assert.deepEqual(docs.map((d) => [d.key, d.title]), [['my:b2', 'Lemon Rice'], ['my:a1', 'Dal']]);
+// Recipe import saves a web page's doc with its evidence quotes, and a video's lines once the
+// shopper has ticked each one; both are read as they were saved.
+test('the docs recipe import saves are read whole: a web page, and a checked video', () => {
+  const page = myDoc('6f1c2b9e-0d4a-4c1e-9a77-3e2f6b8d1c05', 'Red Lentil Dal', {
+    lines: [{ line_no: 1, text: '400g red lentils', name: 'red lentils', quantity: 400, unit: 'g',
+      note: '', evidence: { quote: '400g red lentils' }, confirmed: true, amount_basis: 'stated_by_source' },
+    { line_no: 2, text: 'salt to taste', name: 'salt', quantity: null, unit: '', note: 'to taste',
+      evidence: null, confirmed: true, amount_basis: 'stated_by_source' }],
+    source: { kind: 'web', method: 'jsonld', url: 'https://blog.example/dal', site: 'blog.example',
+      extractor: 'extract_recipe.py 1.0.0' },
+    warnings: ['line 2 (salt) states no amount'],
+  });
+  const video = myDoc('v1', 'Butter Chicken', {
+    servings: 3, servings_stated: false, servings_basis: 'your_setting', yield_text: '',
+    lines: [{ line_no: 1, text: '500 g chicken thighs', name: 'chicken thighs', quantity: 500,
+      unit: 'g', note: '', evidence: { quote: '500 g chicken thighs', at: '01:05' }, confirmed: true,
+      amount_basis: 'transcribed_confirmed_by_you' }],
+    source: { kind: 'youtube', method: 'gemini_video', url: 'https://www.youtube.com/watch?v=abcdefghijk',
+      site: 'youtube.com', channel: 'Cook Channel', model: 'gemini-2.5-flash',
+      label: 'transcribed by Gemini: check every line' },
+  });
+  const read = parseMyRecipes(JSON.stringify({ v: 1, recipes: [page, video] }));
+  assert.deepEqual(read, { recipes: [page, video], problem: null });
+});
+
+test('the meal plan only reads saved recipes; recipe import is the one writer', () => {
+  const writers = Object.keys(myRecipes).filter((name) => /^(write|save|upsert|serialize)/i.test(name));
+  assert.deepEqual(writers, []);
 });

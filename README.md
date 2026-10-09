@@ -106,9 +106,10 @@ approved trip stays put and shows "Changed since approved" with the diff when
 edits change it. The tab works with only `/pantry/api` (no hub), so it runs on
 the public demo and on AKS as well as in the local stack.
 
-`src/myRecipes.ts` is the contract for the shopper's own recipes:
-`pantry.recipes.v1` holds `{v: 1, recipes: RecipeDoc[]}`, each keyed
-`my:<id>`. `src/mealplan/store.tsx` (`MealPlanProvider`, `useMealPlan`) wraps
+`src/myRecipes.ts` reads the shopper's own recipes: `pantry.recipes.v1` holds
+`{v: 1, recipes: RecipeDoc[]}`, each keyed `my:<id>`. Recipe import's
+`src/recipes.ts` (on `feat/recipe-import`) is the only writer of that key; the
+meal plan never writes it. `src/mealplan/store.tsx` (`MealPlanProvider`, `useMealPlan`) wraps
 the reducer with saving, the schedule call and the other `/mealplan/*`
 requests in `api.ts`.
 

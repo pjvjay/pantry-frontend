@@ -1,16 +1,21 @@
 // Pure module: no React, DOM or import.meta.env, and sibling imports name their .ts file, so
 // node --test runs it as it is (tests/pure-modules.test.ts checks all of this).
 //
-// The shopper's own recipes, kept in this browser under 'pantry.recipes.v1'. This module is the
-// contract between whatever saves a recipe (recipe import's "Save to my recipes", in a later
-// change) and whatever reads one (the meal plan's tray and Quick add). The stored value is
+// The shopper's own recipes, as the meal plan reads them. Recipe import is the one writer: its
+// "Save to my recipes" (src/recipes.ts on feat/recipe-import) writes them under one browser
+// key, and this module reads it with the same key name and shape:
 //
-//   {v: 1, recipes: RecipeDoc[]}
+//   pantry.recipes.v1          {v: 1, recipes: RecipeDoc[]}, every doc keyed 'my:<id>'
 //
-// with every doc keyed 'my:<id>'. A RecipeDoc is exactly what the shopper reviewed, so the meal
-// plan sends it as it is (RecipeRef {key, doc}) and the server plans its lines with no parse.
-// Reading never fails the page: a doc that does not fit the shape is skipped and counted, and
-// a value that is not this shape at all reads as no recipes, with the problem said.
+// A RecipeDoc is exactly what the shopper reviewed, so the meal plan sends it as it is
+// (RecipeRef {key, doc}) and the server plans its lines with no parse. Reading never fails the
+// page: a doc that does not fit the shape is skipped and counted, and a value that is not this
+// shape at all reads as no recipes, with the problem said. The meal plan never writes
+// pantry.recipes.v1, because recipe import's rule is that saving keeps every entry it cannot
+// read, and a second writer would have to keep that rule too.
+//
+// When this branch and recipe import meet, these readers can import the key names from
+// src/recipes.ts instead of stating them again.
 import type { AmountBasis, RecipeDoc, SelectionParseRequest } from './types.ts';
 
 export const RECIPES_KEY = 'pantry.recipes.v1';
@@ -102,26 +107,6 @@ export function readMyRecipes(storage: StorageLike | null): MyRecipes {
     return parseMyRecipes(storage.getItem(RECIPES_KEY));
   } catch {
     return { recipes: [], problem: 'This browser is not letting the console read saved recipes.' };
-  }
-}
-
-// Added, or replacing the doc with the same key; the newest is last.
-export function upsertMyRecipe(docs: RecipeDoc[], doc: RecipeDoc): RecipeDoc[] {
-  return [...docs.filter((d) => d.key !== doc.key), doc];
-}
-
-export function serializeMyRecipes(docs: RecipeDoc[]): string {
-  return JSON.stringify({ v: RECIPES_VERSION, recipes: docs });
-}
-
-// false when the browser refused (storage off or full).
-export function writeMyRecipes(storage: StorageLike | null, docs: RecipeDoc[]): boolean {
-  if (!storage) return false;
-  try {
-    storage.setItem(RECIPES_KEY, serializeMyRecipes(docs));
-    return true;
-  } catch {
-    return false;
   }
 }
 
