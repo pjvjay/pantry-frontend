@@ -879,6 +879,8 @@ tr.row-active td { background: var(--accent-soft); }
 .mp-trip-suggested { outline: 2px dashed var(--line-strong); outline-offset: -2px; }
 .mp-trip-approved { border: 2px solid var(--accent); }
 .mp-trip-review { border: 2px solid var(--warn); }
+/* Approved under the other strategy: this strategy's list for the day is not the approved one. */
+.mp-trip-elsewhere { border: 2px dotted var(--accent); }
 .mp-trip[data-held] { box-shadow: 0 0 0 2px var(--accent); }
 .mp-trip-main {
   margin: 0; padding: 2px; min-height: 24px; flex: 1; min-width: 0; text-align: left; background: none;

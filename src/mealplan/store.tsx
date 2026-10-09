@@ -84,7 +84,8 @@ export interface MealPlanApi {
   proposeCookDays: () => void;
   applyCookDays: () => Outcome | null;
   dismissCookDays: () => void;
-  approveTrip: (trip: Trip, strategy: TripStrategy) => Outcome;
+  // replace: the day's approval under the other strategy gives way to this one
+  approveTrip: (trip: Trip, strategy: TripStrategy, replace?: boolean) => Outcome;
   exportText: () => string;
   importText: (text: string) => string | null;
   clear: () => void;
@@ -366,8 +367,8 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
 
   // ─── Trips, export, import ─────────────────────────────────
   // Approving needs an answer for the plan as it is; the reducer refuses an older one.
-  const approveTrip = useCallback((trip: Trip, strategy: TripStrategy) =>
-    dispatch({ type: 'approveTrip', trip, strategy, rev: schedule.answer?.rev ?? -1 }),
+  const approveTrip = useCallback((trip: Trip, strategy: TripStrategy, replace = false) =>
+    dispatch({ type: 'approveTrip', trip, strategy, rev: schedule.answer?.rev ?? -1, replace }),
   [dispatch, schedule.answer]);
 
   const exportText = useCallback(() =>

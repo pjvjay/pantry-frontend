@@ -20,7 +20,7 @@ import type { MoveChoice } from '../mealplan/consequences';
 import { canDrop, keyIntent, keyMove, shopKey, slotLabel } from '../mealplan/dnd';
 import type { DragPayload } from '../mealplan/dnd';
 import {
-  MAX_SERVINGS, SLOT_LABELS, cellKey, parseCellKey, recipeTitle, weeksOf, windowOf,
+  MAX_SERVINGS, SLOT_LABELS, approvedElsewhere, cellKey, parseCellKey, recipeTitle, weeksOf, windowOf,
 } from '../mealplan/model';
 import type { MealPlanState, PlanEdit, Slot } from '../mealplan/model';
 import type { Meal, MealSchedule, Trip, TripStrategy } from '../types';
@@ -149,16 +149,17 @@ export function ShopRow({ ctl, date, trip }: { ctl: BoardCtl; date: string; trip
 }
 
 export function TripChip({ ctl, trip }: { ctl: BoardCtl; trip: Trip }) {
-  const look = tripLook(trip);
+  const elsewhere = approvedElsewhere(ctl.state.draft, trip.date, ctl.strategy);
+  const look = tripLook(trip, elsewhere);
   const payload: DragPayload = { kind: 'trip', tripId: trip.id, date: trip.date };
   const held = moving(ctl)?.kind === 'trip' && (moving(ctl) as { tripId: string }).tripId === trip.id;
-  // An approved trip stays where it is until the approval is taken back.
+  // An approved trip stays where it is until the approval is taken back, under either strategy.
   const movable = look.kind === 'suggested';
   return (
     <div className={`mp-trip mp-trip-${look.kind}`} data-trip={trip.date} data-held={held || undefined}>
       {movable && <span className="mp-grip" aria-hidden="true" title="Drag to another day's Shop row" {...ctl.grip(payload)} />}
       <button type="button" className="mp-trip-main" onClick={() => ctl.openTrip(trip)}
-              aria-label={`Shopping trip ${dayLabel(trip.date)}: ${tripChipText(trip)}. Open the list.`}>
+              aria-label={`Shopping trip ${dayLabel(trip.date)}: ${tripChipText(trip, elsewhere)}. Open the list.`}>
         <span className="mp-trip-word">{look.mark && <span aria-hidden="true">{look.mark} </span>}{look.word}</span>
         <span className="mp-trip-cost">{trip.total_is_floor ? '≥ ' : ''}${trip.total_cost.toFixed(2)} · {trip.lines.length} items</span>
       </button>

@@ -32,6 +32,8 @@ export const SLOT_LABELS: Record<Slot, string> = {
   breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack',
 };
 
+export const STRATEGY_NAMES: Record<TripStrategy, string> = { fresh: 'Shop fresh', fewest_trips: 'Fewest trips' };
+
 // One meal per slot over at most two weeks: 14 days × 4 slots holds 56 meals.
 export const MAX_DAYS = 14;
 export const MAX_MEALS = MAX_DAYS * SLOTS.length;
@@ -197,8 +199,9 @@ export type PlanEdit =
   | { type: 'setWindow'; start_date: CivilDate; days: number; unplaceOutside?: boolean }
   | { type: 'setPrefs'; prefs: Partial<MealPrefs> }
   | { type: 'setSettings'; settings: PlanSettings }
-  // rev: the rev of the schedule the trip was read from; a trip from an older answer is refused
-  | { type: 'approveTrip'; trip: Trip; strategy: TripStrategy; rev: number }
+  // rev: the rev of the schedule the trip was read from; a trip from an older answer is refused.
+  // replace: the day's approval under the other strategy gives way to this one (otherwise refused).
+  | { type: 'approveTrip'; trip: Trip; strategy: TripStrategy; rev: number; replace?: boolean }
   | { type: 'unapproveTrip'; date: CivilDate }
   | { type: 'dismissTrip'; date: CivilDate }
   | { type: 'restoreTrip'; date: CivilDate }
@@ -511,16 +514,38 @@ export function approvedFrom(trip: Trip, strategy: TripStrategy): ApprovedTrip {
   };
 }
 
+// The engine reads an approval under the strategy it was given in: only that strategy's trip
+// on the day is approved, and the other strategy shows its own list for the day as a
+// suggestion (schedule.py). The console keeps one approval a day, the list the shopper means to
+// take, so approving the other strategy's list replaces it only when asked to.
+export const approvalOn = (d: MealPlanDraft, date: CivilDate): ApprovedTrip | undefined =>
+  d.trips.find((t) => t.date === date);
+
+// The strategy a day's approval was given under, when it is not `strategy`.
+export function approvedElsewhere(d: MealPlanDraft, date: CivilDate, strategy: TripStrategy)
+  : TripStrategy | null {
+  const a = approvalOn(d, date);
+  return a && a.strategy !== strategy ? a.strategy : null;
+}
+
 function approveTrip(s: MealPlanState, e: Extract<PlanEdit, { type: 'approveTrip' }>): Applied {
   const d = s.draft;
   if (e.rev !== d.rev) return 'the trips are being checked again; approve once they are up to date';
   if (!inWindow(windowOf(d), e.trip.date)) return 'that trip is outside the plan';
   if (!/^[0-9a-f]{64}$/.test(e.trip.fingerprint)) return 'that trip has no fingerprint to approve';
+  const before = approvalOn(d, e.trip.date);
+  const other = before && before.strategy !== e.strategy ? before.strategy : null;
+  const day = dayLabel(e.trip.date);
+  if (other && !e.replace) {
+    return `the trip on ${day} is approved under ${STRATEGY_NAMES[other]}; take that approval back, `
+      + 'or approve this list in its place';
+  }
   const trips = [...d.trips.filter((t) => t.date !== e.trip.date), approvedFrom(e.trip, e.strategy)]
     .sort((a, b) => a.date.localeCompare(b.date));
-  const again = d.trips.some((t) => t.date === e.trip.date);
-  return { state: set(s, { trips }),
-    said: `Trip on ${dayLabel(e.trip.date)} ${again ? 'approved again with its changes' : 'approved'}.` };
+  const said = other
+    ? `Trip on ${day} approved under ${STRATEGY_NAMES[e.strategy]}, in place of its ${STRATEGY_NAMES[other]} approval.`
+    : `Trip on ${day} ${before ? 'approved again with its changes' : 'approved'}.`;
+  return { state: set(s, { trips }), said };
 }
 
 function tripDates(s: MealPlanState, e: Extract<PlanEdit, { type: 'unapproveTrip' | 'dismissTrip'
@@ -528,13 +553,17 @@ function tripDates(s: MealPlanState, e: Extract<PlanEdit, { type: 'unapproveTrip
   const d = s.draft;
   const w = windowOf(d);
   const approved = (date: string) => d.trips.some((t) => t.date === date);
+  // Named with its strategy, since the strategy shown may be the other one.
+  const approvedUnder = (date: string) => STRATEGY_NAMES[(approvalOn(d, date) as ApprovedTrip).strategy];
   switch (e.type) {
     case 'unapproveTrip':
       if (!approved(e.date)) return { state: s, said: '' };
       return { state: set(s, { trips: d.trips.filter((t) => t.date !== e.date) }),
         said: `Trip on ${dayLabel(e.date)} is a suggestion again.` };
     case 'dismissTrip':
-      if (approved(e.date)) return 'that trip is approved; take the approval back first';
+      if (approved(e.date)) {
+        return `that trip is approved under ${approvedUnder(e.date)}; take the approval back first`;
+      }
       if (!inWindow(w, e.date)) return 'that day is outside the plan';
       if (d.dismissed_dates.includes(e.date)) return { state: s, said: '' };
       if (d.dismissed_dates.length >= MAX_DAYS) return `at most ${MAX_DAYS} days can be dismissed`;
@@ -553,7 +582,10 @@ function tripDates(s: MealPlanState, e: Extract<PlanEdit, { type: 'unapproveTrip
         dismissed_dates: d.dismissed_dates.filter((x) => x !== e.date) }),
       said: `A trip on ${dayLabel(e.date)}.` };
     case 'moveTrip': {
-      if (approved(e.from)) return 'approved trips stay where they are; take the approval back first';
+      if (approved(e.from)) {
+        return `approved trips stay where they are (this one under ${approvedUnder(e.from)}); `
+          + 'take the approval back first';
+      }
       if (!inWindow(w, e.from) || !inWindow(w, e.to)) return 'that day is outside the plan';
       if (e.from === e.to) return { state: s, said: '' };
       if (approved(e.to)) return `there is an approved trip on ${dayLabel(e.to)} already`;

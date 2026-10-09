@@ -9,8 +9,8 @@
 import { dayLabel } from './dates.ts';
 import type { CivilDate } from './dates.ts';
 import {
-  CAPACITY, SLOT_LABELS, cellKey, libraryRef, mealsOf, newPlan, occupants, placedCount, recipeTitle,
-  step, windowDates, windowOf,
+  CAPACITY, SLOT_LABELS, STRATEGY_NAMES, cellKey, libraryRef, mealsOf, newPlan, occupants, placedCount,
+  recipeTitle, step, windowDates, windowOf,
 } from './model.ts';
 import type { MealPlanState, PlanEdit, Slot } from './model.ts';
 import type {
@@ -70,15 +70,18 @@ export function tripsByDate(st: StrategyResult | undefined): Map<CivilDate, Trip
   return new Map((st?.trips ?? []).map((t) => [t.date, t]));
 }
 
+// elsewhere: the day is approved under the other strategy (model.approvedElsewhere), so this
+// strategy's list for it is not, and it neither moves nor is dismissed until that is settled.
 export interface TripLook {
-  kind: 'suggested' | 'approved' | 'review';
+  kind: 'suggested' | 'approved' | 'review' | 'elsewhere';
   mark: string;                    // a sign beside the word, so the state is never colour only
   word: string;
 }
 
-export function tripLook(t: Trip): TripLook {
+export function tripLook(t: Trip, elsewhere: TripStrategy | null = null): TripLook {
   if (t.status === 'approved') return { kind: 'approved', mark: '✓', word: 'Approved' };
   if (t.status === 'needs_review') return { kind: 'review', mark: '⚠', word: 'Changed since approved' };
+  if (elsewhere) return { kind: 'elsewhere', mark: '✓', word: `Approved under ${STRATEGY_NAMES[elsewhere]}` };
   return { kind: 'suggested', mark: '', word: 'Suggested' };
 }
 
@@ -86,8 +89,8 @@ const diffSize = (t: Trip) =>
   (t.diff ? t.diff.added.length + t.diff.removed.length + t.diff.changed.length : 0);
 
 // "Suggested · 2 stores · at least $41.20 · 14 items", or "⚠ Changed since approved (3 changes) · …".
-export function tripChipText(t: Trip): string {
-  const look = tripLook(t);
+export function tripChipText(t: Trip, elsewhere: TripStrategy | null = null): string {
+  const look = tripLook(t, elsewhere);
   const head = look.kind === 'review' && diffSize(t)
     ? `${look.mark} ${look.word} (${plural(diffSize(t), 'change', 'changes')})`
     : `${look.mark ? `${look.mark} ` : ''}${look.word}`;
@@ -178,7 +181,8 @@ export function tripToCartSummary(t: Trip): CartSummary {
 
 // ─── Summary ─────────────────────────────────────────────────
 
-// "15 meals · 11 placed · 2 trips (1 approved) · at least $142.10"
+// "15 meals · 11 placed · 2 trips (1 approved) · at least $142.10". Days approved under the
+// other strategy are counted apart, since their approved list is not the one shown.
 export function summaryLine(s: MealPlanState, sc: MealSchedule | null): string {
   const d = s.draft;
   const placed = d.meals.filter((m) => m.date !== null).length;
@@ -186,7 +190,11 @@ export function summaryLine(s: MealPlanState, sc: MealSchedule | null): string {
   const st = strategyOf(sc, d.prefs.strategy);
   if (st) {
     const approved = st.trips.filter((t) => t.status !== 'suggested').length;
-    parts.push(`${plural(st.trips.length, 'trip', 'trips')}${approved ? ` (${approved} approved)` : ''}`);
+    const others = d.trips.filter((a) => a.strategy !== d.prefs.strategy);
+    const notes = [approved ? `${approved} approved` : '',
+      others.length ? `${others.length} approved under ${STRATEGY_NAMES[others[0].strategy]}` : '']
+      .filter(Boolean);
+    parts.push(`${plural(st.trips.length, 'trip', 'trips')}${notes.length ? ` (${notes.join(', ')})` : ''}`);
     if (st.trips.length) parts.push(`${st.total_is_floor ? 'at least ' : ''}${money(st.total_cost)}`);
   }
   return parts.join(' · ');

@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MAX_RECIPES, approvedFrom, historyStep, libraryRef, newPlan, recorded, redoPlan, step, undoPlan,
+  MAX_RECIPES, approvedElsewhere, approvedFrom, historyStep, libraryRef, newPlan, recorded, redoPlan, step,
+  undoPlan,
 } from '../src/mealplan/model.ts';
 import type { MealPlanState, PlanEdit } from '../src/mealplan/model.ts';
 import { canRedo, canUndo, startHistory } from '../src/mealplan/undo.ts';
@@ -292,6 +293,31 @@ test('approving copies the trip the shopper saw, and only from the current answe
   next = run(again.state, { type: 'unapproveTrip', date: D(1) });
   assert.deepEqual(next.draft.trips, []);
   assert.deepEqual(approvedFrom(t, 'fewest_trips').strategy, 'fewest_trips');
+});
+
+test('an approval belongs to its strategy, and the other strategy\'s list replaces it only when asked', () => {
+  // The engine reads draft.trips per strategy: after a switch, the day approved under Shop fresh
+  // comes back as a suggested Fewest trips trip (schedule.py).
+  let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1));
+  s = run(s, { type: 'approveTrip', trip: trip(D(1), [line(10, 'Chicken Breast')]), strategy: 'fresh',
+    rev: s.draft.rev }, { type: 'setPrefs', prefs: { strategy: 'fewest_trips' } });
+  assert.equal(approvedElsewhere(s.draft, D(1), 'fewest_trips'), 'fresh');
+  assert.equal(approvedElsewhere(s.draft, D(1), 'fresh'), null);
+  assert.equal(approvedElsewhere(s.draft, D(2), 'fewest_trips'), null);
+  assert.equal(refusal(s, { type: 'dismissTrip', date: D(1) }),
+    'that trip is approved under Shop fresh; take the approval back first');
+  assert.match(refusal(s, { type: 'moveTrip', from: D(1), to: D(3) }), /under Shop fresh/);
+  const fewest = trip(D(1), [line(10, 'Chicken Breast', { storage: 'freezer' })],
+    { id: `fewest_trips-${D(1)}`, fingerprint: 'c'.repeat(64) });
+  assert.equal(refusal(s, { type: 'approveTrip', trip: fewest, strategy: 'fewest_trips', rev: s.draft.rev }),
+    'the trip on Sat 10 Oct is approved under Shop fresh; take that approval back, or approve this list in its place');
+  const replaced = step(s, { type: 'approveTrip', trip: fewest, strategy: 'fewest_trips', rev: s.draft.rev,
+    replace: true });
+  assert.deepEqual(replaced.state.draft.trips.map((t) => [t.date, t.strategy, t.fingerprint]),
+    [[D(1), 'fewest_trips', 'c'.repeat(64)]], 'one approval a day, never two');
+  assert.equal(replaced.said, 'Trip on Sat 10 Oct approved under Fewest trips, in place of its Shop fresh approval.');
+  // Taking it back works whichever strategy is shown.
+  assert.deepEqual(run(s, { type: 'unapproveTrip', date: D(1) }).draft.trips, []);
 });
 
 test('trips are dismissed, restored, added and moved; an approved one stays put', () => {

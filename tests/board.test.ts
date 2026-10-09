@@ -99,6 +99,21 @@ test('the summary line counts meals, placements, trips and the known total', () 
   assert.equal(summaryLine(s, sc), '2 meals · 1 placed · 2 trips (1 approved) · at least $52.50');
 });
 
+test('a day approved under the other strategy says so, and is counted apart', () => {
+  let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1));
+  s = run(s, { type: 'approveTrip', trip: trip(D(1), []), strategy: 'fresh', rev: s.draft.rev },
+    { type: 'setPrefs', prefs: { strategy: 'fewest_trips' } });
+  const t = trip(D(1), [], { id: `fewest_trips-${D(1)}` });
+  assert.deepEqual(tripLook(t, 'fresh'), { kind: 'elsewhere', mark: '✓', word: 'Approved under Shop fresh' });
+  assert.equal(tripLook(t).kind, 'suggested');
+  assert.match(tripChipText(t, 'fresh'), /^✓ Approved under Shop fresh · /);
+  // The engine's own status wins: under its own strategy the trip is approved or needs review.
+  assert.equal(tripLook({ ...t, status: 'approved' }, 'fresh').kind, 'approved');
+  const sc = schedule(s.draft.rev, []);
+  sc.strategies[1].trips = [t];
+  assert.equal(summaryLine(s, sc), '1 meal · 0 placed · 1 trip (1 approved under Shop fresh) · $0.00');
+});
+
 const WEEK = [
   { slug: 'chicken_curry', name: 'Chicken Curry' },
   { slug: 'tomato_penne', name: 'Tomato Penne' },

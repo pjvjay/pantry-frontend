@@ -14,17 +14,14 @@ import {
 } from '../mealplan/board';
 import { productNames, remedyLabel, remedyStep, tripMoveConsequence, warningsFor } from '../mealplan/consequences';
 import { dayLabel } from '../mealplan/dates';
-import { MAX_PACKS, inWindow, windowDates, windowOf } from '../mealplan/model';
+import { MAX_PACKS, STRATEGY_NAMES, approvedElsewhere, inWindow, windowDates, windowOf } from '../mealplan/model';
 import { useMealPlan } from '../mealplan/store';
 import type {
-  MealSchedule, PlanAction, PlanCoverage, PlanWarning, RemedyOp, Trip, TripLine, TripStrategy,
-  WarningCounts,
+  MealSchedule, PlanAction, PlanCoverage, PlanWarning, RemedyOp, Trip, TripLine, WarningCounts,
 } from '../types';
 import { CartCard } from './cart';
 import { SourceCredits } from './nutrition';
 import { Sheet } from './Sheet';
-
-const STRATEGY_NAMES: Record<TripStrategy, string> = { fresh: 'Shop fresh', fewest_trips: 'Fewest trips' };
 
 const counts = (c: WarningCounts) =>
   [c.must_fix && `${c.must_fix} must fix`, c.decide && `${c.decide} to decide`,
@@ -158,7 +155,8 @@ export function TripSheet({ date, onClose }: { date: string | null; onClose: () 
       </Sheet>
     );
   }
-  const look = tripLook(trip);
+  const elsewhere = approvedElsewhere(d, trip.date, strategy);
+  const look = tripLook(trip, elsewhere);
   const approvedOne = look.kind !== 'suggested';
   const preview = moveTo ? tripMoveConsequence(mp.schedule.answer, strategy, trip.id, moveTo) : null;
   const act = (e: Parameters<typeof mp.dispatch>[0], close = false) => {
@@ -168,7 +166,7 @@ export function TripSheet({ date, onClose }: { date: string | null; onClose: () 
   const delta = priceDeltaText(trip.price_delta);
   return (
     <Sheet open onClose={onClose} title={`Shopping trip ${dayLabel(trip.date)}`}
-           description={`${STRATEGY_NAMES[strategy]} · ${tripChipText(trip)}`}
+           description={`${STRATEGY_NAMES[strategy]} · ${tripChipText(trip, elsewhere)}`}
            footer={<>
              <button type="button" className="secondary" onClick={() => void list.copy()}>
                {list.copied === 'copied' ? 'Copied' : list.copied === 'failed' ? 'Copy failed' : 'Copy list'}
@@ -183,6 +181,12 @@ export function TripSheet({ date, onClose }: { date: string | null; onClose: () 
                  }}>{mp.schedule.current ? 'Approve' : 'Checking…'}</button>
                </>
              )}
+             {elsewhere && (
+               <button type="button" disabled={!mp.schedule.current} onClick={() => {
+                 const out = mp.approveTrip(trip, strategy, true);
+                 if (!out.refused) onClose();
+               }}>{mp.schedule.current ? 'Approve this list instead' : 'Checking…'}</button>
+             )}
              {approvedOne && (
                <button type="button" className="secondary" onClick={() => act({ type: 'unapproveTrip', date: trip.date })}>
                  Take the approval back
@@ -193,6 +197,12 @@ export function TripSheet({ date, onClose }: { date: string | null; onClose: () 
         {look.mark && <span aria-hidden="true">{look.mark} </span>}{look.word}
         {look.kind === 'approved' && <span className="muted"> · code will not rewrite this list</span>}
       </p>
+      {elsewhere && (
+        <p>
+          You approved this day's {STRATEGY_NAMES[elsewhere]} list. Below is the {STRATEGY_NAMES[strategy]}
+          {' '}list for the same day; approving it replaces that approval.
+        </p>
+      )}
       <p>{trip.reason}</p>
       {trip.diff && trip.diff.text.length > 0 && (
         <div className="mp-diff" role="group" aria-label="Changed since approved">
@@ -346,6 +356,9 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
   const st = strategyOf(schedule, strategy);
   const [addOn, setAddOn] = useState('');
   const free = windowDates(windowOf(d)).filter((x) => !st?.trips.some((t) => t.date === x));
+  // Days approved under the other strategy that this strategy buys nothing on: listed so the
+  // approval can still be taken back from here.
+  const elsewhereOnly = d.trips.filter((a) => a.strategy !== strategy && !st?.trips.some((t) => t.date === a.date));
   const actionsByDate = useMemo(() => {
     const out = new Map<string, PlanAction[]>();
     for (const a of st?.actions ?? []) out.set(a.date, [...(out.get(a.date) ?? []), a]);
@@ -367,11 +380,12 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
       {!st?.trips.length && <p className="muted">No trips yet: trips appear once meals are on the calendar.</p>}
       <ul className="mp-trip-list">
         {st?.trips.map((t) => {
-          const look = tripLook(t);
+          const elsewhere = approvedElsewhere(d, t.date, strategy);
+          const look = tripLook(t, elsewhere);
           return (
             <li key={t.id} className={`mp-trip-card mp-trip-${look.kind}`}>
               <div>
-                <strong>{dayLabel(t.date)}</strong> · {tripChipText(t)}
+                <strong>{dayLabel(t.date)}</strong> · {tripChipText(t, elsewhere)}
                 {priceDeltaText(t.price_delta) && <span className="cart-flag"> · {priceDeltaText(t.price_delta)}</span>}
               </div>
               <div className="muted">{t.reason}</div>
@@ -390,13 +404,33 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
                             onClick={() => mp.dispatch({ type: 'dismissTrip', date: t.date })}>Dismiss</button>
                   </>
                 ) : (
-                  <button type="button" className="secondary mini"
-                          onClick={() => mp.dispatch({ type: 'unapproveTrip', date: t.date })}>Take the approval back</button>
+                  <>
+                    {look.kind === 'elsewhere' && (
+                      <button type="button" className="mini" disabled={!mp.schedule.current}
+                              onClick={() => mp.approveTrip(t, strategy, true)}>
+                        {mp.schedule.current ? 'Approve this list instead' : 'Checking…'}
+                      </button>
+                    )}
+                    <button type="button" className="secondary mini"
+                            onClick={() => mp.dispatch({ type: 'unapproveTrip', date: t.date })}>Take the approval back</button>
+                  </>
                 )}
               </div>
             </li>
           );
         })}
+        {elsewhereOnly.map((a) => (
+          <li key={`approved-${a.date}`} className="mp-trip-card mp-trip-elsewhere">
+            <div>
+              <strong>{dayLabel(a.date)}</strong> · <span aria-hidden="true">✓ </span>Approved under {STRATEGY_NAMES[a.strategy]}
+            </div>
+            <div className="muted">{STRATEGY_NAMES[strategy]} buys nothing on this day.</div>
+            <div className="mp-trip-actions">
+              <button type="button" className="secondary mini"
+                      onClick={() => mp.dispatch({ type: 'unapproveTrip', date: a.date })}>Take the approval back</button>
+            </div>
+          </li>
+        ))}
       </ul>
       {d.dismissed_dates.length > 0 && (
         <p className="muted">
