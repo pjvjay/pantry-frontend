@@ -236,6 +236,8 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
     [draft.recipes, draft.resolved]);
   const pendingKey = pending.join('|');
   const { lat, lon, max_km } = draft.settings;
+  // The plan's origin rules, as one key: a new array each render must not start a new call.
+  const origin = JSON.stringify([draft.settings.exclude_origin ?? [], draft.settings.preference ?? []]);
 
   useEffect(() => {
     const waiting = pendingKey ? pendingKey.split('|') : [];
@@ -251,7 +253,8 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
       const recipes = refsToResolve(historyRef.current.present, keys).slice(0, 12);
       if (!recipes.length) return;
       setResolve({ status: 'checking', error: null });
-      resolveRecipes({ recipes, lat, lon, max_km }, ctl.signal).then((r) => {
+      const [exclude_origin, preference] = JSON.parse(origin) as [string[], string[]];
+      resolveRecipes({ recipes, lat, lon, max_km, exclude_origin, preference }, ctl.signal).then((r) => {
         dispatch({ type: 'setResolved', resolved: r.resolved });
         setResolve({ status: 'ok', error: null });
       }).catch((e) => {
@@ -272,7 +275,7 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(retry);
       ctl.abort();
     };
-  }, [pendingKey, lat, lon, max_km, retryTick, dispatch]);
+  }, [pendingKey, lat, lon, max_km, origin, retryTick, dispatch]);
 
   const retryResolve = useCallback((recipeKey?: string) => {
     if (recipeKey) dispatch({ type: 'forgetResolved', key: recipeKey });

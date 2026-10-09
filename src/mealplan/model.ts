@@ -516,8 +516,19 @@ function setPrefs(s: MealPlanState, patch: Partial<MealPrefs>): Applied {
   return { state: set(s, { prefs }), said: 'Settings saved.' };
 }
 
-// Where the household shops decides which products are in range, so a new place clears the
-// recipes' resolved products and the console resolves them again.
+// The settings products are resolved under: where the household shops (which stores are in
+// range) and the plan's origin rules (which products are held back). Two plans with the same
+// area can share resolved products.
+export function sameArea(a: PlanSettings, b: PlanSettings): boolean {
+  const num = (k: 'lat' | 'lon' | 'max_km') => (a[k] ?? null) === (b[k] ?? null);
+  const list = (k: 'exclude_origin' | 'preference') =>
+    JSON.stringify(a[k] ?? []) === JSON.stringify(b[k] ?? []);
+  return num('lat') && num('lon') && num('max_km') && list('exclude_origin') && list('preference');
+}
+
+// Where the household shops, and the plan's origin rules, decide which products are in range
+// and which are held back, so a change clears the recipes' resolved products and the console
+// resolves them again.
 function setSettings(s: MealPlanState, patch: PlanSettings): Applied {
   const d = s.draft;
   const ok = (v: unknown, lo: number, hi: number) =>
@@ -525,9 +536,14 @@ function setSettings(s: MealPlanState, patch: PlanSettings): Applied {
   if (!ok(patch.lat, -90, 90) || !ok(patch.lon, -180, 180) || !ok(patch.max_km, 0.5, 100)) {
     return 'that place or distance is out of range';
   }
+  const names = (v: unknown) => v === undefined
+    || (Array.isArray(v) && v.length <= 50 && v.every((x) => typeof x === 'string' && x.length > 0
+      && x.length <= 100));
+  if (!names(patch.exclude_origin) || !names(patch.preference)) {
+    return 'origin rules are at most 50 country names';
+  }
   const settings = { ...d.settings, ...patch };
-  const same = (k: keyof PlanSettings) => (settings[k] ?? null) === (d.settings[k] ?? null);
-  if (same('lat') && same('lon') && same('max_km')) return { state: s, said: '' };
+  if (sameArea(settings, d.settings)) return { state: s, said: '' };
   return { state: set(s, { settings, resolved: {} }),
     said: 'Shopping area changed; products will be checked again.' };
 }
@@ -874,12 +890,9 @@ export const reduce = (s: MealPlanState, e: PlanEdit): MealPlanState => step(s, 
 // pay for one again. Products resolved for another shopping area are not carried over.
 function restore(target: MealPlanState, current: MealPlanState): MealPlanState {
   const resolved = { ...target.draft.resolved };
-  const a = target.draft.settings;
-  const b = current.draft.settings;
-  const sameArea = (a.lat ?? null) === (b.lat ?? null) && (a.lon ?? null) === (b.lon ?? null)
-    && (a.max_km ?? null) === (b.max_km ?? null);
+  const area = sameArea(target.draft.settings, current.draft.settings);
   for (const key of Object.keys(target.draft.recipes)) {
-    if (sameArea && !resolved[key] && current.draft.resolved[key]) {
+    if (area && !resolved[key] && current.draft.resolved[key]) {
       resolved[key] = current.draft.resolved[key];
     }
   }
