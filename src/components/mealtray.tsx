@@ -11,7 +11,7 @@ import { getRecipes } from '../api';
 import { trayRows } from '../mealplan/board';
 import type { TrayRow } from '../mealplan/board';
 import { canDrop, TRAY_KEY } from '../mealplan/dnd';
-import { MAX_WANTED, SLOTS, SLOT_LABELS, docRef, libraryRef, starterRef } from '../mealplan/model';
+import { MAX_WANTED, SLOTS, SLOT_LABELS, USABLE_RESOLVE, docRef, libraryRef, starterRef } from '../mealplan/model';
 import type { Slot } from '../mealplan/model';
 import { accepted, chipText, countLine, decide, waiting } from '../mealplan/selectionPreview';
 import type { Preview, PreviewItem } from '../mealplan/selectionPreview';
@@ -219,11 +219,15 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
       {pending && mp.resolve.status === 'error' && (
         <div className="cart-flag">
           Products not checked: {mp.resolve.error}{' '}
-          <button type="button" className="linkish" onClick={mp.retryResolve}>Try again</button>
+          <button type="button" className="linkish" onClick={() => mp.retryResolve()}>Try again</button>
         </div>
       )}
-      {resolved && resolved.status !== 'ok' && resolved.status !== 'needs_servings' && (
-        <div className="cart-flag">{resolved.message || resolved.status.replace(/_/g, ' ')}</div>
+      {resolved && !USABLE_RESOLVE.includes(resolved.status) && (
+        <div className="cart-flag">
+          {resolved.message || resolved.status.replace(/_/g, ' ')}{' '}
+          <button type="button" className="linkish" onClick={() => mp.retryResolve(row.key)}
+                  aria-label={`Check products for ${row.title} again`}>Try again</button>
+        </div>
       )}
       {needsServings && <ServingsPrompt recipeKey={row.key} title={row.title} />}
       {answered !== null && resolved?.status === 'needs_servings' && (

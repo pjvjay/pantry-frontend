@@ -10,7 +10,9 @@
 //   marked as not current, and approving waits for a current one. The dates the server spread
 //   meals to are stored back on the plan (mergeSchedule).
 // - Resolve: each recipe once, as it enters the tray, never on a drag (the one call that may
-//   use a model). A failure is not retried on its own; retryResolve does that.
+//   use a model). A failure is not retried on its own; retryResolve does that, both for a call
+//   that failed and for a recipe the server answered with a failure status (llm_error,
+//   not_found and the like), which it first makes pending again.
 // - My recipes: read from pantry.recipes.v1, and the recipes recipe import sent with "Add to
 //   meal plan" (pantry.mealplan.inbox.v1) join the tray, on load, when another tab saves, and
 //   when the Meal plan view opens (syncSaved; a save in this same page fires no storage event).
@@ -29,7 +31,7 @@ import {
 } from '../myRecipes';
 import type { StorageLike } from '../myRecipes';
 import { todayIn } from './dates';
-import { historyStep, newPlan, redoPlan, undoPlan } from './model';
+import { historyStep, newPlan, recorded, redoPlan, undoPlan } from './model';
 import type { MealPlanState, Outcome, PlanEdit } from './model';
 import { parsePlan, readPlan, serialize, writePlan } from './persist';
 import { buildPreview, previewEdit } from './selectionPreview';
@@ -71,7 +73,7 @@ export interface MealPlanApi {
   recheck: () => void;
   setDragging: (dragging: boolean) => void;
   resolve: { status: CallStatus; error: string | null; pending: string[] };
-  retryResolve: () => void;
+  retryResolve: (recipeKey?: string) => void;
   starters: MealStarter[];
   myRecipes: RecipeDoc[];
   myRecipesProblem: string | null;  // also says what could not join the plan from recipe import
@@ -151,7 +153,7 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
   const dispatch = useCallback((e: PlanEdit): Outcome => {
     const { history: next, outcome } = historyStep(historyRef.current, e);
     if (next !== historyRef.current) {
-      if (e.type !== 'mergeSchedule' && e.type !== 'setResolved') holdSave.current = false;
+      if (recorded(e)) holdSave.current = false;
       commit(next);
     }
     const text = outcome.refused ? `Not done: ${outcome.refused}.` : outcome.said;
@@ -271,10 +273,13 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
     };
   }, [pendingKey, lat, lon, max_km, retryTick, dispatch]);
 
-  const retryResolve = useCallback(() => {
+  const retryResolve = useCallback((recipeKey?: string) => {
+    if (recipeKey) dispatch({ type: 'forgetResolved', key: recipeKey });
     failed.current.clear();
+    // The last call's error is not this one's: the tray says "Checking products…" until it ends.
+    setResolve({ status: 'idle', error: null });
     setRetryTick((n) => n + 1);
-  }, []);
+  }, [dispatch]);
 
   // ─── Starters and my recipes ───────────────────────────────
   const [starters, setStarters] = useState<MealStarter[]>([]);

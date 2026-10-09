@@ -307,7 +307,7 @@ export default function MealPlanView() {
         setTripSheet(op.date);
         break;
       case 'resolve':
-        mp.retryResolve();
+        mp.retryResolve(op.recipe_key);
         break;
       default:
         mp.announce('This console cannot make that change yet.');

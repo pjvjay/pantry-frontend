@@ -20,7 +20,8 @@ import type { History } from './undo.ts';
 import { targetsProblem } from '../nutritionFormat.ts';
 import type {
   ApprovedTrip, CookDaysProposal, Meal, MealPlanDraft, MealPrefs, MealSchedule, MealSlot,
-  NutritionTargets, PlanSettings, RecipeDoc, RecipeRef, ResolvedRecipe, Trip, TripStrategy,
+  NutritionTargets, PlanSettings, RecipeDoc, RecipeRef, ResolveStatus, ResolvedRecipe, Trip,
+  TripStrategy,
 } from '../types.ts';
 
 export type Slot = MealSlot;
@@ -185,6 +186,8 @@ export type PlanEdit =
   | { type: 'setRecipeSlot'; key: string; slot: Slot }
   | { type: 'setRecipeServings'; key: string; servings: number | null }
   | { type: 'setResolved'; resolved: ResolvedRecipe[] }
+  // a recipe whose products could not be checked becomes pending again, so it is resolved anew
+  | { type: 'forgetResolved'; key: string }
   | { type: 'place'; mealId: string; date: CivilDate; slot: Slot; swapWith?: string }
   | { type: 'unplace'; mealId: string }
   | { type: 'remove'; mealId: string }
@@ -220,11 +223,16 @@ export interface Outcome {
   said: string;
 }
 
-// Answers from the server are not the shopper's edits: they change the plan without an undo
-// step of their own. mergeSchedule also leaves rev alone, because storing the dates the server
-// just computed for this rev does not change what the plan means.
+// Answers from the server, and making way for a new one, are not the shopper's edits: they
+// change the plan without an undo step of their own. mergeSchedule also leaves rev alone,
+// because storing the dates the server just computed for this rev does not change what the
+// plan means.
 export const recorded = (e: PlanEdit): boolean =>
-  e.type !== 'mergeSchedule' && e.type !== 'setResolved';
+  e.type !== 'mergeSchedule' && e.type !== 'setResolved' && e.type !== 'forgetResolved';
+
+// The resolve statuses the engine plans with (schedule.py's USABLE). Any other is a failure
+// the shopper can ask to check again; these cost a model call to redo, so they are kept.
+export const USABLE_RESOLVE: readonly ResolveStatus[] = ['ok', 'needs_servings'];
 
 type Applied = { state: MealPlanState; said: string } | string;
 
@@ -664,6 +672,13 @@ function apply(s: MealPlanState, e: PlanEdit): Applied {
         if (r.title) titles[r.key] = r.title;
       }
       return { state: set(s, { resolved }, { titles }), said: '' };
+    }
+    case 'forgetResolved': {
+      const r = d.resolved[e.key];
+      if (!r || USABLE_RESOLVE.includes(r.status)) return { state: s, said: '' };
+      const resolved = { ...d.resolved };
+      delete resolved[e.key];
+      return { state: set(s, { resolved }), said: '' };
     }
     case 'place': return place(s, e);
     case 'unplace': return unplace(s, e.mealId);

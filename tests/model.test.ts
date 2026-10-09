@@ -257,6 +257,21 @@ test('resolved recipes are stored only for recipes still in the plan', () => {
   assert.equal(step(s, { type: 'setResolved', resolved: [gone] }).state, s);
 });
 
+test('a recipe whose products could not be checked can be made pending again, without an undo step', () => {
+  let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1), add('chicken_fried_rice', 'Chicken Fried Rice', 1));
+  s = step(s, { type: 'setResolved', resolved: [
+    { key: PIZZA, title: 'Pepperoni Pizza', status: 'llm_error', message: 'the model did not answer' } as never,
+    { key: RICE, title: 'Chicken Fried Rice', status: 'ok' } as never,
+  ] }).state;
+  const out = step(s, { type: 'forgetResolved', key: PIZZA });
+  assert.deepEqual(Object.keys(out.state.draft.resolved), [RICE]);
+  assert.equal(out.state.draft.rev, s.draft.rev + 1, 'the schedule is checked again');
+  assert.equal(recorded({ type: 'forgetResolved', key: PIZZA }), false);
+  // A recipe that resolved, or one never resolved, is left alone: redoing it costs a model call.
+  assert.equal(step(s, { type: 'forgetResolved', key: RICE }).state, s);
+  assert.equal(step(out.state, { type: 'forgetResolved', key: PIZZA }).state, out.state);
+});
+
 test('approving copies the trip the shopper saw, and only from the current answer', () => {
   const s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1));
   const t = trip(D(1), [line(10, 'Chicken Breast', { packs: 2, price: 18.72 }),
