@@ -10,6 +10,7 @@ import type {
   Metrics,
   PlanExecution,
   Product,
+  RunDetail,
   RuntimeSettings,
   ShoppingPlan,
   ToolResult,
@@ -116,6 +117,14 @@ export async function pantryTool<T>(tool: string, args: Record<string, unknown> 
 
 export const agentOptions = () => json<AgentOptions>(`${HUB}/agent/options`);
 
+// A local model reads the Assistant's instructions and first tools now, while the shopper types,
+// so the first step reads only the question. Resolves when it has (minutes on a CPU).
+export interface WarmResult { model?: string; wall_s?: number; prompt_tokens?: number;
+  prompt_s?: number; load_s?: number; skipped?: string }
+export const agentWarm = (body: { model: string; target: string; disclosure?: string }) =>
+  json<WarmResult>(`${HUB}/agent/warm`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) });
+
 // One Assistant turn, streamed: the hub answers with server-sent events (one JSON per event).
 export async function agentChat(
   body: { message: string; conversation_id?: string | null; model: string; target: string;
@@ -156,6 +165,7 @@ export async function agentChat(
 export const traceList = (limit = 50) => json<TraceSummary[]>(`${HUB}/traces?limit=${limit}`);
 export const traceDetail = (id: string) => json<Trace>(`${HUB}/traces/${encodeURIComponent(id)}`);
 export const getMetrics = () => json<Metrics>(`${HUB}/metrics`);
+export const runDetail = (id: string) => json<RunDetail>(`${HUB}/runs/${encodeURIComponent(id)}`);
 
 // Pictures, fetched once by the hub and served from its cache: an ingredient's Wikipedia
 // thumbnail, and an image from a recipe page.

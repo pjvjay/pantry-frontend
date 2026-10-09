@@ -164,8 +164,12 @@ export class ChatMeter {
     if (this.first == null) this.first = received - this.started;
     if (e.trace_id) this.traceId = e.trace_id;
     if (typeof e.at === 'number') this.lags.push(Math.max(0, Date.now() - e.at));
-    // the next frame after this event's state update: how long the page took to show it
-    requestAnimationFrame(() => this.renders.push(performance.now() - received));
+    // the next frame after this event's state update: how long the page took to show it. A
+    // hidden page paints nothing (frames wait until it is shown), so it measures nothing.
+    if (document.visibilityState !== 'visible') return;
+    requestAnimationFrame(() => {
+      if (document.visibilityState === 'visible') this.renders.push(performance.now() - received);
+    });
   }
 
   finish(outcome: string): void {
