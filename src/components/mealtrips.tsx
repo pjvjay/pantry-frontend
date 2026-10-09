@@ -355,7 +355,8 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
                    onChange={() => mp.dispatch({ type: 'setPrefs', prefs: { strategy: s.name } })} />
             {STRATEGY_NAMES[s.name]}{s.recommended ? ' (recommended)' : ''}
             <span className="muted">
-              {' '}· {s.trips.length} trips · {costText(s.total_cost, s.total_is_floor, s.trips.some(tripPriced))}
+              {' '}· {s.trips.length} {s.trips.length === 1 ? 'trip' : 'trips'}
+              {' '}· {costText(s.total_cost, s.total_is_floor, s.trips.some(tripPriced))}
               {' '}· {counts(s.warning_counts)}
             </span>
           </label>

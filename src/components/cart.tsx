@@ -187,7 +187,7 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
             {got.size > 0 && ` · ${got.size} in the basket`}
           </div>
         </div>
-        <div className="cart-total">{costText(total, floor, known)}</div>
+        <div className={`cart-total${floor && !known ? ' cart-total-unknown' : ''}`}>{costText(total, floor, known)}</div>
       </div>
       {originAsked && share != null && (
         <div className={`cart-origin ${summary.origin_status === 'verified' ? 'cart-origin-ok' : 'cart-origin-warn'}`}>

@@ -162,7 +162,8 @@ export function TripChip({ ctl, trip }: { ctl: BoardCtl; trip: Trip }) {
               aria-label={`Shopping trip ${dayLabel(trip.date)}: ${tripChipText(trip, elsewhere)}. Open the list.`}>
         <span className="mp-trip-word">{look.mark && <span aria-hidden="true">{look.mark} </span>}{look.word}</span>
         <span className="mp-trip-cost">
-          {costText(trip.total_cost, trip.total_is_floor, tripPriced(trip), '≥ ')} · {trip.lines.length} items
+          {costText(trip.total_cost, trip.total_is_floor, tripPriced(trip), '≥ ')} · {trip.lines.length}
+          {trip.lines.length === 1 ? ' item' : ' items'}
         </span>
       </button>
     </div>

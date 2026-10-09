@@ -518,6 +518,8 @@ tr.row-active td { background: var(--accent-soft); }
 .cart-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 14px 8px; }
 .cart-title { font-weight: 650; font-size: 16px; }
 .cart-total { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Words, not a figure: smaller, allowed to wrap, and flagged like any other unknown. */
+.cart-total-unknown { font-size: 15px; white-space: normal; text-align: right; color: var(--warn); }
 .cart-origin { display: inline-block; margin: 0 14px 10px; padding: 3px 8px; border-radius: 6px; font-size: 12.5px; }
 .cart-origin-ok { color: var(--accent); background: var(--accent-soft); }
 .cart-origin-warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
