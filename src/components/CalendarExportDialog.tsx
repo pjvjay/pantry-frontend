@@ -12,6 +12,7 @@ import {
   exportProblem, exportRequest, googleLabel, googleLink, includeCounts, includeProblem,
 } from '../calendar';
 import type { ApprovedSchedule, CalendarInclude, CalendarPreview } from '../types';
+import { CalendarSyncPanel } from './CalendarSyncPanel';
 import { Sheet } from './Sheet';
 
 type Preview =
@@ -120,6 +121,9 @@ export function CalendarExportDialog({ open, onClose, schedule, current }: {
           </label>
         ))}
       </fieldset>
+
+      {/* Google Calendar sync: only with the local demo hub and an OAuth client */}
+      <CalendarSyncPanel open={open} schedule={schedule} include={include} ready={ready} />
 
       {data && (
         <>

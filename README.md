@@ -159,6 +159,19 @@ the browser writes ICS or converts a date: `src/calendar.ts` only shapes the
 request, reads the preview and accepts a link only when it opens Google
 Calendar's add-event page. An export waits while an approved trip needs review.
 
+**Google Calendar** (in the same dialog, `components/CalendarSyncPanel.tsx`,
+only with the local demo hub and an OAuth client the user made; demo-hub
+`docs/google-calendar.md`): Connect opens Google's consent page from the
+`auth_url` the hub returns, and Google sends the shopper back to
+`#/mealplan?calendar=connected`, which reopens the dialog. Review changes shows
+the hub's diff for a calendar named Pantry plan, grouped Add, Change, Remove,
+Edited in Google (Keep chosen, or Overwrite), Deleted in Google (Restore only
+when ticked) and Past; the button says what it will write ("Add 2, change 1 and
+remove 1 in Pantry plan"), and each row then shows its result, with Retry
+failed. Disconnect revokes, optionally deleting the calendar. The wording and
+grouping are in the pure `src/calendarSync.ts`. Without a hub, or with no client,
+the section is not drawn.
+
 Device check so far: Chrome on a desktop (mouse drag of meals and trips, tap
 then tap, the Move sheet, the keyboard route, a 375 px phone width, light and
 dark). Not yet checked: touch drag on iOS Safari, Android Chrome and Samsung

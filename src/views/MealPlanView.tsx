@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
+import { oauthReturn } from '../calendarSync';
 import { CalendarExportDialog } from '../components/CalendarExportDialog';
 import { ActionBar, DragGhost, MoveSheet, PlanBoard } from '../components/mealcal';
 import type { BoardCtl } from '../components/mealcal';
@@ -179,7 +180,8 @@ export default function MealPlanView() {
   // a product whose Options open with the trip sheet (a warning's open_options remedy)
   const [tripOptions, setTripOptions] = useState<number | null>(null);
   const [targetsOpen, setTargetsOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  // back from Google's consent page (#/mealplan?calendar=...): the dialog opens to say how it went
+  const [calendarOpen, setCalendarOpen] = useState(() => oauthReturn(window.location.hash) !== null);
   const [hideEmpty, setHideEmpty] = useState(false);
   const [quickText, setQuickText] = useState('');
   const [firstRun, setFirstRun] = useState(() => d.rev === 0 && Object.keys(d.recipes).length === 0);
