@@ -1430,6 +1430,78 @@ export interface CalendarFile {
   filename: string;
 }
 
+// ─── Google Calendar sync (the demo hub's /hub/calendar/*) ───
+
+// Booleans and labels only: the hub never sends a token, a client id or a secret.
+export interface CalendarSyncStatus {
+  configured: boolean;             // the hub has an OAuth client
+  client_type: 'web' | 'installed' | null;
+  connected: boolean;
+  needs_reconnect: boolean;
+  reconnect_by: string | null;     // YYYY-MM-DD: Testing mode ends a connection after 7 days
+  can_connect_here: boolean;       // this console's address is registered on the client
+  connect_url: string;             // where it is: the hub's own console
+  calendar: { summary: string } | null;
+  scope: string;
+  all_day: boolean;
+  testing_note: string;
+  last_sync: { at: string; status: CalendarApplyStatus; plan: string } | null;
+  problem: string | null;
+}
+
+export type CalendarOpKind =
+  | 'create' | 'update' | 'delete' | 'conflict' | 'deleted_in_google' | 'noop' | 'skip';
+
+export interface CalendarOp {
+  item_id: string;
+  op: CalendarOpKind;
+  kind: CalendarEventKind | '';
+  title: string;
+  date: string;
+  changes: string[];               // "title", "date", "description", "location", "busy or free"
+  origin?: 'update' | 'delete';    // what a conflict would have been
+  unverified?: boolean;            // edits in Google could not be checked
+  note?: string;
+}
+
+export interface CalendarDiff {
+  preview_token: string;
+  calendar_action: 'create' | 'existing';
+  calendar: { summary: string };
+  plan: string;
+  rev: number;
+  counts: Record<CalendarOpKind, number>;
+  ops: CalendarOp[];
+}
+
+export type CalendarChoice = 'keep' | 'overwrite' | 'restore';
+export type CalendarApplyStatus = 'ok' | 'partial' | 'failed';
+
+export interface CalendarSyncRequest extends CalendarExportRequest {
+  preview_token?: string;
+  choices?: Record<string, CalendarChoice>;
+}
+
+export interface CalendarOpResult {
+  item_id: string;
+  op: CalendarOpKind;
+  ok: boolean;
+  error_code?: string;
+  message?: string;
+}
+
+export interface CalendarApplyResult {
+  status: CalendarApplyStatus;
+  results: CalendarOpResult[];
+  calendar: { summary: string } | null;
+}
+
+export interface CalendarDisconnectResult {
+  revoked: boolean;
+  calendar_deleted: boolean;
+  note: string | null;
+}
+
 export interface MealSchedule {
   v: 1;
   rev: number;                     // the draft's rev, echoed: apply only when it still matches

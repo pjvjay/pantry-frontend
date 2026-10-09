@@ -5,6 +5,11 @@ import type {
   AgentEvent,
   AgentOptions,
   AlternativeRanking,
+  CalendarApplyResult,
+  CalendarDiff,
+  CalendarDisconnectResult,
+  CalendarSyncRequest,
+  CalendarSyncStatus,
   HubStatus,
   ImportResult,
   McpCatalog,
@@ -222,6 +227,21 @@ export const importVideo = (body: { video_id: string; duration_s?: number | null
     video_id: body.video_id, consent: true,
     ...(body.duration_s != null ? { duration_s: body.duration_s } : {}),
   }));
+
+// Google Calendar sync (opt-in, local hub only; demo-hub docs/google-calendar.md). The hub holds
+// the OAuth client and token; the console only ever sees booleans and labels. connect answers
+// Google's consent URL, which the console opens; preview writes nothing; apply writes exactly
+// the reviewed diff (409 preview_stale when anything changed since). A refusal is a HubError
+// whose detail is {code, message}.
+export const calendarSyncStatus = () => json<CalendarSyncStatus>(`${HUB}/calendar/status`);
+export const calendarConnect = (return_to: string) =>
+  json<{ auth_url: string }>(`${HUB}/calendar/connect`, post({ return_to }));
+export const calendarSyncPreview = (body: CalendarSyncRequest) =>
+  json<CalendarDiff>(`${HUB}/calendar/sync/preview`, post(body));
+export const calendarSyncApply = (body: CalendarSyncRequest) =>
+  json<CalendarApplyResult>(`${HUB}/calendar/sync/apply`, post(body));
+export const calendarDisconnect = (delete_calendar: boolean) =>
+  json<CalendarDisconnectResult>(`${HUB}/calendar/disconnect`, post({ delete_calendar }));
 
 // Traces of Assistant turns and the metrics rolled up from them (every layer, the browser's too).
 export const traceList = (limit = 50) => json<TraceSummary[]>(`${HUB}/traces?limit=${limit}`);
