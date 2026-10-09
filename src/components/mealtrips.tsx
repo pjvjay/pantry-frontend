@@ -19,7 +19,7 @@ import { useMealPlan } from '../mealplan/store';
 import type {
   MealSchedule, PlanAction, PlanCoverage, PlanWarning, RemedyOp, Trip, TripLine, WarningCounts,
 } from '../types';
-import { CartCard } from './cart';
+import { CartCard, copyText } from './cart';
 import { SourceCredits } from './nutrition';
 import { Sheet } from './Sheet';
 
@@ -34,29 +34,7 @@ const counts = (c: WarningCounts) =>
 function useListActions(text: string) {
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied('copied');
-    } catch {
-      // No clipboard API here (a plain-http host, or a browser that refuses it): the older
-      // copy command still works from a selected text box in most browsers. The box goes inside
-      // the open sheet: a modal dialog makes the rest of the page inert, and an inert box cannot
-      // be selected.
-      const box = document.createElement('textarea');
-      box.value = text;
-      box.setAttribute('readonly', '');
-      box.className = 'sr-only';
-      (document.querySelector('dialog[open]') ?? document.body).appendChild(box);
-      box.select();
-      let ok = false;
-      try {
-        ok = document.execCommand('copy');
-      } catch {
-        ok = false;
-      }
-      box.remove();
-      setCopied(ok ? 'copied' : 'failed');
-    }
+    setCopied(await copyText(text) ? 'copied' : 'failed');
     window.setTimeout(() => setCopied('idle'), 2000);
   };
   const print = () => {
@@ -218,7 +196,7 @@ export function TripSheet({ date, onClose }: { date: string | null; onClose: () 
       {trip.not_stocked.length > 0 && (
         <p className="cart-flag">Not stocked within range: {trip.not_stocked.join(', ')}</p>
       )}
-      <CartCard summary={tripToCartSummary(trip)} listText={trip.list_text} />
+      <CartCard summary={tripToCartSummary(trip)} copyButton={false} />
       <h4>Each item</h4>
       <ul className="mp-lines">
         {/* The engine groups lines by product and storage, so a product can be here twice. */}

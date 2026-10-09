@@ -18,6 +18,32 @@ export const CartActions = createContext<{
   busy: boolean;
 } | null>(null);
 
+// Copy a list; false when the browser would not. With no clipboard API (a plain-http host, or
+// a browser that refuses it) the older copy command still works from a selected text box in
+// most browsers. The box goes inside an open dialog when there is one: a modal dialog makes
+// the rest of the page inert, and an inert box cannot be selected.
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.setAttribute('readonly', '');
+    box.className = 'sr-only';
+    (document.querySelector('dialog[open]') ?? document.body).appendChild(box);
+    box.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {
+      ok = false;
+    }
+    box.remove();
+    return ok;
+  }
+}
+
 const money = (v: number | null | undefined) => (typeof v === 'number' ? `$${v.toFixed(2)}` : '–');
 const stem = (w: string) => w.replace(/(es|s)$/, '');
 const words = (s: string) => (s.toLowerCase().match(/[a-z]+/g) ?? []).map(stem);
@@ -96,19 +122,19 @@ function listText(summary: CartSummary, groups: Group[], totalText: string): str
   return out.join('\n');
 }
 
-export function CartCard({ summary, cardRef, pinned, listText: ownText }: {
+// copyButton: false when the caller offers Copy list itself (a meal-plan trip sheet, whose
+// footer copies the list pantry-api builds, beside Print list), so one dialog has one Copy.
+export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
   summary: CartSummary;
   // the hub's ref for the plan behind the card, and the lines the shopper chose the product for
   cardRef?: number;
   pinned?: number[];
-  // the list Copy list copies, when the caller has one of its own (a meal-plan trip's list,
-  // which pantry-api builds grouped by store and aisle)
-  listText?: string;
+  copyButton?: boolean;
 }) {
   const ask = useContext(AskContext);
   const actions = useContext(CartActions);
   const [got, setGot] = useState<Set<string>>(() => new Set());
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
   const lines = summary.lines ?? [];
   const trip = summary.trip ?? null;
   const groups = byStore(lines, trip?.stores ?? []);
@@ -146,13 +172,9 @@ export function CartCard({ summary, cardRef, pinned, listText: ownText }: {
     );
   };
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(ownText ?? listText(summary, groups, costText(total, floor, known)));
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setCopied(false);
-    }
+    const ok = await copyText(listText(summary, groups, costText(total, floor, known)));
+    setCopied(ok ? 'copied' : 'failed');
+    window.setTimeout(() => setCopied('idle'), 2000);
   };
 
   return (
@@ -247,9 +269,11 @@ export function CartCard({ summary, cardRef, pinned, listText: ownText }: {
           ) : <span className="muted">each item at its cheapest store nearby; no trip chosen</span>}
           <strong>Total {costText(total, floor, known)}</strong>
         </div>
-        <button type="button" className="secondary" onClick={() => void copy()}>
-          {copied ? 'Copied' : 'Copy list'}
-        </button>
+        {copyButton && (
+          <button type="button" className="secondary" onClick={() => void copy()}>
+            {copied === 'copied' ? 'Copied' : copied === 'failed' ? 'Copy failed' : 'Copy list'}
+          </button>
+        )}
       </div>
     </section>
   );
