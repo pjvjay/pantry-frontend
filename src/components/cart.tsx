@@ -31,8 +31,16 @@ const namesIngredient = (l: CartLine) => {
 const storeOf = (l: CartLine) => l.trip_store || l.store || 'Store not chosen';
 const priceOf = (l: CartLine) => (l.trip_store ? l.trip_price ?? l.price : l.price);
 
-// floor: some line's price is unknown, so the subtotal is only what is known.
-type Group = { store: string; lines: CartLine[]; subtotal: number; floor: boolean };
+// floor: some line's price is unknown, so the subtotal is only what is known. known: some
+// line's price is known; with none, the subtotal is not a price at all.
+type Group = { store: string; lines: CartLine[]; subtotal: number; floor: boolean; known: boolean };
+
+const priced = (l: CartLine) => typeof priceOf(l) === 'number';
+
+// "$12.40", "at least $12.40", or "price unknown" when no price in it is known: a sum of
+// nothing is not $0.00.
+const costText = (v: number | null | undefined, floor: boolean, known: boolean) =>
+  (floor && !known ? 'price unknown' : `${floor ? 'at least ' : ''}${money(v)}`);
 
 // Lines by the store the trip buys them at, in the trip's order.
 function byStore(lines: CartLine[], order: string[]): Group[] {
@@ -42,7 +50,7 @@ function byStore(lines: CartLine[], order: string[]): Group[] {
   return [...groups.entries()]
     .sort(([a], [b]) => rank(a) - rank(b))
     .map(([store, ls]) => ({ store, lines: ls, subtotal: ls.reduce((t, l) => t + (priceOf(l) ?? 0), 0),
-      floor: ls.some((l) => typeof priceOf(l) !== 'number') }));
+      floor: ls.some((l) => !priced(l)), known: ls.some(priced) }));
 }
 
 const SWAP = 'still available, not a direct match: ';
@@ -76,8 +84,8 @@ function why(d: LeftOut, kind: LeftKind): string {
   return d.reason || kind.replace('_', ' ');
 }
 
-function listText(summary: CartSummary, groups: Group[], total: number | undefined): string {
-  const out = [`${summary.recipe_name ?? 'Shopping list'} — ${money(total)}`];
+function listText(summary: CartSummary, groups: Group[], totalText: string): string {
+  const out = [`${summary.recipe_name ?? 'Shopping list'} — ${totalText}`];
   for (const g of groups) {
     out.push('', g.store);
     for (const l of g.lines) {
@@ -107,7 +115,7 @@ export function CartCard({ summary, cardRef, pinned, listText: ownText }: {
   const items = groups.reduce((t, g) => t + g.subtotal, 0);
   const total = trip ? trip.total_cost : summary.total_cost;
   const floor = Boolean(summary.total_is_floor) || groups.some((g) => g.floor);
-  const atLeast = floor ? 'at least ' : '';
+  const known = groups.some((g) => g.known);
   const left: [LeftOut, LeftKind][] = [
     ...(summary.not_stocked ?? []).map((d) => [d, 'not_stocked'] as [LeftOut, LeftKind]),
     ...(summary.out_of_range ?? []).map((d) => [d, 'out_of_range'] as [LeftOut, LeftKind]),
@@ -139,7 +147,7 @@ export function CartCard({ summary, cardRef, pinned, listText: ownText }: {
   };
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(ownText ?? listText(summary, groups, total));
+      await navigator.clipboard.writeText(ownText ?? listText(summary, groups, costText(total, floor, known)));
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -157,7 +165,7 @@ export function CartCard({ summary, cardRef, pinned, listText: ownText }: {
             {got.size > 0 && ` · ${got.size} in the basket`}
           </div>
         </div>
-        <div className="cart-total">{atLeast}{money(total)}</div>
+        <div className="cart-total">{costText(total, floor, known)}</div>
       </div>
       {originAsked && share != null && (
         <div className={`cart-origin ${summary.origin_status === 'verified' ? 'cart-origin-ok' : 'cart-origin-warn'}`}>
@@ -168,7 +176,7 @@ export function CartCard({ summary, cardRef, pinned, listText: ownText }: {
       {groups.map((g) => (
         <div className="cart-store" key={g.store}>
           <div className="cart-store-head">
-            <span>{g.store}</span><span>{g.floor ? 'at least ' : ''}{money(g.subtotal)}</span>
+            <span>{g.store}</span><span>{costText(g.subtotal, g.floor, g.known)}</span>
           </div>
           <ul className="cart-items">
             {g.lines.map((l) => {
@@ -232,11 +240,11 @@ export function CartCard({ summary, cardRef, pinned, listText: ownText }: {
         <div className="cart-sums">
           {trip ? (
             <>
-              <span>Items {atLeast}{money(trip.basket_cost ?? items)}</span>
+              <span>Items {costText(trip.basket_cost ?? items, floor, known)}</span>
               {trip.travel_cost != null && <span>Travel {money(trip.travel_cost)}</span>}
             </>
           ) : <span className="muted">each item at its cheapest store nearby; no trip chosen</span>}
-          <strong>Total {atLeast}{money(total)}</strong>
+          <strong>Total {costText(total, floor, known)}</strong>
         </div>
         <button type="button" className="secondary" onClick={() => void copy()}>
           {copied ? 'Copied' : 'Copy list'}

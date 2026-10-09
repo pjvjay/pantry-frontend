@@ -14,7 +14,7 @@ import { useMemo } from 'react';
 import type { KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
 import { dayLabel } from '../mealplan/dates';
-import { mealsByCell, shownSlots, tripChipText, tripLook, tripsByDate } from '../mealplan/board';
+import { costText, mealsByCell, shownSlots, tripChipText, tripLook, tripPriced, tripsByDate } from '../mealplan/board';
 import { moveChoices } from '../mealplan/consequences';
 import type { MoveChoice } from '../mealplan/consequences';
 import { canDrop, keyIntent, keyMove, shopKey, slotLabel } from '../mealplan/dnd';
@@ -161,7 +161,9 @@ export function TripChip({ ctl, trip }: { ctl: BoardCtl; trip: Trip }) {
       <button type="button" className="mp-trip-main" onClick={() => ctl.openTrip(trip)}
               aria-label={`Shopping trip ${dayLabel(trip.date)}: ${tripChipText(trip, elsewhere)}. Open the list.`}>
         <span className="mp-trip-word">{look.mark && <span aria-hidden="true">{look.mark} </span>}{look.word}</span>
-        <span className="mp-trip-cost">{trip.total_is_floor ? '≥ ' : ''}${trip.total_cost.toFixed(2)} · {trip.lines.length} items</span>
+        <span className="mp-trip-cost">
+          {costText(trip.total_cost, trip.total_is_floor, tripPriced(trip), '≥ ')} · {trip.lines.length} items
+        </span>
       </button>
     </div>
   );

@@ -19,6 +19,16 @@ import type {
 
 export const money = (v: number): string => `$${v.toFixed(2)}`;
 
+// A total of known prices: "$41.20", "at least $41.20" when some price is unknown, and "price
+// unknown" when none is known. The engine sums known prices only, so a trip whose every price
+// is unknown has a total of 0, which is not a price anybody quoted.
+export function costText(total: number, floor: boolean, anyKnown: boolean, atLeast = 'at least '): string {
+  if (floor && !anyKnown) return 'price unknown';
+  return `${floor ? atLeast : ''}${money(total)}`;
+}
+
+export const tripPriced = (t: Trip): boolean => t.lines.some((ln) => ln.price !== null);
+
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // ─── Cells ───────────────────────────────────────────────────
@@ -94,7 +104,7 @@ export function tripChipText(t: Trip, elsewhere: TripStrategy | null = null): st
   const head = look.kind === 'review' && diffSize(t)
     ? `${look.mark} ${look.word} (${plural(diffSize(t), 'change', 'changes')})`
     : `${look.mark ? `${look.mark} ` : ''}${look.word}`;
-  const cost = `${t.total_is_floor ? 'at least ' : ''}${money(t.total_cost)}`;
+  const cost = costText(t.total_cost, t.total_is_floor, tripPriced(t));
   return [head, plural(t.stores.length, 'store', 'stores'), cost, plural(t.lines.length, 'item', 'items')]
     .join(' · ');
 }
@@ -195,7 +205,7 @@ export function summaryLine(s: MealPlanState, sc: MealSchedule | null): string {
       others.length ? `${others.length} approved under ${STRATEGY_NAMES[others[0].strategy]}` : '']
       .filter(Boolean);
     parts.push(`${plural(st.trips.length, 'trip', 'trips')}${notes.length ? ` (${notes.join(', ')})` : ''}`);
-    if (st.trips.length) parts.push(`${st.total_is_floor ? 'at least ' : ''}${money(st.total_cost)}`);
+    if (st.trips.length) parts.push(costText(st.total_cost, st.total_is_floor, st.trips.some(tripPriced)));
   }
   return parts.join(' · ');
 }

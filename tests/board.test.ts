@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  forMealsText, lineWarn, mealsByCell, packsText, priceDeltaText, shelfText, shownSlots,
+  costText, forMealsText, lineWarn, mealsByCell, packsText, priceDeltaText, shelfText, shownSlots,
   summaryLine, trayRows, tripChipText, tripLook, tripToCartSummary, weekEdit,
 } from '../src/mealplan/board.ts';
 import { cellKey, step } from '../src/mealplan/model.ts';
@@ -33,8 +33,9 @@ test('cells hold their meals, the tray holds the rest, and empty rows can be hid
 test('a trip chip says its state in words, not colour alone, and "at least" for a floor', () => {
   const t = real.strategies[0].trips[0];
   assert.equal(tripChipText(t), 'Suggested · 2 stores · $118.83 · 3 items');
-  const floor = trip(D(1), [line(10, 'Chicken', { price: null })], { total_cost: 4, total_is_floor: true });
-  assert.equal(tripChipText(floor), 'Suggested · 1 store · at least $4.00 · 1 item');
+  const floor = trip(D(1), [line(10, 'Chicken', { price: null }), line(11, 'Rice', { price: 4 })],
+    { total_cost: 4, total_is_floor: true });
+  assert.equal(tripChipText(floor), 'Suggested · 1 store · at least $4.00 · 2 items');
   assert.deepEqual(tripLook(trip(D(1), [], { status: 'approved' })),
     { kind: 'approved', mark: '✓', word: 'Approved' });
   const review = trip(D(1), [], { status: 'needs_review',
@@ -93,10 +94,26 @@ test('the summary line counts meals, placements, trips and the known total', () 
   const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 2)),
     { type: 'place', mealId: `${PIZZA}#1`, date: D(2), slot: 'dinner' });
   assert.equal(summaryLine(s, null), '2 meals · 1 placed');
-  const sc = schedule(s.draft.rev, [], [trip(D(1), [], { status: 'approved' }), trip(D(4), [])]);
+  const sc = schedule(s.draft.rev, [], [trip(D(1), [line(10, 'Chicken', { price: 52.5 })], { status: 'approved' }),
+    trip(D(4), [line(11, 'Rice', { price: null })])]);
   sc.strategies[0].total_cost = 52.5;
   sc.strategies[0].total_is_floor = true;
   assert.equal(summaryLine(s, sc), '2 meals · 1 placed · 2 trips (1 approved) · at least $52.50');
+});
+
+test('a total with no known price is "price unknown", never "at least $0.00"', () => {
+  // A needs_servings recipe's lines: packs and price unknown, so the engine's total is 0.0 and a floor.
+  const unknown = trip(D(1), [line(10, 'Chicken', { packs: null, price: null, packs_basis: 'needs_servings' })],
+    { total_cost: 0, total_is_floor: true });
+  assert.equal(tripChipText(unknown), 'Suggested · 1 store · price unknown · 1 item');
+  assert.equal(costText(0, true, false), 'price unknown');
+  assert.equal(costText(12.4, true, true, '≥ '), '≥ $12.40');
+  assert.equal(costText(0, false, false), '$0.00', 'nothing to buy does cost nothing');
+  const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1)),
+    { type: 'place', mealId: `${PIZZA}#1`, date: D(2), slot: 'dinner' });
+  const sc = schedule(s.draft.rev, [], [unknown]);
+  sc.strategies[0].total_is_floor = true;
+  assert.equal(summaryLine(s, sc), '1 meal · 1 placed · 1 trip · price unknown');
 });
 
 test('a day approved under the other strategy says so, and is counted apart', () => {

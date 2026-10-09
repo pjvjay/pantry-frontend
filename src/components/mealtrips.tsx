@@ -9,8 +9,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import {
-  forMealsText, needText, packsText, priceDeltaText, shelfText, strategyOf, tripChipText, tripLook,
-  tripToCartSummary,
+  costText, forMealsText, needText, packsText, priceDeltaText, shelfText, strategyOf, tripChipText, tripLook,
+  tripPriced, tripToCartSummary,
 } from '../mealplan/board';
 import { productNames, remedyLabel, remedyStep, tripMoveConsequence, warningsFor } from '../mealplan/consequences';
 import { dayLabel } from '../mealplan/dates';
@@ -373,7 +373,10 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
             <input type="radio" name="mp-strategy" checked={strategy === s.name}
                    onChange={() => mp.dispatch({ type: 'setPrefs', prefs: { strategy: s.name } })} />
             {STRATEGY_NAMES[s.name]}{s.recommended ? ' (recommended)' : ''}
-            <span className="muted"> · {s.trips.length} trips · {s.total_is_floor ? 'at least ' : ''}${s.total_cost.toFixed(2)} · {counts(s.warning_counts)}</span>
+            <span className="muted">
+              {' '}· {s.trips.length} trips · {costText(s.total_cost, s.total_is_floor, s.trips.some(tripPriced))}
+              {' '}· {counts(s.warning_counts)}
+            </span>
           </label>
         ))}
       </fieldset>
