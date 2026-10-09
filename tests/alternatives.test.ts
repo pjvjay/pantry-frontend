@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   cartChangeText, cartLineKey, cartTotal, chipReasons, coversText, footText, isPinned, lineNotes,
   linesOf, money, movedText, needText, optionsLabel, packPrice, priceLine, purchaseLineNo,
-  replaceCard,
+  replaceCard, routedLinks,
   replyBeforeChange, rowsOf, storeText,
   swapAnnouncement, swapBlocked, swapNotice, unitPriceText,
 } from '../src/alternatives.ts';
@@ -258,4 +258,17 @@ test("a cart change told to the model is recorded in the chat in the shopper's w
     + 'Bolognese: Ground Beef Extra Lean 300g → Ground Beef Lean, total $28.54 (was $26.86).');
   assert.match(cartChangeText({ ...e, undone: true, total_before: 28.54, total_after: 28.54 }),
     /back to the planner's pick, Ground Beef Lean \(was Ground Beef Extra Lean 300g\), total \$28\.54\.$/);
+});
+
+test("a card's link is drawn only when it leads to one of the console's tabs", () => {
+  const week = [{ label: 'Open in Meal plan', href: '#/mealplan?from=week' }];
+  // before the Meal plan tab exists the link would land on the Overview and drop the chat
+  const now = ['overview', 'planner', 'assistant', 'catalog', 'provenance', 'mcp', 'simulations',
+    'metrics', 'system'];
+  assert.deepEqual(routedLinks(week, now), []);
+  assert.deepEqual(routedLinks(week, [...now, 'mealplan']), week);
+  // never a link out of the console, and none without a tab
+  assert.deepEqual(routedLinks([{ label: 'x', href: 'https://example.com/#/mealplan' },
+    { label: 'y', href: '#/' }, { label: 'z', href: '#/planner' }], now),
+  [{ label: 'z', href: '#/planner' }]);
 });

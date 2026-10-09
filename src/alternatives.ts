@@ -166,6 +166,18 @@ export function footText(r: AlternativeRanking): string[] {
   return out;
 }
 
+// The links a card offers that this console can follow: in-page routes (`#/<tab>...`) to a tab
+// it has (`routes`). A week card links to the Meal plan; a console without that tab would land on
+// the Overview instead, and leaving the Assistant tab drops the conversation, so such a link is
+// not drawn.
+export function routedLinks(links: readonly { label: string; href: string }[],
+                            routes: readonly string[]): { label: string; href: string }[] {
+  return links.filter((l) => {
+    const tab = /^#\/([^?#/]+)/.exec(l.href)?.[1];
+    return tab != null && routes.includes(tab);
+  });
+}
+
 // Why "Use this" cannot be pressed now, in the words the hub would refuse with; '' when it can.
 export function swapBlocked(answering: boolean, target: string): string {
   if (target === 'gateway-sim') {

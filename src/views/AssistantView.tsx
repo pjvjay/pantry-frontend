@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import {
-  cartChangeText, cartLineKey, purchaseLineNo, replaceCard, replyBeforeChange, swapAnnouncement,
-  swapBlocked, swapNotice,
+  cartChangeText, cartLineKey, purchaseLineNo, replaceCard, replyBeforeChange, routedLinks,
+  swapAnnouncement, swapBlocked, swapNotice,
 } from '../alternatives';
 import { AlternativesDialog } from '../components/alternatives';
 import type { OptionsTarget } from '../components/alternatives';
@@ -194,7 +194,7 @@ function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
 
 // One chat item. Memoised: a new event appends an item (or completes one tool card) without
 // redrawing the others, which matters once a conversation holds long answers and tool results.
-const ChatItem = memo(function ChatItem({ it }: { it: Item }) {
+const ChatItem = memo(function ChatItem({ it, routes }: { it: Item; routes: readonly string[] }) {
   if (it.kind === 'user') return <div className="bubble bubble-user">{it.text}</div>;
   if (it.kind === 'assistant') {
     // every plan drawn as a cart; a week plan keeps the hub's Markdown tables
@@ -212,8 +212,8 @@ const ChatItem = memo(function ChatItem({ it }: { it: Item }) {
         </div>
       );
     }
-    // a week card offers to open the week in the Meal plan; only the console's own routes
-    const links = plans.flatMap((c) => c.links ?? []).filter((l) => l.href.startsWith('#/'));
+    // a week card offers to open the week in the Meal plan, drawn only where the console has it
+    const links = routedLinks(plans.flatMap((c) => c.links ?? []), routes);
     return (
       <div className="bubble bubble-agent">
         <Markdown text={it.text} />
@@ -240,7 +240,10 @@ const ChatItem = memo(function ChatItem({ it }: { it: Item }) {
   return <div className="chat-meta">{it.text}</div>;
 });
 
-export default function AssistantView() {
+const NO_ROUTES: readonly string[] = [];
+
+// `routes`: the console's tabs, so a card's link is drawn only when it leads to one of them.
+export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonly string[] }) {
   const [options, setOptions] = useState<AgentOptions | null>(null);
   const [model, setModel] = useState('');
   const [target, setTarget] = useState('');
@@ -506,7 +509,7 @@ export default function AssistantView() {
         )}
         <AskContext.Provider value={ask}>
           <CartActions.Provider value={cartActions}>
-            {items.map((it, i) => <ChatItem key={i} it={it} />)}
+            {items.map((it, i) => <ChatItem key={i} it={it} routes={routes} />)}
           </CartActions.Provider>
         </AskContext.Provider>
         <div className="sr-only" role="status">{announce}</div>

@@ -646,7 +646,8 @@ export type PlanCardData = {
   // with cart alternatives: the hub's tool_log index of the plan behind the card, which the
   // Options dialog and a swap name, and the lines the shopper has pinned
   ref?: number; pinned_lines?: number[];
-  // with the meal plan: links the card offers, such as a week card's "Open in Meal plan"
+  // links the card offers, such as a week card's "Open in Meal plan"; the console draws one only
+  // when it has the tab the link leads to (alternatives.routedLinks)
   links?: { label: string; href: string }[];
 };
 
