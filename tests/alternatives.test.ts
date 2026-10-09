@@ -28,7 +28,7 @@ function row(over: Partial<RankedAlternative> = {}): RankedAlternative {
     rating: { avg: 4.5, count: 6, synthetic: true }, says_organic: false,
     reasons: [
       { code: 'match', text: "Matches every word of 'Ground Beef'", tone: 'plus' },
-      { code: 'pack', text: 'Recipe gives no amount', tone: 'unknown' },
+      { code: 'pack', text: 'Planned without amounts (a library recipe)', tone: 'unknown' },
       { code: 'origin', text: 'Origin not checked', tone: 'unknown' },
       { code: 'trip', text: '$1.68 more on your trip', tone: 'minus' },
       { code: 'rating', text: '4.5 of 5 from 6 reviews (demo)', tone: 'info' },
@@ -128,7 +128,7 @@ test('chips are the match, origin and rating reasons, in that order', () => {
 
 test('the price says what the recipe costs only when the amount was compared', () => {
   assert.deepEqual(priceLine(row()), {
-    main: '$7.95 a pack', note: 'Amount not compared: Recipe gives no amount' });
+    main: '$7.95 a pack', note: 'Amount not compared: Planned without amounts (a library recipe)' });
   const compared = row({
     cost_for_need: 15.9, packs: 2, pack_fit: 'covers',
     reasons: [{ code: 'pack', text: "Covers the recipe's 900 g in 2 packs", tone: 'plus' }],
@@ -187,8 +187,13 @@ test('moved purchases are named with both stores', () => {
 });
 
 test('the header states the need, the lines a purchase covers and what is not listed', () => {
-  assert.equal(needText(ranking([])), 'The recipe gives no amount for this line.');
   assert.equal(needText(ranking([], { need: '500 g' })), 'Your recipe needs 500 g.');
+  // pantry says why there is no amount; a library recipe is not said to give none
+  assert.equal(needText(ranking([], { need_note: 'Planned without amounts (a library recipe)' })),
+    'Planned without amounts (a library recipe).');
+  assert.equal(needText(ranking([], { need_note: 'Recipe gives no amount' })),
+    'Recipe gives no amount.');
+  assert.equal(needText(ranking([])), 'No amount is compared for this line.');
   assert.equal(coversText(ranking([])), '');
   assert.match(coversText(ranking([], { lines: [2, 5, 7] })), /^This purchase covers lines 2, 5 and 7;/);
   assert.deepEqual(footText(ranking([row()], { total: 5, unavailable: 2 })),

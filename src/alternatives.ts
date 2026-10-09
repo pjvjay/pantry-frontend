@@ -146,8 +146,12 @@ export function storeText(item: RankedAlternative): string {
 export const movedText = (item: RankedAlternative): string[] =>
   (item.trip?.moved_items ?? []).map((m) => `${m.product} moves from ${m.from_store} to ${m.to_store}`);
 
+// The recipe's amount for the line, or pantry's reason there is none to compare packs with. A
+// library recipe is planned without amounts, so "the recipe gives none" would be untrue there;
+// an older pantry gives no reason, and the line then claims none.
 export function needText(r: AlternativeRanking): string {
-  return r.need ? `Your recipe needs ${r.need}.` : 'The recipe gives no amount for this line.';
+  if (r.need) return `Your recipe needs ${r.need}.`;
+  return r.need_note ? `${r.need_note}.` : 'No amount is compared for this line.';
 }
 
 export function coversText(r: AlternativeRanking): string {

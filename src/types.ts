@@ -372,7 +372,10 @@ export interface AlternativeRanking {
   line_no: number;
   lines: number[];                 // every recipe line the purchase covers
   ingredient: string;
-  need: string;                    // "500 g", or '' when the recipe gives no amount
+  need: string;                    // "500 g", or '' when there is no amount to compare
+  // why `need` is '': "Recipe gives no amount", "Planned without amounts (a library recipe)",
+  // "Recipe amount '2 cloves' can't be compared with a pack"; absent from an older pantry
+  need_note?: string;
   need_qty: number | null;
   need_uom: string | null;
   order: string[];
