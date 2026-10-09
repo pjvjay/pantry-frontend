@@ -11,6 +11,9 @@
 //   meals to are stored back on the plan (mergeSchedule).
 // - Resolve: each recipe once, as it enters the tray, never on a drag (the one call that may
 //   use a model). A failure is not retried on its own; retryResolve does that.
+// - My recipes: read from pantry.recipes.v1, and the recipes recipe import sent with "Add to
+//   meal plan" (pantry.mealplan.inbox.v1) join the tray, on load, when another tab saves, and
+//   when the Meal plan view opens (syncSaved; a save in this same page fires no storage event).
 // - Announcements: one polite live region, rendered here, for every edit and refusal.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -21,7 +24,9 @@ import {
 import type {
   CookDaysProposal, MealSchedule, MealStarter, RecipeDoc, RecipeRef, Trip, TripStrategy,
 } from '../types';
-import { forSelection, readMyRecipes, RECIPES_KEY } from '../myRecipes';
+import {
+  MEAL_PLAN_INBOX_KEY, RECIPES_KEY, forSelection, inboxEdit, readMyRecipes, takeInbox,
+} from '../myRecipes';
 import type { StorageLike } from '../myRecipes';
 import { todayIn } from './dates';
 import { historyStep, newPlan, redoPlan, undoPlan } from './model';
@@ -69,7 +74,8 @@ export interface MealPlanApi {
   retryResolve: () => void;
   starters: MealStarter[];
   myRecipes: RecipeDoc[];
-  myRecipesProblem: string | null;
+  myRecipesProblem: string | null;  // also says what could not join the plan from recipe import
+  syncSaved: () => void;
   quickAdd: (text: string, signal?: AbortSignal) => Promise<Preview>;
   acceptPreview: (p: Preview) => { outcome: Outcome | null; problems: string[] };
   cookDays: ProposalView;
@@ -281,14 +287,33 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const [mine, setMine] = useState(() => readMyRecipes(browserStorage()));
+  // What could not join the plan from the inbox. It stays until a later take finds something,
+  // because the take after it (another tab's event, the view opening) finds the inbox empty.
+  const [inboxNote, setInboxNote] = useState<string | null>(null);
+
+  // Saved recipes read again, and the ones sent with "Add to meal plan" added to the tray with
+  // one meal each, as one undo step.
+  const syncSaved = useCallback(() => {
+    const storage = browserStorage();
+    const read = readMyRecipes(storage);
+    setMine(read);
+    const inbox = takeInbox(storage);
+    if (!inbox.entries.length && !inbox.problem) return;
+    const { edit, problems } = inboxEdit(inbox.entries, read.recipes, historyRef.current.present);
+    if (edit) dispatch(edit);
+    const notes = [inbox.problem, ...problems].filter((x): x is string => Boolean(x));
+    setInboxNote(notes.length ? notes.join(' ') : null);
+  }, [dispatch]);
+
   useEffect(() => {
-    // Recipes saved in another tab appear here too.
+    syncSaved();
+    // Recipes saved or sent in another tab appear here too.
     const changed = (e: StorageEvent) => {
-      if (e.key === RECIPES_KEY || e.key === null) setMine(readMyRecipes(browserStorage()));
+      if (e.key === RECIPES_KEY || e.key === MEAL_PLAN_INBOX_KEY || e.key === null) syncSaved();
     };
     window.addEventListener('storage', changed);
     return () => window.removeEventListener('storage', changed);
-  }, []);
+  }, [syncSaved]);
 
   // ─── Quick add ─────────────────────────────────────────────
   const quickAdd = useCallback(async (text: string, signal?: AbortSignal) => {
@@ -360,11 +385,12 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
     schedule: { ...schedule, current: schedule.answer?.rev === draft.rev && schedule.status === 'ok' },
     recheck, setDragging,
     resolve: { ...resolve, pending },
-    retryResolve, starters, myRecipes: mine.recipes, myRecipesProblem: mine.problem,
+    retryResolve, starters, myRecipes: mine.recipes, myRecipesProblem: [mine.problem, inboxNote].filter(Boolean).join(' ') || null,
+    syncSaved,
     quickAdd, acceptPreview, cookDays, proposeCookDays, applyCookDays, dismissCookDays, approveTrip,
     exportText, importText, clear,
   }), [state, dispatch, undo, redo, history, announce, persist, boot.loadProblem, schedule, draft.rev,
-    recheck, resolve, pending, retryResolve, starters, mine, quickAdd, acceptPreview, cookDays,
+    recheck, resolve, pending, retryResolve, starters, mine, inboxNote, syncSaved, quickAdd, acceptPreview, cookDays,
     proposeCookDays, applyCookDays, dismissCookDays, approveTrip, exportText, importText, clear]);
 
   return (

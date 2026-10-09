@@ -109,7 +109,11 @@ the public demo and on AKS as well as in the local stack.
 `src/myRecipes.ts` reads the shopper's own recipes: `pantry.recipes.v1` holds
 `{v: 1, recipes: RecipeDoc[]}`, each keyed `my:<id>`. Recipe import's
 `src/recipes.ts` (on `feat/recipe-import`) is the only writer of that key; the
-meal plan never writes it. `src/mealplan/store.tsx` (`MealPlanProvider`, `useMealPlan`) wraps
+meal plan never writes it. Recipes sent with "Add to meal plan" wait in
+`pantry.mealplan.inbox.v1` (`{v: 1, entries: [{key, title, added_at}]}`); the
+meal plan takes them when it loads, when another tab writes either key and when
+the tab opens, adds each to the tray with one meal unless it is there already,
+and empties the inbox. `src/mealplan/store.tsx` (`MealPlanProvider`, `useMealPlan`) wraps
 the reducer with saving, the schedule call and the other `/mealplan/*`
 requests in `api.ts`.
 

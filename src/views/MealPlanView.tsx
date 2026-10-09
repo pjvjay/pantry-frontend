@@ -173,6 +173,10 @@ export default function MealPlanView() {
 
   const { drag, grip, ghost } = usePointerDrag(onEffect);
 
+  // Recipes saved or sent from recipe import in this same page since the tab was last open.
+  const { syncSaved } = mp;
+  useEffect(() => { syncSaved(); }, [syncSaved]);
+
   useEffect(() => {
     const f = focusAfter.current;
     if (!f) return;

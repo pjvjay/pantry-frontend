@@ -8,10 +8,12 @@ import {
 } from '../src/mealplan/persist.ts';
 import type { StorageLike } from '../src/mealplan/persist.ts';
 import {
-  RECIPES_KEY, forSelection, myDocProblem, parseMyRecipes, readMyRecipes,
+  MEAL_PLAN_INBOX_KEY, RECIPES_KEY, forSelection, inboxEdit, myDocProblem, parseInbox,
+  parseMyRecipes, readMyRecipes, takeInbox,
 } from '../src/myRecipes.ts';
+import type { InboxEntry } from '../src/myRecipes.ts';
 import * as myRecipes from '../src/myRecipes.ts';
-import { docRef, step } from '../src/mealplan/model.ts';
+import { MAX_RECIPES, docRef, step } from '../src/mealplan/model.ts';
 import type { RecipeDoc } from '../src/types.ts';
 import { D, add, planWith, run } from './helpers/mealplan.ts';
 
@@ -204,4 +206,65 @@ test('the docs recipe import saves are read whole: a web page, and a checked vid
 test('the meal plan only reads saved recipes; recipe import is the one writer', () => {
   const writers = Object.keys(myRecipes).filter((name) => /^(write|save|upsert|serialize)/i.test(name));
   assert.deepEqual(writers, []);
+});
+
+// ─── pantry.mealplan.inbox.v1 ────────────────────────────────
+
+const sent = (id: string, title: string, at = '2026-10-08T20:00:00Z'): InboxEntry =>
+  ({ key: `my:${id}`, title, added_at: at });
+
+test('recipes sent with "Add to meal plan" are taken once, oldest first, and the inbox emptied', () => {
+  assert.equal(MEAL_PLAN_INBOX_KEY, 'pantry.mealplan.inbox.v1');
+  const entries = [sent('a1', 'Dal Tadka'), sent('b2', 'Lemon Rice', '2026-10-08T20:05:00Z')];
+  const store = memory({ [MEAL_PLAN_INBOX_KEY]: JSON.stringify({ v: 1, entries }) });
+  assert.deepEqual(takeInbox(store), { entries, problem: null });
+  assert.deepEqual(JSON.parse(store.data[MEAL_PLAN_INBOX_KEY]), { v: 1, entries: [] });
+  assert.deepEqual(takeInbox(store), { entries: [], problem: null });
+  // nothing waiting: nothing is written
+  const empty = memory();
+  assert.deepEqual(takeInbox(empty), { entries: [], problem: null });
+  assert.deepEqual(empty.data, {});
+});
+
+test('an inbox that cannot be read is said, its readable entries still used', () => {
+  assert.match(parseInbox('{').problem ?? '', /could not be read/);
+  assert.match(parseInbox(JSON.stringify({ v: 2, entries: [] })).problem ?? '', /cannot read/);
+  const mixed = parseInbox(JSON.stringify({ v: 1, entries: [sent('a1', 'Dal'), { key: 'lib:x', title: 'X',
+    added_at: 'now' }, 'nope'] }));
+  assert.deepEqual(mixed.entries, [sent('a1', 'Dal')]);
+  assert.equal(mixed.problem, '2 recipes sent to the meal plan could not be read.');
+  assert.match(takeInbox(refusing).problem ?? '', /not letting/);
+  // emptying refused: the entries are still used
+  const stuck = { getItem: () => JSON.stringify({ v: 1, entries: [sent('a1', 'Dal')] }),
+    setItem: () => { throw new Error('QuotaExceededError'); } };
+  assert.deepEqual(takeInbox(stuck).entries, [sent('a1', 'Dal')]);
+});
+
+test('each sent recipe joins the tray with one meal, as its reviewed doc, in one step', () => {
+  const dal = myDoc('a1', 'Dal Tadka');
+  const rice = myDoc('b2', 'Lemon Rice');
+  const s = planWith(7, { type: 'addRecipe', ref: docRef(rice), title: 'Lemon Rice', wanted: 2 });
+  const { edit, problems } = inboxEdit([sent('a1', 'Dal Tadka'), sent('b2', 'Lemon Rice'),
+    sent('a1', 'Dal Tadka'), sent('gone', 'Old Soup')], [dal, rice], s);
+  assert.deepEqual(problems, ['Old Soup was sent to the meal plan but is no longer in your saved recipes.']);
+  assert.deepEqual(edit, { type: 'batch', edits: [
+    { type: 'addRecipe', ref: { key: 'my:a1', doc: dal }, title: 'Dal Tadka', wanted: 1, slot: 'dinner' }] });
+  const out = step(s, edit!);
+  assert.equal(out.refused, null);
+  assert.equal(out.state.draft.recipes['my:a1'].wanted, 1);
+  assert.equal(out.state.draft.recipes['my:b2'].wanted, 2, 'a recipe already there keeps its count');
+  assert.deepEqual(out.state.draft.meals.filter((m) => m.recipe_key === 'my:a1')
+    .map((m) => [m.id, m.date, m.pinned]), [['my:a1#1', null, true]]);
+  assert.deepEqual(inboxEdit([], [dal], s), { edit: null, problems: [] });
+});
+
+test('a full plan says which sent recipe it could not take, and keeps it saved', () => {
+  let s = planWith(14);
+  for (let i = 0; i < MAX_RECIPES; i += 1) {
+    s = step(s, { type: 'addRecipe', ref: docRef(myDoc(`r${i}`, `R${i}`)), title: `R${i}`, wanted: 1 }).state;
+  }
+  const { edit, problems } = inboxEdit([sent('new', 'Dal Tadka')], [myDoc('new', 'Dal Tadka')], s);
+  assert.equal(edit, null);
+  assert.deepEqual(problems, [`Dal Tadka was not added: a plan holds ${MAX_RECIPES} recipes and 56 meals. `
+    + 'It is still in your saved recipes.']);
 });
