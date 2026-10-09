@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MAX_RECIPES, approvedElsewhere, approvedFrom, historyStep, libraryRef, newPlan, recorded, redoPlan, step,
-  undoPlan,
+  MAX_RECIPES, SETTING_RULES, approvedElsewhere, approvedFrom, historyStep, libraryRef, newPlan, readNumber,
+  recorded, redoPlan, step, undoPlan,
 } from '../src/mealplan/model.ts';
 import type { MealPlanState, PlanEdit } from '../src/mealplan/model.ts';
 import { canRedo, canUndo, startHistory } from '../src/mealplan/undo.ts';
@@ -236,6 +236,22 @@ test('settings are checked, and a slot with meals in it cannot be switched off',
   assert.deepEqual(s.draft.prefs.shop_weekdays, [2, 5]);
   assert.equal(s.draft.prefs.buy_ahead_days, 3);
   assert.equal(step(s, { type: 'setPrefs', prefs: { buy_ahead_days: 3 } }).state, s, 'no change, no rev');
+});
+
+test('a settings number is read when the shopper is done typing, and an empty one is not 0', () => {
+  const people = SETTING_RULES.household_servings;
+  assert.deepEqual(readNumber('3', people), { value: 3 });
+  assert.deepEqual(readNumber(' 12 ', people), { value: 12 });
+  // Clearing the field to type another number is not a household of 0.
+  assert.deepEqual(readNumber('', people), { problem: 'a whole number from 1 to 20' });
+  assert.deepEqual(readNumber('0', people), { problem: 'a whole number from 1 to 20' });
+  assert.deepEqual(readNumber('2.5', people), { problem: 'a whole number from 1 to 20' });
+  assert.deepEqual(readNumber('0', SETTING_RULES.buy_ahead_days), { value: 0 });
+  const km = SETTING_RULES.max_km;
+  assert.deepEqual(readNumber('0.5', km), { value: 0.5 });
+  assert.deepEqual(readNumber('', km), { value: null }, 'no distance limit');
+  assert.deepEqual(readNumber('0', km), { problem: 'a number from 0.5 to 100, or empty for any' });
+  assert.deepEqual(readNumber('1e', km), { problem: 'a number from 0.5 to 100, or empty for any' });
 });
 
 test('a new shopping area clears the resolved products so they are checked again', () => {

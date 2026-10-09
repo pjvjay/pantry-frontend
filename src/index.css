@@ -966,6 +966,8 @@ tr.row-active td { background: var(--accent-soft); }
 .mp-trip-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
 .mp-trip-actions button { margin: 0; }
 .mp-actions, .mp-sources-wrap, .mp-settings, .mp-add { margin-top: 10px; font-size: 13.5px; }
+.mp-field { display: flex; flex-direction: column; gap: 2px; }
+.mp-field-why { font-size: 12px; }
 .mp-actions summary, .mp-sources-wrap summary, .mp-settings summary, .mp-add summary { cursor: pointer; font-weight: 600; }
 .mp-actions ol { padding-left: 18px; }
 .mp-actions ul { padding-left: 4px; list-style: none; margin: 2px 0 6px; }

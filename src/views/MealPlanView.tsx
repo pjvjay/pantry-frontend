@@ -6,7 +6,7 @@
 // The plan lives in MealPlanProvider (above the tab switch, so it survives changing tabs) and is
 // saved in this browser only. Every change re-runs /mealplan/schedule, which is pure: no model
 // call, and the same plan gives the same answer.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
 import { ActionBar, DragGhost, MoveSheet, PlanBoard } from '../components/mealcal';
@@ -20,8 +20,8 @@ import { moveConsequence, tripMoveConsequence, warningsFor } from '../mealplan/c
 import { addDays, dayLabel } from '../mealplan/dates';
 import { dropEdit, keyIntent, parseTarget } from '../mealplan/dnd';
 import type { DragEffect, DragPayload } from '../mealplan/dnd';
-import { MAX_DAYS, MAX_SERVINGS, SLOTS, SLOT_LABELS, recipeTitle } from '../mealplan/model';
-import type { PlanEdit, Slot } from '../mealplan/model';
+import { SETTING_RULES, SLOTS, SLOT_LABELS, readNumber, recipeTitle } from '../mealplan/model';
+import type { NumberRule, PlanEdit, Slot } from '../mealplan/model';
 import { exportFileName } from '../mealplan/persist';
 import { useMealPlan } from '../mealplan/store';
 import type { RemedyOp } from '../types';
@@ -43,6 +43,54 @@ const inText = (el: EventTarget | null) =>
 const mealChipSelector = (mealId: string) => `[data-meal="${CSS.escape(mealId)}"] .mp-chip-main`;
 const tripChipSelector = (date: string) => `[data-trip="${CSS.escape(date)}"] .mp-trip-main`;
 
+// A settings number, saved on Enter or on leaving the field, and only when it is one the plan
+// takes. A value it does not take stays in the field with the reason beside it, rather than
+// snapping back and being announced on every keystroke.
+function NumberSetting({ label, value, rule, step, placeholder, onSave }: {
+  label: string;
+  value: number | null;
+  rule: NumberRule;
+  step?: number;
+  placeholder?: string;
+  onSave: (value: number | null) => void;
+}) {
+  const why = useId();
+  const shown = value === null ? '' : String(value);
+  const [text, setText] = useState(shown);
+  const [problem, setProblem] = useState<string | null>(null);
+  // A change from elsewhere (undo, an imported plan) shows here.
+  useEffect(() => {
+    setText(shown);
+    setProblem(null);
+  }, [shown]);
+  const save = () => {
+    const r = readNumber(text, rule);
+    if ('problem' in r) {
+      setProblem(r.problem);
+      return;
+    }
+    setProblem(null);
+    if (r.value !== value) onSave(r.value);
+  };
+  return (
+    <span className="mp-field">
+      <label>
+        {label}
+        <input type="number" min={rule.min} max={rule.max} step={step} value={text} placeholder={placeholder}
+               aria-invalid={problem ? true : undefined} aria-describedby={problem ? why : undefined}
+               onChange={(e) => setText(e.target.value)} onBlur={save}
+               onKeyDown={(e) => {
+                 if (e.key === 'Enter') {
+                   e.preventDefault();
+                   save();
+                 }
+               }} />
+      </label>
+      {problem && <span id={why} className="cart-flag mp-field-why">Not saved: {problem}.</span>}
+    </span>
+  );
+}
+
 function Settings() {
   const mp = useMealPlan();
   const d = mp.state.draft;
@@ -54,16 +102,12 @@ function Settings() {
     <details className="mp-settings">
       <summary>Household and shopping settings</summary>
       <div className="form-row">
-        <label>
-          people in the household
-          <input type="number" min={1} max={MAX_SERVINGS} value={p.household_servings}
-                 onChange={(e) => set({ household_servings: Number(e.target.value) })} />
-        </label>
-        <label>
-          buy at most this many days ahead when the storage time is unknown (your setting)
-          <input type="number" min={0} max={MAX_DAYS} value={p.buy_ahead_days}
-                 onChange={(e) => set({ buy_ahead_days: Number(e.target.value) })} />
-        </label>
+        <NumberSetting label="people in the household" value={p.household_servings}
+                       rule={SETTING_RULES.household_servings}
+                       onSave={(v) => v !== null && set({ household_servings: v })} />
+        <NumberSetting label="buy at most this many days ahead when the storage time is unknown (your setting)"
+                       value={p.buy_ahead_days} rule={SETTING_RULES.buy_ahead_days}
+                       onSave={(v) => v !== null && set({ buy_ahead_days: v })} />
         <label>
           shopping from
           <select value={Math.max(0, place)} onChange={(e) => {
@@ -73,12 +117,11 @@ function Settings() {
             {PLACES.map((x, i) => <option key={x.label} value={i}>{x.label}</option>)}
           </select>
         </label>
-        <label>
-          within km
-          <input type="number" min={0.5} max={100} step={0.5} value={d.settings.max_km ?? ''} placeholder="any"
-                 onChange={(e) => mp.dispatch({ type: 'setSettings',
-                   settings: { max_km: e.target.value === '' ? null : Number(e.target.value) } })} />
-        </label>
+        {/* Each saved distance clears the recipes' products and resolves them again (a model
+            call on a live deployment), so it is saved once, not per keystroke. */}
+        <NumberSetting label="within km" value={d.settings.max_km ?? null} rule={SETTING_RULES.max_km}
+                       step={0.5} placeholder="any"
+                       onSave={(v) => mp.dispatch({ type: 'setSettings', settings: { max_km: v } })} />
       </div>
       <fieldset className="mp-checks">
         <legend>Shop on</legend>

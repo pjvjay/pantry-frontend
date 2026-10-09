@@ -454,6 +454,33 @@ const PREF_CHECKS: { [K in keyof MealPrefs]-?: (v: unknown) => boolean } = {
 
 export const isPrefField = (f: string): f is keyof MealPrefs => f in PREF_CHECKS;
 
+// A number field in the settings, read once the shopper is done with it (Enter, or leaving the
+// field) rather than on each keystroke: clearing a field to type a new number, or typing 0 on
+// the way to 0.5, is not a setting. optional: an empty field means no limit.
+export interface NumberRule {
+  min: number;
+  max: number;
+  whole: boolean;
+  optional?: boolean;
+}
+
+export const SETTING_RULES = {
+  household_servings: { min: 1, max: MAX_SERVINGS, whole: true },
+  buy_ahead_days: { min: 0, max: MAX_DAYS, whole: true },
+  max_km: { min: 0.5, max: 100, whole: false, optional: true },
+} satisfies Record<string, NumberRule>;
+
+export function readNumber(text: string, rule: NumberRule): { value: number | null } | { problem: string } {
+  const t = text.trim();
+  const n = Number(t);
+  if (t === '' && rule.optional) return { value: null };
+  if (t !== '' && Number.isFinite(n) && n >= rule.min && n <= rule.max && (!rule.whole || Number.isInteger(n))) {
+    return { value: n };
+  }
+  return { problem: `${rule.whole ? 'a whole number' : 'a number'} from ${rule.min} to ${rule.max}`
+    + `${rule.optional ? ', or empty for any' : ''}` };
+}
+
 // A whole set of settings, as a saved plan carries it: every field but max_trips is required.
 export function prefsProblem(p: unknown): string | null {
   if (typeof p !== 'object' || p === null) return 'settings are missing';
