@@ -709,7 +709,7 @@ export function ImportCard({ event, onOpen }: {
         </p>
         {result.warnings.length > 0 && <p className="muted">{result.warnings.join(' ')}</p>}
         {onOpen && (
-          <button type="button" className="secondary mini" onClick={() => onOpen({ result, tab: 'youtube' })}>
+          <button type="button" className="secondary mini" onClick={() => onOpen({ result, tab: 'youtube', url: event.url ?? undefined })}>
             Choose how to read it
           </button>
         )}
