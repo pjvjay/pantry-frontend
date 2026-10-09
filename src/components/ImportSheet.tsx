@@ -82,6 +82,16 @@ export function LinesTable({ doc, edit }: {
 }) {
   const transcribed = hasTranscribed(doc);
   const anyEvidence = doc.lines.some((l) => l.evidence?.at || l.evidence?.quote);
+  const body = useRef<HTMLTableSectionElement>(null);
+  // Remove takes its own button away, so focus moves to the Remove of the line that took its
+  // place (or the new last line), rather than falling back to the top of the page.
+  const removeAt = (lineNo: number, index: number) => {
+    edit?.remove(lineNo);
+    window.requestAnimationFrame(() => {
+      const left = body.current?.querySelectorAll<HTMLButtonElement>('button.import-remove');
+      if (left?.length) left[Math.min(index, left.length - 1)].focus();
+    });
+  };
   return (
     <div className="table-wrap import-table-wrap">
       <table className="import-table">
@@ -98,8 +108,8 @@ export function LinesTable({ doc, edit }: {
             {edit && <th scope="col"><span className="sr-only">Remove</span></th>}
           </tr>
         </thead>
-        <tbody>
-          {doc.lines.map((l) => {
+        <tbody ref={body}>
+          {doc.lines.map((l, index) => {
             const badge = basisBadge(l);
             const href = evidenceHref(doc.source.url, l.evidence?.at);
             const quote = l.evidence?.quote && l.evidence.quote !== l.text ? l.evidence.quote : '';
@@ -133,9 +143,9 @@ export function LinesTable({ doc, edit }: {
                 )}
                 {edit && (
                   <td>
-                    <button type="button" className="secondary mini"
+                    <button type="button" className="secondary mini import-remove"
                             aria-label={`Remove line ${l.line_no}, ${l.name}`}
-                            onClick={() => edit.remove(l.line_no)}>
+                            onClick={() => removeAt(l.line_no, index)}>
                       Remove
                     </button>
                   </td>
