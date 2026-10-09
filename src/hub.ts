@@ -23,6 +23,7 @@ import type {
   WeekPlan,
 } from './types';
 import { PlanAbortError } from './api';
+import type { MealPlanContext } from './mealplan/chatDraft';
 import { fromConsole } from './consoleRequest';
 
 const API = `${import.meta.env.BASE_URL}api`;
@@ -148,9 +149,11 @@ export const agentWarm = (body: { model: string; target: string; disclosure?: st
 // One Assistant turn, streamed: the hub answers with server-sent events (one JSON per event).
 // `recipe_doc`: a recipe the shopper reviewed in the import sheet, every line confirmed; the hub
 // keeps it as the conversation's next imp:N and the model plans exactly those lines.
+// `meal_plan`: the shopper's Meal plan in brief (mealplan/chatDraft.contextOf), which a meal-plan
+// draft is made against; the hub keeps it in memory only.
 export async function agentChat(
   body: { message: string; conversation_id?: string | null; model: string; target: string;
-          disclosure?: string; recipe_doc?: RecipeDoc },
+          disclosure?: string; recipe_doc?: RecipeDoc; meal_plan?: MealPlanContext },
   onEvent: (e: AgentEvent) => void,
   signal?: AbortSignal,
   onOpen?: () => void,

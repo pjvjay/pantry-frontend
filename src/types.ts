@@ -727,13 +727,18 @@ export type CartSummary = {
   total_is_floor?: boolean;
 };
 export type PlanCardData = {
-  kind: 'plan' | 'week'; summary: CartSummary;
+  // 'mealplan': the Assistant's meal-plan draft (pantry's plan_meals), whose summary
+  // mealplan/chatDraft.asMealPlan reads
+  kind: 'plan' | 'week' | 'mealplan'; summary: CartSummary;
   // with cart alternatives: the hub's tool_log index of the plan behind the card, which the
   // Options dialog and a swap name, and the lines the shopper has pinned
   ref?: number; pinned_lines?: number[];
   // links the card offers, such as a week card's "Open in Meal plan"; the console draws one only
   // when it has the tab the link leads to (alternatives.routedLinks)
   links?: { label: string; href: string }[];
+  // a meal-plan card: the plan rev the draft was made against (null: no plan yet), and
+  // "drafted from your message" when the hub drafted it because the model made no call
+  base_rev?: number | null; label?: string;
 };
 
 // The hub's answer to a swap in a chat cart: the re-priced plan's card, which replaces the card
@@ -808,7 +813,12 @@ type AgentEventBody =
   // A link in the shopper's message read by the hub before the model's first call, or the
   // recipe the shopper reviewed in the import sheet (via 'console').
   | RecipeImportEvent
-  | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown>; step: number }
+  | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown>; step: number;
+      by_hub?: boolean }
+  // Counted dishes read by pantry's Quick add parse before the model's first call; `note` is
+  // the [meals] line the model read (null when nothing matched)
+  | { type: 'meal_selection'; status: 'ok' | 'failed'; note?: string | null; error?: string;
+      ms: number }
   | ({ type: 'tool_result'; id: string; step: number; model_chars?: number } & ToolResult)
   | ({ type: 'evals'; trace_id: string } & Evals)
   | { type: 'error'; message: string }

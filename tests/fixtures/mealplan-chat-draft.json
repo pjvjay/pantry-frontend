@@ -1,0 +1,322 @@
+{
+ "_about": "pantry-api plan_meals summary for the user's sentence (DEMO_MODE, seeded demo data, start 2026-10-09), as the hub's mealplan card carries it",
+ "kind": "mealplan",
+ "start_date": "2026-10-09",
+ "days": 14,
+ "base_rev": null,
+ "household_servings": 2,
+ "meals": [
+  {
+   "date": "2026-10-10",
+   "slot": "snack",
+   "title": "Mango Milkshake",
+   "recipe_key": "starter:mango_milkshake",
+   "new": true
+  },
+  {
+   "date": "2026-10-11",
+   "slot": "dinner",
+   "title": "Pepperoni Pizza",
+   "recipe_key": "starter:pepperoni_pizza",
+   "new": true
+  },
+  {
+   "date": "2026-10-12",
+   "slot": "dinner",
+   "title": "Chicken Fried Rice",
+   "recipe_key": "starter:chicken_fried_rice",
+   "new": true
+  },
+  {
+   "date": "2026-10-12",
+   "slot": "snack",
+   "title": "Mango Milkshake",
+   "recipe_key": "starter:mango_milkshake",
+   "new": true
+  },
+  {
+   "date": "2026-10-14",
+   "slot": "snack",
+   "title": "Mango Milkshake",
+   "recipe_key": "starter:mango_milkshake",
+   "new": true
+  },
+  {
+   "date": "2026-10-16",
+   "slot": "dinner",
+   "title": "Pepperoni Pizza",
+   "recipe_key": "starter:pepperoni_pizza",
+   "new": true
+  },
+  {
+   "date": "2026-10-16",
+   "slot": "snack",
+   "title": "Mango Milkshake",
+   "recipe_key": "starter:mango_milkshake",
+   "new": true
+  },
+  {
+   "date": "2026-10-18",
+   "slot": "snack",
+   "title": "Mango Milkshake",
+   "recipe_key": "starter:mango_milkshake",
+   "new": true
+  },
+  {
+   "date": "2026-10-19",
+   "slot": "dinner",
+   "title": "Chicken Fried Rice",
+   "recipe_key": "starter:chicken_fried_rice",
+   "new": true
+  },
+  {
+   "date": "2026-10-20",
+   "slot": "dinner",
+   "title": "Pepperoni Pizza",
+   "recipe_key": "starter:pepperoni_pizza",
+   "new": true
+  },
+  {
+   "date": "2026-10-20",
+   "slot": "snack",
+   "title": "Mango Milkshake",
+   "recipe_key": "starter:mango_milkshake",
+   "new": true
+  },
+  {
+   "date": "2026-10-22",
+   "slot": "snack",
+   "title": "Mango Milkshake",
+   "recipe_key": "starter:mango_milkshake",
+   "new": true
+  }
+ ],
+ "added": [
+  {
+   "recipe_key": "starter:pepperoni_pizza",
+   "title": "Pepperoni Pizza",
+   "label": "demo starter",
+   "how": "key",
+   "count": 3,
+   "placed": 3,
+   "slot": "dinner",
+   "input": "starter:pepperoni_pizza"
+  },
+  {
+   "recipe_key": "starter:chicken_fried_rice",
+   "title": "Chicken Fried Rice",
+   "label": "demo starter",
+   "how": "key",
+   "count": 2,
+   "placed": 2,
+   "slot": "dinner",
+   "input": "starter:chicken_fried_rice"
+  },
+  {
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "label": "demo starter",
+   "how": "key",
+   "count": 7,
+   "placed": 7,
+   "slot": "snack",
+   "input": "starter:mango_milkshake"
+  }
+ ],
+ "proposals": [
+  {
+   "input": "chicken briyani",
+   "recipe_key": "starter:chicken_biryani",
+   "title": "Chicken Biryani",
+   "label": "demo starter",
+   "how": "alias",
+   "count": 3,
+   "slot": "dinner",
+   "question": "chicken briyani → Chicken Biryani (demo starter)?",
+   "op": {
+    "op": "add_recipe",
+    "recipe_key": "starter:chicken_biryani",
+    "title": "Chicken Biryani",
+    "slot": "dinner",
+    "count": 3,
+    "spread": true,
+    "ref": {
+     "key": "starter:chicken_biryani",
+     "starter": "chicken_biryani"
+    }
+   }
+  }
+ ],
+ "unmatched": [],
+ "unplaced": [],
+ "strategy": "fresh",
+ "trips": [
+  {
+   "date": "2026-10-10",
+   "stores": [
+    "Pantry Mart Downtown"
+   ],
+   "items": 11,
+   "total_cost": 63.76,
+   "total_is_floor": false,
+   "reason": "Mango Milkshake on Sat 10 Oct needs Whole Milk 1L, which has no cited storage time; your setting buys it at most 7 day(s) ahead."
+  },
+  {
+   "date": "2026-10-12",
+   "stores": [
+    "Pantry Mart Downtown"
+   ],
+   "items": 9,
+   "total_cost": 43.53,
+   "total_is_floor": false,
+   "reason": "Chicken Fried Rice on Mon 12 Oct needs Boneless Skinless Chicken Breast, which keeps 1 to 2 days in the fridge (FoodSafety.gov, Cold Food Storage Chart, fs-poultry-pieces-fridge)."
+  },
+  {
+   "date": "2026-10-19",
+   "stores": [
+    "Pantry Mart Downtown"
+   ],
+   "items": 4,
+   "total_cost": 22.48,
+   "total_is_floor": false,
+   "reason": "Chicken Fried Rice on Mon 19 Oct needs Boneless Skinless Chicken Breast, which keeps 1 to 2 days in the fridge (FoodSafety.gov, Cold Food Storage Chart, fs-poultry-pieces-fridge)."
+  }
+ ],
+ "other_strategy": {
+  "name": "fewest_trips",
+  "trips": 2,
+  "total_cost": 133.64,
+  "total_is_floor": false
+ },
+ "total_cost": 129.77,
+ "total_is_floor": false,
+ "nutrition": "nutrition per person (demo amounts): no day is complete (a day needs a meal in every slot that is on: breakfast, lunch, dinner, snack), so there is no daily average; the period's meals add up to at least 5,456 kcal",
+ "warnings": [],
+ "notes": [
+  "Trips are suggestions: only the shopper approves them, in the Meal plan. Prices and stock are demo data."
+ ],
+ "ops": [
+  {
+   "op": "set_window",
+   "start_date": "2026-10-09",
+   "days": 14
+  },
+  {
+   "op": "add_recipe",
+   "recipe_key": "starter:pepperoni_pizza",
+   "title": "Pepperoni Pizza",
+   "slot": "dinner",
+   "count": 3,
+   "ref": {
+    "key": "starter:pepperoni_pizza",
+    "starter": "pepperoni_pizza"
+   }
+  },
+  {
+   "op": "add_recipe",
+   "recipe_key": "starter:chicken_fried_rice",
+   "title": "Chicken Fried Rice",
+   "slot": "dinner",
+   "count": 2,
+   "ref": {
+    "key": "starter:chicken_fried_rice",
+    "starter": "chicken_fried_rice"
+   }
+  },
+  {
+   "op": "add_recipe",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "slot": "snack",
+   "count": 7,
+   "ref": {
+    "key": "starter:mango_milkshake",
+    "starter": "mango_milkshake"
+   }
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-10",
+   "slot": "snack"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:pepperoni_pizza",
+   "title": "Pepperoni Pizza",
+   "date": "2026-10-11",
+   "slot": "dinner"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:chicken_fried_rice",
+   "title": "Chicken Fried Rice",
+   "date": "2026-10-12",
+   "slot": "dinner"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-12",
+   "slot": "snack"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-14",
+   "slot": "snack"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:pepperoni_pizza",
+   "title": "Pepperoni Pizza",
+   "date": "2026-10-16",
+   "slot": "dinner"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-16",
+   "slot": "snack"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-18",
+   "slot": "snack"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:chicken_fried_rice",
+   "title": "Chicken Fried Rice",
+   "date": "2026-10-19",
+   "slot": "dinner"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:pepperoni_pizza",
+   "title": "Pepperoni Pizza",
+   "date": "2026-10-20",
+   "slot": "dinner"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-20",
+   "slot": "snack"
+  },
+  {
+   "op": "place",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-22",
+   "slot": "snack"
+  }
+ ]
+}
