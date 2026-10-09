@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
+import { CalendarExportDialog } from '../components/CalendarExportDialog';
 import { ActionBar, DragGhost, MoveSheet, PlanBoard } from '../components/mealcal';
 import type { BoardCtl } from '../components/mealcal';
 import { CookDaysDiff, CoverageChips, ShopPanel, TripSheet, WarningsPanel } from '../components/mealtrips';
@@ -175,6 +176,7 @@ export default function MealPlanView() {
   const [mealSheet, setMealSheet] = useState<string | null>(null);
   const [tripSheet, setTripSheet] = useState<string | null>(null);
   const [targetsOpen, setTargetsOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [hideEmpty, setHideEmpty] = useState(false);
   const [quickText, setQuickText] = useState('');
   const [firstRun, setFirstRun] = useState(() => d.rev === 0 && Object.keys(d.recipes).length === 0);
@@ -450,6 +452,9 @@ export default function MealPlanView() {
         )}
         <Settings />
         <div className="mp-toolbar mp-file">
+          <button type="button" className="secondary mini" disabled={!answer} onClick={() => setCalendarOpen(true)}>
+            Add to calendar
+          </button>
           <button type="button" className="secondary mini" onClick={exportPlan}>Export plan (.json)</button>
           <button type="button" className="secondary mini" onClick={() => importInput.current?.click()}>Import plan</button>
           <input ref={importInput} type="file" accept="application/json,.json" hidden
@@ -463,6 +468,8 @@ export default function MealPlanView() {
       <DragGhost ctl={ctl} ghostRef={ghost} preview={preview} />
       <MoveSheet ctl={ctl} mealId={mealSheet} onClose={() => setMealSheet(null)} />
       <TripSheet date={tripSheet} onClose={() => setTripSheet(null)} />
+      <CalendarExportDialog open={calendarOpen} onClose={() => setCalendarOpen(false)}
+                            schedule={answer?.approved_schedule ?? null} current={schedule.current} />
       <TargetsEditor open={targetsOpen} onClose={() => setTargetsOpen(false)} targets={d.nutrition_targets}
                      onSave={(t) => mp.dispatch({ type: 'setTargets', targets: t }).refused} />
       <FirstRunSheet open={firstRun} onClose={() => setFirstRun(false)} onExample={() => {

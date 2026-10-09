@@ -118,6 +118,16 @@ Print list prints only the trip's list: the button adds `mp-printing` to the
 page, and the `@media print` rules hide everything but that list. Printing the
 page any other way prints the page.
 
+**Add to calendar** (in the Shop band, `components/CalendarExportDialog.tsx`)
+posts the answer's `approved_schedule` back to pantry-api's `/calendar/preview`
+and `/calendar/ics`, which build every event: all-day shopping trips with their
+lists, cook days with ingredients and nutrition, and cited freeze and thaw
+reminders. The dialog previews them by day, downloads the `.ics`, and offers one
+Google add-event link per event; there is no account and no sign-in. Nothing in
+the browser writes ICS or converts a date: `src/calendar.ts` only shapes the
+request, reads the preview and accepts a link only when it opens Google
+Calendar's add-event page. An export waits while an approved trip needs review.
+
 Device check so far: Chrome on a desktop (mouse drag of meals and trips, tap
 then tap, the Move sheet, the keyboard route, a 375 px phone width, light and
 dark). Not yet checked: touch drag on iOS Safari, Android Chrome and Samsung
