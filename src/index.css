@@ -762,7 +762,9 @@ tr.row-active td { background: var(--accent-soft); }
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 10px;
   padding: 8px 10px; border: 1px dashed var(--warn); border-radius: 8px;
 }
-.import-table-wrap { margin-top: 10px; }
+/* positioned, so the header's sr-only "Remove" stays inside the scrolling table rather than
+   widening the sheet past the phone's edge, where focus could scroll the whole sheet sideways */
+.import-table-wrap { margin-top: 10px; position: relative; }
 .import-table th, .import-table td { padding: 6px 8px; font-size: 13px; }
 .import-table input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
 .import-verbatim { overflow-wrap: anywhere; }
