@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { ErrorBanner, JsonView } from '../components/common';
 import Markdown from '../components/Markdown';
+import { EvalCard, PlanCard, Reasoning, RecipeImages, imagesIn } from '../components/flow';
 import { BurrLink, LlmCalls } from '../components/plan';
 import { agentChat, agentOptions } from '../hub';
-import type { AgentEvent, AgentOptions, LlmCallTrace } from '../types';
+import { ChatMeter } from '../telemetry';
+import type { AgentEvent, AgentOptions, Evals, LlmCallTrace } from '../types';
 
 const SUGGESTIONS = [
   'I want to make https://omnivorescookbook.com/mala-chicken/ this week. What should I buy at stores within 5 km of downtown, what does it cost, and what won’t I find?',
@@ -88,7 +90,14 @@ function callProgress(w: Waiting, now: number) {
   };
 }
 
-function CallProgress({ w, now }: { w: Waiting; now: number }) {
+// The bar keeps its own one-second clock, so only it re-renders while a call runs: the chat
+// above it (Markdown answers, tool cards with their JSON) is not redrawn every second.
+function CallProgress({ w }: { w: Waiting }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
   const { elapsed, left, over, detail } = callProgress(w, now);
   const best = useRef({ since: 0, pct: 0 });
   if (best.current.since !== w.since) best.current = { since: w.since, pct: 0 };
@@ -120,6 +129,10 @@ type Item =
   | { kind: 'error'; text: string }
   | { kind: 'notice'; text: string }
   | { kind: 'meta'; text: string }
+  // The model's own reasoning before a step's answer or tool call (a thinking model shows it).
+  | { kind: 'reasoning'; text: string; step: number }
+  // The answer's online evals and confidence, and the turn's trace.
+  | { kind: 'evals'; evals: Evals; traceId: string }
   // Progressive disclosure: an observer saw something and changed the toolset or the goals.
   | { kind: 'observe'; label: string; detail: string; tone: 'code' | 'llm' | 'goal' | 'tools' };
 
@@ -137,6 +150,10 @@ function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
   const state = !r ? 'running' : r.is_error ? 'error' : 'ok';
   const trace = r ? planTraceOf(r.structured) : {};
   const calls = Array.isArray(trace.llm_calls) ? trace.llm_calls : [];
+  const summary = (r?.structured as { summary?: Record<string, unknown> } | null)?.summary;
+  const isPlan = !!summary && Array.isArray(summary.lines) && /plan.(recipe|from.text)$/.test(item.name);
+  // a fetched recipe page: show the photos it holds
+  const photos = r && !r.is_error && /fetch/.test(item.name) ? imagesIn(r.text || JSON.stringify(r.structured ?? '')) : [];
   return (
     <>
     <details className={`toolcard toolcard-${state}`}>
@@ -153,6 +170,8 @@ function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
           : <JsonView value={r.text} label={r.is_error ? 'error' : 'text result'} open={r.is_error} />)}
       </div>
     </details>
+    {isPlan && <PlanCard summary={summary as Parameters<typeof PlanCard>[0]['summary']} />}
+    {photos.length > 0 && <RecipeImages urls={photos} />}
     {calls.length > 0 && <LlmCalls calls={calls} heading="inside pantry:" />}
     {trace.burr_run && (
       <div className="llm-calls"><span className="muted">inside pantry:</span> <BurrLink run={trace.burr_run} /></div>
@@ -160,6 +179,26 @@ function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
     </>
   );
 }
+
+// One chat item. Memoised: a new event appends an item (or completes one tool card) without
+// redrawing the others, which matters once a conversation holds long answers and tool results.
+const ChatItem = memo(function ChatItem({ it }: { it: Item }) {
+  if (it.kind === 'user') return <div className="bubble bubble-user">{it.text}</div>;
+  if (it.kind === 'assistant') return <div className="bubble bubble-agent"><Markdown text={it.text} /></div>;
+  if (it.kind === 'tool') return <ToolCard item={it} />;
+  if (it.kind === 'reasoning') return <Reasoning text={it.text} label={`step ${it.step} reasoning`} />;
+  if (it.kind === 'evals') return <EvalCard evals={it.evals} traceId={it.traceId} />;
+  if (it.kind === 'error') return <div className="banner banner-error">{it.text}</div>;
+  if (it.kind === 'notice') return <div className="chat-notice">{it.text}</div>;
+  if (it.kind === 'observe') {
+    return (
+      <div className={`chat-observe chat-observe-${it.tone}`}>
+        <code>{it.label}</code>{it.detail && <div className="muted">{it.detail}</div>}
+      </div>
+    );
+  }
+  return <div className="chat-meta">{it.text}</div>;
+});
 
 export default function AssistantView() {
   const [options, setOptions] = useState<AgentOptions | null>(null);
@@ -171,9 +210,8 @@ export default function AssistantView() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // The model call in flight (from the hub's `thinking` events) and a clock for its wait.
+  // The model call in flight (from the hub's `thinking` events).
   const [waiting, setWaiting] = useState<Waiting | null>(null);
-  const [now, setNow] = useState(Date.now());
   const abort = useRef<AbortController | null>(null);
   const bottom = useRef<HTMLDivElement | null>(null);
 
@@ -188,12 +226,6 @@ export default function AssistantView() {
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [items]);
 
-  useEffect(() => {
-    if (!busy) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [busy]);
-
   const send = async (message: string) => {
     if (!message.trim() || busy) return;
     setBusy(true);
@@ -203,8 +235,11 @@ export default function AssistantView() {
     const controller = new AbortController();
     abort.current = controller;
     let finished = false;
+    // what this browser measures about the turn's stream, joined to its trace in the hub
+    const meter = new ChatMeter(model);
     try {
       await agentChat({ message, conversation_id: conversation, model, target, disclosure }, (e) => {
+        meter.event(e as { at?: number; trace_id?: string });
         if (e.type === 'start') setConversation(e.conversation_id);
         if (e.type === 'done') finished = true;
         if (e.type === 'thinking') setWaiting({ step: e.step, model: e.model, since: Date.now() });
@@ -253,7 +288,10 @@ export default function AssistantView() {
             case 'notice':
               return [...prev, { kind: 'notice', text: e.text }];
             case 'llm_call':
-              return [...prev, { kind: 'meta', text: callTiming(e) }];
+              return [...prev, { kind: 'meta', text: callTiming(e) },
+                ...(e.reasoning ? [{ kind: 'reasoning' as const, text: e.reasoning, step: e.step }] : [])];
+            case 'evals':
+              return [...prev, { kind: 'evals', evals: e, traceId: e.trace_id }];
             case 'done':
               return [...prev, { kind: 'meta', text: `${e.stop} · ${e.steps} step(s) · ${e.seconds}s · `
                 + `${e.input_tokens.toLocaleString()} in / ${e.output_tokens.toLocaleString()} out tokens (conversation)` }];
@@ -261,11 +299,12 @@ export default function AssistantView() {
               return prev;
           }
         });
-      }, controller.signal);
+      }, controller.signal, () => meter.opened());
       if (!finished) setError('The hub closed the answer stream before the agent finished (was the hub restarted?).');
     } catch (e) {
       if ((e as Error).name !== 'AbortError') setError((e as Error).message);
     } finally {
+      meter.finish(finished ? 'done' : 'interrupted');
       setBusy(false);
       setWaiting(null);
       abort.current = null;
@@ -328,26 +367,10 @@ export default function AssistantView() {
             ))}
           </div>
         )}
-        {items.map((it, i) => {
-          if (it.kind === 'user') return <div key={i} className="bubble bubble-user">{it.text}</div>;
-          if (it.kind === 'assistant') {
-            return <div key={i} className="bubble bubble-agent"><Markdown text={it.text} /></div>;
-          }
-          if (it.kind === 'tool') return <ToolCard key={i} item={it} />;
-          if (it.kind === 'error') return <div key={i} className="banner banner-error">{it.text}</div>;
-          if (it.kind === 'notice') return <div key={i} className="chat-notice">{it.text}</div>;
-          if (it.kind === 'observe') {
-            return (
-              <div key={i} className={`chat-observe chat-observe-${it.tone}`}>
-                <code>{it.label}</code>{it.detail && <div className="muted">{it.detail}</div>}
-              </div>
-            );
-          }
-          return <div key={i} className="chat-meta">{it.text}</div>;
-        })}
+        {items.map((it, i) => <ChatItem key={i} it={it} />)}
         {busy && (
           <div className="chat-meta">
-            {waiting ? <CallProgress w={waiting} now={now} /> : 'working…'}
+            {waiting ? <CallProgress w={waiting} /> : 'working…'}
           </div>
         )}
         <div ref={bottom} />

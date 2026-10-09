@@ -369,9 +369,35 @@ export interface JsonSchema {
   [key: string]: unknown;
 }
 
-export type AgentEvent =
+// Every event is stamped by the hub: `ts` ms since the turn began, `at` epoch ms when it was sent
+// (the browser measures how late it arrived).
+export type AgentEvent = AgentEventBody & { ts?: number; at?: number };
+
+export interface EvalCheck { name: string; passed: boolean; detail: string }
+
+// A plan's own confidence: the selector's per-line confidence, exact matches, origin coverage.
+export interface PlanConfidence {
+  lines: number;
+  min_line_confidence: number | null;
+  mean_line_confidence: number | null;
+  exact_share: number | null;
+  origin_status?: string | null;
+  origin_spend_verified?: number | null;
+  left_out: number;
+}
+
+// The answer's online evals: deterministic checks against this turn's own tool results.
+export interface Evals {
+  checks: EvalCheck[];
+  passed: number;
+  total: number;
+  answer_confidence: number | null;
+  plan: PlanConfidence | null;
+}
+
+type AgentEventBody =
   | { type: 'start'; conversation_id: string; model: string; target: string; tools: string[];
-      available?: number; disclosure?: 'progressive' | 'all' }
+      available?: number; disclosure?: 'progressive' | 'all'; trace_id?: string }
   | { type: 'observing'; trigger: string; model: string; observers: string[] }
   | { type: 'observation'; observer: string; condition: string; kind: 'code' | 'llm'; when: string;
       value: boolean; evidence: string; added: string[]; removed: string[] }
@@ -385,10 +411,12 @@ export type AgentEvent =
       basis?: string }
   | { type: 'llm_call'; step: number; model: string; tool_calls: number; wall_s?: number;
       prompt_tokens?: number; prompt_s?: number; output_tokens?: number; gen_s?: number;
-      load_s?: number; num_ctx?: number; thinking_chars?: number; new_tokens_est?: number }
+      load_s?: number; num_ctx?: number; thinking_chars?: number; new_tokens_est?: number;
+      reasoning?: string }
   | { type: 'assistant'; text: string; step: number }
   | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown>; step: number }
-  | ({ type: 'tool_result'; id: string; step: number } & ToolResult)
+  | ({ type: 'tool_result'; id: string; step: number; model_chars?: number } & ToolResult)
+  | ({ type: 'evals'; trace_id: string } & Evals)
   | { type: 'error'; message: string }
   | { type: 'notice'; text: string }
   | { type: 'done'; steps: number; stop: string; seconds: number;
@@ -425,4 +453,62 @@ export interface SimJob {
   scenarios: { name: string; state: string; run_id?: string | null }[];
   log: string[];
   [key: string]: unknown;
+}
+
+// --- traces and metrics (the hub's /hub/traces and /hub/metrics) ------------------------------
+
+export interface Span {
+  id: string;
+  parent: string | null;
+  kind: 'turn' | 'observers' | 'model' | 'tool' | 'gateway' | 'gateway.tool' | 'pantry.step'
+    | 'pantry.llm' | 'browser';
+  name: string;
+  start_ms: number;
+  end_ms: number | null;
+  duration_ms: number | null;
+  status: string;
+  attrs: Record<string, unknown>;
+  events: { at_ms: number; name: string; attrs: Record<string, unknown> }[];
+}
+
+export interface TraceSummary {
+  id: string;
+  started_at: string;
+  model: string;
+  target: string;
+  disclosure: string;
+  message: string;
+  status: string;
+  wall_ms: number | null;
+  steps: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cost_usd: number;
+  tools: string[];
+  answer_confidence: number | null;
+}
+
+export interface Trace extends TraceSummary {
+  conversation_id: string;
+  turn: number;
+  evals: Evals | null;
+  browser: Record<string, unknown> | null;
+  spans: Span[];
+}
+
+export type MetricsRow = Record<string, string | number | null>;
+
+export interface Metrics {
+  traces: number;
+  answer_confidence_mean: number | null;
+  models: MetricsRow[];
+  tools: MetricsRow[];
+  observers: MetricsRow[];
+  evals: MetricsRow[];
+  pantry_steps: MetricsRow[];
+  browser: Record<string, unknown> & { api: MetricsRow[] };
+  hub_http: MetricsRow[];
+  prices_usd_per_1m: Record<string, { input: number; output: number }>;
+  prices_source: string;
+  free_tier_requests_per_day: number;
 }

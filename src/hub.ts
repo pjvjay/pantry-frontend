@@ -7,11 +7,14 @@ import type {
   HubStatus,
   McpCatalog,
   McpTarget,
+  Metrics,
   PlanExecution,
   Product,
   RuntimeSettings,
   ShoppingPlan,
   ToolResult,
+  Trace,
+  TraceSummary,
   WeekPlan,
 } from './types';
 import { PlanAbortError } from './api';
@@ -119,8 +122,10 @@ export async function agentChat(
           disclosure?: string },
   onEvent: (e: AgentEvent) => void,
   signal?: AbortSignal,
+  onOpen?: () => void,
 ): Promise<void> {
   const res = await fetch(`${HUB}/agent/chat`, { ...post(body), signal });
+  onOpen?.();
   if (!res.ok || !res.body) {
     let detail = `${res.status} ${res.statusText}`;
     try {
@@ -146,6 +151,17 @@ export async function agentChat(
     }
   }
 }
+
+// Traces of Assistant turns and the metrics rolled up from them (every layer, the browser's too).
+export const traceList = (limit = 50) => json<TraceSummary[]>(`${HUB}/traces?limit=${limit}`);
+export const traceDetail = (id: string) => json<Trace>(`${HUB}/traces/${encodeURIComponent(id)}`);
+export const getMetrics = () => json<Metrics>(`${HUB}/metrics`);
+
+// Pictures, fetched once by the hub and served from its cache: an ingredient's Wikipedia
+// thumbnail, and an image from a recipe page.
+export const ingredientImage = (name: string) =>
+  `${HUB}/images/ingredient?name=${encodeURIComponent(name)}`;
+export const remoteImage = (url: string) => `${HUB}/images/remote?url=${encodeURIComponent(url)}`;
 
 export const simPresets = () =>
   json<{ presets: Record<string, { label: string; models: Record<string, string> }>;

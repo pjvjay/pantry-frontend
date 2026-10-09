@@ -5,6 +5,7 @@ import type { Health, RuntimeSettings } from './types';
 import AssistantView from './views/AssistantView';
 import CatalogView from './views/CatalogView';
 import McpView from './views/McpView';
+import MetricsView from './views/MetricsView';
 import OverviewView from './views/OverviewView';
 import PlannerView from './views/PlannerView';
 import ProvenanceView from './views/ProvenanceView';
@@ -12,7 +13,7 @@ import SimulationsView from './views/SimulationsView';
 import SystemView from './views/SystemView';
 
 export type Tab = 'overview' | 'planner' | 'assistant' | 'catalog' | 'provenance' | 'mcp'
-  | 'simulations' | 'system';
+  | 'simulations' | 'metrics' | 'system';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -22,6 +23,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'provenance', label: 'Provenance' },
   { id: 'mcp', label: 'MCP explorer' },
   { id: 'simulations', label: 'Simulations' },
+  { id: 'metrics', label: 'Metrics' },
   { id: 'system', label: 'System' },
 ];
 
@@ -134,6 +136,7 @@ export default function App() {
       {tab === 'provenance' && <ProvenanceView initialProduct={product} />}
       {tab === 'mcp' && <McpView />}
       {tab === 'simulations' && <SimulationsView />}
+      {tab === 'metrics' && <MetricsView />}
       {tab === 'system' && <SystemView />}
       <footer>
         pantry-platform · React → demo hub → pantry API, ContextForge, mcp-sim ·{' '}
