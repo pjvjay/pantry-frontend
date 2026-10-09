@@ -1,0 +1,200 @@
+// What the meal-plan board draws: cells, the tray, trip chips and lines, a trip as the cart
+// card, the summary line, and a Planner week opened as a meal plan.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+import {
+  costText, forMealsText, lineWarn, mealsByCell, packsText, priceDeltaText, shelfText, shownSlots,
+  summaryLine, trayRows, tripChipText, tripLook, tripToCartSummary, weekEdit,
+} from '../src/mealplan/board.ts';
+import { cellKey, step } from '../src/mealplan/model.ts';
+import type { MealSchedule } from '../src/types.ts';
+import { D, TODAY, add, line, planWith, run, schedule, trip } from './helpers/mealplan.ts';
+
+const real: MealSchedule = JSON.parse(readFileSync(new URL('./fixtures/mealplan-schedule.json',
+  import.meta.url), 'utf8'));
+
+const PIZZA = 'starter:pepperoni_pizza';
+
+test('cells hold their meals, the tray holds the rest, and empty rows can be hidden', () => {
+  const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 3)),
+    { type: 'place', mealId: `${PIZZA}#1`, date: D(2), slot: 'dinner' });
+  assert.deepEqual(mealsByCell(s).get(cellKey(D(2), 'dinner'))?.map((m) => m.id), [`${PIZZA}#1`]);
+  const [row] = trayRows(s);
+  assert.equal(row.title, 'Pepperoni Pizza');
+  assert.equal(row.placed, 1);
+  assert.deepEqual(row.waiting.map((m) => m.id), [`${PIZZA}#2`, `${PIZZA}#3`]);
+  assert.deepEqual(shownSlots(s, true), ['dinner']);
+  assert.deepEqual(shownSlots(s, false), ['breakfast', 'lunch', 'dinner', 'snack']);
+  assert.deepEqual(shownSlots(planWith(7), true), ['breakfast', 'lunch', 'dinner', 'snack']);
+});
+
+test('a trip chip says its state in words, not colour alone, and "at least" for a floor', () => {
+  const t = real.strategies[0].trips[0];
+  assert.equal(tripChipText(t), 'Suggested · 2 stores · $118.83 · 3 items');
+  const floor = trip(D(1), [line(10, 'Chicken', { price: null }), line(11, 'Rice', { price: 4 })],
+    { total_cost: 4, total_is_floor: true });
+  assert.equal(tripChipText(floor), 'Suggested · 1 store · at least $4.00 · 2 items');
+  assert.deepEqual(tripLook(trip(D(1), [], { status: 'approved' })),
+    { kind: 'approved', mark: '✓', word: 'Approved' });
+  const review = trip(D(1), [], { status: 'needs_review',
+    diff: { added: [{ product_id: 1, name: 'Milk', storage: 'fridge' }], removed: [], changed: [], text: ['+1 Milk'] } });
+  assert.match(tripChipText(review), /^⚠ Changed since approved \(1 change\)/);
+  assert.equal(priceDeltaText(1.2), '+$1.20 since you approved (demo prices)');
+  assert.equal(priceDeltaText(-0.5), '−$0.50 since you approved (demo prices)');
+  assert.equal(priceDeltaText(0), null);
+  assert.equal(priceDeltaText(null), null);
+});
+
+test('a trip line names its meals, its amount and its storage time on whose word', () => {
+  const ln = line(10, 'Chicken Breast', {
+    for_meals: [
+      { meal_id: 'a#1', recipe_key: 'a', title: 'Fried Rice', date: D(1), slot: 'dinner' },
+      { meal_id: 'a#2', recipe_key: 'a', title: 'Fried Rice', date: D(2), slot: 'dinner' },
+    ],
+  });
+  assert.equal(forMealsText(ln), 'for 2 meals: Fried Rice (Sat 10 Oct, Sun 11 Oct)');
+  assert.equal(packsText(ln), '1 pack');
+  assert.equal(packsText({ ...ln, packs: 3, packs_basis: 'your_setting' }), '3 packs (set by you)');
+  assert.equal(packsText({ ...ln, packs: null, packs_basis: 'amount_unknown' }), 'amount unknown');
+  assert.match(packsText({ ...ln, packs: null, packs_basis: 'needs_servings' }), /how many the recipe serves/);
+  assert.deepEqual(shelfText(ln), { level: 'cited',
+    text: 'keeps 1 to 2 days in the fridge (FoodSafety.gov)' });
+  assert.deepEqual(shelfText({ ...ln, shelf_life: { ...ln.shelf_life, status: 'your_setting',
+    verbatim: [], days_planned: 7 } }), { level: 'yours',
+    text: 'storage time not cited: bought at most 7 days ahead (your setting)' });
+  assert.equal(shelfText({ ...ln, shelf_life: { ...ln.shelf_life, status: 'unknown', verbatim: [],
+    days_planned: null } }).text, 'storage time unknown');
+  assert.equal(lineWarn(ln), undefined);
+  assert.equal(lineWarn({ ...ln, packs: null, price: null }), 'amount unknown · price unknown');
+  assert.equal(lineWarn({ ...ln, stocked: false, price: null, store: null }), 'no longer stocked in range');
+});
+
+test('a trip becomes the cart card: stores in order, unknowns kept unknown', () => {
+  const t = real.strategies[0].trips[0];
+  const c = tripToCartSummary(t);
+  assert.equal(c.lines?.length, t.lines.length);
+  assert.deepEqual(c.trip?.stores, t.stores);
+  assert.equal(c.trip?.basket_cost, t.total_cost);
+  assert.equal(c.total_is_floor, false);
+  const unknown = tripToCartSummary(trip(D(1), [line(167, 'Sliced Pepperoni 175g', {
+    price: null, packs: null, store: null, stocked: false,
+    product: { id: 167, name: 'Sliced Pepperoni 175g', unit_size: '175g', category: 'meat', demo_product: true },
+  })], { total_is_floor: true }));
+  const [l] = unknown.lines ?? [];
+  assert.equal(l.product, 'Sliced Pepperoni 175g (demo)');
+  assert.equal(l.price, undefined, 'an unknown price is not 0');
+  assert.equal(l.packs, undefined);
+  assert.equal(l.store, 'Not stocked within range');
+  assert.equal(unknown.total_is_floor, true);
+});
+
+test('a product kept in the fridge and frozen on arrival stays two cart lines, told apart', () => {
+  // Under fewest_trips the engine groups lines per (day, product, storage), so one trip can
+  // carry chicken for this week's fridge and chicken to freeze.
+  const t = trip(D(1), [line(10, 'Chicken Breast'),
+    line(10, 'Chicken Breast', { storage: 'freezer', freeze_on_arrival: true })]);
+  const lines = tripToCartSummary(t).lines ?? [];
+  assert.deepEqual(lines.map((l) => [l.product_id, l.storage]), [[10, 'fridge'], [10, 'freezer']]);
+  assert.equal(new Set(lines.map((l) => `${l.product_id}:${l.storage}`)).size, 2);
+  assert.match(lines[1].note ?? '', /freeze on arrival/);
+});
+
+test('the summary line counts meals, placements, trips and the known total', () => {
+  const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 2)),
+    { type: 'place', mealId: `${PIZZA}#1`, date: D(2), slot: 'dinner' });
+  assert.equal(summaryLine(s, null), '2 meals · 1 placed');
+  const sc = schedule(s.draft.rev, [], [trip(D(1), [line(10, 'Chicken', { price: 52.5 })], { status: 'approved' }),
+    trip(D(4), [line(11, 'Rice', { price: null })])]);
+  sc.strategies[0].total_cost = 52.5;
+  sc.strategies[0].total_is_floor = true;
+  assert.equal(summaryLine(s, sc), '2 meals · 1 placed · 2 trips (1 approved) · at least $52.50');
+});
+
+test('a total with no known price is "price unknown", never "at least $0.00"', () => {
+  // A needs_servings recipe's lines: packs and price unknown, so the engine's total is 0.0 and a floor.
+  const unknown = trip(D(1), [line(10, 'Chicken', { packs: null, price: null, packs_basis: 'needs_servings' })],
+    { total_cost: 0, total_is_floor: true });
+  assert.equal(tripChipText(unknown), 'Suggested · 1 store · price unknown · 1 item');
+  assert.equal(costText(0, true, false), 'price unknown');
+  assert.equal(costText(12.4, true, true, '≥ '), '≥ $12.40');
+  assert.equal(costText(0, false, false), '$0.00', 'nothing to buy does cost nothing');
+  const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1)),
+    { type: 'place', mealId: `${PIZZA}#1`, date: D(2), slot: 'dinner' });
+  const sc = schedule(s.draft.rev, [], [unknown]);
+  sc.strategies[0].total_is_floor = true;
+  assert.equal(summaryLine(s, sc), '1 meal · 1 placed · 1 trip · price unknown');
+});
+
+test('a null total from pantry-api is "price unknown" on the chip, the summary and the cart', () => {
+  const unknown = trip(D(1), [line(10, 'Chicken', { packs: null, price: null, packs_basis: 'needs_servings' })],
+    { total_cost: null, total_is_floor: true });
+  assert.equal(costText(null, true, false), 'price unknown');
+  assert.equal(tripChipText(unknown), 'Suggested · 1 store · price unknown · 1 item');
+  const c = tripToCartSummary(unknown);
+  assert.equal(c.total_cost, undefined);
+  assert.equal(c.trip?.total_cost, null);
+  assert.equal(c.trip?.basket_cost, undefined);
+  const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1)),
+    { type: 'place', mealId: `${PIZZA}#1`, date: D(2), slot: 'dinner' });
+  const sc = schedule(s.draft.rev, [], [unknown]);
+  sc.strategies[0].total_cost = null;
+  sc.strategies[0].total_is_floor = true;
+  assert.equal(summaryLine(s, sc), '1 meal · 1 placed · 1 trip · price unknown');
+});
+
+test('a day approved under the other strategy says so, and is counted apart', () => {
+  let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1));
+  s = run(s, { type: 'approveTrip', trip: trip(D(1), []), strategy: 'fresh', rev: s.draft.rev },
+    { type: 'setPrefs', prefs: { strategy: 'fewest_trips' } });
+  const t = trip(D(1), [], { id: `fewest_trips-${D(1)}` });
+  assert.deepEqual(tripLook(t, 'fresh'), { kind: 'elsewhere', mark: '✓', word: 'Approved under Shop fresh' });
+  assert.equal(tripLook(t).kind, 'suggested');
+  assert.match(tripChipText(t, 'fresh'), /^✓ Approved under Shop fresh · /);
+  // The engine's own status wins: under its own strategy the trip is approved or needs review.
+  assert.equal(tripLook({ ...t, status: 'approved' }, 'fresh').kind, 'approved');
+  const sc = schedule(s.draft.rev, []);
+  sc.strategies[1].trips = [t];
+  assert.equal(summaryLine(s, sc), '1 meal · 0 placed · 1 trip (1 approved under Shop fresh) · $0.00');
+});
+
+const WEEK = [
+  { slug: 'chicken_curry', name: 'Chicken Curry' },
+  { slug: 'tomato_penne', name: 'Tomato Penne' },
+  { slug: 'chicken_curry', name: 'Chicken Curry' },
+];
+
+test('a Planner week opens as dinners on consecutive days, in one undo step', () => {
+  const s = planWith(7);
+  const out = weekEdit(s, WEEK, 'replace', TODAY, 'p2');
+  assert.ok('edit' in out);
+  const next = step(s, out.edit).state;
+  const dinners = next.draft.meals.map((m) => [m.recipe_key, m.date, m.slot]);
+  assert.deepEqual(dinners, [
+    ['lib:chicken_curry', D(0), 'dinner'],
+    ['lib:tomato_penne', D(1), 'dinner'],
+    ['lib:chicken_curry', D(2), 'dinner'],
+  ]);
+  assert.equal(next.draft.recipes['lib:chicken_curry'].wanted, 2);
+  assert.equal(next.draft.id, 'p2');
+  assert.ok(next.draft.rev > s.draft.rev, 'the rev only counts up');
+  assert.match(out.said, /3 dinners from the Planner in a new plan/);
+});
+
+test('adding a week keeps the plan and fills free dinners, then the tray', () => {
+  let s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 7)), { type: 'fillEmpty' });
+  // every dinner taken by hand
+  for (let i = 0; i < 7; i += 1) {
+    s = run(s, { type: 'place', mealId: `${PIZZA}#${i + 1}`, date: D(i), slot: 'dinner' });
+  }
+  const out = weekEdit(s, WEEK.slice(0, 1), 'add', TODAY, 'unused');
+  assert.ok('edit' in out);
+  assert.equal(out.trayed, 1);
+  const next = step(s, out.edit).state;
+  assert.equal(next.draft.id, s.draft.id);
+  assert.deepEqual(next.draft.meals.filter((m) => m.recipe_key === 'lib:chicken_curry')
+    .map((m) => m.date), [null]);
+  assert.match(out.said, /1 wait in the tray/);
+  assert.deepEqual(weekEdit(s, [], 'add', TODAY, 'x'), { refused: 'the week has no dinners' });
+});

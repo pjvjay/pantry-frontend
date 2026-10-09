@@ -1,0 +1,141 @@
+{
+ "calendar_name": "Pantry plan",
+ "all_day": true,
+ "events": [
+  {
+   "uid": "2a0bc0dc96c15839ea88fa0795829daa@pantry-planner",
+   "item_id": "cook-starter:chicken_biryani#1",
+   "kind": "cook",
+   "date": "2026-10-30",
+   "end": "2026-10-31",
+   "all_day": true,
+   "title": "Cook: Chicken Biryani (dinner, 1 of 2)",
+   "location": null,
+   "description": "Dinner for 2 people (your household setting).\nThe recipe makes 4 servings; for 2, use 1/2 of each amount.\n\nIngredients, as the recipe gives them:\n- 800 g Chicken Thighs\n- 400 g Basmati Rice\n- 200 g Plain Yogurt, for the marinade\n- 300 g Yellow Onion, 2 medium, sliced\n- 15 g Garlic, about 4 cloves\n- 20 g Ginger, a thumb-sized piece\n- 10 g Green Chilies, 2, slit\n- 10 g Garam Masala\n- 3 g Turmeric\n- 5 g Chili Powder\n- 40 g Ghee\n- 10 g Fresh Mint, a handful of leaves\n- 15 g Cilantro, a handful\n- 3 g Green Cardamom Pods, about 6 pods\n- 8 g Salt\n\nNutrition per serving (demo amounts): ≥ 770 kcal, ≥ 51 g protein, ≥ 20 g fat, ≥ 9.3 g saturated fat, ≥ 93 g carbohydrate, ≥ 3.6 g fibre, ≥ 5.4 g sugars, ≥ 1,034 mg sodium.\n14 of 15 ingredients counted, 99% by weight.\nRecipe amounts are demo house amounts, not from a published recipe.\nReference values for generic foods, raw ingredients summed; not dietary advice.\nRecipe: demo recipe.\nMeal 1 of 2 of Chicken Biryani in this plan.",
+   "categories": [
+    "Pantry plan",
+    "Cooking"
+   ],
+   "sequence": 3,
+   "labels": [
+    "demo amounts"
+   ],
+   "google_url": "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Cook%3A%20Chicken%20Biryani%20%28dinner%2C%201%20of%202%29&dates=20261030/20261031&details=Dinner%20for%202%20people%20%28your%20household%20setting%29.%0AThe%20recipe%20makes%204%20servings%3B%20for%202%2C%20use%201/2%20of%20each%20amount.%0A%0AIngredients%2C%20as%20the%20recipe%20gives%20them%3A%0A-%20800%20g%20Chicken%20Thighs%0A-%20400%20g%20Basmati%20Rice%0A-%20200%20g%20Plain%20Yogurt%2C%20for%20the%20marinade%0A-%20300%20g%20Yellow%20Onion%2C%202%20medium%2C%20sliced%0A-%2015%20g%20Garlic%2C%20about%204%20cloves%0A-%2020%20g%20Ginger%2C%20a%20thumb-sized%20piece%0A-%2010%20g%20Green%20Chilies%2C%202%2C%20slit%0A-%2010%20g%20Garam%20Masala%0A-%203%20g%20Turmeric%0A-%205%20g%20Chili%20Powder%0A-%2040%20g%20Ghee%0A-%2010%20g%20Fresh%20Mint%2C%20a%20handful%20of%20leaves%0A-%2015%20g%20Cilantro%2C%20a%20handful%0A-%203%20g%20Green%20Cardamom%20Pods%2C%20about%206%20pods%0A-%208%20g%20Salt%0A%0ANutrition%20per%20serving%20%28demo%20amounts%29%3A%20%E2%89%A5%20770%20kcal%2C%20%E2%89%A5%2051%20g%20protein%2C%20%E2%89%A5%2020%20g%20fat%2C%20%E2%89%A5%209.3%20g%20saturated%20fat%2C%20%E2%89%A5%2093%20g%20carbohydrate%2C%20%E2%89%A5%203.6%20g%20fibre%2C%20%E2%89%A5%205.4%20g%20sugars%2C%20%E2%89%A5%201%2C034%20mg%20sodium.%0A14%20of%2015%20ingredients%20counted%2C%2099%25%20by%20weight.%0ARecipe%20amounts%20are%20demo%20house%20amounts%2C%20not%20from%20a%20published%20recipe.%0AReference%20values%20for%20generic%20foods%2C%20raw%20ingredients%20summed%3B%20not%20dietary%20advice.%0ARecipe%3A%20demo%20recipe.%0AMeal%201%20of%202%20of%20Chicken%20Biryani%20in%20this%20plan."
+  },
+  {
+   "uid": "2bc119dba86ed034ce0018f2bc292464@pantry-planner",
+   "item_id": "trip-fewest_trips-2026-10-31",
+   "kind": "trip",
+   "date": "2026-10-31",
+   "end": "2026-11-01",
+   "all_day": true,
+   "title": "Groceries: Pantry Mart Downtown, GreenLeaf Grocers Kitsilano",
+   "location": "Pantry Mart Downtown (demo store); GreenLeaf Grocers Kitsilano (demo store)",
+   "description": "Shopping trip Sat 31 Oct 2026 (fewest trips)\n\nPantry Mart Downtown\n Dairy\n  - 1 x Ghee 400g: need 20 g; $8.49\n  - 1 x Whole Milk 1L: need 500 ml; $2.93\n Pantry\n  - 1 x Granulated Sugar 1kg: need 20 g; $2.22\n Produce\n  - 1 x Fresh Garlic (~50g): need 25 g; $0.68\n  - 1 x Fresh Mint 30g: need 5 g; $2.70\n  - 1 x Yellow Onion (~200g): need 150 g; $0.87\n\nGreenLeaf Grocers Kitsilano\n Dairy\n  - 1 x Plain Greek Yogurt 750g: need 100 g; $6.19\n Frozen\n  - 1 x Frozen Mango Chunks 600g (demo product): need 250 g; $5.06\n Meat\n  - 1 x Chicken Thighs Bone-In (700g): need 400 g; $5.76; freeze on arrival\n Pantry\n  - 1 x Basmati Rice 2kg: need 200 g; $12.83\n  - 1 x Chili Powder 100g: need 2.5 g; $3.29\n  - 1 x Garam Masala 100g: need 5 g; $4.42\n  - 1 x Green Cardamom Pods 50g: need 1.5 g; $4.12\n  - 1 x Table Salt 1kg: need 4 g; $1.54\n  - 1 x Turmeric Ground 100g: need 1.5 g; $4.38\n Produce\n  - 1 x Green Chilies 100g: need 5 g; $1.30\n\nTotal $66.78\nPrices and stock are demo data.\n\nStore hours: unknown, check before you go.\nWhy this date: Chicken Biryani on Tue 3 Nov needs Chicken Thighs Bone-In, kept frozen and thawed in the fridge (FoodSafety.gov, Cold Food Storage Chart, fs-poultry-pieces-freezer, fsis-thawed-ground-poultry-seafood-fridge, fsis-thaw-fridge-small).\nSource: https://www.foodsafety.gov/food-safety-charts/cold-food-storage-charts, page dated 2023-09-19.\nDemo data: Stores, prices and stock are synthetic demo data; a trip date does not change a price or what is stocked.",
+   "categories": [
+    "Pantry plan",
+    "Groceries"
+   ],
+   "sequence": 3,
+   "labels": [
+    "store hours unknown",
+    "demo store",
+    "demo prices"
+   ],
+   "google_url": "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Groceries%3A%20Pantry%20Mart%20Downtown%2C%20GreenLeaf%20Grocers%20Kitsilano&dates=20261031/20261101&details=Shopping%20trip%20Sat%2031%20Oct%202026%20%28fewest%20trips%29%0A%0APantry%20Mart%20Downtown%0A%20Dairy%0A%20%20-%201%20x%20Ghee%20400g%3A%20need%2020%20g%3B%20%248.49%0A%20%20-%201%20x%20Whole%20Milk%201L%3A%20need%20500%20ml%3B%20%242.93%0A%20Pantry%0A%20%20-%201%20x%20Granulated%20Sugar%201kg%3A%20need%2020%20g%3B%20%242.22%0A%20Produce%0A%20%20-%201%20x%20Fresh%20Garlic%20%28~50g%29%3A%20need%2025%20g%3B%20%240.68%0A%20%20-%201%20x%20Fresh%20Mint%2030g%3A%20need%205%20g%3B%20%242.70%0A%20%20-%201%20x%20Yellow%20Onion%20%28~200g%29%3A%20need%20150%20g%3B%20%240.87%0A%0AGreenLeaf%20Grocers%20Kitsilano%0A%20Dairy%0A%20%20-%201%20x%20Plain%20Greek%20Yogurt%20750g%3A%20need%20100%20g%3B%20%246.19%0A%20Frozen%0A%20%20-%201%20x%20Frozen%20Mango%20Chunks%20600g%20%28demo%20product%29%3A%20need%20250%20g%3B%20%245.06%0A%20Meat%0A%20%20-%201%20x%20Chicken%20Thighs%20Bone-In%20%28700g%29%3A%20need%20400%20g%3B%20%245.76%3B%20freeze%20on%20arrival%0A%20Pantry%0A%20%20-%201%20x%20Basmati%20Rice%202kg%3A%20need%20200%20g%3B%20%2412.83%0A%20%20-%201%20x%20Chili%20Powder%20100g%3A%20need%202.5%20g%3B%20%243.29%0A%20%20-%201%20x%20Garam%20Masala%20100g%3A%20need%205%20g%3B%20%244.42%0A%20%20-%201%20x%20Green%20Cardamom%20Pods%2050g%3A%20need%201.5%20g%3B%20%244.12%0A%20%20-%201%20x%20Table%20Salt%201kg%3A%20need%204%20g%3B%20%241.54%0A%20%20-%201%20x%20Turmeric%20Ground%20100g%3A%20need%201.5%20g%3B%20%244.38%0A%20Produce%0A%20%20-%201%20x%20Green%20Chilies%20100g%3A%20need%205%20g%3B%20%241.30%0A%0ATotal%20%2466.78%0APrices%20a%0A...%20cut%20here%3A%20the%20full%20text%20is%20in%20the%20.ics%20export.&location=Pantry%20Mart%20Downtown%20%28demo%20store%29%3B%20GreenLeaf%20Grocers%20Kitsilano%20%28demo%20store%29"
+  },
+  {
+   "uid": "9e84087efd87927987cbc3b028a58483@pantry-planner",
+   "item_id": "freeze-fewest_trips-2026-10-31-11",
+   "kind": "freeze",
+   "date": "2026-10-31",
+   "end": "2026-11-01",
+   "all_day": true,
+   "title": "Freeze on arrival: Chicken Thighs Bone-In",
+   "location": null,
+   "description": "Freeze 1 x Chicken Thighs Bone-In on arrival\nSource: FoodSafety.gov, Cold Food Storage Chart, rule fs-poultry-pieces-freezer: \"9 months\" (https://www.foodsafety.gov/food-safety-charts/cold-food-storage-charts, page dated 2023-09-19).\nFor your shopping trip on Sat 31 Oct.",
+   "categories": [
+    "Pantry plan",
+    "Reminder"
+   ],
+   "sequence": 3,
+   "labels": [
+    "cited"
+   ],
+   "google_url": "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Freeze%20on%20arrival%3A%20Chicken%20Thighs%20Bone-In&dates=20261031/20261101&details=Freeze%201%20x%20Chicken%20Thighs%20Bone-In%20on%20arrival%0ASource%3A%20FoodSafety.gov%2C%20Cold%20Food%20Storage%20Chart%2C%20rule%20fs-poultry-pieces-freezer%3A%20%229%20months%22%20%28https%3A//www.foodsafety.gov/food-safety-charts/cold-food-storage-charts%2C%20page%20dated%202023-09-19%29.%0AFor%20your%20shopping%20trip%20on%20Sat%2031%20Oct."
+  },
+  {
+   "uid": "df3a93483a5b484ac40cb278de61eeee@pantry-planner",
+   "item_id": "cook-starter:mango_milkshake#1",
+   "kind": "cook",
+   "date": "2026-11-01",
+   "end": "2026-11-02",
+   "all_day": true,
+   "title": "Cook: Mango Milkshake (snack)",
+   "location": null,
+   "description": "Snack for 2 people (your household setting).\nThe recipe makes 2 servings: use the amounts as given.\n\nIngredients, as the recipe gives them:\n- 250 g Frozen Mango\n- 500 ml Whole Milk, 2 cups\n- 20 g Granulated Sugar, to taste\n\nNutrition per serving (demo amounts): 271 kcal, 9.1 g protein, 8.9 g fat, 4.9 g saturated fat, 41 g carbohydrate, 2 g fibre, 40 g sugars, 112 mg sodium.\n3 of 3 ingredients counted, 100% by weight.\nRecipe amounts are demo house amounts, not from a published recipe.\nReference values for generic foods, raw ingredients summed; not dietary advice.\nRecipe: demo recipe.",
+   "categories": [
+    "Pantry plan",
+    "Cooking"
+   ],
+   "sequence": 3,
+   "labels": [
+    "demo amounts"
+   ],
+   "google_url": "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Cook%3A%20Mango%20Milkshake%20%28snack%29&dates=20261101/20261102&details=Snack%20for%202%20people%20%28your%20household%20setting%29.%0AThe%20recipe%20makes%202%20servings%3A%20use%20the%20amounts%20as%20given.%0A%0AIngredients%2C%20as%20the%20recipe%20gives%20them%3A%0A-%20250%20g%20Frozen%20Mango%0A-%20500%20ml%20Whole%20Milk%2C%202%20cups%0A-%2020%20g%20Granulated%20Sugar%2C%20to%20taste%0A%0ANutrition%20per%20serving%20%28demo%20amounts%29%3A%20271%20kcal%2C%209.1%20g%20protein%2C%208.9%20g%20fat%2C%204.9%20g%20saturated%20fat%2C%2041%20g%20carbohydrate%2C%202%20g%20fibre%2C%2040%20g%20sugars%2C%20112%20mg%20sodium.%0A3%20of%203%20ingredients%20counted%2C%20100%25%20by%20weight.%0ARecipe%20amounts%20are%20demo%20house%20amounts%2C%20not%20from%20a%20published%20recipe.%0AReference%20values%20for%20generic%20foods%2C%20raw%20ingredients%20summed%3B%20not%20dietary%20advice.%0ARecipe%3A%20demo%20recipe."
+  },
+  {
+   "uid": "1da419c8dda053f49062e3f1b3253fdb@pantry-planner",
+   "item_id": "thaw-starter:chicken_biryani#2-11",
+   "kind": "thaw",
+   "date": "2026-11-02",
+   "end": "2026-11-03",
+   "all_day": true,
+   "title": "Thaw: move Chicken Thighs Bone-In to the fridge",
+   "location": null,
+   "description": "Move Chicken Thighs Bone-In to the fridge to thaw for Chicken Biryani on Tue 3 Nov: Even small amounts of frozen food — such as a pound of ground meat or boneless chicken breasts — require a full day to thaw.\nSource: U.S. Department of Agriculture, The Big Thaw — Safe Defrosting Methods, rule fsis-thaw-fridge-small: \"Even small amounts of frozen food — such as a pound of ground meat or boneless chicken breasts — require a full day to thaw.\" (https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/big-thaw-safe-defrosting-methods, page dated 2013-06-15).\nFor your shopping trip on Sat 31 Oct.",
+   "categories": [
+    "Pantry plan",
+    "Reminder"
+   ],
+   "sequence": 3,
+   "labels": [
+    "cited"
+   ],
+   "google_url": "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Thaw%3A%20move%20Chicken%20Thighs%20Bone-In%20to%20the%20fridge&dates=20261102/20261103&details=Move%20Chicken%20Thighs%20Bone-In%20to%20the%20fridge%20to%20thaw%20for%20Chicken%20Biryani%20on%20Tue%203%20Nov%3A%20Even%20small%20amounts%20of%20frozen%20food%20%E2%80%94%20such%20as%20a%20pound%20of%20ground%20meat%20or%20boneless%20chicken%20breasts%20%E2%80%94%20require%20a%20full%20day%20to%20thaw.%0ASource%3A%20U.S.%20Department%20of%20Agriculture%2C%20The%20Big%20Thaw%20%E2%80%94%20Safe%20Defrosting%20Methods%2C%20rule%20fsis-thaw-fridge-small%3A%20%22Even%20small%20amounts%20of%20frozen%20food%20%E2%80%94%20such%20as%20a%20pound%20of%20ground%20meat%20or%20boneless%20chicken%20breasts%20%E2%80%94%20require%20a%20full%20day%20to%20thaw.%22%20%28https%3A//www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/big-thaw-safe-defrosting-methods%2C%20page%20dated%202013-06-15%29.%0AFor%20your%20shopping%20trip%20on%20Sat%2031%20Oct."
+  },
+  {
+   "uid": "ce11a5836a33b7d2c2b763bf73e44a55@pantry-planner",
+   "item_id": "cook-starter:chicken_biryani#2",
+   "kind": "cook",
+   "date": "2026-11-03",
+   "end": "2026-11-04",
+   "all_day": true,
+   "title": "Cook: Chicken Biryani (dinner, 2 of 2)",
+   "location": null,
+   "description": "Dinner for 2 people (your household setting).\nThe recipe makes 4 servings; for 2, use 1/2 of each amount.\n\nIngredients, as the recipe gives them:\n- 800 g Chicken Thighs\n- 400 g Basmati Rice\n- 200 g Plain Yogurt, for the marinade\n- 300 g Yellow Onion, 2 medium, sliced\n- 15 g Garlic, about 4 cloves\n- 20 g Ginger, a thumb-sized piece\n- 10 g Green Chilies, 2, slit\n- 10 g Garam Masala\n- 3 g Turmeric\n- 5 g Chili Powder\n- 40 g Ghee\n- 10 g Fresh Mint, a handful of leaves\n- 15 g Cilantro, a handful\n- 3 g Green Cardamom Pods, about 6 pods\n- 8 g Salt\n\nNutrition per serving (demo amounts): ≥ 770 kcal, ≥ 51 g protein, ≥ 20 g fat, ≥ 9.3 g saturated fat, ≥ 93 g carbohydrate, ≥ 3.6 g fibre, ≥ 5.4 g sugars, ≥ 1,034 mg sodium.\n14 of 15 ingredients counted, 99% by weight.\nRecipe amounts are demo house amounts, not from a published recipe.\nReference values for generic foods, raw ingredients summed; not dietary advice.\nRecipe: demo recipe.\nMeal 2 of 2 of Chicken Biryani in this plan.",
+   "categories": [
+    "Pantry plan",
+    "Cooking"
+   ],
+   "sequence": 3,
+   "labels": [
+    "demo amounts"
+   ],
+   "google_url": "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Cook%3A%20Chicken%20Biryani%20%28dinner%2C%202%20of%202%29&dates=20261103/20261104&details=Dinner%20for%202%20people%20%28your%20household%20setting%29.%0AThe%20recipe%20makes%204%20servings%3B%20for%202%2C%20use%201/2%20of%20each%20amount.%0A%0AIngredients%2C%20as%20the%20recipe%20gives%20them%3A%0A-%20800%20g%20Chicken%20Thighs%0A-%20400%20g%20Basmati%20Rice%0A-%20200%20g%20Plain%20Yogurt%2C%20for%20the%20marinade%0A-%20300%20g%20Yellow%20Onion%2C%202%20medium%2C%20sliced%0A-%2015%20g%20Garlic%2C%20about%204%20cloves%0A-%2020%20g%20Ginger%2C%20a%20thumb-sized%20piece%0A-%2010%20g%20Green%20Chilies%2C%202%2C%20slit%0A-%2010%20g%20Garam%20Masala%0A-%203%20g%20Turmeric%0A-%205%20g%20Chili%20Powder%0A-%2040%20g%20Ghee%0A-%2010%20g%20Fresh%20Mint%2C%20a%20handful%20of%20leaves%0A-%2015%20g%20Cilantro%2C%20a%20handful%0A-%203%20g%20Green%20Cardamom%20Pods%2C%20about%206%20pods%0A-%208%20g%20Salt%0A%0ANutrition%20per%20serving%20%28demo%20amounts%29%3A%20%E2%89%A5%20770%20kcal%2C%20%E2%89%A5%2051%20g%20protein%2C%20%E2%89%A5%2020%20g%20fat%2C%20%E2%89%A5%209.3%20g%20saturated%20fat%2C%20%E2%89%A5%2093%20g%20carbohydrate%2C%20%E2%89%A5%203.6%20g%20fibre%2C%20%E2%89%A5%205.4%20g%20sugars%2C%20%E2%89%A5%201%2C034%20mg%20sodium.%0A14%20of%2015%20ingredients%20counted%2C%2099%25%20by%20weight.%0ARecipe%20amounts%20are%20demo%20house%20amounts%2C%20not%20from%20a%20published%20recipe.%0AReference%20values%20for%20generic%20foods%2C%20raw%20ingredients%20summed%3B%20not%20dietary%20advice.%0ARecipe%3A%20demo%20recipe.%0AMeal%202%20of%202%20of%20Chicken%20Biryani%20in%20this%20plan."
+  }
+ ],
+ "counts": {
+  "trip": 1,
+  "freeze": 1,
+  "thaw": 1,
+  "cook": 3
+ },
+ "filename": "pantry-plan-2026-10-30.ics",
+ "notes": [
+  "Every event is all-day, on its plan date in any time zone.",
+  "Import the .ics into a new calendar named Pantry plan: to replace an export later, delete that calendar and import the new file.",
+  "A Google add-event link adds one event to your own calendar; it cannot set reminders or update an event later.",
+  "Store hours are not known: check before you go. Stores, prices and stock are demo data."
+ ]
+}

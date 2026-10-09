@@ -713,24 +713,32 @@ export type CartLine = {
   // with cart alternatives: the recipe line this purchase is for, and the other lines it covers
   line_no?: number; also_lines?: number[];
   brand?: string; size?: string;
-  // with the meal plan: a muted note ("for 3 meals: …") and a warning ("amount unknown")
-  note?: string; warn?: string;
+  // with the meal plan: a muted note ("for 3 meals: …"), a warning ("amount unknown"), and where
+  // it is kept, since one trip can carry a product twice, kept in the fridge and frozen
+  note?: string; warn?: string; storage?: string;
 };
 export type LeftOut = { ingredient: string; reason?: string; suggestions?: string[] };
 export type CartSummary = {
   recipe_name?: string; total_cost?: number; lines?: CartLine[]; origin_status?: string;
   coverage?: { spend_fraction?: number; lines_known?: number; lines_total?: number } | null;
-  trip?: { stores: string[]; total_cost: number; basket_cost?: number; travel_cost?: number } | null;
+  trip?: { stores: string[]; total_cost: number | null; basket_cost?: number; travel_cost?: number } | null;
   not_stocked?: LeftOut[]; out_of_range?: LeftOut[]; skipped?: LeftOut[];
+  // with the meal plan: some price is unknown, so the totals are lower bounds ("at least")
+  total_is_floor?: boolean;
 };
 export type PlanCardData = {
-  kind: 'plan' | 'week'; summary: CartSummary;
+  // 'mealplan': the Assistant's meal-plan draft (pantry's plan_meals), whose summary
+  // mealplan/chatDraft.asMealPlan reads
+  kind: 'plan' | 'week' | 'mealplan'; summary: CartSummary;
   // with cart alternatives: the hub's tool_log index of the plan behind the card, which the
   // Options dialog and a swap name, and the lines the shopper has pinned
   ref?: number; pinned_lines?: number[];
   // links the card offers, such as a week card's "Open in Meal plan"; the console draws one only
   // when it has the tab the link leads to (alternatives.routedLinks)
   links?: { label: string; href: string }[];
+  // a meal-plan card: the plan rev the draft was made against (null: no plan yet), and
+  // "drafted from your message" when the hub drafted it because the model made no call
+  base_rev?: number | null; label?: string;
 };
 
 // The hub's answer to a swap in a chat cart: the re-priced plan's card, which replaces the card
@@ -805,7 +813,12 @@ type AgentEventBody =
   // A link in the shopper's message read by the hub before the model's first call, or the
   // recipe the shopper reviewed in the import sheet (via 'console').
   | RecipeImportEvent
-  | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown>; step: number }
+  | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown>; step: number;
+      by_hub?: boolean }
+  // Counted dishes read by pantry's Quick add parse before the model's first call; `note` is
+  // the [meals] line the model read (null when nothing matched)
+  | { type: 'meal_selection'; status: 'ok' | 'failed'; note?: string | null; error?: string;
+      ms: number }
   | ({ type: 'tool_result'; id: string; step: number; model_chars?: number } & ToolResult)
   | ({ type: 'evals'; trace_id: string } & Evals)
   | { type: 'error'; message: string }
@@ -952,4 +965,867 @@ export interface Metrics {
   prices_usd_per_1m: Record<string, { input: number; output: number }>;
   prices_source: string;
   free_tier_requests_per_day: number;
+}
+
+// ─── meal plan (/mealplan/*, /shelf-life) ────────────────────
+// Mirrors pantry-api's pantry_planner/mealplan/models.py and the meal-plan routes in api.py.
+// The plan itself (MealPlanDraft) lives in this browser; the server is stateless, trusts only
+// ids from the draft and re-reads every fact (names, sizes, prices, storage times) on each
+// call. Dates are calendar dates, 'YYYY-MM-DD'.
+
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export type TripStrategy = 'fresh' | 'fewest_trips';
+export type Storage = 'fridge' | 'freezer' | 'pantry';
+
+// Which recipe: give exactly one of slug, starter or doc. key is 'lib:<slug>',
+// 'starter:<key>' or doc.key, or the server answers 422.
+export interface RecipeRef {
+  key: string;
+  slug?: string;
+  starter?: string;
+  doc?: RecipeDoc;
+  servings?: number | null;        // the shopper's answer when the recipe does not say
+}
+
+export interface ResolvedLine {
+  line_no: number;
+  name: string;
+  quantity: number | null;
+  unit: string;
+  need_qty: number | null;         // one batch of the recipe, in g, ml or each
+  need_uom: string | null;
+  product_id: number | null;       // null: nothing chosen (not stocked, out of range, skipped)
+  product_name: string | null;
+  match: 'exact' | 'form' | 'generic' | null;
+  amount_basis: string | null;
+}
+
+export type ResolveStatus = 'ok' | 'needs_servings' | 'unconfirmed_lines' | 'not_found'
+  | 'unparseable' | 'aborted' | 'llm_error';
+
+// A recipe after its one slow resolve: which product each line buys. A recipe that failed
+// keeps its own status and never fails the plan.
+export interface ResolvedRecipe {
+  key: string;
+  title: string;
+  status: ResolveStatus;
+  message: string;
+  servings: number | null;
+  servings_basis: 'source' | 'your_setting' | null;
+  label: string | null;            // 'demo recipe', 'demo house amounts' or null
+  lines: ResolvedLine[];
+  not_stocked: DroppedIngredient[];
+  out_of_range: DroppedIngredient[];
+  skipped: DroppedIngredient[];
+  llm_cost_usd: number;
+  model_used: string;
+  burr_run: string;
+  cached: boolean;
+}
+
+// A recipe in the tray. servings is how many the recipe serves (the shopper's answer to
+// needs_servings), never a meal's head count: that is Meal.servings.
+export interface DraftRecipe {
+  ref: RecipeRef;
+  wanted: number;                  // 0..28 meals of it
+  slot: MealSlot;
+  servings?: number | null;
+}
+
+// One meal occasion. A meal with a date never moves; with no date it is spread by the server
+// unless pinned, and a pinned meal with no date stays in the tray. servings null: the
+// household's.
+export interface Meal {
+  id: string;
+  recipe_key: string;
+  date: string | null;
+  slot: MealSlot | null;
+  servings?: number | null;
+  pinned: boolean;
+}
+
+export interface MealPrefs {
+  household_servings: number;      // 1..20
+  slots_on: MealSlot[];
+  shop_weekdays: number[];         // Monday 0 .. Sunday 6
+  max_trips?: number | null;
+  buy_ahead_days: number;          // the shopper's limit for a perishable with no cited time
+  thaw_reminder: 'evening_before' | 'morning_of';
+  allow_freezer: boolean;
+  strategy: TripStrategy;
+}
+
+// One line of a trip as the shopper approved it; price is kept for the delta only.
+export interface SnapshotLine {
+  product_id: number;
+  packs: number | null;
+  storage: Storage;
+  price_at_approval: number | null;
+}
+
+export interface ApprovedTrip {
+  date: string;
+  fingerprint: string;             // 64 hex, copied from the Trip
+  strategy: TripStrategy;
+  snapshot: SnapshotLine[];
+}
+
+export interface PlanSettings {
+  lat?: number | null;
+  lon?: number | null;
+  max_km?: number | null;
+  // the plan's origin rules, as resolve takes them; every pin and Options list is checked
+  // against them (absent: none)
+  exclude_origin?: string[];
+  preference?: string[];
+}
+
+// The browser's plan, sent whole to /mealplan/schedule and /mealplan/suggest-cook-days.
+//   pins: recipe_key -> {'<line_no>': product_id}
+//   packs_override: '<YYYY-MM-DD>:<product_id>' -> packs on that trip, 0 dismisses the line
+//   storage_overrides: '<product_id>' -> 'fridge' (never freeze) or 'freezer'
+export interface MealPlanDraft {
+  v: 1;
+  id: string;
+  rev: number;
+  start_date: string;
+  days: number;                    // 1..14
+  prefs: MealPrefs;
+  recipes: Record<string, DraftRecipe>;
+  resolved: Record<string, ResolvedRecipe>;
+  meals: Meal[];
+  pins: Record<string, Record<string, number>>;
+  trips: ApprovedTrip[];
+  dismissed_dates: string[];
+  fixed_dates: string[];
+  packs_override: Record<string, number>;
+  storage_overrides: Record<string, 'fridge' | 'freezer'>;
+  settings: PlanSettings;
+  // the shopper's own daily targets; an API without nutrition ignores the field
+  nutrition_targets?: NutritionTargets;
+}
+
+// A meal where the schedule put it. placed_by 'spread': the server chose the date, and the
+// console stores it back. date null: unplaced.
+export interface PlacedMeal {
+  id: string;
+  recipe_key: string;
+  title: string;
+  date: string | null;
+  slot: MealSlot;
+  servings: number;
+  pinned: boolean;
+  placed_by: 'you' | 'spread' | null;
+}
+
+// What a line's storage time rests on. cited: rows quoted verbatim; your_setting: the
+// shopper's buy-ahead limit (days_planned), no verbatim; unknown: nothing claimed.
+export interface ShelfLifeInfo {
+  status: 'cited' | 'your_setting' | 'unknown';
+  verbatim: string[];
+  rule_ids: string[];
+  source: string | null;
+  url: string | null;
+  page_date: string | null;
+  days_planned: number | null;
+  note: string;
+}
+
+export interface LineProduct {
+  id: number;
+  name: string;
+  unit_size: string;
+  category: string | null;
+  demo_product: boolean;           // products 166-169: label them "(demo)"
+}
+
+export interface MealRefOnLine {
+  meal_id: string;
+  recipe_key: string;
+  title: string;
+  date: string;
+  slot: MealSlot;
+}
+
+// One product bought on one trip. packs null: the amount is unknown (packs_basis says why), and
+// so is the price. store and price are null when unknown or not stocked.
+export interface TripLine {
+  product: LineProduct;
+  category: string | null;
+  packs: number | null;
+  packs_basis: 'computed' | 'your_setting' | 'amount_unknown' | 'needs_servings';
+  need_qty: number | null;
+  need_uom: string | null;
+  leftover_qty: number | null;
+  leftover_until: string | null;   // only when the storage time is cited
+  storage: Storage;
+  freeze_on_arrival: boolean;
+  shelf_life: ShelfLifeInfo;
+  for_meals: MealRefOnLine[];
+  store: string | null;
+  price: number | null;
+  price_at_approval: number | null;
+  price_delta: number | null;
+  stocked: boolean;
+}
+
+export interface TripDiffLine {
+  product_id: number;
+  name: string;
+  packs?: number | null;
+  packs_before?: number | null;
+  packs_after?: number | null;
+  storage: Storage;
+}
+
+export interface TripDiff {
+  added: TripDiffLine[];
+  removed: TripDiffLine[];
+  changed: TripDiffLine[];
+  text: string[];                  // '+1 Whole Milk 1L (fridge)'
+}
+
+export interface Trip {
+  id: string;                      // '<strategy>-<date>'
+  date: string;
+  status: 'suggested' | 'approved' | 'needs_review';
+  reason: string;
+  lines: TripLine[];
+  dismissed: LineProduct[];
+  stores: string[];
+  recommended: TripOption | null;
+  frontier: TripOption[];
+  not_stocked: string[];
+  total_cost: number | null;       // known prices only; null when no line has a price
+  total_is_floor: boolean;         // some price is unknown: show "at least"
+  price_delta: number | null;
+  fingerprint: string;
+  diff: TripDiff | null;
+  list_text: string;
+}
+
+export interface PlanAction {
+  kind: 'shop' | 'freeze' | 'thaw' | 'cook';
+  date: string;
+  text: string;
+  trip_id?: string | null;
+  meal_id?: string | null;
+  product_id?: number | null;
+  rule_ids: string[];
+  basis: 'cited' | 'your_setting' | null;
+}
+
+// Edits a warning offers. The engine never applies them; the console does, or asks first.
+export type RemedyOp =
+  | { op: 'move_meal'; meal_id: string; date: string; slot: MealSlot }
+  | { op: 'set_storage'; product_id: number; storage: Storage }
+  | { op: 'add_trip'; date: string }
+  | { op: 'set_servings'; recipe_key: string }
+  | { op: 'set_packs'; date: string; product_id: number; packs?: number }
+  | { op: 'open_options'; date: string; product_id: number }
+  | { op: 'resolve'; recipe_key: string }
+  | { op: 'set_strategy'; strategy: TripStrategy }
+  | { op: 'set_pref'; field: string; value: unknown }
+  | { op: 'approve_trip'; date: string; strategy: TripStrategy }
+  | { op: 'remove_meal'; meal_id: string };
+
+export type WarningLevel = 'must_fix' | 'decide' | 'note';
+
+// must_fix: unplaced, fridge_window_exceeded, meal_before_trip, needs_servings,
+// no_longer_stocked. decide: needs_review, not_stocked, buy_ahead_exceeded, trip_cap_exceeded,
+// unresolved_recipe. note: amount_unknown, shelf_life_unknown, price_changed.
+export interface PlanWarning {
+  level: WarningLevel;
+  code: string;
+  message: string;
+  strategy: TripStrategy | null;   // null: the whole plan, whatever the strategy
+  remedies: RemedyOp[];
+  meal_ids: string[];
+  product_id: number | null;
+  trip_date: string | null;
+  recipe_key: string | null;
+}
+
+export type WarningCounts = Record<WarningLevel, number>;
+
+export interface StrategyResult {
+  name: TripStrategy;
+  recommended: boolean;
+  trips: Trip[];
+  actions: PlanAction[];
+  total_cost: number | null;       // null when no line on any trip has a price
+  total_is_floor: boolean;
+  warning_counts: WarningCounts;
+}
+
+export interface PlanDay {
+  date: string;
+  weekday: string;                 // 'Fri'
+  meal_ids: string[];
+  // what one person eats that day; null before the nutrition tables are deployed (and from
+  // an API without nutrition)
+  nutrition: DayNutrition | null;
+}
+
+export interface PlanCoverage {
+  products: number;
+  freshness_cited: number;
+  freshness_your_setting: number;
+  freshness_unknown: number;
+  needs: number;
+  amounts_known: number;
+  // 'unknown' comes from an API without nutrition
+  nutrition: 'computed' | 'not_deployed' | 'unknown';
+}
+
+export interface ScheduleSource {
+  id: string;
+  title: string;
+  publisher: string;
+  url: string | null;
+  page_date: string | null;
+  retrieved: string | null;
+  credit: string;
+}
+
+export interface ApprovedScheduleTrip {
+  id: string;
+  strategy: TripStrategy;
+  date: string;
+  status: Trip['status'];
+  stores: string[];
+  total_cost: number | null;
+  total_is_floor: boolean;
+  list_text: string;
+  // calendar export (P7); absent from an older API
+  item_id?: string;
+  reason?: TripReason;
+  not_stocked?: string[];
+  price_delta?: number | null;
+  fingerprint?: string;
+}
+
+export interface ApprovedSchedule {
+  trips: ApprovedScheduleTrip[];
+  actions: PlanAction[];
+  exportable: boolean;             // false while any approved trip needs review
+  // calendar export (P7): posted back unchanged to /calendar/preview and /calendar/ics; absent
+  // from an older API, which also sends null when no trip is approved
+  v?: 1;
+  plan_id?: string;
+  rev?: number;
+  start_date?: string;
+  days?: number;
+  calendar_name?: string;
+  cooks?: ScheduleCook[];
+  reminders?: ScheduleReminder[];
+  blocked?: ExportBlocked[];
+  synthetic_notice?: string;
+}
+
+// ─── Calendar export (pantry-api calendar_export.py) ─────────
+
+// Why a trip falls when it does: the tightest cited storage time among its lines, else the
+// shopper's buy-ahead setting.
+export interface TripReason {
+  text: string;
+  basis: 'cited' | 'your_setting' | 'none';
+  rule_ids: string[];
+  url: string | null;
+  page_date: string | null;
+}
+
+export interface CookNutrition {
+  basis: 'per_serving' | 'per_recipe';
+  servings: number | null;
+  status: 'complete' | 'incomplete' | 'below_floor';
+  totals: Partial<Record<NutrientKey, NutrientTotal>>;
+  demo_amounts: boolean;
+  coverage_note: string;
+}
+
+export interface ScheduleCook {
+  item_id: string;
+  meal_id: string;
+  recipe_key: string;
+  title: string;
+  date: string;
+  slot: MealSlot;
+  servings: number;                // how many the meal feeds
+  servings_set_by: 'household' | 'meal';
+  recipe_servings: number | null;  // how many the recipe makes; null: not stated, not answered
+  recipe_servings_basis: 'source' | 'your_setting' | null;
+  occurrence: number;
+  of: number;
+  ingredients: string[];           // the recipe's lines as written
+  label: string | null;
+  nutrition: CookNutrition | null;
+  nutrition_note: string;
+}
+
+// A reminder is exported only with a source: cited rows (rule ids) or the shopper's setting.
+export interface ReminderSource {
+  basis: 'cited' | 'your_setting';
+  rule_ids: string[];
+  setting: string | null;
+}
+
+export interface ScheduleReminder {
+  item_id: string;
+  kind: 'freeze' | 'thaw';
+  date: string;
+  product_id: number;
+  product: string;
+  text: string;
+  trip_id: string | null;
+  meal_id: string | null;
+  source: ReminderSource;
+}
+
+export type ExportBlockCode = 'not_approved' | 'needs_review' | 'no_longer_stocked';
+
+export interface ExportBlocked {
+  item_id: string;
+  code: ExportBlockCode;
+  date: string;
+  message: string;
+}
+
+export type CalendarInclude = 'trips' | 'cooks' | 'reminders';
+export type CalendarEventKind = 'trip' | 'cook' | 'freeze' | 'thaw';
+
+export interface CalendarExportRequest {
+  schedule: ApprovedSchedule;
+  include: CalendarInclude[];      // at least one
+}
+
+// One all-day event; `end` is the day after (exclusive), as the .ics and Google both read it.
+export interface CalendarEvent {
+  uid: string;
+  item_id: string;
+  kind: CalendarEventKind;
+  date: string;
+  end: string;
+  all_day: true;
+  title: string;
+  location: string | null;
+  description: string;
+  categories: string[];
+  sequence: number;
+  labels: string[];                // chips: store hours unknown, demo store, demo amounts, …
+  google_url: string;
+}
+
+export interface CalendarPreview {
+  calendar_name: string;
+  all_day: true;
+  events: CalendarEvent[];
+  counts: Record<CalendarEventKind, number>;
+  filename: string;
+  notes: string[];
+}
+
+export interface CalendarFile {
+  blob: Blob;
+  filename: string;
+}
+
+// ─── Google Calendar sync (the demo hub's /hub/calendar/*) ───
+
+// Booleans and labels only: the hub never sends a token, a client id or a secret.
+export interface CalendarSyncStatus {
+  configured: boolean;             // the hub has an OAuth client
+  client_type: 'web' | 'installed' | null;
+  connected: boolean;
+  needs_reconnect: boolean;
+  reconnect_by: string | null;     // YYYY-MM-DD: Testing mode ends a connection after 7 days
+  can_connect_here: boolean;       // this console's address is registered on the client
+  connect_url: string;             // where it is: the hub's own console
+  calendar: { summary: string } | null;
+  scope: string;
+  all_day: boolean;
+  testing_note: string;
+  last_sync: { at: string; status: CalendarApplyStatus; plan: string } | null;
+  problem: string | null;
+}
+
+export type CalendarOpKind =
+  | 'create' | 'update' | 'delete' | 'conflict' | 'deleted_in_google' | 'noop' | 'skip';
+
+export interface CalendarOp {
+  item_id: string;
+  op: CalendarOpKind;
+  kind: CalendarEventKind | '';
+  title: string;
+  date: string;
+  changes: string[];               // "title", "date", "description", "location", "busy or free"
+  origin?: 'update' | 'delete';    // what a conflict would have been
+  unverified?: boolean;            // edits in Google could not be checked
+  note?: string;
+}
+
+export interface CalendarDiff {
+  preview_token: string;
+  calendar_action: 'create' | 'existing';
+  calendar: { summary: string };
+  plan: string;
+  rev: number;
+  counts: Record<CalendarOpKind, number>;
+  ops: CalendarOp[];
+}
+
+export type CalendarChoice = 'keep' | 'overwrite' | 'restore';
+export type CalendarApplyStatus = 'ok' | 'partial' | 'failed';
+
+export interface CalendarSyncRequest extends CalendarExportRequest {
+  preview_token?: string;
+  choices?: Record<string, CalendarChoice>;
+}
+
+export interface CalendarOpResult {
+  item_id: string;
+  op: CalendarOpKind;
+  ok: boolean;
+  error_code?: string;
+  message?: string;
+}
+
+export interface CalendarApplyResult {
+  status: CalendarApplyStatus;
+  results: CalendarOpResult[];
+  calendar: { summary: string } | null;
+}
+
+export interface CalendarDisconnectResult {
+  revoked: boolean;
+  calendar_deleted: boolean;
+  note: string | null;
+}
+
+export interface MealSchedule {
+  v: 1;
+  rev: number;                     // the draft's rev, echoed: apply only when it still matches
+  start_date: string;
+  meals: PlacedMeal[];
+  unplaced: string[];
+  strategies: StrategyResult[];
+  recommended_strategy: TripStrategy;
+  warnings: PlanWarning[];
+  days: PlanDay[];
+  period_nutrition: PeriodNutrition | null;
+  // per serving, with every line's receipt; absent from an API without nutrition
+  recipe_nutrition?: Record<string, MealNutrition>;
+  coverage: PlanCoverage;
+  approved_schedule: ApprovedSchedule | null;
+  sources: ScheduleSource[];
+  synthetic_notice: string;
+}
+
+export interface ResolveRequest {
+  recipes: RecipeRef[];            // 1..12
+  lat?: number | null;
+  lon?: number | null;
+  max_km?: number | null;
+  exclude_origin?: string[];
+  preference?: string[];
+}
+
+// Options for one trip line (/mealplan/alternatives): the chat cart's ranking for every recipe
+// line the purchase covers, each row's trip the plan re-scheduled with that product pinned.
+//   lines: what choosing pins (pins[recipe_key][line_no]); a pin equal to planner_product_id
+//     is no pin
+//   ranking: trip.total/delta are the strategy's total of all its trips and its change; packs
+//     and cost_for_need what that trip line then buys and charges
+//   stocked: false when no store in range sells the line's product any more (it is then not
+//     among the rows)
+export interface CoveredLine {
+  recipe_key: string;
+  title: string;
+  line_no: number;
+  ingredient: string;
+  planner_product_id: number | null;
+  pinned_product_id: number | null;
+}
+
+export interface TripLineOptionsRequest {
+  draft: MealPlanDraft;
+  trip_date: string;
+  product_id: number;
+  strategy?: TripStrategy;
+  limit?: number;                  // 1..25
+}
+
+export interface TripLineOptions {
+  v: 1;
+  rev: number;
+  strategy: TripStrategy;
+  trip_date: string;
+  product_id: number;
+  product: string;
+  stocked: boolean;
+  pinned: boolean;
+  lines: CoveredLine[];
+  plan_total: number | null;
+  ranking: AlternativeRanking;
+}
+
+export interface ResolveResponse {
+  resolved: ResolvedRecipe[];
+  llm_cost_usd: number;
+  latency_ms: number;
+}
+
+// Quick add. The shopper's own recipes are sent so the parse can match them too.
+export interface SelectionParseRequest {
+  text: string;                    // at most 8000 characters
+  recipes?: { key: string; title: string; slot?: MealSlot | null; aliases?: string[] }[];
+  household_servings?: number;
+}
+
+export type RecipeKind = 'library' | 'starter' | 'my';
+
+export interface SelectionCandidate {
+  recipe_key: string;
+  title: string;
+  kind: RecipeKind;
+  label: string;                   // 'library', 'demo starter' or 'my recipe'
+}
+
+export interface SelectionMatch extends SelectionCandidate {
+  slot: MealSlot;
+  how: 'exact' | 'plural' | 'alias' | 'fuzzy';
+  distance: number;
+}
+
+export interface Selection {
+  input: string;
+  name: string;
+  count: number;
+  count_stated: boolean;
+  slot_hint: MealSlot | null;
+  status: 'matched' | 'ambiguous' | 'unmatched';
+  matched_as: SelectionMatch | null;
+  // only false (exact or plural) may be accepted without asking the shopper
+  needs_confirmation: boolean;
+  candidates: SelectionCandidate[];
+  meaning: string | null;          // '3 × Pepperoni Pizza = 3 dinners for 2 people'
+}
+
+export interface SelectionParseResult {
+  selections: Selection[];
+  unmatched: string[];
+  period_days: number | null;
+  warnings: string[];
+}
+
+export interface CookDayMove {
+  op: 'move_meal';
+  meal_id: string;
+  from: { date: string | null; slot: MealSlot };
+  to: { date: string | null; slot: MealSlot };
+  reason: string;                  // built by code from the cited row or the shopper's setting
+}
+
+// Suggest cook days: a proposal. Applying it replaces draft.meals with meals, as one step.
+export interface CookDaysProposal {
+  rev: number;
+  ops: CookDayMove[];
+  meals: Meal[];
+  warnings_before: WarningCounts;
+  warnings_after: WarningCounts;
+}
+
+export interface MealStarter {
+  key: string;
+  doc_key: string;                 // 'starter:<key>'
+  title: string;
+  servings: number;
+  slot: MealSlot;
+  label: string;                   // 'demo recipe'
+  aliases: string[];
+  doc: RecipeDoc;
+  text: string;
+}
+
+// One cited row of shelf_life.json, verbatim. days_min null: a time in months or years, only
+// ever longer than a plan.
+export interface ShelfRule {
+  id: string;
+  source: string;
+  verbatim: string;
+  storage?: string;
+  item?: string;
+  type?: string;
+  basis?: string;
+  days_min?: number | null;
+  days_max?: number | null;
+  [field: string]: unknown;
+}
+
+export interface ShelfLifeProduct {
+  product_id: number;
+  name: string;
+  mapped: boolean;
+  status: 'cited' | 'unknown';
+  storage_class: string | null;
+  bought_state: string | null;
+  rules: { fridge?: ShelfRule[]; freezer?: ShelfRule[]; after_thaw_fridge?: ShelfRule[];
+    thaw?: ShelfRule[] };
+  note: string;
+  reason: string;
+  synthetic_product: boolean;
+}
+
+// The source as shelf_life.json records it: the page's own date line, its reuse terms and, for
+// the chart, the page's notes quoted word for word.
+export interface ShelfLifeSource extends ScheduleSource {
+  page_date_text?: string;
+  licence?: string;
+  licence_url?: string;
+  notes_verbatim?: string[];
+}
+
+export interface ShelfLife {
+  sources: ShelfLifeSource[];
+  rules_of_use: string[];
+  products: ShelfLifeProduct[];
+}
+
+// ─── nutrition (P6) ──────────────────────────────────────────
+// Mirrors the nutrition models in pantry-api's models.py. Computed by code from a recipe's
+// amounts and one Canadian Nutrient File reference food per ingredient. An amount of null is
+// unknown, never 0, and a total that misses a line is a lower bound ("at_least").
+
+export type NutrientKey = 'energy_kcal' | 'protein_g' | 'fat_g' | 'satfat_g' | 'carbohydrate_g'
+  | 'fibre_g' | 'sugars_g' | 'sodium_mg';
+
+export interface NutrientTotal {
+  amount: number | null;
+  unit: string;                    // 'kcal', 'g' or 'mg'
+  status: 'complete' | 'at_least' | 'unknown';
+  complete: boolean;
+  lines_counted: number;
+  lines_total: number;
+  gaps: string[];                  // the lines it misses, for the chip's title
+}
+
+export interface NutritionLine {
+  line_no: number;
+  ingredient: string;
+  quantity: number | null;
+  unit: string;
+  grams: number | null;
+  status: 'counted' | 'no_quantity' | 'no_conversion' | 'no_reference' | 'excluded';
+  reason: string;
+  key: string;
+  match_kind: 'generic' | 'close' | 'none' | null;
+  match_note: string;
+  ref_id: string | null;
+  ref_description: string | null;  // CNF's own words
+  state_note: string | null;
+  source: string | null;
+  conversion: string | null;       // how grams were reached, quoted
+  values: Partial<Record<NutrientKey, number>>;
+  absent: NutrientKey[];
+  amount_basis: string | null;
+}
+
+export interface NutritionCoverage {
+  lines_total: number;
+  lines_counted: number;
+  count_fraction: number | null;
+  grams_weighed: number;
+  grams_known: number;
+  mass_fraction: number | null;
+  lines_mass_unknown: number;
+  floor: number;
+  meets_floor: boolean;
+  note: string;
+}
+
+export interface MissingLine {
+  line_no: number;
+  ingredient: string;
+  reason: 'no_quantity' | 'no_conversion' | 'no_reference';
+  detail: string;
+}
+
+export type NutritionStatus = 'complete' | 'incomplete' | 'below_floor';
+
+export interface MealNutrition {
+  basis: 'per_serving' | 'per_recipe';
+  servings: number | null;
+  portions: number;
+  totals: Partial<Record<NutrientKey, NutrientTotal>>;
+  status: NutritionStatus;
+  coverage: NutritionCoverage;
+  missing: MissingLine[];
+  lines: NutritionLine[];
+  source_ids: string[];
+  amounts_basis: string[];
+  demo_amounts: boolean;           // any counted amount is a demo house amount: show the badge
+  note: string;
+}
+
+// A target the shopper typed, kept in this browser and sent with each schedule call.
+export interface NutritionTarget {
+  min?: number | null;
+  max?: number | null;
+  source?: 'you' | 'health_canada_dv';
+}
+
+export type NutritionTargets = Partial<Record<NutrientKey, NutritionTarget>>;
+
+// A verdict only where the data proves it: met and over hold for a lower bound; within and
+// short need a complete total.
+export interface TargetCheck {
+  amount: number | null;
+  complete: boolean;
+  min: 'met' | 'short' | 'unknown' | null;
+  max: 'over' | 'within' | 'unknown' | null;
+}
+
+export interface DayMeal {
+  meal_id: string;
+  recipe_key: string;
+  title: string;
+  slot: string;
+  basis: 'per_serving' | 'per_recipe';
+  status: NutritionStatus;
+  totals: Partial<Record<NutrientKey, NutrientTotal>>;
+  amounts_basis: string[];
+  demo_amounts: boolean;
+}
+
+// One person's day: one serving of every meal on that date. complete only when every slot
+// switched on has a meal and every meal's totals are complete.
+export interface DayNutrition {
+  date: string | null;
+  meals: DayMeal[];
+  meals_counted: string[];
+  all_meals_planned: boolean;
+  totals: Partial<Record<NutrientKey, NutrientTotal>>;
+  complete: boolean;
+  amounts_basis: string[];
+  demo_amounts: boolean;
+  note: string;
+  targets: Partial<Record<NutrientKey, TargetCheck>> | null;
+}
+
+export interface PeriodTotal {
+  amount: number | null;
+  complete: boolean;
+}
+
+export interface PeriodNutrition {
+  days_total: number;
+  days_complete: number;
+  incomplete_days: string[];
+  // null when no day is complete
+  per_day_average_over_complete_days: Partial<Record<NutrientKey, number | null>> | null;
+  lower_bound_total: Partial<Record<NutrientKey, PeriodTotal>>;
+  slots_counted: string[];
+  amounts_basis: string[];
+  demo_amounts: boolean;
+  note: string;
 }

@@ -1,0 +1,501 @@
+{
+ "v": 1,
+ "plan_id": "plan-1",
+ "rev": 3,
+ "start_date": "2026-10-29",
+ "days": 7,
+ "calendar_name": "Pantry plan",
+ "trips": [
+  {
+   "item_id": "trip-fewest_trips-2026-10-31",
+   "id": "fewest_trips-2026-10-31",
+   "strategy": "fewest_trips",
+   "date": "2026-10-31",
+   "status": "approved",
+   "stores": [
+    "Pantry Mart Downtown",
+    "GreenLeaf Grocers Kitsilano"
+   ],
+   "reason": {
+    "text": "Chicken Biryani on Tue 3 Nov needs Chicken Thighs Bone-In, kept frozen and thawed in the fridge (FoodSafety.gov, Cold Food Storage Chart, fs-poultry-pieces-freezer, fsis-thawed-ground-poultry-seafood-fridge, fsis-thaw-fridge-small).",
+    "basis": "cited",
+    "rule_ids": [
+     "fs-poultry-pieces-freezer",
+     "fsis-thawed-ground-poultry-seafood-fridge",
+     "fsis-thaw-fridge-small"
+    ],
+    "url": "https://www.foodsafety.gov/food-safety-charts/cold-food-storage-charts",
+    "page_date": "2023-09-19"
+   },
+   "list_text": "Shopping trip Sat 31 Oct 2026 (fewest trips)\n\nPantry Mart Downtown\n Dairy\n  - 1 x Ghee 400g: need 20 g; $8.49\n  - 1 x Whole Milk 1L: need 500 ml; $2.93\n Pantry\n  - 1 x Granulated Sugar 1kg: need 20 g; $2.22\n Produce\n  - 1 x Fresh Garlic (~50g): need 25 g; $0.68\n  - 1 x Fresh Mint 30g: need 5 g; $2.70\n  - 1 x Yellow Onion (~200g): need 150 g; $0.87\n\nGreenLeaf Grocers Kitsilano\n Dairy\n  - 1 x Plain Greek Yogurt 750g: need 100 g; $6.19\n Frozen\n  - 1 x Frozen Mango Chunks 600g (demo product): need 250 g; $5.06\n Meat\n  - 1 x Chicken Thighs Bone-In (700g): need 400 g; $5.76; freeze on arrival\n Pantry\n  - 1 x Basmati Rice 2kg: need 200 g; $12.83\n  - 1 x Chili Powder 100g: need 2.5 g; $3.29\n  - 1 x Garam Masala 100g: need 5 g; $4.42\n  - 1 x Green Cardamom Pods 50g: need 1.5 g; $4.12\n  - 1 x Table Salt 1kg: need 4 g; $1.54\n  - 1 x Turmeric Ground 100g: need 1.5 g; $4.38\n Produce\n  - 1 x Green Chilies 100g: need 5 g; $1.30\n\nTotal $66.78\nPrices and stock are demo data.\n",
+   "not_stocked": [],
+   "total_cost": 66.78,
+   "total_is_floor": false,
+   "price_delta": 0.0,
+   "fingerprint": "dcd7eac15597f62d812b909c896462f1ffe150c795a016674d021be6c4bb08ee"
+  }
+ ],
+ "cooks": [
+  {
+   "item_id": "cook-starter:chicken_biryani#1",
+   "meal_id": "starter:chicken_biryani#1",
+   "recipe_key": "starter:chicken_biryani",
+   "title": "Chicken Biryani",
+   "date": "2026-10-30",
+   "slot": "dinner",
+   "servings": 2,
+   "servings_set_by": "household",
+   "recipe_servings": 4,
+   "recipe_servings_basis": "source",
+   "occurrence": 1,
+   "of": 2,
+   "ingredients": [
+    "800 g Chicken Thighs",
+    "400 g Basmati Rice",
+    "200 g Plain Yogurt, for the marinade",
+    "300 g Yellow Onion, 2 medium, sliced",
+    "15 g Garlic, about 4 cloves",
+    "20 g Ginger, a thumb-sized piece",
+    "10 g Green Chilies, 2, slit",
+    "10 g Garam Masala",
+    "3 g Turmeric",
+    "5 g Chili Powder",
+    "40 g Ghee",
+    "10 g Fresh Mint, a handful of leaves",
+    "15 g Cilantro, a handful",
+    "3 g Green Cardamom Pods, about 6 pods",
+    "8 g Salt"
+   ],
+   "label": "demo recipe",
+   "nutrition": {
+    "basis": "per_serving",
+    "servings": 4,
+    "status": "incomplete",
+    "totals": {
+     "energy_kcal": {
+      "amount": 770.4,
+      "unit": "kcal",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "protein_g": {
+      "amount": 50.5,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "fat_g": {
+      "amount": 20.3,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "satfat_g": {
+      "amount": 9.3,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "carbohydrate_g": {
+      "amount": 93.0,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "fibre_g": {
+      "amount": 3.6,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "sugars_g": {
+      "amount": 5.4,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 12,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala",
+       "Fresh Mint",
+       "Green Cardamom Pods"
+      ]
+     },
+     "sodium_mg": {
+      "amount": 1033.5,
+      "unit": "mg",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     }
+    },
+    "demo_amounts": true,
+    "coverage_note": "14 of 15 ingredients counted, 99% by weight"
+   },
+   "nutrition_note": ""
+  },
+  {
+   "item_id": "cook-starter:mango_milkshake#1",
+   "meal_id": "starter:mango_milkshake#1",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-11-01",
+   "slot": "snack",
+   "servings": 2,
+   "servings_set_by": "household",
+   "recipe_servings": 2,
+   "recipe_servings_basis": "source",
+   "occurrence": 1,
+   "of": 1,
+   "ingredients": [
+    "250 g Frozen Mango",
+    "500 ml Whole Milk, 2 cups",
+    "20 g Granulated Sugar, to taste"
+   ],
+   "label": "demo recipe",
+   "nutrition": {
+    "basis": "per_serving",
+    "servings": 2,
+    "status": "complete",
+    "totals": {
+     "energy_kcal": {
+      "amount": 271.0,
+      "unit": "kcal",
+      "status": "complete",
+      "complete": true,
+      "lines_counted": 3,
+      "lines_total": 3,
+      "gaps": []
+     },
+     "protein_g": {
+      "amount": 9.1,
+      "unit": "g",
+      "status": "complete",
+      "complete": true,
+      "lines_counted": 3,
+      "lines_total": 3,
+      "gaps": []
+     },
+     "fat_g": {
+      "amount": 8.9,
+      "unit": "g",
+      "status": "complete",
+      "complete": true,
+      "lines_counted": 3,
+      "lines_total": 3,
+      "gaps": []
+     },
+     "satfat_g": {
+      "amount": 4.9,
+      "unit": "g",
+      "status": "complete",
+      "complete": true,
+      "lines_counted": 3,
+      "lines_total": 3,
+      "gaps": []
+     },
+     "carbohydrate_g": {
+      "amount": 41.1,
+      "unit": "g",
+      "status": "complete",
+      "complete": true,
+      "lines_counted": 3,
+      "lines_total": 3,
+      "gaps": []
+     },
+     "fibre_g": {
+      "amount": 2.0,
+      "unit": "g",
+      "status": "complete",
+      "complete": true,
+      "lines_counted": 3,
+      "lines_total": 3,
+      "gaps": []
+     },
+     "sugars_g": {
+      "amount": 40.1,
+      "unit": "g",
+      "status": "complete",
+      "complete": true,
+      "lines_counted": 3,
+      "lines_total": 3,
+      "gaps": []
+     },
+     "sodium_mg": {
+      "amount": 112.2,
+      "unit": "mg",
+      "status": "complete",
+      "complete": true,
+      "lines_counted": 3,
+      "lines_total": 3,
+      "gaps": []
+     }
+    },
+    "demo_amounts": true,
+    "coverage_note": "3 of 3 ingredients counted, 100% by weight"
+   },
+   "nutrition_note": ""
+  },
+  {
+   "item_id": "cook-starter:chicken_biryani#2",
+   "meal_id": "starter:chicken_biryani#2",
+   "recipe_key": "starter:chicken_biryani",
+   "title": "Chicken Biryani",
+   "date": "2026-11-03",
+   "slot": "dinner",
+   "servings": 2,
+   "servings_set_by": "household",
+   "recipe_servings": 4,
+   "recipe_servings_basis": "source",
+   "occurrence": 2,
+   "of": 2,
+   "ingredients": [
+    "800 g Chicken Thighs",
+    "400 g Basmati Rice",
+    "200 g Plain Yogurt, for the marinade",
+    "300 g Yellow Onion, 2 medium, sliced",
+    "15 g Garlic, about 4 cloves",
+    "20 g Ginger, a thumb-sized piece",
+    "10 g Green Chilies, 2, slit",
+    "10 g Garam Masala",
+    "3 g Turmeric",
+    "5 g Chili Powder",
+    "40 g Ghee",
+    "10 g Fresh Mint, a handful of leaves",
+    "15 g Cilantro, a handful",
+    "3 g Green Cardamom Pods, about 6 pods",
+    "8 g Salt"
+   ],
+   "label": "demo recipe",
+   "nutrition": {
+    "basis": "per_serving",
+    "servings": 4,
+    "status": "incomplete",
+    "totals": {
+     "energy_kcal": {
+      "amount": 770.4,
+      "unit": "kcal",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "protein_g": {
+      "amount": 50.5,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "fat_g": {
+      "amount": 20.3,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "satfat_g": {
+      "amount": 9.3,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "carbohydrate_g": {
+      "amount": 93.0,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "fibre_g": {
+      "amount": 3.6,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     },
+     "sugars_g": {
+      "amount": 5.4,
+      "unit": "g",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 12,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala",
+       "Fresh Mint",
+       "Green Cardamom Pods"
+      ]
+     },
+     "sodium_mg": {
+      "amount": 1033.5,
+      "unit": "mg",
+      "status": "at_least",
+      "complete": false,
+      "lines_counted": 14,
+      "lines_total": 15,
+      "gaps": [
+       "Garam Masala"
+      ]
+     }
+    },
+    "demo_amounts": true,
+    "coverage_note": "14 of 15 ingredients counted, 99% by weight"
+   },
+   "nutrition_note": ""
+  }
+ ],
+ "reminders": [
+  {
+   "item_id": "freeze-fewest_trips-2026-10-31-11",
+   "kind": "freeze",
+   "date": "2026-10-31",
+   "product_id": 11,
+   "product": "Chicken Thighs Bone-In",
+   "text": "Freeze 1 x Chicken Thighs Bone-In on arrival",
+   "trip_id": "fewest_trips-2026-10-31",
+   "meal_id": null,
+   "source": {
+    "basis": "cited",
+    "rule_ids": [
+     "fs-poultry-pieces-freezer"
+    ],
+    "setting": null
+   }
+  },
+  {
+   "item_id": "thaw-starter:chicken_biryani#2-11",
+   "kind": "thaw",
+   "date": "2026-11-02",
+   "product_id": 11,
+   "product": "Chicken Thighs Bone-In",
+   "text": "Move Chicken Thighs Bone-In to the fridge to thaw for Chicken Biryani on Tue 3 Nov: Even small amounts of frozen food — such as a pound of ground meat or boneless chicken breasts — require a full day to thaw.",
+   "trip_id": "fewest_trips-2026-10-31",
+   "meal_id": "starter:chicken_biryani#2",
+   "source": {
+    "basis": "cited",
+    "rule_ids": [
+     "fsis-thaw-fridge-small"
+    ],
+    "setting": null
+   }
+  }
+ ],
+ "actions": [
+  {
+   "kind": "shop",
+   "date": "2026-10-31",
+   "text": "Shop for 16 item(s) at Pantry Mart Downtown, GreenLeaf Grocers Kitsilano",
+   "trip_id": "fewest_trips-2026-10-31",
+   "meal_id": null,
+   "product_id": null,
+   "rule_ids": [],
+   "basis": null
+  },
+  {
+   "kind": "freeze",
+   "date": "2026-10-31",
+   "text": "Freeze 1 x Chicken Thighs Bone-In on arrival",
+   "trip_id": "fewest_trips-2026-10-31",
+   "meal_id": null,
+   "product_id": 11,
+   "rule_ids": [
+    "fs-poultry-pieces-freezer"
+   ],
+   "basis": "cited"
+  },
+  {
+   "kind": "cook",
+   "date": "2026-11-01",
+   "text": "Cook Mango Milkshake (snack)",
+   "trip_id": null,
+   "meal_id": "starter:mango_milkshake#1",
+   "product_id": null,
+   "rule_ids": [],
+   "basis": null
+  },
+  {
+   "kind": "thaw",
+   "date": "2026-11-02",
+   "text": "Move Chicken Thighs Bone-In to the fridge to thaw for Chicken Biryani on Tue 3 Nov: Even small amounts of frozen food — such as a pound of ground meat or boneless chicken breasts — require a full day to thaw.",
+   "trip_id": "fewest_trips-2026-10-31",
+   "meal_id": "starter:chicken_biryani#2",
+   "product_id": 11,
+   "rule_ids": [
+    "fsis-thaw-fridge-small"
+   ],
+   "basis": "cited"
+  },
+  {
+   "kind": "cook",
+   "date": "2026-11-03",
+   "text": "Cook Chicken Biryani (dinner)",
+   "trip_id": null,
+   "meal_id": "starter:chicken_biryani#2",
+   "product_id": null,
+   "rule_ids": [],
+   "basis": null
+  }
+ ],
+ "exportable": true,
+ "blocked": [],
+ "synthetic_notice": "Stores, prices and stock are synthetic demo data; a trip date does not change a price or what is stocked."
+}

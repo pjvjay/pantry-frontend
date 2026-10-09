@@ -1,5 +1,6 @@
 // The plan renderers shared by the Planner and the Assistant: query-plan timeline, trip
 // options, gate alerts, coverage, a shopping plan and a week plan.
+import type { ReactNode } from 'react';
 import type {
   DroppedIngredient,
   LlmCallTrace,
@@ -390,11 +391,13 @@ export function PlanView({ plan }: { plan: ShoppingPlan }) {
   );
 }
 
-export function WeekView({ week }: { week: WeekPlan }) {
+// actions: controls for the header, such as the Planner's "Open in Meal plan".
+export function WeekView({ week, actions }: { week: WeekPlan; actions?: ReactNode }) {
   return (
     <section className="panel">
       <div className="plan-header">
         <h2>Week plan · {week.days.length} dinners</h2>
+        {actions}
         <div className="plan-meta">
           <span className="chip chip-ok">
             merged basket ${week.total_cost.toFixed(2)}
