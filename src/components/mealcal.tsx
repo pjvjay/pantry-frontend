@@ -69,17 +69,23 @@ export function PlanBoard({ ctl }: { ctl: BoardCtl }) {
   const slots = shownSlots(ctl.state, ctl.hideEmpty);
 
   // Arrow keys move between the slot buttons shown while a meal is held: an enhancement over
-  // Tab, which screen readers in browse mode leave alone.
+  // Tab, which screen readers in browse mode leave alone. They start from wherever focus is in
+  // a slot: its button, the held meal itself (focus stays there after Enter picks it up), or a
+  // meal it would swap with.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (ctl.held?.kind !== 'meal' || keyIntent(e, { holding: true, inText: false }) !== 'move') return;
     const target = e.target as HTMLElement;
-    const key = target.getAttribute('data-cell');
-    if (!key || keyIntent(e, { holding: true, inText: false }) !== 'move') return;
-    const cell = parseCellKey(key);
+    const key = target.getAttribute('data-cell') ?? target.closest('.mp-slot')?.getAttribute('data-drop');
+    const cell = key ? parseCellKey(key) : null;
     if (!cell) return;
-    const next = keyMove(cell, e.key, windowOf(d), slots);
     e.preventDefault();
+    const next = keyMove(cell, e.key, windowOf(d), slots);
     if (!next) return;
-    const el = e.currentTarget.querySelector<HTMLElement>(`[data-cell="${cellKey(next.date, next.slot)}"]`);
+    const k = cellKey(next.date, next.slot);
+    // The held meal's own cell has no button, so its chip takes focus and the next arrow
+    // carries on from there.
+    const el = e.currentTarget.querySelector<HTMLElement>(`[data-cell="${k}"]`)
+      ?? e.currentTarget.querySelector<HTMLElement>(`[data-drop="${k}"] .mp-chip[data-held] .mp-chip-main`);
     el?.focus();
   };
 
