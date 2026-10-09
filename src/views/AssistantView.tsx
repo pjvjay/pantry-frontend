@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import {
   cartChangeText, cartLineKey, purchaseLineNo, replaceCard, replyBeforeChange, routedLinks,
@@ -10,11 +10,15 @@ import { ErrorBanner, JsonView } from '../components/common';
 import Markdown from '../components/Markdown';
 import { AskContext, CartActions, CartCard, PlanStrip } from '../components/cart';
 import { EvalCard, Reasoning, RecipeImages, imagesIn } from '../components/flow';
+import { ImportActions, ImportCard, ImportSheet } from '../components/ImportSheet';
+import type { ImportStart } from '../components/ImportSheet';
 import { BurrLink, LlmCalls } from '../components/plan';
 import { agentChat, agentOptions, agentSwap, agentWarm } from '../hub';
+import { chatMessageFor } from '../recipes';
 import { ChatMeter } from '../telemetry';
 import type {
-  AgentEvent, AgentOptions, CartLine, CartSummary, Evals, LlmCallTrace, PlanCardData, SwapResult,
+  AgentEvent, AgentOptions, CartLine, CartSummary, Evals, LlmCallTrace, PlanCardData, RecipeDoc,
+  RecipeImportEvent, SwapResult,
 } from '../types';
 
 const SUGGESTIONS = [
@@ -146,7 +150,9 @@ type Item =
   // The answer's online evals and confidence, and the turn's trace.
   | { kind: 'evals'; evals: Evals; traceId: string }
   // Progressive disclosure: an observer saw something and changed the toolset or the goals.
-  | { kind: 'observe'; label: string; detail: string; tone: 'code' | 'llm' | 'goal' | 'tools' };
+  | { kind: 'observe'; label: string; detail: string; tone: 'code' | 'llm' | 'goal' | 'tools' }
+  // A recipe the hub read from a link in the message, or the one the shopper reviewed.
+  | { kind: 'import'; event: RecipeImportEvent };
 
 // Tool names as the policy writes them (the gateway's pantry- prefix dropped).
 const short = (names: string[]) => names.map((n) => n.replace(/^pantry-/, '').replace(/-/g, '_')).join(', ');
@@ -192,6 +198,12 @@ function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
   );
 }
 
+// An import's card, which opens the import sheet on what it shows.
+function ImportItem({ event }: { event: RecipeImportEvent }) {
+  const open = useContext(ImportActions);
+  return <ImportCard event={event} onOpen={open} />;
+}
+
 // One chat item. Memoised: a new event appends an item (or completes one tool card) without
 // redrawing the others, which matters once a conversation holds long answers and tool results.
 const ChatItem = memo(function ChatItem({ it, routes }: { it: Item; routes: readonly string[] }) {
@@ -226,6 +238,7 @@ const ChatItem = memo(function ChatItem({ it, routes }: { it: Item; routes: read
     );
   }
   if (it.kind === 'tool') return <ToolCard item={it} />;
+  if (it.kind === 'import') return <ImportItem event={it.event} />;
   if (it.kind === 'reasoning') return <Reasoning text={it.text} label={`step ${it.step} reasoning`} />;
   if (it.kind === 'evals') return <EvalCard evals={it.evals} traceId={it.traceId} />;
   if (it.kind === 'error') return <div className="banner banner-error">{it.text}</div>;
@@ -289,6 +302,14 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
   }, []);
   const cartActions = useMemo(() => ({ open: openOptions, busy: swapping }),
     [openOptions, swapping]);
+
+  // The import sheet: from the composer, or from a chat import's card with what it read.
+  const [importOpen, setImportOpen] = useState(false);
+  const [importStart, setImportStart] = useState<ImportStart | null>(null);
+  const openImport = useCallback((start: ImportStart) => {
+    setImportStart(start);
+    setImportOpen(true);
+  }, []);
 
   // "Use this" (or back to the planner's pick): the hub re-prices with no model call, and the
   // card it returns replaces the one the choice was made in. A refusal is thrown back to the
@@ -354,7 +375,9 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
     return () => { live = false; };
   }, [model, target, disclosure]);
 
-  const send = async (message: string) => {
+  // `recipeDoc`: the recipe the shopper reviewed in the import sheet, which the hub keeps as the
+  // conversation's next imp:N; the model plans exactly its lines.
+  const send = async (message: string, recipeDoc?: RecipeDoc) => {
     if (!message.trim() || busy || swapping) return;
     setBusy(true);
     setError('');
@@ -368,7 +391,8 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
     // what this browser measures about the turn's stream, joined to its trace in the hub
     const meter = new ChatMeter(model);
     try {
-      await agentChat({ message, conversation_id: conversation, model, target, disclosure }, (e) => {
+      await agentChat({ message, conversation_id: conversation, model, target, disclosure,
+                        ...(recipeDoc ? { recipe_doc: recipeDoc } : {}) }, (e) => {
         meter.event(e as { at?: number; trace_id?: string });
         if (e.type === 'start') {
           setConversation(e.conversation_id);
@@ -414,6 +438,8 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
             case 'cart_change':
               // the shopper's change, told to the model ahead of this message
               return [...prev, { kind: 'meta', text: cartChangeText(e) }];
+            case 'recipe_import':
+              return [...prev, { kind: 'import', event: e }];
             case 'tool_call':
               return [...prev, { kind: 'tool', id: e.id, name: e.name, arguments: e.arguments }];
             case 'tool_result':
@@ -488,8 +514,11 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
           A grocery agent that plans by calling the pantry MCP tools: every tool call and its
           result appears below as it happens. Its instructions are pantry-api's recipe-shopper
           skill{options && !options.skill_loaded && ' (not found: running with the short preamble only)'}.
-          Through <strong>pantry-recipes</strong> it can read a recipe page with the gateway's
-          fetch tool but cannot write; the direct <strong>pantry</strong> server has no fetch.
+          A recipe link in your message is read by the demo hub before the model starts, and the
+          assistant plans exactly the lines it read; <strong>Import a recipe</strong> lets you
+          review them first, or paste a list. A page the hub cannot read goes to the gateway's
+          fetch tool (<strong>pantry-recipes</strong>); the direct <strong>pantry</strong> server
+          has no fetch.
         </p>
         {/* always rendered, so the line appearing never moves the chat below it */}
         <p className="muted warm-line">{warm || '\u00a0'}</p>
@@ -509,7 +538,9 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
         )}
         <AskContext.Provider value={ask}>
           <CartActions.Provider value={cartActions}>
-            {items.map((it, i) => <ChatItem key={i} it={it} routes={routes} />)}
+            <ImportActions.Provider value={openImport}>
+              {items.map((it, i) => <ChatItem key={i} it={it} routes={routes} />)}
+            </ImportActions.Provider>
           </CartActions.Provider>
         </AskContext.Provider>
         <div className="sr-only" role="status">{announce}</div>
@@ -530,7 +561,19 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
         onClose={() => setOptionsFor(null)}
       />
 
+      <ImportSheet
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        start={importStart}
+        planInChat={options ? (doc) => void send(chatMessageFor(doc), doc) : null}
+        chatBlocked={busy ? 'The assistant is answering; wait for it, or press Stop, first.'
+          : swapping ? 'A cart change is being priced; try again in a moment.' : null}
+      />
+
       <form className="chat-input" onSubmit={(e) => { e.preventDefault(); void send(input); }}>
+        <button type="button" className="secondary" onClick={() => openImport({})}>
+          Import a recipe
+        </button>
         <textarea ref={box} rows={2} value={input} placeholder="Ask about a recipe link, a product, a week of dinners…"
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {

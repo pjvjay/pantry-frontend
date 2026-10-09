@@ -19,8 +19,9 @@ export interface Recipe {
 // the shopper reviews is exactly what gets planned (POST /plan/spec), so every amount says where
 // it came from. Mirrors RecipeDoc in pantry-api's models.py, which validates it.
 
+// 'imp:draft' is a doc the import sheet holds outside a conversation; chat re-keys it to imp:N.
 export type RecipeKey = `lib:${string}` | `starter:${string}` | `my:${string}` | `imp:${number}`
-  | `asst:${number}`;
+  | 'imp:draft' | `asst:${number}`;
 
 // Shown next to every amount: never presented as more certain than its source.
 export type AmountBasis = 'stated_by_source' | 'demo_house_amounts' | 'parsed_from_your_paste'
@@ -67,6 +68,80 @@ export interface RecipeDoc {
   lines: RecipeLine[];             // ingredient lines only, at most 60; method text is never kept
   source: RecipeSource;
   warnings: string[];
+}
+
+// ─── recipe import (the demo hub's /hub/recipes/import) ──────
+// A link read into a RecipeDoc for the shopper to review. The hub fetches; pantry-api never
+// does. Mirrors demo-hub's recipe_import ImportResult (docs/recipe-import.md there).
+
+// pantry's POST /recipes/parse-lines: lines read with no LLM.
+export interface ParsedLine {
+  line_no: number;
+  text: string;
+  name: string;
+  quantity: number | null;
+  unit: string;
+  note: string;
+  amount_basis: 'parsed_from_your_paste' | 'stated_by_source';
+}
+
+export interface ParsedLines {
+  servings: number | null;         // null: nothing says how many it serves
+  servings_stated: boolean;
+  lines: ParsedLine[];
+  warnings: string[];
+}
+
+// Today's Gemini video seconds against the hub's daily cap (UTC date).
+export interface VideoDaily {
+  date: string;
+  seconds: number;
+  calls: number;
+  limit_s: number;
+}
+
+export interface VideoTranscribe {
+  enabled: boolean;
+  reason: string;                  // why not, when it is not enabled
+  model?: string;
+  daily?: VideoDaily;
+}
+
+export interface ImportVideo {
+  id: string;
+  url: string;
+  title: string;
+  channel: string;
+  channel_url?: string | null;
+  thumbnail_url?: string | null;
+  duration_s: number | null;       // null without a YouTube key: the shopper estimates it
+  description_read: boolean;
+  transcribe: VideoTranscribe;
+  daily?: VideoDaily;
+}
+
+// What Gemini's transcription cost, as the hub priced it ("preview pricing" while it is free).
+export interface ImportUsage {
+  kind: 'video_import';
+  model: string;
+  prompt_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  llm_cost_usd: number;
+  pricing: string;
+}
+
+export type ImportNeeds = 'none' | 'confirm_lines' | 'choose_method' | 'needs_servings';
+
+export interface ImportResult {
+  doc: RecipeDoc | null;           // null exactly when needs is choose_method
+  method: RecipeSource['method'] | null;
+  linked_pages: { url: string; site: string }[];
+  video: ImportVideo | null;
+  needs: ImportNeeds;
+  warnings: string[];
+  structured_data?: 'jsonld' | 'microdata';
+  usage?: ImportUsage;
 }
 
 export interface PlanLineItem {
@@ -564,6 +639,10 @@ export interface HubStatus {
   services: ServiceStatus[];
   keys: Record<string, boolean>;
   agent: { default_model: string };
+  // with recipe import: whether the hub can read links (it has the extractor) and video
+  // descriptions (it has a YouTube key), and whether Gemini may watch a video
+  recipe_import?: { links: boolean; youtube_description: boolean; reason?: string };
+  video_import?: VideoTranscribe;
 }
 
 export interface McpTarget {
@@ -659,6 +738,16 @@ export type PlanCardData = {
 // the model last saw).
 export type SwapResult = { card: PlanCardData; note: string };
 
+// The hub's answer to an import in chat. doc_key names the doc the model plans with
+// plan_from_lines, null when no lines were read (a video with none). `fallback`: a web page the
+// hub could not read goes to the fetch tool as before; a YouTube link never does.
+export type RecipeImportEvent =
+  | { type: 'recipe_import'; status: 'ok'; url: string | null; doc_key: string | null;
+      result: ImportResult; note: string; ms: number; via?: 'console' }
+  | { type: 'recipe_import'; status: 'failed'; url: string;
+      error: { status: number; code: string; message: string; [k: string]: unknown };
+      fallback: boolean; ms: number };
+
 // Every event is stamped by the hub: `ts` ms since the turn began, `at` epoch ms when it was sent
 // (the browser measures how late it arrived).
 export type AgentEvent = AgentEventBody & { ts?: number; at?: number };
@@ -713,6 +802,9 @@ type AgentEventBody =
       to: { id: number | null; name: string }; total_before: number | null;
       total_after: number | null; stores_after: string[]; undone: boolean; note: string;
       structured: { summary: CartSummary; full: null } }
+  // A link in the shopper's message read by the hub before the model's first call, or the
+  // recipe the shopper reviewed in the import sheet (via 'console').
+  | RecipeImportEvent
   | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown>; step: number }
   | ({ type: 'tool_result'; id: string; step: number; model_chars?: number } & ToolResult)
   | ({ type: 'evals'; trace_id: string } & Evals)
