@@ -99,12 +99,25 @@ How a meal moves (all four end in one reducer edit):
 | Drag | the grip (the only element with `touch-action: none`, so the page still scrolls); a press that moves under 6 px is a tap |
 | Tap | tap a meal, then a highlighted slot; the bar at the bottom has Back to tray and Cancel |
 | Menu | ⋯ opens the Move sheet: every cell with its freshness preview, servings, the pin, the nutrition receipt |
-| Keyboard | Enter or Space picks up; Tab reaches slot buttons named "Place X in Dinner, Fri 16 Oct"; arrows, Page Up/Down, Home and End move between them; Enter places; Escape cancels; Delete sends a meal back to the tray; Ctrl/Cmd+Z undoes |
+| Keyboard | Enter or Space picks up; Tab reaches slot buttons named "Place X in Dinner, Fri 16 Oct"; arrows, Page Up/Down, Home and End move between them, starting from the held meal itself; Enter places; Escape cancels; Delete sends a meal back to the tray; Ctrl/Cmd+Z undoes |
 
 Trips move the same ways along the Shop rows, while they are suggestions; an
 approved trip stays put and shows "Changed since approved" with the diff when
 edits change it. The tab works with only `/pantry/api` (no hub), so it runs on
 the public demo and on AKS as well as in the local stack.
+
+The plan is saved in this browser only (`pantry.mealplan.v1`): a private
+window, cleared site data or another device starts empty, so the Shop band has
+Export and Import (.json). A saved plan this console cannot read is kept under
+`pantry.mealplan.v1.backup` and a new plan starts, with a banner saying so.
+Print list prints only the trip's list: the button adds `mp-printing` to the
+page, and the `@media print` rules hide everything but that list. Printing the
+page any other way prints the page.
+
+Device check so far: Chrome on a desktop (mouse drag of meals and trips, tap
+then tap, the Move sheet, the keyboard route, a 375 px phone width, light and
+dark). Not yet checked: touch drag on iOS Safari, Android Chrome and Samsung
+Internet, VoiceOver and TalkBack, forced colours and 200% zoom.
 
 `src/myRecipes.ts` reads the shopper's own recipes: `pantry.recipes.v1` holds
 `{v: 1, recipes: RecipeDoc[]}`, each keyed `my:<id>`. Recipe import's
