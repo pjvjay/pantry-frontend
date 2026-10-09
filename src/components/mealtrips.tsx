@@ -221,7 +221,10 @@ export function TripSheet({ date, onClose }: { date: string | null; onClose: () 
       <CartCard summary={tripToCartSummary(trip)} listText={trip.list_text} />
       <h4>Each item</h4>
       <ul className="mp-lines">
-        {trip.lines.map((ln) => <LineRow key={ln.product.id} ln={ln} trip={trip} allowFreezer={d.prefs.allow_freezer} />)}
+        {/* The engine groups lines by product and storage, so a product can be here twice. */}
+        {trip.lines.map((ln) => (
+          <LineRow key={`${ln.product.id}:${ln.storage}`} ln={ln} trip={trip} allowFreezer={d.prefs.allow_freezer} />
+        ))}
       </ul>
       {trip.dismissed.length > 0 && (
         <>

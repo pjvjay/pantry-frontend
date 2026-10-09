@@ -713,8 +713,9 @@ export type CartLine = {
   // with cart alternatives: the recipe line this purchase is for, and the other lines it covers
   line_no?: number; also_lines?: number[];
   brand?: string; size?: string;
-  // with the meal plan: a muted note ("for 3 meals: …") and a warning ("amount unknown")
-  note?: string; warn?: string;
+  // with the meal plan: a muted note ("for 3 meals: …"), a warning ("amount unknown"), and where
+  // it is kept, since one trip can carry a product twice, kept in the fridge and frozen
+  note?: string; warn?: string; storage?: string;
 };
 export type LeftOut = { ingredient: string; reason?: string; suggestions?: string[] };
 export type CartSummary = {

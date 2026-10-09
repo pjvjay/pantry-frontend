@@ -90,6 +90,17 @@ test('a trip becomes the cart card: stores in order, unknowns kept unknown', () 
   assert.equal(unknown.total_is_floor, true);
 });
 
+test('a product kept in the fridge and frozen on arrival stays two cart lines, told apart', () => {
+  // Under fewest_trips the engine groups lines per (day, product, storage), so one trip can
+  // carry chicken for this week's fridge and chicken to freeze.
+  const t = trip(D(1), [line(10, 'Chicken Breast'),
+    line(10, 'Chicken Breast', { storage: 'freezer', freeze_on_arrival: true })]);
+  const lines = tripToCartSummary(t).lines ?? [];
+  assert.deepEqual(lines.map((l) => [l.product_id, l.storage]), [[10, 'fridge'], [10, 'freezer']]);
+  assert.equal(new Set(lines.map((l) => `${l.product_id}:${l.storage}`)).size, 2);
+  assert.match(lines[1].note ?? '', /freeze on arrival/);
+});
+
 test('the summary line counts meals, placements, trips and the known total', () => {
   const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 2)),
     { type: 'place', mealId: `${PIZZA}#1`, date: D(2), slot: 'dinner' });

@@ -180,13 +180,14 @@ export function CartCard({ summary, cardRef, pinned, listText: ownText }: {
           </div>
           <ul className="cart-items">
             {g.lines.map((l) => {
-              const key = `${l.product_id ?? l.product}`;
+              // A meal-plan trip can list one product twice, for the fridge and the freezer.
+              const key = `${l.product_id ?? l.product}${l.storage ? `:${l.storage}` : ''}`;
               const done = got.has(key);
               const mine = isPinned(l, pinned);
               return (
                 <li key={key} className={`cart-item${done ? ' cart-item-done' : ''}`}>
                   <input type="checkbox" checked={done} onChange={() => toggle(key)}
-                         aria-label={`${l.product}: in the basket`} />
+                         aria-label={`${l.product}${l.storage ? ` (${l.storage})` : ''}: in the basket`} />
                   <IngredientImage name={l.ingredient} size={36} />
                   {wrap(l, mine, <span className="cart-item-body">
                     <span className="cart-item-name">

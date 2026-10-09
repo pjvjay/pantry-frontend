@@ -171,6 +171,7 @@ export function tripToCartSummary(t: Trip): CartSummary {
     ingredient: ln.product.name,
     product: `${ln.product.name}${ln.product.demo_product ? ' (demo)' : ''}`,
     product_id: ln.product.id,
+    storage: ln.storage,
     store: ln.store ?? 'Not stocked within range',
     price: ln.price ?? undefined,
     packs: ln.packs ?? undefined,
