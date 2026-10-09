@@ -103,8 +103,12 @@ How a meal moves (all four end in one reducer edit):
 
 Trips move the same ways along the Shop rows, while they are suggestions; an
 approved trip stays put and shows "Changed since approved" with the diff when
-edits change it. The tab works with only `/pantry/api` (no hub), so it runs on
-the public demo and on AKS as well as in the local stack.
+edits change it. An approval belongs to the strategy it was given under, as the
+engine reads it: after switching strategy that day reads "Approved under Shop
+fresh" (say), with Take the approval back, and approving the other strategy's
+list replaces the approval only when asked; a plan keeps one approval a day.
+The tab works with only `/pantry/api` (no hub), so it runs on the public demo
+and on AKS as well as in the local stack.
 
 The plan is saved in this browser only (`pantry.mealplan.v1`): a private
 window, cleared site data or another device starts empty, so the Shop band has
@@ -118,6 +122,12 @@ Device check so far: Chrome on a desktop (mouse drag of meals and trips, tap
 then tap, the Move sheet, the keyboard route, a 375 px phone width, light and
 dark). Not yet checked: touch drag on iOS Safari, Android Chrome and Samsung
 Internet, VoiceOver and TalkBack, forced colours and 200% zoom.
+
+Focus, checked with `document.activeElement` in Chrome at a 279 px width: Escape
+or Cancel on a held meal returns focus to that meal's chip, and on a held trip
+to that trip's chip; Delete on a placed meal keeps focus on it in the tray;
+typing and saving a setting afterwards leaves focus in the field. Repeat this
+check on each browser above.
 
 `src/myRecipes.ts` reads the shopper's own recipes: `pantry.recipes.v1` holds
 `{v: 1, recipes: RecipeDoc[]}`, each keyed `my:<id>`. Recipe import's
