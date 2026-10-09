@@ -413,7 +413,10 @@ type AgentEventBody =
       prompt_tokens?: number; prompt_s?: number; output_tokens?: number; gen_s?: number;
       load_s?: number; num_ctx?: number; thinking_chars?: number; new_tokens_est?: number;
       reasoning?: string }
-  | { type: 'assistant'; text: string; step: number }
+  // `plans`: the turn's plan results as data, drawn by the browser under `reply` (the model's
+  // own sentences); `text` is the same answer with the hub's Markdown tables
+  | { type: 'assistant'; text: string; step: number; reply?: string;
+      plans?: { kind: 'plan' | 'week'; summary: Record<string, unknown> }[] }
   | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown>; step: number }
   | ({ type: 'tool_result'; id: string; step: number; model_chars?: number } & ToolResult)
   | ({ type: 'evals'; trace_id: string } & Evals)
