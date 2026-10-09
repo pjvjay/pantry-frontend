@@ -77,6 +77,20 @@ nothing. The logic is in pure modules under `src/mealplan/`:
 | `selectionPreview.ts` | Quick add's chips: only exact and plural matches are accepted without asking |
 | `board.ts` | what the views draw: cells, trip chips and lines, a trip as a cart card, the summary line, a Planner week as a plan |
 | `options.ts` | Options on a trip line: the pins a choice makes (one edit), the dialog's words, the fix for a pin the schedule refuses |
+| `chatDraft.ts` | the Assistant's meal-plan draft: the plan sent with each chat message (`meal_plan`, at most 64 KB), the card's strip and diff, and Apply as one undo step |
+
+**From the Assistant.** Each chat message carries the plan in brief
+(`chatDraft.contextOf`: window, meals, recipes, the dates of approved trips, the
+lines of the shopper's own recipes). Counted dishes ("3 Pepperoni Pizza + 2
+Chicken Fried Rice + 3 chicken briyani + 7 mango milkshakes in 2 weeks") come
+back as a meal-plan card (`components/MealPlanCard.tsx`): the days as a strip,
+what Apply changes, a misspelt or other name as a question with **Use** and
+**Not this** (never placed until the shopper says Use), the suggested trips,
+**Apply to my Meal plan** (one undo step; when the plan changed since the
+draft, each change is tried in turn and a meal whose slot is taken waits for a
+free one) and **Open in Meal plan**. The Assistant stays mounted once opened,
+so its conversation is there when the shopper comes back. Nothing in the chat
+approves a trip.
 
 `src/nutritionFormat.ts` words nutrition the same way everywhere: a complete
 total is a number, a partial one "≥ N" with the missing lines in its title, a
