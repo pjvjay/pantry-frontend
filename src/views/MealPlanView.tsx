@@ -262,6 +262,13 @@ export default function MealPlanView() {
       ? { start, days, reason: out.refused } : null);
   };
 
+  // Filling empties the tray, which disables or removes the button pressed, so focus goes to the
+  // band's heading rather than being dropped on the page; the live region says what moved.
+  const fill = () => {
+    const out = mp.dispatch({ type: 'fillEmpty' });
+    if (!out.refused) document.getElementById('mp-place')?.focus();
+  };
+
   const exportPlan = () => {
     const blob = new Blob([mp.exportText()], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -316,7 +323,7 @@ export default function MealPlanView() {
 
       <section className="panel mp-band" aria-labelledby="mp-place">
         <div className="mp-band-head">
-          <h2 id="mp-place">Place</h2>
+          <h2 id="mp-place" tabIndex={-1}>Place</h2>
           <div className="mp-toolbar">
             <label className="mp-inline">
               from
@@ -330,8 +337,7 @@ export default function MealPlanView() {
             </span>
             <button type="button" className="secondary mini" disabled={!mp.canUndo} onClick={mp.undo}>Undo</button>
             <button type="button" className="secondary mini" disabled={!mp.canRedo} onClick={mp.redo}>Redo</button>
-            <button type="button" className="mini" disabled={!trayCount}
-                    onClick={() => mp.dispatch({ type: 'fillEmpty' })}>Fill empty slots</button>
+            <button type="button" className="mini" disabled={!trayCount} onClick={fill}>Fill empty slots</button>
             <button type="button" className="secondary mini" disabled={!placedAny || mp.cookDays.status === 'checking'}
                     onClick={mp.proposeCookDays}>Suggest cook days</button>
             <label className="check mp-inline">
@@ -364,7 +370,7 @@ export default function MealPlanView() {
         <CookDaysDiff />
         {trayCount > 0 && !placedAny && (
           <div className="mp-empty mp-empty-place">
-            <button type="button" onClick={() => mp.dispatch({ type: 'fillEmpty' })}>Fill empty slots for me</button>
+            <button type="button" onClick={fill}>Fill empty slots for me</button>
             <p className="muted">or drag a meal onto a day, or tap a meal then a slot</p>
           </div>
         )}
