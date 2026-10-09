@@ -42,12 +42,14 @@ function useListActions(text: string) {
       setCopied('copied');
     } catch {
       // No clipboard API here (a plain-http host, or a browser that refuses it): the older
-      // copy command still works from a selected text box in most browsers.
+      // copy command still works from a selected text box in most browsers. The box goes inside
+      // the open sheet: a modal dialog makes the rest of the page inert, and an inert box cannot
+      // be selected.
       const box = document.createElement('textarea');
       box.value = text;
       box.setAttribute('readonly', '');
       box.className = 'sr-only';
-      document.body.appendChild(box);
+      (document.querySelector('dialog[open]') ?? document.body).appendChild(box);
       box.select();
       let ok = false;
       try {
