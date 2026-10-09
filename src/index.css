@@ -1090,3 +1090,28 @@ tr.row-active td { background: var(--accent-soft); }
   .mp-shop[data-over], .mp-slot[data-over], .mp-tray[data-over], .mp-chip[data-held] { outline-color: Highlight; }
   .mp-grip { background: none; border: 1px solid ButtonText; }
 }
+
+/* The Assistant's meal-plan draft (components/MealPlanCard.tsx): the days as a strip of seven
+   columns (two rows for a fortnight), new meals marked by more than colour (a solid border). */
+.mp-strip { list-style: none; margin: 0; padding: 4px 14px 10px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.mp-day { min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 4px 3px; display: flex; flex-direction: column; gap: 2px; font-size: 11px; background: var(--bg); }
+.mp-day-new { border-color: var(--line-strong); }
+.mp-day-head { color: var(--muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-day-meals { display: flex; flex-direction: column; gap: 2px; }
+.mp-meal { display: block; border-radius: 4px; padding: 0 3px; border: 1px dashed var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-meal-new { border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.mp-meal-slot { color: var(--muted); font-weight: 400; margin-right: 2px; }
+.mp-trip { font-size: 12px; }
+.mp-label { margin-top: 4px; display: inline-block; }
+.mp-section { border-top: 1px solid var(--border); padding: 8px 14px; }
+.mp-section h4 { margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.mp-diff, .mp-warnings { margin: 0; padding-left: 18px; font-size: 13.5px; }
+.mp-proposals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mp-proposals li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 10px; font-size: 13.5px; }
+.mp-nutrition { margin: 4px 0 0; }
+.mp-actions .card-link { margin: 0; }
+.mp-applied { margin: 0; font-size: 13.5px; flex: 1 1 100%; }
+@media (max-width: 640px) {
+  .mp-strip { padding: 4px 8px 10px; gap: 3px; }
+  .mp-day { padding: 3px 2px; font-size: 10px; }
+}
