@@ -138,11 +138,27 @@ test('the price says what the recipe costs only when the amount was compared', (
 test('unit price and store say unknown or catalog price instead of guessing', () => {
   assert.equal(unitPriceText(row()), '$1.51 / 100 g');
   assert.equal(unitPriceText(row({ unit_price: null, unit_basis: '' })), 'unit price unknown');
-  assert.equal(storeText(row()), 'GreenLeaf Grocers Kitsilano, 3.0 km');
+  assert.equal(storeText(row({ trip: null })), 'GreenLeaf Grocers Kitsilano, 3.0 km');
   assert.equal(storeText(row({ offer: { store: 'Pantry Mart Downtown', price: 1, distance_km: 0.2,
     on_trip: true } })), 'Pantry Mart Downtown, 0.2 km · on your trip');
   assert.equal(storeText(row({ offer: { store: '', price: 1, distance_km: null, on_trip: false } })),
     'catalog price (the plan has no shopping location)');
+});
+
+test("a row whose best trip skips the lowest-price store says where the trip buys it", () => {
+  // live: Ground Beef Lean is $6.79 at GreenLeaf, but the trip stays at Pantry Mart Downtown and
+  // the re-priced cart pays that store's price; the row must not imply the cart pays $6.79 there
+  assert.equal(storeText(row()), 'Lowest price at GreenLeaf Grocers Kitsilano, 3.0 km; '
+    + 'your best trip buys it at Pantry Mart Downtown instead');
+  const two = row({ trip: { total: 30, delta: 1, stores: ['A', 'B', 'C'], stops_delta: 1,
+    merges_with_line: null, moved_items: [] } });
+  assert.match(storeText(two), /buys it at A, B or C instead$/);
+  // the trip does stop at the offer's store: nothing to add
+  const at = row({ trip: { total: 30, delta: 1, stores: ['A', 'GreenLeaf Grocers Kitsilano'],
+    stops_delta: 1, merges_with_line: null, moved_items: [] } });
+  assert.equal(storeText(at), 'GreenLeaf Grocers Kitsilano, 3.0 km');
+  // no figure is made up for the trip store's price
+  assert.doesNotMatch(storeText(row()), /\$/);
 });
 
 test('moved purchases are named with both stores', () => {

@@ -106,12 +106,22 @@ export const unitPriceText = (item: RankedAlternative) =>
   (item.unit_price != null && item.unit_basis
     ? `${money(item.unit_price)} / ${item.unit_basis}` : 'unit price unknown');
 
+const listOf = (names: string[]) => (names.length < 2 ? names.join('')
+  : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`);
+
 // Where the offer is: the store and its distance, or the catalog price when the plan has no
-// shopping location.
+// shopping location. The offer is the lowest price in range, but the trip re-optimised with this
+// product may not stop there (a second stop can cost more than it saves); then the cart would buy
+// it at one of the trip's stores, at a price the ranking does not give. The row says so, so the
+// cart's price after "Use this" is not a surprise; the trip total is still the row's own.
 export function storeText(item: RankedAlternative): string {
   const o = item.offer;
   if (!o.store) return 'catalog price (the plan has no shopping location)';
   const km = o.distance_km != null ? `, ${o.distance_km.toFixed(1)} km` : '';
+  const stops = item.trip?.stores ?? [];
+  if (stops.length > 0 && !stops.includes(o.store)) {
+    return `Lowest price at ${o.store}${km}; your best trip buys it at ${listOf(stops)} instead`;
+  }
   return `${o.store}${km}${o.on_trip ? ' · on your trip' : ''}`;
 }
 
