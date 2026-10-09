@@ -292,16 +292,25 @@ export default function MealPlanView() {
     if (importInput.current) importInput.current.value = '';
   };
 
+  // Every remedy that is not an edit lands here (consequences.remedyStep), so none is a button
+  // that does nothing.
   const onAsk = (op: RemedyOp) => {
-    if (op.op === 'set_servings') {
-      const input = document.getElementById(`mp-servings-${op.recipe_key}`);
-      input?.scrollIntoView({ block: 'center' });
-      input?.focus();
-      if (!input) mp.announce('Say how many the recipe serves in the Pick band.');
-    } else if ('date' in op && (op.op === 'set_packs' || op.op === 'approve_trip' || op.op === 'open_options')) {
-      setTripSheet(op.date);
-    } else if (op.op === 'resolve') {
-      mp.retryResolve();
+    switch (op.op) {
+      case 'set_servings': {
+        const input = document.getElementById(`mp-servings-${op.recipe_key}`);
+        input?.scrollIntoView({ block: 'center' });
+        input?.focus();
+        if (!input) mp.announce('Say how many the recipe serves in the Pick band.');
+        break;
+      }
+      case 'set_packs': case 'approve_trip': case 'open_options':
+        setTripSheet(op.date);
+        break;
+      case 'resolve':
+        mp.retryResolve();
+        break;
+      default:
+        mp.announce('This console cannot make that change yet.');
     }
   };
 

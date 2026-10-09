@@ -275,7 +275,7 @@ export function WarningsPanel({ schedule, onAsk }: {
     .map((level) => [level, list.filter((w) => w.level === level)] as const)
     .filter(([, ws]) => ws.length);
   const run = (op: RemedyOp) => {
-    const r = remedyStep(op);
+    const r = remedyStep(op, mp.state);
     if ('edit' in r) mp.dispatch(r.edit);
     else onAsk(op);
   };

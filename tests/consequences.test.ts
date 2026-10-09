@@ -11,7 +11,7 @@ import {
   buyBy, moveChoices, moveConsequence, productNames, remedyLabel, remedyStep, tripMoveConsequence,
   warningsFor,
 } from '../src/mealplan/consequences.ts';
-import type { MealSchedule, PlanWarning } from '../src/types.ts';
+import type { MealSchedule, PlanWarning, RemedyOp } from '../src/types.ts';
 import { D, add, planWith, run } from './helpers/mealplan.ts';
 
 const real: MealSchedule = JSON.parse(readFileSync(new URL('./fixtures/mealplan-schedule.json',
@@ -113,19 +113,59 @@ test('warnings for a strategy include the plan-wide ones, most urgent first', ()
 });
 
 test('remedies become edits, or ask the shopper first', () => {
-  assert.deepEqual(remedyStep({ op: 'move_meal', meal_id: 'm#1', date: D(2), slot: 'lunch' }),
+  const s = planWith(7);
+  assert.deepEqual(remedyStep({ op: 'move_meal', meal_id: 'm#1', date: D(2), slot: 'lunch' }, s),
     { edit: { type: 'place', mealId: 'm#1', date: D(2), slot: 'lunch' } });
-  assert.deepEqual(remedyStep({ op: 'set_storage', product_id: 10, storage: 'freezer' }),
+  assert.deepEqual(remedyStep({ op: 'set_storage', product_id: 10, storage: 'freezer' }, s),
     { edit: { type: 'setStorage', productId: 10, storage: 'freezer' } });
-  assert.deepEqual(remedyStep({ op: 'set_packs', date: D(1), product_id: 10, packs: 0 }),
+  assert.deepEqual(remedyStep({ op: 'set_packs', date: D(1), product_id: 10, packs: 0 }, s),
     { edit: { type: 'setPacks', date: D(1), productId: 10, packs: 0 } });
-  assert.deepEqual(remedyStep({ op: 'set_pref', field: 'buy_ahead_days', value: 3 }),
+  assert.deepEqual(remedyStep({ op: 'set_pref', field: 'buy_ahead_days', value: 3 }, s),
     { edit: { type: 'setPrefs', prefs: { buy_ahead_days: 3 } } });
   for (const op of [{ op: 'set_servings', recipe_key: 'k' }, { op: 'set_packs', date: D(1), product_id: 10 },
     { op: 'open_options', date: D(1), product_id: 10 }, { op: 'resolve', recipe_key: 'k' },
     { op: 'approve_trip', date: D(1), strategy: 'fresh' }, { op: 'set_pref', field: 'lat', value: 1 }] as const) {
-    assert.ok('ask' in remedyStep(op), op.op);
+    assert.ok('ask' in remedyStep(op, s), op.op);
   }
+});
+
+// Every remedy pantry-api builds (pantry_planner/mealplan/warnings.py, with the values
+// schedule.py passes), so a new op or field shows up here before it shows as a dead button.
+const ENGINE_OPS: RemedyOp[] = [
+  { op: 'move_meal', meal_id: 'starter:pepperoni_pizza#1', date: D(2), slot: 'dinner' },
+  { op: 'set_storage', product_id: 10, storage: 'freezer' },
+  { op: 'add_trip', date: D(1) },
+  { op: 'set_servings', recipe_key: 'starter:pepperoni_pizza' },
+  { op: 'set_packs', date: D(1), product_id: 10 },
+  { op: 'set_packs', date: D(1), product_id: 10, packs: 0 },
+  { op: 'open_options', date: D(1), product_id: 10 },
+  { op: 'resolve', recipe_key: 'starter:pepperoni_pizza' },
+  { op: 'set_strategy', strategy: 'fewest_trips' },
+  { op: 'set_pref', field: 'days', value: 14 },
+  { op: 'set_pref', field: 'max_trips', value: 3 },
+  { op: 'approve_trip', date: D(1), strategy: 'fresh' },
+  { op: 'remove_meal', meal_id: 'starter:pepperoni_pizza#1' },
+];
+
+test('every remedy the engine sends is an edit or a question the view answers', () => {
+  const s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 2));
+  for (const op of ENGINE_OPS) {
+    const r = remedyStep(op, s);
+    assert.ok('edit' in r || r.ask !== 'unknown', JSON.stringify(op));
+  }
+});
+
+test('"Make the plan two weeks" lengthens the plan from the same start', () => {
+  // The unplaced must-fix's remedy, for more dinners than a seven-day plan has.
+  const s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 2));
+  const op: RemedyOp = { op: 'set_pref', field: 'days', value: 14 };
+  assert.equal(remedyLabel(op, s, new Map()), 'Make the plan two weeks');
+  const r = remedyStep(op, s);
+  assert.ok('edit' in r);
+  const next = run(s, r.edit);
+  assert.equal(next.draft.start_date, s.draft.start_date);
+  assert.equal(next.draft.days, 14);
+  assert.equal(remedyLabel({ op: 'set_pref', field: 'max_trips', value: 3 }, s, new Map()), 'Allow 3 trips');
 });
 
 test('remedies read as buttons, with product and recipe names from the plan', () => {

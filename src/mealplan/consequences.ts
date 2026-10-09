@@ -182,12 +182,13 @@ export function productNames(sc: MealSchedule | null): Map<number, string> {
 }
 
 // A remedy as a reducer edit, or what the shopper has to give first: a number (servings,
-// packs), a choice (Options), a slow call (resolve) or a trip to look at (approve).
+// packs), a choice (Options), a slow call (resolve) or a trip to look at (approve). 'unknown'
+// is an op this console does not know, from a newer engine.
 export type RemedyStep =
   | { edit: PlanEdit }
   | { ask: 'servings' | 'packs' | 'options' | 'resolve' | 'approve' | 'unknown'; op: RemedyOp };
 
-export function remedyStep(op: RemedyOp): RemedyStep {
+export function remedyStep(op: RemedyOp, s: MealPlanState): RemedyStep {
   switch (op.op) {
     case 'move_meal':
       return { edit: { type: 'place', mealId: op.meal_id, date: op.date, slot: op.slot } };
@@ -204,6 +205,13 @@ export function remedyStep(op: RemedyOp): RemedyStep {
     case 'set_strategy':
       return { edit: { type: 'setPrefs', prefs: { strategy: op.strategy } } };
     case 'set_pref':
+      // The engine names the plan's length as a setting, but it is the draft's window: a longer
+      // plan keeps its start date (and setWindow checks the length).
+      if (op.field === 'days') {
+        return typeof op.value === 'number'
+          ? { edit: { type: 'setWindow', start_date: s.draft.start_date, days: op.value } }
+          : { ask: 'unknown', op };
+      }
       return isPrefField(op.field)
         ? { edit: { type: 'setPrefs', prefs: { [op.field]: op.value } } }
         : { ask: 'unknown', op };
@@ -237,7 +245,10 @@ export function remedyLabel(op: RemedyOp, s: MealPlanState, names: Map<number, s
     case 'open_options': return `Other products for ${product(op.product_id)}`;
     case 'resolve': return `Check products for ${recipeTitle(s, op.recipe_key)}`;
     case 'set_strategy': return op.strategy === 'fresh' ? 'Shop fresh' : 'Shop in fewest trips';
-    case 'set_pref': return `Change ${op.field.replace(/_/g, ' ')}`;
+    case 'set_pref':
+      if (op.field === 'days') return op.value === 14 ? 'Make the plan two weeks' : `Make the plan ${String(op.value)} days`;
+      if (op.field === 'max_trips') return `Allow ${String(op.value)} trips`;
+      return `Change ${op.field.replace(/_/g, ' ')}`;
     case 'approve_trip': return `Review the trip on ${shortDate(op.date)}`;
     case 'remove_meal': return `Remove ${mealTitle(op.meal_id)}`;
     default: return 'Fix';
