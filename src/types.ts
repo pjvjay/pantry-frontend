@@ -1283,12 +1283,137 @@ export interface ApprovedScheduleTrip {
   total_cost: number | null;
   total_is_floor: boolean;
   list_text: string;
+  // calendar export (P7); absent from an older API
+  item_id?: string;
+  reason?: TripReason;
+  not_stocked?: string[];
+  price_delta?: number | null;
+  fingerprint?: string;
 }
 
 export interface ApprovedSchedule {
   trips: ApprovedScheduleTrip[];
   actions: PlanAction[];
   exportable: boolean;             // false while any approved trip needs review
+  // calendar export (P7): posted back unchanged to /calendar/preview and /calendar/ics; absent
+  // from an older API, which also sends null when no trip is approved
+  v?: 1;
+  plan_id?: string;
+  rev?: number;
+  start_date?: string;
+  days?: number;
+  calendar_name?: string;
+  cooks?: ScheduleCook[];
+  reminders?: ScheduleReminder[];
+  blocked?: ExportBlocked[];
+  synthetic_notice?: string;
+}
+
+// ─── Calendar export (pantry-api calendar_export.py) ─────────
+
+// Why a trip falls when it does: the tightest cited storage time among its lines, else the
+// shopper's buy-ahead setting.
+export interface TripReason {
+  text: string;
+  basis: 'cited' | 'your_setting' | 'none';
+  rule_ids: string[];
+  url: string | null;
+  page_date: string | null;
+}
+
+export interface CookNutrition {
+  basis: 'per_serving' | 'per_recipe';
+  servings: number | null;
+  status: 'complete' | 'incomplete' | 'below_floor';
+  totals: Partial<Record<NutrientKey, NutrientTotal>>;
+  demo_amounts: boolean;
+  coverage_note: string;
+}
+
+export interface ScheduleCook {
+  item_id: string;
+  meal_id: string;
+  recipe_key: string;
+  title: string;
+  date: string;
+  slot: MealSlot;
+  servings: number;                // how many the meal feeds
+  servings_set_by: 'household' | 'meal';
+  recipe_servings: number | null;  // how many the recipe makes; null: not stated, not answered
+  recipe_servings_basis: 'source' | 'your_setting' | null;
+  occurrence: number;
+  of: number;
+  ingredients: string[];           // the recipe's lines as written
+  label: string | null;
+  nutrition: CookNutrition | null;
+  nutrition_note: string;
+}
+
+// A reminder is exported only with a source: cited rows (rule ids) or the shopper's setting.
+export interface ReminderSource {
+  basis: 'cited' | 'your_setting';
+  rule_ids: string[];
+  setting: string | null;
+}
+
+export interface ScheduleReminder {
+  item_id: string;
+  kind: 'freeze' | 'thaw';
+  date: string;
+  product_id: number;
+  product: string;
+  text: string;
+  trip_id: string | null;
+  meal_id: string | null;
+  source: ReminderSource;
+}
+
+export type ExportBlockCode = 'not_approved' | 'needs_review' | 'no_longer_stocked';
+
+export interface ExportBlocked {
+  item_id: string;
+  code: ExportBlockCode;
+  date: string;
+  message: string;
+}
+
+export type CalendarInclude = 'trips' | 'cooks' | 'reminders';
+export type CalendarEventKind = 'trip' | 'cook' | 'freeze' | 'thaw';
+
+export interface CalendarExportRequest {
+  schedule: ApprovedSchedule;
+  include: CalendarInclude[];      // at least one
+}
+
+// One all-day event; `end` is the day after (exclusive), as the .ics and Google both read it.
+export interface CalendarEvent {
+  uid: string;
+  item_id: string;
+  kind: CalendarEventKind;
+  date: string;
+  end: string;
+  all_day: true;
+  title: string;
+  location: string | null;
+  description: string;
+  categories: string[];
+  sequence: number;
+  labels: string[];                // chips: store hours unknown, demo store, demo amounts, …
+  google_url: string;
+}
+
+export interface CalendarPreview {
+  calendar_name: string;
+  all_day: true;
+  events: CalendarEvent[];
+  counts: Record<CalendarEventKind, number>;
+  filename: string;
+  notes: string[];
+}
+
+export interface CalendarFile {
+  blob: Blob;
+  filename: string;
 }
 
 export interface MealSchedule {

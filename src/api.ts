@@ -1,4 +1,7 @@
 import type {
+  CalendarExportRequest,
+  CalendarFile,
+  CalendarPreview,
   CookDaysProposal,
   Health,
   MealPlanDraft,
@@ -18,6 +21,7 @@ import type {
   WeekPlan,
 } from './types';
 import { apiError } from './apiError';
+import { icsFileName } from './calendar';
 import { fromConsole } from './consoleRequest';
 
 export { ApiError } from './apiError';
@@ -38,7 +42,8 @@ export class PlanAbortError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit,
+  read: (res: Response) => Promise<T> = (res) => res.json() as Promise<T>): Promise<T> {
   const res = await fetch(`${API}${path}`, fromConsole(init));
   if (!res.ok) {
     let body: unknown;
@@ -55,7 +60,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // err.message keep working; the meal plan also reads its status and code.
     throw apiError(res.status, res.statusText, body, res.headers.get('Retry-After'));
   }
-  return res.json() as Promise<T>;
+  return read(res);
 }
 
 const post = <T>(path: string, body: unknown, signal?: AbortSignal) =>
@@ -139,3 +144,15 @@ export function getShelfLife(productIds: number[] = [], signal?: AbortSignal) {
   const query = q.toString();
   return request<ShelfLife>(`/shelf-life${query ? `?${query}` : ''}`, { signal });
 }
+
+// ─── calendar export ─────────────────────────────────────────
+// No LLM and no credentials: pantry-api builds the events from the approved_schedule the schedule
+// answer carries, posted back as it came. 409 while a trip needs review or lost a product.
+
+export const previewCalendar = (body: CalendarExportRequest, signal?: AbortSignal) =>
+  post<CalendarPreview>('/calendar/preview', body, signal);
+
+export const downloadCalendar = (body: CalendarExportRequest, signal?: AbortSignal) =>
+  request<CalendarFile>('/calendar/ics', { method: 'POST', body: JSON.stringify(body), signal },
+    async (res) => ({ blob: await res.blob(),
+      filename: icsFileName(res.headers.get('Content-Disposition')) }));
