@@ -9,7 +9,7 @@ import { useEffect, useId, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
 
 export function Sheet({ open, onClose, title, description, footer, initialFocus, returnFocus,
-  children }: {
+  className, children }: {
   open: boolean;
   // Called however the sheet is closed (Close, Escape, the backdrop); it must set `open` false.
   onClose: () => void;
@@ -22,6 +22,8 @@ export function Sheet({ open, onClose, title, description, footer, initialFocus,
   // Focused on close instead of the element that had focus at open: for an opener that may be
   // re-rendered away meanwhile, such as a cart line after a swap replaced its card.
   returnFocus?: RefObject<HTMLElement | null>;
+  // Added to "sheet", for a sheet that needs another width (the cart's Options are wider).
+  className?: string;
   children: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -62,7 +64,7 @@ export function Sheet({ open, onClose, title, description, footer, initialFocus,
   return (
     <dialog
       ref={dialog}
-      className="sheet"
+      className={className ? `sheet ${className}` : 'sheet'}
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
       onClose={closed}

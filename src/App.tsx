@@ -27,6 +27,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'system', label: 'System' },
 ];
 
+// Where an in-page link can lead: a card's link to a tab this console lacks is not drawn.
+const ROUTES: readonly string[] = TABS.map((t) => t.id);
+
 // `#/<tab>` or `#/<tab>?product=<id>`; the hash keeps a tab bookmarkable and survives reloads.
 function readHash(): { tab: Tab; product: number | null } {
   const [path, query] = window.location.hash.replace(/^#\/?/, '').split('?');
@@ -131,7 +134,7 @@ export default function App() {
       )}
       {tab === 'overview' && <OverviewView go={(t) => go(t)} />}
       {tab === 'planner' && <PlannerView />}
-      {tab === 'assistant' && <AssistantView />}
+      {tab === 'assistant' && <AssistantView routes={ROUTES} />}
       {tab === 'catalog' && <CatalogView onLabel={(id) => go('provenance', `?product=${id}`)} />}
       {tab === 'provenance' && <ProvenanceView initialProduct={product} />}
       {tab === 'mcp' && <McpView />}

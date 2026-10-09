@@ -216,6 +216,8 @@ export interface BasisLine {
   level: 'exact' | 'form' | 'generic';
   product_id: number | null;
   confidence: number | null;
+  // the selector called its pick a substitution, so a re-price keeps saying so
+  substitution: boolean;
 }
 
 // The shopper's own choice for a line, which the planner keeps.
@@ -260,6 +262,131 @@ export interface PlanBasis {
   skipped: DroppedIngredient[];
   ingredient_count: number;
   pins: Pin[];
+  servings: number | null;         // the plan's own servings, so a re-price reports them
+}
+
+// ─── a planned line's alternatives (AlternativeRanking) ──────
+// The other products that could fill one line of a plan, in the planner's own order, with the
+// cart's pick among them (`current`). Built by pantry-api's alternatives.py from the plan's
+// basis and the database alone: every fact on a row is a database fact or says it is unknown,
+// and `data_note` labels what is demo data. Mirrors models.py.
+
+// A short reason on a row; `tone` says how to show it, and its text says it without colour.
+export interface AltReason {
+  code: string;                    // match | pack | origin | trip | rating
+  text: string;
+  tone: 'plus' | 'minus' | 'info' | 'unknown';
+}
+
+// The product's cheapest offer in range, per pack. `store` is '' and `distance_km` null when
+// the plan has no shopping location (the catalog price).
+export interface AltOffer {
+  store: string;
+  price: number;
+  distance_km: number | null;
+  on_trip: boolean;
+}
+
+// Another purchase the trip buys at a different store after the swap.
+export interface AltMove {
+  product_id: number;
+  product: string;
+  from_store: string;
+  to_store: string;
+}
+
+// Where a trip buys a product, and its price a pack there.
+export interface AltBuy {
+  store: string;
+  price: number;
+  distance_km: number | null;
+}
+
+// The cart's trip re-optimised with this product on the line, exactly as a swap would price it.
+// `buys_at`: the store that trip buys the product at and its price a pack there, which is what
+// the cart charges after the swap (the row's offer is the lowest price in range, which the trip
+// may skip when the stop costs more than it saves). Absent from an older pantry.
+export interface AltTrip {
+  total: number;
+  delta: number;                   // 0 for the cart's own pick
+  stores: string[];
+  stops_delta: number;
+  buys_at?: AltBuy | null;
+  merges_with_line: number | null;
+  moved_items: AltMove[];
+}
+
+export interface AltOrigin {
+  status: string;
+  country: string;                 // '' unless the evidence resolved
+  claim: 'full' | 'processing' | '';
+  label: string;                   // e.g. "Origin not checked"
+  verbatim: string;
+  source: string;
+  demo: boolean;                   // evidence from a demo label photo
+}
+
+export interface AltRating {
+  avg: number;
+  count: number;
+  synthetic: boolean;
+}
+
+export interface RankedAlternative {
+  rank: number;
+  current: boolean;                // the cart's pick
+  product_id: number;
+  product: string;
+  brand: string;
+  size: string;
+  // same: the ingredient itself; other: shares a word or the aisle; outside: the cart's pick
+  // when it matches none of the line's words
+  tier: 'same' | 'other' | 'outside';
+  match: 'exact' | 'form' | 'generic' | 'related' | 'substitute' | 'outside';
+  offer: AltOffer;
+  packs: number;                   // what the cart would buy
+  pack_fit: 'covers' | 'short' | 'unknown';
+  cost_for_need: number | null;    // null: the amount or the pack size is unknown or not comparable
+  unit_price: number | null;
+  unit_basis: '100 g' | '100 ml' | 'each' | '';
+  trip: AltTrip | null;            // null: no shopping location, or not worked out for this row
+  origin: AltOrigin;
+  rating: AltRating | null;        // null: no reviews (never 0 stars)
+  says_organic: boolean;
+  reasons: AltReason[];            // at most 5: match, pack, origin, trip, rating
+  rank_reason: string;             // why it sits below the row above, in plain words
+}
+
+// A product the plan's origin exclusion holds back: shown with its evidence, never choosable.
+export interface HeldBack {
+  product_id: number;
+  product: string;
+  country: string;
+  field: string;                   // ingredient_origin | manufactured_in | conflicting_evidence
+  verbatim: string;
+  source: string;
+  demo: boolean;
+}
+
+export interface AlternativeRanking {
+  line_no: number;
+  lines: number[];                 // every recipe line the purchase covers
+  ingredient: string;
+  need: string;                    // "500 g", or '' when there is no amount to compare
+  // why `need` is '': "Recipe gives no amount", "Planned without amounts (a library recipe)",
+  // "Recipe amount '2 cloves' can't be compared with a pack"; absent from an older pantry
+  need_note?: string;
+  need_qty: number | null;
+  need_uom: string | null;
+  order: string[];
+  ranking_text: string;
+  items: RankedAlternative[];      // the first `limit` rows, plus the cart's pick wherever it ranks
+  held_back: HeldBack[];
+  total: number;                   // every ranked row
+  unavailable: number;             // matching products with no offer in range
+  counts: { exact: number; no_new_stop: number; preferred_origin: number; says_organic: number;
+            rated: number };
+  data_note: string;
 }
 
 // 5A: weekly menu optimizer (/plan/week)
@@ -522,9 +649,15 @@ export type PlanCardData = {
   // with cart alternatives: the hub's tool_log index of the plan behind the card, which the
   // Options dialog and a swap name, and the lines the shopper has pinned
   ref?: number; pinned_lines?: number[];
-  // with the meal plan: links the card offers, such as a week card's "Open in Meal plan"
+  // links the card offers, such as a week card's "Open in Meal plan"; the console draws one only
+  // when it has the tab the link leads to (alternatives.routedLinks)
   links?: { label: string; href: string }[];
 };
+
+// The hub's answer to a swap in a chat cart: the re-priced plan's card, which replaces the card
+// it was chosen from, and the note the model reads next turn ('' when the line is back to what
+// the model last saw).
+export type SwapResult = { card: PlanCardData; note: string };
 
 // Every event is stamped by the hub: `ts` ms since the turn began, `at` epoch ms when it was sent
 // (the browser measures how late it arrived).
@@ -572,8 +705,14 @@ type AgentEventBody =
       reasoning?: string }
   // `plans`: the turn's plan results as data, drawn by the browser under `reply` (the model's
   // own sentences); `text` is the same answer with the hub's Markdown tables
-  | { type: 'assistant'; text: string; step: number; reply?: string;
-      plans?: { kind: 'plan' | 'week'; summary: Record<string, unknown> }[] }
+  | { type: 'assistant'; text: string; step: number; reply?: string; plans?: PlanCardData[] }
+  // A change the shopper made in a cart since the last turn, told to the model at the start of
+  // this one (`note` is the line it reads); sent right after 'start', once per changed line.
+  | { type: 'cart_change'; ref: number; line_no: number; lines: number[]; recipe_name: string;
+      ingredient: string; from: { id: number | null; name: string };
+      to: { id: number | null; name: string }; total_before: number | null;
+      total_after: number | null; stores_after: string[]; undone: boolean; note: string;
+      structured: { summary: CartSummary; full: null } }
   | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown>; step: number }
   | ({ type: 'tool_result'; id: string; step: number; model_chars?: number } & ToolResult)
   | ({ type: 'evals'; trace_id: string } & Evals)
