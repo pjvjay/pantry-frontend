@@ -822,6 +822,7 @@ tr.row-active td { background: var(--accent-soft); }
 .mp-day {
   display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 6px;
   border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+  container-type: inline-size;
 }
 .mp-day-head { margin: 0; font-size: 13px; font-weight: 650; }
 .mp-row-k { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
@@ -867,6 +868,12 @@ tr.row-active td { background: var(--accent-soft); }
   border-radius: 6px; font-size: 16px; line-height: 1;
 }
 .mp-chip-more:hover { background: var(--accent-soft); }
+/* A narrow day column (seven of them on a laptop screen): the grip and the ⋯ share the top row
+   and the name gets the chip's whole width, so it wraps between words, not inside them. */
+@container (max-width: 150px) {
+  .mp-chip { grid-template-areas: "grip . more" "main main main" "nut nut nut"; }
+  .mp-chip-title { overflow-wrap: break-word; hyphens: auto; }
+}
 
 .mp-trip { display: flex; align-items: center; gap: 2px; margin-top: 2px; border-radius: 8px; padding: 2px; }
 .mp-trip-suggested { outline: 2px dashed var(--line-strong); outline-offset: -2px; }
