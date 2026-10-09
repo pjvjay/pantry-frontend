@@ -211,7 +211,9 @@ export const importRecipe = (url: string) =>
 
 // Gemini watches a public video for its ingredient lines: only on the shopper's click, which is
 // the consent the hub requires. Every line comes back unconfirmed until the shopper ticks it.
-// duration_s is the shopper's estimate when the hub cannot read the video's length.
+// duration_s is the length the sheet shows: the YouTube Data API's, or the shopper's estimate.
+// The hub reads the length itself when it can, and needs this when it cannot (422
+// needs_duration), as when its key is refused between the link import and the click.
 export const importVideo = (body: { video_id: string; duration_s?: number | null }) =>
   json<ImportResult>(`${HUB}/recipes/import/video`, post({
     video_id: body.video_id, consent: true,

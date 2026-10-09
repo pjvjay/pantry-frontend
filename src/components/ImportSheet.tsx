@@ -233,7 +233,7 @@ function VideoPanel({ video, result, hasDoc, support, busy, onReadLink, onPaste,
             )}
             {transcribe.enabled && daily && <p className="muted">{dailyText(daily)}</p>}
             <button type="button" disabled={busy || !!why} aria-describedby={why ? reasonId : undefined}
-                    onClick={() => onTranscribe(video.duration_s == null ? length : null)}>
+                    onClick={() => onTranscribe(length)}>
               Transcribe with Gemini{length != null && transcribe.enabled ? ` (${durationText(length)} of video)` : ''}
             </button>
             {why && <p id={reasonId} className="hint">{why}</p>}
