@@ -100,10 +100,10 @@ export const packPrice = (item: RankedAlternative): number =>
 // The row's price in bold, and the note under it. With the recipe's amount and the pack size
 // known: what that amount costs (pantry prices it as packPrice does). Otherwise the pack's price,
 // with pantry's reason the amount was not compared ("Recipe gives no amount", "Pack in ml, recipe
-// in g").
-export function priceLine(item: RankedAlternative): { main: string; note: string } {
+// in g"). `buyer` is who buys the packs: the cart, or a meal plan's trip.
+export function priceLine(item: RankedAlternative, buyer = 'the cart'): { main: string; note: string } {
   const pack = reasonOf(item, 'pack')?.text ?? '';
-  const packs = item.packs > 1 ? `; the cart buys ${item.packs}` : '';
+  const packs = item.packs > 1 ? `; ${buyer} buys ${item.packs}` : '';
   if (item.cost_for_need != null) {
     return { main: `For this recipe ${money(item.cost_for_need)}`,
              note: `${money(packPrice(item))} a pack${packs}${pack ? `. ${pack}` : ''}` };

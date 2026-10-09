@@ -136,6 +136,9 @@ test('the price says what the recipe costs only when the amount was compared', (
   assert.deepEqual(priceLine(compared), {
     main: 'For this recipe $15.90',
     note: "$7.95 a pack; the cart buys 2. Covers the recipe's 900 g in 2 packs" });
+  // on a meal-plan trip line the trip buys the packs
+  assert.equal(priceLine(compared, 'the trip').note,
+    "$7.95 a pack; the trip buys 2. Covers the recipe's 900 g in 2 packs");
 });
 
 test("a row's price is what the cart charges after the swap, not the lowest price in range", () => {
