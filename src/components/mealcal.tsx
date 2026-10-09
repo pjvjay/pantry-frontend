@@ -155,7 +155,7 @@ export function TripChip({ ctl, trip }: { ctl: BoardCtl; trip: Trip }) {
   // An approved trip stays where it is until the approval is taken back.
   const movable = look.kind === 'suggested';
   return (
-    <div className={`mp-trip mp-trip-${look.kind}`} data-held={held || undefined}>
+    <div className={`mp-trip mp-trip-${look.kind}`} data-trip={trip.date} data-held={held || undefined}>
       {movable && <span className="mp-grip" aria-hidden="true" title="Drag to another day's Shop row" {...ctl.grip(payload)} />}
       <button type="button" className="mp-trip-main" onClick={() => ctl.openTrip(trip)}
               aria-label={`Shopping trip ${dayLabel(trip.date)}: ${tripChipText(trip)}. Open the list.`}>

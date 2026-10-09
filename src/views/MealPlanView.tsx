@@ -39,6 +39,10 @@ const PLACES: { label: string; lat: number | null; lon: number | null }[] = [
 const inText = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 
+// A meal's chip, on the board or in the tray, and a day's trip chip (mealcal.tsx).
+const mealChipSelector = (mealId: string) => `[data-meal="${CSS.escape(mealId)}"] .mp-chip-main`;
+const tripChipSelector = (date: string) => `[data-trip="${CSS.escape(date)}"] .mp-trip-main`;
+
 function Settings() {
   const mp = useMealPlan();
   const d = mp.state.draft;
@@ -133,7 +137,10 @@ export default function MealPlanView() {
   const [firstRun, setFirstRun] = useState(() => d.rev === 0 && Object.keys(d.recipes).length === 0);
   const [windowAsk, setWindowAsk] = useState<{ start: string; days: number; reason: string } | null>(null);
   const [importProblem, setImportProblem] = useState<string | null>(null);
-  const focusAfter = useRef<{ meal?: string; source?: string } | null>(null);
+  // Where focus goes once the render that moved or put something down is on screen. It is
+  // state, not a ref, so it is used by the render it was asked for and by no later one: a
+  // leftover request would pull focus out of whatever the shopper is typing in next.
+  const [focusTo, setFocusTo] = useState<{ selector: string } | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
 
   const label = useCallback((p: DragPayload) => {
@@ -142,11 +149,14 @@ export default function MealPlanView() {
     return m ? recipeTitle(state, m.recipe_key) : 'that meal';
   }, [d.meals, state]);
 
-  // A meal moved: focus it where it landed, so the keyboard carries on from there.
+  // A meal moved, to a slot or back to the tray: focus it where it landed, so the keyboard
+  // carries on from there instead of from the page.
   const apply = useCallback((edit: PlanEdit | null) => {
     if (!edit) return;
     const out = mp.dispatch(edit);
-    if (!out.refused && edit.type === 'place') focusAfter.current = { meal: edit.mealId };
+    if (!out.refused && (edit.type === 'place' || edit.type === 'unplace')) {
+      setFocusTo({ selector: mealChipSelector(edit.mealId) });
+    }
   }, [mp]);
 
   const onEffect = useCallback((effect: NonNullable<DragEffect>) => {
@@ -178,12 +188,8 @@ export default function MealPlanView() {
   useEffect(() => { syncSaved(); }, [syncSaved]);
 
   useEffect(() => {
-    const f = focusAfter.current;
-    if (!f) return;
-    focusAfter.current = null;
-    const sel = f.meal ? `[data-meal="${CSS.escape(f.meal)}"] .mp-chip-main` : null;
-    if (sel) document.querySelector<HTMLElement>(sel)?.focus();
-  }, [state]);
+    if (focusTo) document.querySelector<HTMLElement>(focusTo.selector)?.focus();
+  }, [focusTo]);
 
   // Tapping what is held puts it down; anything else is picked up instead.
   const pick = useCallback((p: DragPayload) => {
@@ -195,13 +201,13 @@ export default function MealPlanView() {
   }, [mp, label]);
   pickRef.current = pick;
 
+  // Escape or Cancel: focus goes back to what was picked up (the Cancel button pressed is gone
+  // once nothing is held).
   const cancelHeld = useCallback(() => {
     if (!held) return;
-    const source = held.kind === 'meal' ? held.mealId : null;
     setHeld(null);
     mp.announce('Move cancelled.');
-    if (source) focusAfter.current = { meal: source };
-    else document.querySelector<HTMLElement>('.mp-trip-main')?.focus();
+    setFocusTo({ selector: held.kind === 'meal' ? mealChipSelector(held.mealId) : tripChipSelector(held.date) });
   }, [held, mp]);
 
   const dropOn = useCallback((key: string) => {
