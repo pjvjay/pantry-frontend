@@ -194,6 +194,13 @@ export const swapNotice = (note: string) => (note
   ? 'You changed the cart. The assistant sees the change with your next message.'
   : 'The cart is back to what the assistant last saw.');
 
+// Under a turn's carts once the shopper has changed one of them: the assistant's sentences above
+// were written for the cart it planned, and stay as written, so their figures may be the old
+// ones. Pins mark the change; an undo removes them, and with them this line. '' when unchanged.
+export const replyBeforeChange = (plans: readonly PlanCardData[]) =>
+  (plans.some((c) => (c.pinned_lines?.length ?? 0) > 0)
+    ? 'The sentences above describe the cart before your change.' : '');
+
 // The chat's record of a change the next turn told the model about.
 export function cartChangeText(e: { line_no: number; ingredient: string; recipe_name: string;
   from: { name: string }; to: { name: string }; undone: boolean;

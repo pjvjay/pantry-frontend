@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import {
-  cartChangeText, cartLineKey, purchaseLineNo, replaceCard, swapAnnouncement, swapBlocked,
-  swapNotice,
+  cartChangeText, cartLineKey, purchaseLineNo, replaceCard, replyBeforeChange, swapAnnouncement,
+  swapBlocked, swapNotice,
 } from '../alternatives';
 import { AlternativesDialog } from '../components/alternatives';
 import type { OptionsTarget } from '../components/alternatives';
@@ -200,12 +200,14 @@ const ChatItem = memo(function ChatItem({ it }: { it: Item }) {
     // every plan drawn as a cart; a week plan keeps the hub's Markdown tables
     const plans = it.plans ?? [];
     if (plans.length > 0 && plans.every((c) => c.kind === 'plan')) {
+      const before = it.reply ? replyBeforeChange(plans) : '';
       return (
         <div className="bubble bubble-agent bubble-cart">
           {it.reply && <Markdown text={it.reply} />}
           {plans.map((c, i) => (
             <CartCard key={i} summary={c.summary} cardRef={c.ref} pinned={c.pinned_lines} />
           ))}
+          {before && <p className="cart-notice">{before}</p>}
           {it.notice && <p className="cart-notice">{it.notice}</p>}
         </div>
       );

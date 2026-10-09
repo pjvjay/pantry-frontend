@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   cartChangeText, cartLineKey, cartTotal, chipReasons, coversText, footText, isPinned, lineNotes,
   linesOf, money, movedText, needText, optionsLabel, priceLine, purchaseLineNo, replaceCard,
-  rowsOf, storeText,
+  replyBeforeChange, rowsOf, storeText,
   swapAnnouncement, swapBlocked, swapNotice, unitPriceText,
 } from '../src/alternatives.ts';
 import type {
@@ -217,6 +217,14 @@ test('after a swap that joins another purchase, focus goes to the purchase that 
   assert.equal(purchaseLineNo(merged, 1), 1);
   // a line the cart no longer holds keeps its own number (nothing to focus, nothing made up)
   assert.equal(purchaseLineNo(merged, 9), 9);
+});
+
+test("the answer's sentences are marked as describing the cart before the shopper's change", () => {
+  const planned: PlanCardData = { kind: 'plan', ref: 1, pinned_lines: [], summary: {} };
+  assert.equal(replyBeforeChange([planned]), '');
+  assert.equal(replyBeforeChange([{ kind: 'plan', ref: 1, summary: {} }]), '');
+  assert.match(replyBeforeChange([planned, { ...planned, ref: 4, pinned_lines: [2] }]),
+    /before your change/);
 });
 
 test('the chat says whether the assistant still has to hear about a swap', () => {
