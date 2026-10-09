@@ -1425,9 +1425,13 @@ export interface ShelfLifeProduct {
   synthetic_product: boolean;
 }
 
+// The source as shelf_life.json records it: the page's own date line, its reuse terms and, for
+// the chart, the page's notes quoted word for word.
 export interface ShelfLifeSource extends ScheduleSource {
   page_date_text?: string;
   licence?: string;
+  licence_url?: string;
+  notes_verbatim?: string[];
 }
 
 export interface ShelfLife {
