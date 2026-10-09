@@ -95,6 +95,11 @@ export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
   const [runtime, setRuntime] = useState<RuntimeSettings | null>(null);
   const stale = useNewBuild();
+  // The Assistant stays mounted once opened: its conversation survives a trip to another tab
+  // (a meal-plan card's "Open in Meal plan", say) and back. Never opened, it is not mounted, so
+  // a local model is not asked to warm up for a tab nobody used.
+  const [assistantOpened, setAssistantOpened] = useState(tab === 'assistant');
+  useEffect(() => { if (tab === 'assistant') setAssistantOpened(true); }, [tab]);
 
   useEffect(() => {
     const onHash = () => setRoute(readHash());
@@ -147,7 +152,11 @@ export default function App() {
           <MealPlanView />
         </Suspense>
       )}
-      {tab === 'assistant' && <AssistantView routes={ROUTES} />}
+      {assistantOpened && (
+        <div hidden={tab !== 'assistant'}>
+          <AssistantView routes={ROUTES} />
+        </div>
+      )}
       {tab === 'catalog' && <CatalogView onLabel={(id) => go('provenance', `?product=${id}`)} />}
       {tab === 'provenance' && <ProvenanceView initialProduct={product} />}
       {tab === 'mcp' && <McpView />}
