@@ -17,22 +17,25 @@ const SLOT_SHORT: Record<string, string> = { breakfast: 'B', lunch: 'L', dinner:
 function Strip({ plan }: { plan: ChatMealPlan }) {
   const days = stripDays(plan);
   return (
-    <ol className="mp-strip" aria-label={`The draft by day, ${dayLabel(plan.start_date)} to ${dayLabel(endOf(plan))}`}>
+    <ol className="mpc-strip" aria-label={`The draft by day, ${dayLabel(plan.start_date)} to ${dayLabel(endOf(plan))}`}>
       {days.map((d) => {
         const said = d.meals.map((m) => `${m.title} (${m.slot}${m.new ? ', new' : ''})`);
         if (d.trip) said.push(`suggested trip ${tripText(d.trip)}`);
         return (
-          <li key={d.date} className={`mp-day${d.meals.some((m) => m.new) ? ' mp-day-new' : ''}`}
+          <li key={d.date} className={`mpc-day${d.meals.some((m) => m.new) ? ' mpc-day-new' : ''}`}
               aria-label={`${d.label}: ${said.join(', ') || 'nothing planned'}`}>
-            <span className="mp-day-head" aria-hidden="true">{d.label.split(' ').slice(0, 2).join(' ')}</span>
-            <span className="mp-day-meals" aria-hidden="true">
+            <span className="mpc-day-head" aria-hidden="true">
+              <span className="mpc-wd-long">{d.label.slice(0, 3)}</span>
+              <span className="mpc-wd-short">{d.label.slice(0, 2)}</span> {d.label.split(' ')[1]}
+            </span>
+            <span className="mpc-day-meals" aria-hidden="true">
               {d.meals.map((m, i) => (
-                <span key={i} className={`mp-meal${m.new ? ' mp-meal-new' : ''}`} title={`${m.title} (${m.slot})`}>
-                  <span className="mp-meal-slot">{SLOT_SHORT[m.slot] ?? '?'}</span>{initials(m.title)}
+                <span key={i} className={`mpc-meal${m.new ? ' mpc-meal-new' : ''}`} title={`${m.title} (${m.slot})`}>
+                  <span className="mpc-meal-slot">{SLOT_SHORT[m.slot] ?? '?'}</span>{initials(m.title)}
                 </span>
               ))}
             </span>
-            {d.trip && <span className="mp-trip" aria-hidden="true" title={`Suggested trip: ${tripText(d.trip)}`}>🛒</span>}
+            {d.trip && <span className="mpc-trip" aria-hidden="true" title={`Suggested trip: ${tripText(d.trip)}`}>🛒</span>}
           </li>
         );
       })}
@@ -44,7 +47,9 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
   const mp = useMealPlan();
   const plan = asMealPlan(card.summary);
   const [decisions, setDecisions] = useState<Decisions>({});
-  const [result, setResult] = useState<{ said: string; skipped: string[] } | null>(null);
+  // once applied: what was said, what could not be applied, and the changes as they were
+  // listed (the plan now holds them, so a fresh diff would count them again)
+  const [result, setResult] = useState<{ said: string; skipped: string[]; diff: string[] } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   if (!plan) return null;
 
@@ -74,39 +79,40 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
       return;
     }
     setProblem(null);
-    setResult({ said: out.said, skipped: out.skipped });
+    setResult({ said: out.said, skipped: out.skipped, diff });
     mp.announce(`${out.said} Undo is in the Meal plan.`);
   };
 
   return (
-    <section className="cart mp-card" aria-label={`Meal plan draft: ${plan.days} days from ${dayLabel(plan.start_date)}`}>
+    <section className="cart mpc-card" aria-label={`Meal plan draft: ${plan.days} days from ${dayLabel(plan.start_date)}`}>
       <div className="cart-head">
         <div>
           <div className="cart-title">Meal plan draft</div>
           <div className="muted">
             {plan.days} days from {dayLabel(plan.start_date)} · {newMeals} new meal{newMeals === 1 ? '' : 's'} · each serves {plan.household_servings}
           </div>
-          {card.label && <span className="chip chip-muted mp-label">{card.label}</span>}
+          {card.label && <span className="chip chip-muted mpc-label">{card.label}</span>}
         </div>
         <div className="cart-total" title="The suggested trips' total (demo prices)">{total}</div>
       </div>
 
       <Strip plan={plan} />
 
-      <div className="mp-section">
-        <h4>What Apply changes in your Meal plan</h4>
-        {!fresh && (
+      <div className="mpc-section">
+        <h4>{result ? 'Applied to your Meal plan' : 'What Apply changes in your Meal plan'}</h4>
+        {!fresh && !result && (
           <p className="cart-flag">Your Meal plan changed since this draft: each change is tried
             in turn, and a meal whose slot is taken waits for a free one.</p>
         )}
-        {diff.length ? <ul className="mp-diff">{diff.map((line) => <li key={line}>{line}</li>)}</ul>
+        {(result?.diff ?? diff).length
+          ? <ul className="mpc-diff">{(result?.diff ?? diff).map((line) => <li key={line}>{line}</li>)}</ul>
           : <p className="muted">Nothing yet: say Use to a dish below.</p>}
       </div>
 
       {plan.proposals.length > 0 && (
-        <div className="mp-section">
+        <div className="mpc-section">
           <h4>Needs your OK (not placed)</h4>
-          <ul className="mp-proposals">
+          <ul className="mpc-proposals">
             {plan.proposals.map((p) => {
               const d = decisions[p.recipe_key];
               return (
@@ -128,9 +134,9 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
       )}
 
       {plan.unmatched.length > 0 && (
-        <div className="mp-section">
+        <div className="mpc-section">
           <h4>Not found</h4>
-          <ul className="mp-diff">
+          <ul className="mpc-diff">
             {plan.unmatched.map((u) => (
               <li key={u.input}>
                 {u.input}
@@ -141,25 +147,25 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
         </div>
       )}
 
-      <div className="mp-section">
+      <div className="mpc-section">
         <h4>Suggested trips ({plan.strategy === 'fresh' ? 'shop fresh' : 'fewest trips'})</h4>
         {plan.trips.length ? (
-          <ul className="mp-diff">
+          <ul className="mpc-diff">
             {plan.trips.map((t) => (
               <li key={t.date}>{tripText(t)} <span className="muted">at {t.stores.join(', ') || 'no store'} · {t.items} item{t.items === 1 ? '' : 's'}</span></li>
             ))}
           </ul>
         ) : <p className="muted">No trips yet.</p>}
         <p className="muted">Demo prices. Only you approve a trip, in the Meal plan.</p>
-        {plan.nutrition && <p className="muted mp-nutrition">{plan.nutrition}</p>}
+        {plan.nutrition && <p className="muted mpc-nutrition">{plan.nutrition}</p>}
         {plan.warnings.length > 0 && (
-          <ul className="mp-warnings">{plan.warnings.map((w) => <li key={w} className="cart-flag">{w}</li>)}</ul>
+          <ul className="mpc-warnings">{plan.warnings.map((w) => <li key={w} className="cart-flag">{w}</li>)}</ul>
         )}
       </div>
 
-      <div className="cart-foot mp-actions">
+      <div className="cart-foot mpc-actions">
         {result ? (
-          <p role="status" className="mp-applied">
+          <p role="status" className="mpc-applied">
             Applied: {result.said}{result.skipped.length > 0 && ` Not applied: ${result.skipped.join('; ')}.`} Undo is in the Meal plan.
           </p>
         ) : (
