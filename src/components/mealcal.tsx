@@ -301,8 +301,10 @@ export function MoveSheet({ ctl, mealId, onClose }: {
              <button type="button" className="danger" onClick={() => go({ type: 'remove', mealId: meal.id })}>Remove this meal</button>
            </>}>
       <div className="mp-move-opts">
-        <label className="mp-stepper">
-          <span>Serves</span>
+        {/* A group, not a label: a label hands its clicks to its first button, so pressing the
+            word or the number would take a person off the meal. */}
+        <div className="mp-stepper" role="group" aria-labelledby="mp-move-serves">
+          <span id="mp-move-serves">Serves</span>
           <button type="button" className="secondary mini" aria-label="One person fewer"
                   disabled={(servings ?? household) <= 1}
                   onClick={() => dispatch({ type: 'setMealServings', mealId: meal.id, servings: Math.max(1, (servings ?? household) - 1) })}>−</button>
@@ -316,7 +318,7 @@ export function MoveSheet({ ctl, mealId, onClose }: {
               back to the household
             </button>
           )}
-        </label>
+        </div>
         {meal.date && (
           <label className="check">
             <input type="checkbox" checked={meal.pinned}
