@@ -86,8 +86,12 @@ export default function MealPlanView() {
   useEffect(() => {
     const onHash = () => {
       const asked = stepFromHash(window.location.hash);
-      if (asked !== null) setStep(routeStep(asked, factsRef.current, null, true));
-      else if (window.location.hash.startsWith('#/mealplan')) {
+      if (asked !== null) {
+        const to = routeStep(asked, factsRef.current, null, true);
+        // held back to the stage shown already: the effect below would not run, so say it here
+        if (to !== asked) window.history.replaceState(null, '', stepHash(to));
+        setStep(to);
+      } else if (window.location.hash.startsWith('#/mealplan')) {
         window.history.replaceState(null, '', stepHash(stepRef.current));
       }
     };

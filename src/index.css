@@ -1184,7 +1184,8 @@ details.mp-section > summary .mp-section-head { display: inline; }
   .mp-step:not(.mp-step-current) .mp-step-name {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap;
   }
-  .mp-step-current .mp-step-name { font-size: 12px; }
+  /* between words only: "Shopping plan" on two lines, never "Shoppin g" */
+  .mp-step-current .mp-step-name { font-size: 12px; overflow-wrap: normal; }
   .mp-wnav button { flex: 1 1 auto; }
   .mp-wnav-why { text-align: left; }
   .mp-budget { padding: 6px 10px; }
