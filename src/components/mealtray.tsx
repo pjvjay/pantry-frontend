@@ -1,10 +1,11 @@
-// The meal plan's Pick band: what to cook and how many times. Quick add reads a sentence ("3
+// The meal plan's tray and Quick add: what to cook and how many times. Quick add reads a sentence ("3
 // Pepperoni Pizza + 2 Chicken Fried Rice + 3 chicken briyani + 7 mango milkshakes in 2 weeks")
 // into chips; only an exact or plural match goes in without asking, and anything matched by an
 // alias or by spelling is a one-tap question. Each recipe in the plan has a count (a count is
 // one meal for the household: "3 meals × 2 people"), a slot, and its meals still waiting in
 // the tray. A recipe that does not say how many it serves asks the shopper, and the answer is
-// labelled as theirs.
+// labelled as theirs. The wizard shows Quick add in Meals, beside the recipe cards, and the tray
+// on Schedule, without the ways to add (compact).
 import { useEffect, useRef, useState } from 'react';
 
 import { getRecipes } from '../api';
@@ -72,7 +73,7 @@ function QuickChip({ item, index, household, onDecide }: {
   );
 }
 
-function QuickAdd({ text, setText }: { text: string; setText: (t: string) => void }) {
+export function QuickAdd({ text, setText }: { text: string; setText: (t: string) => void }) {
   const mp = useMealPlan();
   const household = mp.state.draft.prefs.household_servings;
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -156,7 +157,7 @@ function QuickAdd({ text, setText }: { text: string; setText: (t: string) => voi
 
 // ─── Recipes in the plan ─────────────────────────────────────
 
-function ServingsPrompt({ recipeKey, title }: { recipeKey: string; title: string }) {
+export function ServingsPrompt({ recipeKey, title }: { recipeKey: string; title: string }) {
   const mp = useMealPlan();
   const [value, setValue] = useState('');
   const n = Number(value);
@@ -254,7 +255,9 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
 
 // ─── Adding recipes ──────────────────────────────────────────
 
-function AddRecipes() {
+// The starters, the library and My recipes as plain lists: the wizard's Meals stage falls back
+// to these when the catalog cannot be had.
+export function AddRecipes() {
   const mp = useMealPlan();
   const d = mp.state.draft;
   const [library, setLibrary] = useState<Recipe[]>([]);
@@ -314,10 +317,13 @@ function AddRecipes() {
 
 // ─── The tray ────────────────────────────────────────────────
 
-export function RecipeTray({ ctl, quickText, setQuickText }: {
+export function RecipeTray({ ctl, quickText, setQuickText, compact = false, emptyText }: {
   ctl: BoardCtl;
   quickText: string;
   setQuickText: (t: string) => void;
+  // without Quick add and Add a recipe (the wizard's Schedule stage)
+  compact?: boolean;
+  emptyText?: string;
 }) {
   const rows = trayRows(ctl.state);
   const p = ctl.drag?.payload ?? ctl.held;
@@ -327,10 +333,10 @@ export function RecipeTray({ ctl, quickText, setQuickText }: {
   return (
     <div className="mp-tray" data-drop={TRAY_KEY} data-target={target || undefined}
          data-over={ctl.drag?.over === TRAY_KEY || undefined}>
-      <QuickAdd text={quickText} setText={setQuickText} />
+      {!compact && <QuickAdd text={quickText} setText={setQuickText} />}
       {rows.length === 0 ? (
         <p className="mp-empty">
-          Choose what you'd like to cook: type it in Quick add, or add a recipe below (for example 3 × Tomato Penne).
+          {emptyText ?? 'Choose what you\'d like to cook: type it in Quick add, or add a recipe below (for example 3 × Tomato Penne).'}
         </p>
       ) : (
         <>
@@ -343,7 +349,7 @@ export function RecipeTray({ ctl, quickText, setQuickText }: {
           Put it back in the tray
         </button>
       )}
-      <AddRecipes />
+      {!compact && <AddRecipes />}
     </div>
   );
 }
