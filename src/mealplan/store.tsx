@@ -19,19 +19,27 @@
 //   meal plan" (pantry.mealplan.inbox.v1) join the tray, on load, when another tab saves, and
 //   when the Meal plan view opens (syncSaved; a save in this same page fires no storage event).
 // - Announcements: one polite live region, rendered here, for every edit and refusal.
+// - The wizard's catalog and basket (useCatalog, useBasket): asked from the view that shows
+//   them, only while it does, whenever what they depend on changes (300 ms after the last
+//   change), and kept for that request: a stage opened again shows its answer with no call.
+//   Neither uses a model.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import {
-  ApiError, getMealStarters, parseSelection, resolveRecipes, scheduleMealPlan, suggestCookDays,
+  ApiError, getMealStarters, mealBasket, mealCatalog, parseSelection, resolveRecipes, scheduleMealPlan,
+  suggestCookDays,
 } from '../api';
 import type {
-  CookDaysProposal, MealSchedule, MealStarter, RecipeDoc, RecipeRef, Trip, TripStrategy,
+  CookDaysProposal, MealBasket, MealCatalog, MealSchedule, MealStarter, RecipeDoc, RecipeRef, Trip,
+  TripStrategy,
 } from '../types';
 import {
   MEAL_PLAN_INBOX_KEY, RECIPES_KEY, forSelection, inboxEdit, readMyRecipes, takeInbox,
 } from '../myRecipes';
 import type { StorageLike } from '../myRecipes';
+import { basketKey } from './basket';
+import { catalogRequest } from './catalog';
 import { todayIn } from './dates';
 import { historyStep, newPlan, recorded, redoPlan, undoPlan } from './model';
 import type { MealPlanState, Outcome, PlanEdit } from './model';
@@ -44,6 +52,7 @@ import type { History } from './undo';
 const SAVE_DELAY_MS = 300;
 const SCHEDULE_DELAY_MS = 400;
 const RESOLVE_DELAY_MS = 500;
+const WIZARD_DELAY_MS = 300;
 
 export type CallStatus = 'idle' | 'checking' | 'ok' | 'error';
 
@@ -433,4 +442,67 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
       <div className="sr-only" role="status" aria-live="polite">{spoken}</div>
     </MealPlanContext.Provider>
   );
+}
+
+// ─── The wizard's catalog and basket ───────────────────────
+
+// An answer for a request the view describes by `key`: asked while `active`, again when the key
+// changes or on retry, never twice for the same key. current: the answer is for the key as it is.
+export interface KeyedCall<T> {
+  status: CallStatus;
+  answer: T | null;
+  current: boolean;
+  error: string | null;
+  retry: () => void;
+}
+
+function useKeyedCall<T>(active: boolean, key: string | null,
+  ask: (signal: AbortSignal) => Promise<T>): KeyedCall<T> {
+  const [answer, setAnswer] = useState<{ key: string; value: T } | null>(null);
+  const [call, setCall] = useState<{ status: CallStatus; error: string | null }>({ status: 'idle', error: null });
+  const [tick, setTick] = useState(0);
+  // the latest request for the timer, which outlives the render that set it
+  const latest = useRef(ask);
+  latest.current = ask;
+  const answered = useRef<{ key: string | null; tick: number }>({ key: null, tick: 0 });
+
+  useEffect(() => {
+    if (!active || key === null) return;
+    if (answered.current.key === key && answered.current.tick === tick) return;
+    const ctl = new AbortController();
+    setCall({ status: 'checking', error: null });
+    const timer = window.setTimeout(() => {
+      latest.current(ctl.signal).then((value) => {
+        answered.current = { key, tick };
+        setAnswer({ key, value });
+        setCall({ status: 'ok', error: null });
+      }).catch((e) => {
+        if (!aborted(e)) setCall({ status: 'error', error: message(e) });
+      });
+    }, WIZARD_DELAY_MS);
+    return () => {
+      window.clearTimeout(timer);
+      ctl.abort();
+    };
+  }, [active, key, tick]);
+
+  const retry = useCallback(() => setTick((n) => n + 1), []);
+  return { status: call.status, answer: answer?.value ?? null, current: answer !== null && answer.key === key,
+    error: call.error, retry };
+}
+
+// Recipes to choose from for the plan's household, diet, area and slots, with the shopper's own.
+export function useCatalog(active: boolean): KeyedCall<MealCatalog> {
+  const { state, myRecipes } = useMealPlan();
+  const body = useMemo(() => catalogRequest(state.draft, myRecipes), [state.draft, myRecipes]);
+  return useKeyedCall(active, JSON.stringify(body), (signal) => mealCatalog(body, signal));
+}
+
+// The chosen recipes' ingredients as the plan would buy them; none asked for a plan with no
+// recipes.
+export function useBasket(active: boolean): KeyedCall<MealBasket> {
+  const { state } = useMealPlan();
+  const { draft } = state;
+  const key = useMemo(() => (Object.keys(draft.recipes).length ? basketKey(draft) : null), [draft]);
+  return useKeyedCall(active, key, (signal) => mealBasket(draft, signal));
 }
