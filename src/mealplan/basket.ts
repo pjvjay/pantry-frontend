@@ -8,6 +8,7 @@
 // the plan leaves out, none stocked, none within the distance), and needs an answer before
 // Schedule: other meals (back to Meals), another product (its Options), or "skip this
 // ingredient".
+import { nameWithSize } from '../alternatives.ts';
 import { excludedWords } from './catalog.ts';
 import { lineKey, mealsOf, recipeTitle } from './model.ts';
 import type { MealPlanState } from './model.ts';
@@ -107,7 +108,7 @@ export interface RecipeView {
 function lineView(s: MealPlanState, recipeKey: string, meals: number, ln: BasketLine): LineView {
   const excluded = s.draft.settings.exclude_origin ?? [];
   const p = ln.product;
-  const product = p ? [p.name, p.size].filter(Boolean).join(' ') : null;
+  const product = p ? nameWithSize(p.name, p.size) : null;
   const k = lineKey(recipeKey, ln.line_no);
   const skipped = (s.skipped ?? []).includes(k);
   const others = ln.shared_with.filter((x) => x !== recipeKey && s.draft.recipes[x]).map((x) => recipeTitle(s, x));

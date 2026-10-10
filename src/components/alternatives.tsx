@@ -17,7 +17,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import {
-  chipReasons, coversText, footText, movedText, needText, priceLine, reasonOf, rowsOf, storeText,
+  chipReasons, coversText, footText, movedText, needText, priceLine, reasonOf, rowsOf, sizeInName, storeText,
   unitPriceText,
 } from '../alternatives';
 import { agentAlternatives } from '../hub';
@@ -38,7 +38,7 @@ function Row({ item, action, buyer }: { item: RankedAlternative; action: ReactNo
   const price = priceLine(item, buyer);
   const trip = reasonOf(item, 'trip');
   const chips = chipReasons(item);
-  const brandSize = [item.brand, item.size].filter(Boolean).join(' · ');
+  const brandSize = [item.brand, sizeInName(item.product, item.size) ? '' : item.size].filter(Boolean).join(' · ');
   return (
     <li className={`alt-row${item.current ? ' alt-row-current' : ''}`}>
       <div className="alt-main">

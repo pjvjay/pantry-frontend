@@ -22,7 +22,8 @@ test('each ingredient: its product, store and distance, price, origin and labels
   assert.deepEqual(view.recipes.map((r) => [r.title, r.meals, r.lines.length]),
     [['Pepperoni Pizza', 2, 3], ['Chicken Fried Rice', 1, 2]], 'a recipe no longer in the plan is left out');
   const [dough, salt, basil] = view.recipes[0].lines;
-  assert.equal(dough.product, 'Pizza Dough Ball 500g');
+  assert.equal(dough.product, 'Pizza Dough Ball 500g', 'the name already says its size');
+  assert.equal(salt.product, 'Table Salt 1kg');
   assert.equal(dough.store, 'Pantry Mart Downtown · 1.2 km');
   assert.equal(dough.price, '$3.49 a pack');
   assert.equal(dough.cost, '$3.49 for these meals');

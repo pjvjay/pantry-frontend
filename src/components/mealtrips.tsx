@@ -20,6 +20,7 @@ import { useMealPlan } from '../mealplan/store';
 import type {
   MealSchedule, PlanAction, PlanCoverage, PlanWarning, RemedyOp, Trip, TripLine, WarningCounts,
 } from '../types';
+import { sizeInName } from '../alternatives';
 import { CartCard, copyText } from './cart';
 import { SourceCredits } from './nutrition';
 import { Sheet } from './Sheet';
@@ -67,7 +68,7 @@ function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Tr
       <div className="mp-line-head">
         <strong>{ln.product.name}</strong>
         {ln.product.demo_product && <span className="chip chip-warn" title="A synthetic product added for the demo starters">demo</span>}
-        <span className="muted">{ln.product.unit_size}</span>
+        {!sizeInName(ln.product.name, ln.product.unit_size) && <span className="muted">{ln.product.unit_size}</span>}
         <span className="mp-line-price">
           {ln.price === null ? <span className="cart-flag">price unknown</span> : `$${ln.price.toFixed(2)}`}
           {ln.store && <span className="muted"> at {ln.store}</span>}

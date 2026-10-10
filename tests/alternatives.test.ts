@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 
 import {
   cartChangeText, cartLineKey, cartTotal, chipReasons, coversText, footText, isPinned, lineNotes,
-  linesOf, money, movedText, needText, optionsLabel, packPrice, priceLine, purchaseLineNo,
+  linesOf, money, movedText, nameWithSize, needText, optionsLabel, packPrice, priceLine, purchaseLineNo,
   replaceCard, routedLinks,
-  replyBeforeChange, rowsOf, storeText,
+  replyBeforeChange, rowsOf, sizeInName, storeText,
   swapAnnouncement, swapBlocked, swapNotice, unitPriceText,
 } from '../src/alternatives.ts';
 import type {
@@ -279,4 +279,14 @@ test("a card's link is drawn only when it leads to one of the console's tabs", (
   assert.deepEqual(routedLinks([{ label: 'x', href: 'https://example.com/#/mealplan' },
     { label: 'y', href: '#/' }, { label: 'z', href: '#/planner' }], now),
   [{ label: 'z', href: '#/planner' }]);
+});
+
+test('a product name is not followed by the size it already says', () => {
+  assert.equal(nameWithSize('Jasmine Rice 2kg', '2kg'), 'Jasmine Rice 2kg');
+  assert.equal(nameWithSize('Soy Sauce 500ml', '500 ml'), 'Soy Sauce 500ml', 'spaces ignored');
+  assert.equal(nameWithSize('Whole Milk 1L', '1l'), 'Whole Milk 1L', 'case ignored');
+  assert.equal(nameWithSize('Table Salt', '1kg'), 'Table Salt 1kg');
+  assert.equal(nameWithSize('Fresh Garlic', ''), 'Fresh Garlic');
+  assert.equal(sizeInName('Chicken Thighs Bone-In (700g)', '700g'), true);
+  assert.equal(sizeInName('Chicken Thighs', null), true, 'no size: nothing to add');
 });
