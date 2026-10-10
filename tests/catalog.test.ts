@@ -56,6 +56,13 @@ test('the catalog is asked for the household, its diet, where it shops and its o
   assert.deepEqual(catalogRequest(old, []).avoid, []);
 });
 
+test('the catalog is sent the plan\'s pins, so a card costs the product the shopper chose', () => {
+  const s = planWith(7);
+  assert.equal('pins' in catalogRequest(s.draft, []), false);
+  const pinned = { ...s.draft, pins: { 'lib:tomato_penne': { '4': 16 } } };
+  assert.deepEqual(catalogRequest(pinned, []).pins, { 'lib:tomato_penne': { '4': 16 } });
+});
+
 test('a card says its diet, what a meal costs, and what is not sold nearby', () => {
   assert.equal(dietBadge(['vegan', 'vegetarian', 'pescatarian']), 'vegan');
   assert.equal(dietBadge(['pescatarian']), 'pescatarian');

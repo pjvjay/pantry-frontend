@@ -36,6 +36,8 @@ test('a new plan starts tomorrow, empty, with the household defaults', () => {
   assert.equal(s.draft.prefs.buy_ahead_days, 7);
   assert.deepEqual(s.draft.prefs.slots_on, ['breakfast', 'lunch', 'dinner', 'snack']);
   assert.deepEqual(s.draft.meals, []);
+  // shopping within 5 km, so Ingredients names stores near the shopper
+  assert.equal(s.draft.settings.max_km, 5);
   // the wizard's Basics: no budget, any diet, nothing avoided, US products left out, Canada first
   assert.equal(budgetOf(s.draft.prefs), null);
   assert.equal(dietOf(s.draft.prefs), 'any');

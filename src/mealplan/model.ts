@@ -57,6 +57,9 @@ export const DEFAULT_ORIGIN: Required<Pick<PlanSettings, 'exclude_origin' | 'pre
   exclude_origin: [EXCLUDED_BY_DEFAULT],
   preference: [PREFERRED_FIRST, ...DEFAULT_ALLIES],
 };
+// A new plan shops within 5 km, so Ingredients names a store near the shopper rather than the
+// cheapest one across town; every demo ingredient is sold within it. Basics changes it.
+export const DEFAULT_MAX_KM = 5;
 
 // One meal per slot over at most two weeks: 14 days × 4 slots holds 56 meals.
 export const MAX_DAYS = 14;
@@ -166,7 +169,7 @@ export function newPlan(today: CivilDate, id: string, days = 7): MealPlanState {
       recipes: {}, resolved: {}, meals: [], pins: {}, trips: [], dismissed_dates: [],
       fixed_dates: [], packs_override: {}, storage_overrides: {},
       settings: { exclude_origin: [...DEFAULT_ORIGIN.exclude_origin],
-        preference: [...DEFAULT_ORIGIN.preference] },
+        preference: [...DEFAULT_ORIGIN.preference], max_km: DEFAULT_MAX_KM },
     },
     titles: {},
     spread: [],

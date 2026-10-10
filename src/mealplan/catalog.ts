@@ -25,7 +25,8 @@ const listOf = (parts: string[]) => (parts.length < 2 ? parts.join('')
   : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`);
 
 // The request for the plan as it is: the household, its diet and avoid-tags, where it shops
-// and its origin rules, the slots it plans, and the shopper's own recipes.
+// and its origin rules, the slots it plans, the shopper's own recipes, and the products the
+// shopper chose in Ingredients (pins), so a card costs what the plan will buy.
 export function catalogRequest(d: MealPlanDraft, mine: readonly RecipeDoc[]): CatalogRequest {
   const own = mine.slice(0, MAX_OWN).map(docRef);
   return {
@@ -35,6 +36,7 @@ export function catalogRequest(d: MealPlanDraft, mine: readonly RecipeDoc[]): Ca
     settings: d.settings,
     slots: [...d.prefs.slots_on],
     ...(own.length ? { recipes: own } : {}),
+    ...(Object.keys(d.pins).length ? { pins: d.pins } : {}),
   };
 }
 

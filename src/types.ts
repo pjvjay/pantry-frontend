@@ -1627,6 +1627,7 @@ export interface CatalogRequest {
   settings: PlanSettings;
   slots?: MealSlot[];
   recipes?: RecipeRef[];
+  pins?: Record<string, Record<string, number>>;   // the draft's: recipe_key -> {line_no: product_id}
 }
 
 // One ingredient of a catalog recipe, for pricing a selection in whole packs: the product the

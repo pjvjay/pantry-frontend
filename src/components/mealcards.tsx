@@ -27,10 +27,11 @@ import { AddRecipes, QuickAdd } from './mealtray';
 
 // ─── The budget bar ──────────────────────────────────────────
 
-function BudgetBar({ spend }: { spend: Spend }) {
+// pending: the recipes' prices have not arrived yet, so the figures would be "$0.00".
+function BudgetBar({ spend, pending }: { spend: Spend; pending: boolean }) {
   const mp = useMealPlan();
   const bar = budgetBar(mp.state, spend);
-  const t = budgetBarText(bar);
+  const t = pending ? { ...budgetBarText(bar), spent: 'estimating…', remaining: '…' } : budgetBarText(bar);
   const over = bar.remaining !== null && bar.remaining < 0;
   const used = bar.budget ? Math.min(100, Math.round((bar.spent / bar.budget) * 100)) : 0;
   return (
@@ -146,8 +147,8 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
 
   return (
     <>
-      <BudgetBar spend={spend} />
-      {spend.unknown.length > 0 && (
+      <BudgetBar spend={spend} pending={!c} />
+      {c && spend.unknown.length > 0 && (
         <p className="muted">Not in the estimate (cost unknown): {spend.unknown.join(', ')}.</p>
       )}
       {catalog.status === 'checking' && !c && <p className="muted" role="status">Loading the recipes…</p>}
