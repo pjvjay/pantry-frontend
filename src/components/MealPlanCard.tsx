@@ -10,6 +10,7 @@ import {
 import type { ChatMealPlan, Decisions } from '../mealplan/chatDraft';
 import { dayLabel } from '../mealplan/dates';
 import { useMealPlan } from '../mealplan/store';
+import { stepHash } from '../mealplan/wizard';
 import type { PlanCardData } from '../types';
 
 const SLOT_SHORT: Record<string, string> = { breakfast: 'B', lunch: 'L', dinner: 'D', snack: 'S' };
@@ -174,7 +175,8 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
             Apply to my Meal plan
           </button>
         )}
-        <a className="card-link" href="#/mealplan?from=assistant">Open in Meal plan</a>
+        {/* the plan's Schedule stage: the draft's meals on their days */}
+        <a className="card-link" href={stepHash(4)}>Open in Meal plan</a>
         {problem && <p className="cart-flag" role="alert">Not applied: {problem}.</p>}
       </div>
     </section>
