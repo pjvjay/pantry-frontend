@@ -1,43 +1,49 @@
-// The Meal plan tab (#/mealplan): three bands on one page.
-//   Pick:  what to cook and how many times (the tray, Quick add).
-//   Place: a 7 or 14 day calendar of Breakfast, Lunch, Dinner and Snack, with the nutrition
-//          band above it and Suggest cook days.
-//   Shop:  the trips code suggests, the warnings and their fixes, and what the data covers.
-// The plan lives in MealPlanProvider (above the tab switch, so it survives changing tabs) and is
-// saved in this browser only. Every change re-runs /mealplan/schedule, which is pure: no model
-// call, and the same plan gives the same answer.
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+// The Meal plan tab (#/mealplan?step=1..6): six stages under a progress indicator, with Back
+// and Next under each.
+//   1 Basics:        the period, the budget, the household, its diet and origin rules, where
+//                    and when it shops (components/basics.tsx).
+//   2 Meals:         recipe cards by meal under a budget bar; Quick add, import and the
+//                    shopper's own recipes (components/mealcards.tsx).
+//   3 Ingredients:   each recipe's ingredients as the plan would buy them, and an answer for
+//                    each one no store nearby sells (components/ingredients.tsx).
+//   4 Schedule:      the 7 or 14 day calendar with the tray, drag and drop, Fill empty slots,
+//                    Suggest cook days, undo and the nutrition band (components/mealcal.tsx).
+//   5 Shopping plan: the trips code suggests, the warnings and their fixes, the total against
+//                    the budget (components/mealtrips.tsx).
+//   6 Calendar:      times and reminders, the events, the .ics and Google Calendar
+//                    (components/CalendarExport.tsx).
+// Where a stage opens and what stops Next are decided in mealplan/wizard.ts. The plan lives in
+// MealPlanProvider (above the tab switch, so it survives changing tabs) and is saved in this
+// browser only. Every change re-runs /mealplan/schedule, which is pure: no model call, and the
+// same plan gives the same answer.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
-import { oauthReturn } from '../calendarSync';
-import { CalendarExportDialog } from '../components/CalendarExportDialog';
+import { BasicsStage, PlanFile, ShoppingSettings } from '../components/basics';
+import { CalendarExport, TimingSettings, useTiming } from '../components/CalendarExport';
+import { IngredientsStage } from '../components/ingredients';
 import { ActionBar, DragGhost, MoveSheet, PlanBoard } from '../components/mealcal';
 import type { BoardCtl } from '../components/mealcal';
+import { MealsStage } from '../components/mealcards';
 import { CookDaysDiff, CoverageChips, ShopPanel, TripSheet, WarningsPanel } from '../components/mealtrips';
 import { EXAMPLE_SENTENCE, FirstRunSheet, RecipeTray } from '../components/mealtray';
 import { PeriodBand, TargetsEditor } from '../components/nutrition';
 import { usePointerDrag } from '../components/usePointerDrag';
-import { summaryLine } from '../mealplan/board';
+import { StageNav, Stepper } from '../components/wizard';
+import { unansweredCount } from '../mealplan/basket';
+import { strategyOf, summaryLine, tripPriced } from '../mealplan/board';
+import { againstBudget } from '../mealplan/catalog';
 import { moveConsequence, tripMoveConsequence, warningsFor } from '../mealplan/consequences';
 import { addDays, dayLabel } from '../mealplan/dates';
 import { dropEdit, keyIntent, parseTarget } from '../mealplan/dnd';
 import type { DragEffect, DragPayload } from '../mealplan/dnd';
-import { SETTING_RULES, SLOTS, SLOT_LABELS, readNumber, recipeTitle } from '../mealplan/model';
-import type { NumberRule, PlanEdit, Slot } from '../mealplan/model';
+import { STRATEGY_NAMES, budgetOf, recipeTitle } from '../mealplan/model';
+import type { PlanEdit } from '../mealplan/model';
 import { pinFix } from '../mealplan/options';
-import { exportFileName } from '../mealplan/persist';
-import { useMealPlan } from '../mealplan/store';
+import { useBasket, useMealPlan } from '../mealplan/store';
+import { nextBlock, routeStep, stepFromHash, stepHash, stepName, stepTitle, wizardFacts } from '../mealplan/wizard';
+import type { StepNo } from '../mealplan/wizard';
 import type { RemedyOp } from '../types';
-
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];   // Monday is 0, as the engine counts
-
-// Shopping points, as the Planner offers them. The catalog's stores sit around downtown Vancouver.
-const PLACES: { label: string; lat: number | null; lon: number | null }[] = [
-  { label: 'Server default (downtown Vancouver)', lat: null, lon: null },
-  { label: 'Kitsilano', lat: 49.2684, lon: -123.1683 },
-  { label: 'East Vancouver', lat: 49.2765, lon: -123.07 },
-  { label: 'Richmond', lat: 49.1666, lon: -123.1336 },
-];
 
 const inText = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
@@ -46,122 +52,8 @@ const inText = (el: EventTarget | null) =>
 const mealChipSelector = (mealId: string) => `[data-meal="${CSS.escape(mealId)}"] .mp-chip-main`;
 const tripChipSelector = (date: string) => `[data-trip="${CSS.escape(date)}"] .mp-trip-main`;
 
-// A settings number, saved on Enter or on leaving the field, and only when it is one the plan
-// takes. A value it does not take stays in the field with the reason beside it, rather than
-// snapping back and being announced on every keystroke.
-function NumberSetting({ label, value, rule, step, placeholder, onSave }: {
-  label: string;
-  value: number | null;
-  rule: NumberRule;
-  step?: number;
-  placeholder?: string;
-  onSave: (value: number | null) => void;
-}) {
-  const why = useId();
-  const shown = value === null ? '' : String(value);
-  const [text, setText] = useState(shown);
-  const [problem, setProblem] = useState<string | null>(null);
-  // A change from elsewhere (undo, an imported plan) shows here.
-  useEffect(() => {
-    setText(shown);
-    setProblem(null);
-  }, [shown]);
-  const save = () => {
-    const r = readNumber(text, rule);
-    if ('problem' in r) {
-      setProblem(r.problem);
-      return;
-    }
-    setProblem(null);
-    if (r.value !== value) onSave(r.value);
-  };
-  return (
-    <span className="mp-field">
-      <label>
-        {label}
-        <input type="number" min={rule.min} max={rule.max} step={step} value={text} placeholder={placeholder}
-               aria-invalid={problem ? true : undefined} aria-describedby={problem ? why : undefined}
-               onChange={(e) => setText(e.target.value)} onBlur={save}
-               onKeyDown={(e) => {
-                 if (e.key === 'Enter') {
-                   e.preventDefault();
-                   save();
-                 }
-               }} />
-      </label>
-      {problem && <span id={why} className="cart-flag mp-field-why">Not saved: {problem}.</span>}
-    </span>
-  );
-}
-
-function Settings() {
-  const mp = useMealPlan();
-  const d = mp.state.draft;
-  const p = d.prefs;
-  const set = (prefs: Partial<typeof p>) => mp.dispatch({ type: 'setPrefs', prefs });
-  const place = PLACES.findIndex((x) => x.lat === (d.settings.lat ?? null) && x.lon === (d.settings.lon ?? null));
-  const toggle = <T,>(list: T[], x: T) => (list.includes(x) ? list.filter((y) => y !== x) : [...list, x]);
-  return (
-    <details className="mp-settings">
-      <summary>Household and shopping settings</summary>
-      <div className="form-row">
-        <NumberSetting label="people in the household" value={p.household_servings}
-                       rule={SETTING_RULES.household_servings}
-                       onSave={(v) => v !== null && set({ household_servings: v })} />
-        <NumberSetting label="buy at most this many days ahead when the storage time is unknown (your setting)"
-                       value={p.buy_ahead_days} rule={SETTING_RULES.buy_ahead_days}
-                       onSave={(v) => v !== null && set({ buy_ahead_days: v })} />
-        <label>
-          shopping from
-          <select value={Math.max(0, place)} onChange={(e) => {
-            const x = PLACES[Number(e.target.value)];
-            mp.dispatch({ type: 'setSettings', settings: { lat: x.lat, lon: x.lon } });
-          }}>
-            {PLACES.map((x, i) => <option key={x.label} value={i}>{x.label}</option>)}
-          </select>
-        </label>
-        {/* Each saved distance clears the recipes' products and resolves them again (a model
-            call on a live deployment), so it is saved once, not per keystroke. */}
-        <NumberSetting label="within km" value={d.settings.max_km ?? null} rule={SETTING_RULES.max_km}
-                       step={0.5} placeholder="any"
-                       onSave={(v) => mp.dispatch({ type: 'setSettings', settings: { max_km: v } })} />
-      </div>
-      <fieldset className="mp-checks">
-        <legend>Shop on</legend>
-        {WEEKDAYS.map((w, i) => (
-          <label key={w} className="check">
-            <input type="checkbox" checked={p.shop_weekdays.includes(i)}
-                   onChange={() => set({ shop_weekdays: toggle(p.shop_weekdays, i) })} />
-            {w}
-          </label>
-        ))}
-      </fieldset>
-      <fieldset className="mp-checks">
-        <legend>Meals on the calendar</legend>
-        {SLOTS.map((sl) => (
-          <label key={sl} className="check">
-            <input type="checkbox" checked={p.slots_on.includes(sl)}
-                   onChange={() => set({ slots_on: toggle(p.slots_on, sl) as Slot[] })} />
-            {SLOT_LABELS[sl]}
-          </label>
-        ))}
-      </fieldset>
-      <div className="form-row">
-        <label className="check">
-          <input type="checkbox" checked={p.allow_freezer} onChange={(e) => set({ allow_freezer: e.target.checked })} />
-          the fewest-trips plan may freeze food on arrival
-        </label>
-        <label>
-          thaw reminders
-          <select value={p.thaw_reminder} onChange={(e) => set({ thaw_reminder: e.target.value as typeof p.thaw_reminder })}>
-            <option value="evening_before">the evening before</option>
-            <option value="morning_of">the morning of</option>
-          </select>
-        </label>
-      </div>
-    </details>
-  );
-}
+// The stage the shopper was on when they last left the tab, for opening it again in this page.
+let lastStep: StepNo | null = null;
 
 export default function MealPlanView() {
   const mp = useMealPlan();
@@ -169,7 +61,67 @@ export default function MealPlanView() {
   const d = state.draft;
   const strategy = d.prefs.strategy;
   const answer = schedule.answer;
+  const hasRecipes = Object.keys(d.recipes).length > 0;
 
+  // ─── Stages ──────────────────────────────────────────────
+  const basket = useBasket(true);
+  const facts = useMemo(() => wizardFacts(state, mp.resolve.status === 'error', {
+    state: !hasRecipes || basket.current ? 'ok' : basket.status === 'error' ? 'error' : 'waiting',
+    unanswered: unansweredCount(basket.answer, state),
+  }), [state, mp.resolve.status, hasRecipes, basket.current, basket.status, basket.answer]);
+  const factsRef = useRef(facts);
+  factsRef.current = facts;
+  const [step, setStep] = useState<StepNo>(() =>
+    routeStep(stepFromHash(window.location.hash), facts, lastStep, hasRecipes));
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  // Where focus goes once the next stage is drawn, instead of its heading.
+  const focusNext = useRef<string | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const shown = useRef<StepNo | null>(null);
+
+  // A stage asked for by the address (a stepper link, Back and Next, the browser's own Back): no
+  // further than the plan allows. '#/mealplan' alone (the tab) keeps the stage shown, and says so.
+  useEffect(() => {
+    const onHash = () => {
+      const asked = stepFromHash(window.location.hash);
+      if (asked !== null) setStep(routeStep(asked, factsRef.current, null, true));
+      else if (window.location.hash.startsWith('#/mealplan')) {
+        window.history.replaceState(null, '', stepHash(stepRef.current));
+      }
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // The address always names the stage shown, so a reload or a bookmark comes back to it. This
+  // runs after the Calendar stage has read and cleared Google's ?calendar= return.
+  useEffect(() => {
+    lastStep = step;
+    if (window.location.hash.startsWith('#/mealplan') && stepFromHash(window.location.hash) !== step) {
+      window.history.replaceState(null, '', stepHash(step));
+    }
+  }, [step]);
+
+  // A new stage: focus its heading (or what was asked for), so the keyboard and a screen reader
+  // start there. Not on the first one: opening the tab leaves focus where it was.
+  useEffect(() => {
+    if (shown.current === null || shown.current === step) {
+      shown.current = step;
+      return;
+    }
+    shown.current = step;
+    const target = focusNext.current ? document.querySelector<HTMLElement>(focusNext.current) : null;
+    focusNext.current = null;
+    (target ?? heading.current)?.focus();
+  }, [step]);
+
+  const go = useCallback((n: StepNo, focus: string | null = null) => {
+    focusNext.current = focus;
+    window.location.hash = stepHash(n);
+  }, []);
+
+  // ─── Schedule: the board and its gestures ────────────────
   const [held, setHeld] = useState<DragPayload | null>(null);
   const heldRef = useRef(held);
   heldRef.current = held;
@@ -180,18 +132,17 @@ export default function MealPlanView() {
   // a product whose Options open with the trip sheet (a warning's open_options remedy)
   const [tripOptions, setTripOptions] = useState<number | null>(null);
   const [targetsOpen, setTargetsOpen] = useState(false);
-  // back from Google's consent page (#/mealplan?calendar=...): the dialog opens to say how it went
-  const [calendarOpen, setCalendarOpen] = useState(() => oauthReturn(window.location.hash) !== null);
   const [hideEmpty, setHideEmpty] = useState(false);
   const [quickText, setQuickText] = useState('');
   const [firstRun, setFirstRun] = useState(() => d.rev === 0 && Object.keys(d.recipes).length === 0);
-  const [windowAsk, setWindowAsk] = useState<{ start: string; days: number; reason: string } | null>(null);
-  const [importProblem, setImportProblem] = useState<string | null>(null);
   // Where focus goes once the render that moved or put something down is on screen. It is
   // state, not a ref, so it is used by the render it was asked for and by no later one: a
   // leftover request would pull focus out of whatever the shopper is typing in next.
   const [focusTo, setFocusTo] = useState<{ selector: string } | null>(null);
-  const importInput = useRef<HTMLInputElement>(null);
+  const timing = useTiming();
+
+  // Nothing stays held on another stage.
+  useEffect(() => setHeld(null), [step]);
 
   const label = useCallback((p: DragPayload) => {
     if (p.kind === 'trip') return `the trip on ${dayLabel(p.date)}`;
@@ -312,34 +263,11 @@ export default function MealPlanView() {
     }
   };
 
-  const setWindow = (start: string, days: number) => {
-    const out = mp.dispatch({ type: 'setWindow', start_date: start, days });
-    setWindowAsk(out.refused && /outside the new dates/.test(out.refused)
-      ? { start, days, reason: out.refused } : null);
-  };
-
   // Filling empties the tray, which disables or removes the button pressed, so focus goes to the
-  // band's heading rather than being dropped on the page; the live region says what moved.
+  // stage's heading rather than being dropped on the page; the live region says what moved.
   const fill = () => {
     const out = mp.dispatch({ type: 'fillEmpty' });
-    if (!out.refused) document.getElementById('mp-place')?.focus();
-  };
-
-  const exportPlan = () => {
-    const blob = new Blob([mp.exportText()], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = exportFileName(state);
-    a.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-
-  const importPlan = async (file: File | undefined) => {
-    if (!file) return;
-    const problem = mp.importText(await file.text());
-    setImportProblem(problem);
-    if (importInput.current) importInput.current.value = '';
+    if (!out.refused) heading.current?.focus();
   };
 
   // Every remedy that is not an edit lands here (consequences.remedyStep), so none is a button
@@ -347,10 +275,13 @@ export default function MealPlanView() {
   const onAsk = (op: RemedyOp) => {
     switch (op.op) {
       case 'set_servings': {
-        const input = document.getElementById(`mp-servings-${op.recipe_key}`);
-        input?.scrollIntoView({ block: 'center' });
-        input?.focus();
-        if (!input) mp.announce('Say how many the recipe serves in the Pick band.');
+        // the question is in the tray's recipe row, on Schedule
+        const id = `#mp-servings-${CSS.escape(op.recipe_key)}`;
+        const input = document.querySelector<HTMLElement>(id);
+        if (input) {
+          input.scrollIntoView({ block: 'center' });
+          input.focus();
+        } else go(4, id);
         break;
       }
       case 'set_packs': case 'approve_trip':
@@ -379,6 +310,25 @@ export default function MealPlanView() {
   const fix = schedule.status === 'error' ? pinFix(schedule.errorCode ?? null, schedule.errorDetail) : null;
   const placedAny = d.meals.some((m) => m.date !== null);
   const trayCount = d.meals.filter((m) => m.date === null).length;
+  const statusLine = (
+    <p className="mp-status" aria-live="off">
+      <span>{summaryLine(state, answer)} · {dayLabel(d.start_date)} to {dayLabel(addDays(d.start_date, d.days - 1))}</span>
+      <span className="muted"> · {status}</span>
+      {schedule.status === 'error' && (
+        <> <span className="cart-flag">{schedule.error}</span>{' '}
+          {fix && <><button type="button" className="linkish" onClick={() => mp.dispatch(fix.edit)}>{fix.label}</button>{' '}</>}
+          <button type="button" className="linkish" onClick={mp.recheck}>Retry</button></>
+      )}
+    </p>
+  );
+
+  // An earlier stage an edit has since undone: said at the top of this one too.
+  const earlier = nextBlock(step, facts);
+  const behind = earlier && earlier.state === 'blocked' && earlier.step < step ? earlier : null;
+
+  const st = strategyOf(answer, strategy);
+  const planTotal = st && st.trips.length
+    ? againstBudget(st.trips.some(tripPriced) ? st.total_cost : null, st.total_is_floor, budgetOf(d.prefs)) : null;
 
   return (
     <div className="view mealplan" onKeyDown={onKeyDown}>
@@ -388,107 +338,112 @@ export default function MealPlanView() {
         </div>
       )}
 
-      <section className="panel mp-band" aria-labelledby="mp-pick">
-        <h2 id="mp-pick">Pick</h2>
-        <RecipeTray ctl={ctl} quickText={quickText} setQuickText={setQuickText} />
-      </section>
+      <Stepper step={step} facts={facts} />
 
-      <section className="panel mp-band" aria-labelledby="mp-place">
-        <div className="mp-band-head">
-          <h2 id="mp-place" tabIndex={-1}>Place</h2>
-          <div className="mp-toolbar">
-            <label className="mp-inline">
-              from
-              <input type="date" value={d.start_date} onChange={(e) => e.target.value && setWindow(e.target.value, d.days)} />
-            </label>
-            <span className="mp-seg" role="group" aria-label="Plan length">
-              {[7, 14].map((n) => (
-                <button key={n} type="button" className={d.days === n ? 'mini' : 'secondary mini'} aria-pressed={d.days === n}
-                        onClick={() => setWindow(d.start_date, n)}>{n === 7 ? '1 week' : '2 weeks'}</button>
-              ))}
-            </span>
-            <button type="button" className="secondary mini" disabled={!mp.canUndo} onClick={mp.undo}>Undo</button>
-            <button type="button" className="secondary mini" disabled={!mp.canRedo} onClick={mp.redo}>Redo</button>
-            <button type="button" className="mini" disabled={!trayCount} onClick={fill}>Fill empty slots</button>
-            <button type="button" className="secondary mini" disabled={!placedAny || mp.cookDays.status === 'checking'}
-                    onClick={mp.proposeCookDays}>Suggest cook days</button>
-            <label className="check mp-inline">
-              <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} />
-              hide empty rows
-            </label>
-          </div>
-        </div>
-        {windowAsk && (
-          <div className="banner banner-update">
-            Not changed: {windowAsk.reason}.{' '}
-            <button type="button" className="mini" onClick={() => {
-              mp.dispatch({ type: 'setWindow', start_date: windowAsk.start, days: windowAsk.days, unplaceOutside: true });
-              setWindowAsk(null);
-            }}>Change it and send them back to the tray</button>{' '}
-            <button type="button" className="secondary mini" onClick={() => setWindowAsk(null)}>Keep the dates</button>
-          </div>
-        )}
-        <p className="mp-status" aria-live="off">
-          <span>{summaryLine(state, answer)} · {dayLabel(d.start_date)} to {dayLabel(addDays(d.start_date, d.days - 1))}</span>
-          <span className="muted"> · {status}</span>
-          {schedule.status === 'error' && (
-            <> <span className="cart-flag">{schedule.error}</span>{' '}
-              {fix && <><button type="button" className="linkish" onClick={() => mp.dispatch(fix.edit)}>{fix.label}</button>{' '}</>}
-              <button type="button" className="linkish" onClick={mp.recheck}>Retry</button></>
-          )}
-        </p>
-        <PeriodBand period={answer?.period_nutrition} coverage={answer?.coverage.nutrition}
-                    onTargets={() => setTargetsOpen(true)}
-                    targetCount={Object.keys(d.nutrition_targets ?? {}).length} />
-        <CookDaysDiff />
-        {trayCount > 0 && !placedAny && (
-          <div className="mp-empty mp-empty-place">
-            <button type="button" onClick={fill}>Fill empty slots for me</button>
-            <p className="muted">or drag a meal onto a day, or tap a meal then a slot</p>
-          </div>
-        )}
-        <PlanBoard ctl={ctl} />
-      </section>
-
-      <section className="panel mp-band" aria-labelledby="mp-shop">
-        <h2 id="mp-shop">Shop</h2>
-        {!answer ? (
-          <p className="muted">
-            {Object.keys(d.recipes).length ? 'Trips appear once the plan has been checked.' : 'Trips appear once you pick some meals.'}
+      <section className="panel mp-stage" aria-labelledby="mp-stage-head">
+        <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{stepTitle(step)}</h2>
+        {behind && (
+          <p className="banner banner-update mp-behind">
+            {stepName(behind.step)}: {behind.text}.{' '}
+            <a href={stepHash(behind.step)}>Go to {stepName(behind.step)}</a>
           </p>
-        ) : (
+        )}
+
+        {step === 1 && (
           <>
-            <CoverageChips coverage={answer.coverage} />
-            <WarningsPanel schedule={answer} onAsk={onAsk} />
-            <ShopPanel schedule={answer} onOpenTrip={setTripSheet} />
+            <BasicsStage />
+            <PlanFile />
           </>
         )}
-        <Settings />
-        <div className="mp-toolbar mp-file">
-          <button type="button" className="secondary mini" disabled={!answer} onClick={() => setCalendarOpen(true)}>
-            Add to calendar
-          </button>
-          <button type="button" className="secondary mini" onClick={exportPlan}>Export plan (.json)</button>
-          <button type="button" className="secondary mini" onClick={() => importInput.current?.click()}>Import plan</button>
-          <input ref={importInput} type="file" accept="application/json,.json" hidden
-                 onChange={(e) => void importPlan(e.target.files?.[0])} />
-          <button type="button" className="secondary mini" onClick={() => { setHeld(null); mp.clear(); }}>Clear the plan</button>
-          {importProblem && <span className="cart-flag" role="alert">{importProblem}</span>}
-        </div>
+
+        {step === 2 && <MealsStage quickText={quickText} setQuickText={setQuickText} />}
+
+        {step === 3 && <IngredientsStage basket={basket} onMeals={() => go(2)} />}
+
+        {step === 4 && (
+          <>
+            <div className="mp-toolbar">
+              <button type="button" className="secondary mini" disabled={!mp.canUndo} onClick={mp.undo}>Undo</button>
+              <button type="button" className="secondary mini" disabled={!mp.canRedo} onClick={mp.redo}>Redo</button>
+              <button type="button" className="mini" disabled={!trayCount} onClick={fill}>Fill empty slots</button>
+              <button type="button" className="secondary mini" disabled={!placedAny || mp.cookDays.status === 'checking'}
+                      onClick={mp.proposeCookDays}>Suggest cook days</button>
+              <label className="check mp-inline">
+                <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} />
+                hide empty rows
+              </label>
+            </div>
+            {statusLine}
+            <RecipeTray ctl={ctl} quickText={quickText} setQuickText={setQuickText} compact
+                        emptyText="No meals yet: add some in Meals." />
+            <PeriodBand period={answer?.period_nutrition} coverage={answer?.coverage.nutrition}
+                        onTargets={() => setTargetsOpen(true)}
+                        targetCount={Object.keys(d.nutrition_targets ?? {}).length} />
+            <CookDaysDiff />
+            {trayCount > 0 && !placedAny && (
+              <div className="mp-empty mp-empty-place">
+                <button type="button" onClick={fill}>Fill empty slots for me</button>
+                <p className="muted">or drag a meal onto a day, or tap a meal then a slot</p>
+              </div>
+            )}
+            <PlanBoard ctl={ctl} />
+          </>
+        )}
+
+        {step === 5 && (
+          <>
+            {statusLine}
+            {planTotal && (
+              <p className={`mp-total ${planTotal.over ? 'cart-flag' : ''}`}>
+                <strong>{STRATEGY_NAMES[strategy]}</strong> {planTotal.text}
+              </p>
+            )}
+            {!answer ? (
+              <p className="muted">
+                {hasRecipes ? 'Trips appear once the plan has been checked.' : 'Trips appear once you pick some meals.'}
+              </p>
+            ) : (
+              <>
+                <CoverageChips coverage={answer.coverage} />
+                <WarningsPanel schedule={answer} onAsk={onAsk} />
+                <ShopPanel schedule={answer} onOpenTrip={setTripSheet} />
+              </>
+            )}
+            <ShoppingSettings />
+          </>
+        )}
+
+        {step === 6 && (
+          <>
+            <p className="muted">
+              Your approved trips and placed meals as calendar events, with the times and reminders
+              below. No account or sign-in is needed for the file or the links.
+            </p>
+            <TimingSettings form={timing.form} onChange={timing.setForm} zone={timing.zone} />
+            <CalendarExport schedule={answer?.approved_schedule ?? null} current={schedule.current}
+                            timing={timing.timing} />
+            <PlanFile />
+          </>
+        )}
       </section>
 
-      <ActionBar ctl={ctl} onCancel={cancelHeld} onTray={() => dropOn('tray')} />
-      <DragGhost ctl={ctl} ghostRef={ghost} preview={preview} />
-      <MoveSheet ctl={ctl} mealId={mealSheet} onClose={() => setMealSheet(null)} />
+      <StageNav step={step} facts={facts} go={go} onBlocked={mp.announce} />
+
+      {step === 4 && (
+        <>
+          <ActionBar ctl={ctl} onCancel={cancelHeld} onTray={() => dropOn('tray')} />
+          <DragGhost ctl={ctl} ghostRef={ghost} preview={preview} />
+          <MoveSheet ctl={ctl} mealId={mealSheet} onClose={() => setMealSheet(null)} />
+        </>
+      )}
       <TripSheet date={tripSheet} optionsFor={tripOptions}
                  onClose={() => { setTripSheet(null); setTripOptions(null); }} />
-      <CalendarExportDialog open={calendarOpen} onClose={() => setCalendarOpen(false)}
-                            schedule={answer?.approved_schedule ?? null} current={schedule.current} />
       <TargetsEditor open={targetsOpen} onClose={() => setTargetsOpen(false)} targets={d.nutrition_targets}
                      onSave={(t) => mp.dispatch({ type: 'setTargets', targets: t }).refused} />
       <FirstRunSheet open={firstRun} onClose={() => setFirstRun(false)} onExample={() => {
         setQuickText(EXAMPLE_SENTENCE);
-        window.setTimeout(() => document.getElementById('mp-quick-text')?.focus(), 0);
+        if (step === 2) window.setTimeout(() => document.getElementById('mp-quick-text')?.focus(), 0);
+        else go(2, '#mp-quick-text');
       }} />
     </div>
   );

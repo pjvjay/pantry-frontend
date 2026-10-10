@@ -368,9 +368,12 @@ export function FirstRunSheet({ open, onClose, onExample }: {
              <button type="button" onClick={() => { onExample(); onClose(); }}>Try the example</button>
            </>}>
       <ol className="mp-firstrun">
-        <li><strong>Pick</strong> what to cook and how many times. A count is one meal for your household (2 people unless you change it).</li>
-        <li><strong>Place</strong> meals on days: drag a meal's grip, tap a meal and then a slot, use its ⋯ menu, or the keyboard (Enter to pick up, Tab to a slot, Enter to place).</li>
-        <li><strong>Shop</strong>: code suggests the fewest trips that keep each item within its cited storage time. You approve, move or dismiss each one; an approved trip is never rewritten.</li>
+        <li><strong>Basics</strong>: one or two weeks, a budget, your household, diet and where your food comes from.</li>
+        <li><strong>Meals</strong>: add breakfasts, lunches and dinners; the budget bar says what is left. A count is one meal for your household.</li>
+        <li><strong>Ingredients</strong>: what each recipe buys, where, for how much and from which country; choose another product or skip one nobody nearby sells.</li>
+        <li><strong>Schedule</strong> meals on days: drag a meal's grip, tap a meal and then a slot, use its ⋯ menu, or the keyboard (Enter to pick up, Tab to a slot, Enter to place).</li>
+        <li><strong>Shopping plan</strong>: code suggests the fewest trips that keep each item within its cited storage time. You approve, move or dismiss each one; an approved trip is never rewritten.</li>
+        <li><strong>Calendar</strong>: the trips and cook days, with times and reminders, as a file or in Google Calendar.</li>
       </ol>
       <p>The example reads: <q>{EXAMPLE_SENTENCE}</q></p>
       <p className="muted">

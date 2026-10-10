@@ -1,6 +1,6 @@
-// The meal plan's Shop band and what hangs off it: each trip as a sheet with its cart per store
-// and its list to copy or print, the warnings with their fixes, what the data covers, the
-// day-by-day actions, and the Suggest cook days proposal as a diff to apply or dismiss.
+// The meal plan's Shopping plan stage and what hangs off it: each trip as a sheet with its cart
+// per store and its list to copy or print, the warnings with their fixes, what the data covers,
+// the day-by-day actions, and the Suggest cook days proposal as a diff to apply or dismiss.
 //
 // Code suggests trips; only the shopper approves, moves or dismisses them. An approved trip is
 // never rewritten: when edits change what it should carry it reads "Changed since approved"
@@ -345,7 +345,7 @@ export function CoverageChips({ coverage }: { coverage: PlanCoverage }) {
   );
 }
 
-// ─── The Shop band ───────────────────────────────────────────
+// ─── The Shopping plan ───────────────────────────────────────
 
 const KIND_MARK: Record<PlanAction['kind'], string> = { shop: '🛒', freeze: '❄', thaw: '↘', cook: '🍳' };
 
