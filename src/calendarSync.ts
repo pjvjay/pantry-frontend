@@ -12,7 +12,8 @@ import type {
   CalendarSyncStatus,
 } from './types.ts';
 
-// Where Google sends the shopper back to: the Meal plan, with the dialog reopened.
+// Where Google sends the shopper back to: the Meal plan, whose ?calendar= return opens the
+// Calendar stage (the hub takes no query in it, so the stage is not named here).
 export const RETURN_TO = '#/mealplan';
 
 export interface SyncGroup {

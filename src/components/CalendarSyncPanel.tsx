@@ -1,8 +1,10 @@
-// Google Calendar, inside the Add to calendar dialog: keep a "Pantry plan" calendar in the
-// shopper's Google account in step with the approved plan, through the local demo hub.
+// Google Calendar, on the wizard's Calendar stage: keep a "Pantry plan" calendar in the
+// shopper's Google account in step with the approved plan, through the local demo hub. The
+// times and reminders chosen on the stage go with every review and sync, so a change to them
+// shows as an edit in the review and is written only as reviewed.
 //
 // Shown only when the hub answers /hub/calendar/status and has an OAuth client; with no hub (the
-// HF Space, AKS) or no client it renders nothing, and the dialog's download and links are all
+// HF Space, AKS) or no client it renders nothing, and the stage's download and links are all
 // there is. Nothing is written until the shopper clicks the button under a reviewed diff, and
 // the hub applies exactly that diff or refuses (preview_stale). Edits made in Google start on
 // Keep; deletions made there are restored only when ticked.
@@ -20,7 +22,7 @@ import {
 } from '../hub';
 import type {
   ApprovedSchedule, CalendarApplyResult, CalendarChoice, CalendarDiff, CalendarInclude, CalendarOp,
-  CalendarOpResult, CalendarSyncStatus,
+  CalendarOpResult, CalendarSyncStatus, CalendarTiming,
 } from '../types';
 
 type Busy = null | 'connect' | 'review' | 'apply' | 'disconnect';
@@ -35,11 +37,12 @@ const errorText = (err: unknown, fallback: string): string | null => {
   return err instanceof Error ? err.message : fallback;
 };
 
-export function CalendarSyncPanel({ open, schedule, include, ready }: {
+export function CalendarSyncPanel({ open, schedule, include, timing, ready }: {
   open: boolean;
   schedule: ApprovedSchedule | null;
   include: CalendarInclude[];
-  // the dialog's preview is current and exportable: only then can changes be reviewed
+  timing?: CalendarTiming;
+  // the stage's preview is current and exportable: only then can changes be reviewed
   ready: boolean;
 }) {
   const [status, setStatus] = useState<CalendarSyncStatus | null>(null);
@@ -58,7 +61,7 @@ export function CalendarSyncPanel({ open, schedule, include, ready }: {
     calendarSyncStatus().then(setStatus).catch(() => setStatus(null));
   }, []);
 
-  // Status when the dialog opens and whenever the window regains focus (a revoke elsewhere).
+  // Status when the stage opens and whenever the window regains focus (a revoke elsewhere).
   useEffect(() => {
     if (!open) return;
     refresh();
@@ -75,12 +78,12 @@ export function CalendarSyncPanel({ open, schedule, include, ready }: {
     window.history.replaceState(null, '', withoutOauthReturn(window.location.hash) || RETURN_TO);
   }, [open]);
 
-  // A diff belongs to the plan and kinds it was made for.
+  // A diff belongs to the plan, kinds and timing it was made for.
   useEffect(() => {
     setDiff(null);
     setResult(null);
     setError(null);
-  }, [schedule, include]);
+  }, [schedule, include, timing]);
 
   useEffect(() => {
     if (open) return;
@@ -111,7 +114,7 @@ export function CalendarSyncPanel({ open, schedule, include, ready }: {
     setResult(null);
     setDiff(null);                      // never leave an old diff, or its button, on screen
     try {
-      const fresh = await calendarSyncPreview(exportRequest(schedule, include));
+      const fresh = await calendarSyncPreview(exportRequest(schedule, include, timing));
       setDiff(fresh);
       setChosen((now) => ({ ...defaultChoices(fresh), ...pick(now, fresh) }));
       window.setTimeout(() => diffHead.current?.focus(), 0);
@@ -130,7 +133,7 @@ export function CalendarSyncPanel({ open, schedule, include, ready }: {
     setBusy('apply');
     setError(null);
     try {
-      const r = await calendarSyncApply({ ...exportRequest(schedule, include),
+      const r = await calendarSyncApply({ ...exportRequest(schedule, include, timing),
         preview_token: d.preview_token, choices: choicesFor(d, choices) });
       setResult(r);
       refresh();
