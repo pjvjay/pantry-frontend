@@ -888,9 +888,9 @@ function apply(s: MealPlanState, e: PlanEdit): Applied {
       if (now.includes(k) === e.skip) return { state: s, said: '' };
       const skipped = e.skip ? sortedUnique([...now, k]) : now.filter((x) => x !== k);
       const title = recipeTitle(s, e.recipeKey);
+      const what = e.ingredient.charAt(0).toUpperCase() + e.ingredient.slice(1);
       return { state: { ...s, skipped },
-        said: e.skip ? `${e.ingredient} skipped: ${title} goes without it.`
-          : `${e.ingredient} is needed for ${title} again.` };
+        said: e.skip ? `${what} skipped: ${title} goes without it.` : `${what} is needed for ${title} again.` };
     }
     case 'setTargets': {
       const problem = targetsProblem(e.targets);

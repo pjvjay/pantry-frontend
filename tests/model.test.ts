@@ -277,7 +277,7 @@ test('settings saved before the wizard (no budget, diet or avoid-tags) are still
 
 test('a line no store nearby sells can be skipped, and needed again, as undoable edits', () => {
   let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1), add('chicken_fried_rice', 'Chicken Fried Rice', 1));
-  const skip = { type: 'skipLine', recipeKey: PIZZA, lineNo: 3, ingredient: 'Saffron', skip: true } as const;
+  const skip = { type: 'skipLine', recipeKey: PIZZA, lineNo: 3, ingredient: 'saffron', skip: true } as const;
   const out = step(s, skip);
   assert.equal(out.said, 'Saffron skipped: Pepperoni Pizza goes without it.');
   s = out.state;

@@ -10,7 +10,7 @@
 //
 // With no date (the wizard's Ingredients stage) the dialog is for an ingredient across the whole
 // plan: the ranking has no trip cost, the words name the recipes a choice changes, and focus
-// returns to the ingredient it was opened from.
+// returns to the ingredient it was opened from (returnTo).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
@@ -24,9 +24,12 @@ import { useMealPlan } from '../mealplan/store';
 import type { TripLineOptions } from '../types';
 import { AlternativesDialog } from './alternatives';
 
-export function TripLineOptionsDialog({ date, productId, productName, onClose }: {
+export function TripLineOptionsDialog({ date, productId, productName, onClose, returnTo }: {
   // null: across the whole plan, with no trip
   date: string | null;
+  // across the plan: where focus goes on close (the ingredient opened from, whose answer
+  // buttons a choice may take away), instead of the element that opened the dialog
+  returnTo?: RefObject<HTMLElement | null>;
   // null: closed
   productId: number | null;
   productName: string;
@@ -96,7 +99,7 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose }:
           ingredient: opts?.ranking.ingredient || productName },
       }}
       blocked=""
-      returnFocus={date ? returnFocus : opener}
+      returnFocus={date ? returnFocus : returnTo ?? opener}
       onChoose={choose}
       onClose={onClose}
       load={load}

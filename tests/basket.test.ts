@@ -95,4 +95,9 @@ test('an origin with no country or evidence is unknown; a conflict is flagged', 
     { text: 'Japan', flag: false });
   assert.deepEqual(originText({ country: 'Japan', claim: 'packed', status: 'evidenced', preferred_rank: null }),
     { text: 'Japan (packed)', flag: false });
+  // pantry-api words the claim as the Options list does
+  assert.deepEqual(originText({ country: 'Canada', claim: 'Canada: origin', status: 'evidenced', preferred_rank: 1 }),
+    { text: 'Canada: origin · a preferred origin', flag: false });
+  assert.deepEqual(originText({ country: null, claim: 'Origin not checked', status: 'unknown', preferred_rank: null }),
+    { text: 'origin unknown', flag: false });
 });

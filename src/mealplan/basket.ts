@@ -41,13 +41,16 @@ export function basketKey(d: MealPlanDraft): string {
   });
 }
 
-// Where an ingredient is from: the country and the claim's kind, or that nobody says.
+// Where an ingredient is from: the evidence's own words ("Canada: origin") or the country, or
+// that nobody says. A country in the plan's preference order says so.
 export function originText(o: BasketOrigin): { text: string; flag: boolean } {
   if (o.status === 'conflicting') return { text: 'origin unclear: sources disagree', flag: true };
   if (o.status !== 'evidenced' || !o.country) return { text: 'origin unknown', flag: false };
-  const claim = o.claim === 'processing' ? ' (processed there)'
-    : o.claim && o.claim !== 'full' ? ` (${o.claim})` : '';
-  return { text: `${o.country}${claim}${o.preferred_rank !== null ? ' · a preferred origin' : ''}`, flag: false };
+  const claim = o.claim.trim();
+  const words = !claim || claim === 'full' ? o.country
+    : claim === 'processing' ? `${o.country} (processed there)`
+      : claim.toLowerCase().includes(o.country.toLowerCase()) ? claim : `${o.country} (${claim})`;
+  return { text: `${words}${o.preferred_rank !== null ? ' · a preferred origin' : ''}`, flag: false };
 }
 
 export function storeText(line: BasketLine): string {
