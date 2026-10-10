@@ -116,11 +116,13 @@ to its heading. `views/MealPlanView.tsx` puts them together:
    editable order of allies; a preference, never a whitelist), where and when the
    household shops, and the meals to plan. All saved in the plan.
 2. **Meals** (`components/mealcards.tsx`): recipe cards in Breakfast, Lunch and
-   Dinner (Snack collapsed) from `/mealplan/catalog`, each with its diet, an
-   estimated cost a meal, what no store nearby sells, and Add or a count. A
-   budget bar stays at the top while the page scrolls (budget, estimated spend,
-   what is left, slots filled); an Add that would pass the budget cannot be
-   pressed and says by how much, and recipes that do not fit the diet are
+   Dinner (Snack collapsed) from `/mealplan/catalog`, each with its diet, what
+   one more meal adds to the plan's cost, what cannot be bought nearby (and
+   whether only the origin rule stops it), and Add or a count. The selection is
+   priced in whole packs, as trips buy it (`catalog.packCost`). A budget bar
+   stays at the top while the page scrolls (budget, estimated spend, what is
+   left, slots filled); an Add that would pass the budget cannot be pressed and
+   says by how much, and recipes that do not fit the diet are
    counted under "n hidden by your diet". Quick add, Import a recipe and My
    recipes are below. Next needs a meal.
 3. **Ingredients** (`components/ingredients.tsx`): each recipe's ingredients from
@@ -132,8 +134,10 @@ to its heading. `views/MealPlanView.tsx` puts them together:
 4. **Schedule** (`components/mealcal.tsx`, the tray from `components/mealtray.tsx`):
    7 or 14 days of Breakfast, Lunch, Dinner and Snack, Fill empty slots, Suggest
    cook days, Undo and Redo, and the nutrition band (`components/nutrition.tsx`).
-5. **Shopping plan** (`components/mealtrips.tsx`): the strategy's total against the
-   budget, the trips code suggests, each opened as a sheet with its cart per store
+5. **Shopping plan** (`components/mealtrips.tsx`): a week strip of the plan's days,
+   each trip draggable (or picked up with Move) to another day and each day's
+   meal count, the strategy's total against the budget, the trips code suggests
+   (each with "Move to…"), each opened as a sheet with its cart per store
    and Copy list / Print list, the warnings with their fixes (over_budget among
    them), and what the data covers. Next needs an approved trip.
 6. **Calendar** (`components/CalendarExport.tsx`): trip and cook times and the
