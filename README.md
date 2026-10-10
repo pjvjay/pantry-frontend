@@ -189,9 +189,10 @@ answer's `approved_schedule` back to pantry-api's `/calendar/preview` and
 `/calendar/ics`, which build every event: shopping trips with their lists, cook
 days with ingredients and nutrition, and cited freeze and thaw reminders. With
 them goes `timing`: trips and cooks at a time in the browser's time zone (trips
-10:00 for an hour, reminded an hour and the evening before; cooks 17:30, reminded
-30 minutes before) or all day, and each kind's reminders, chosen in words and sent
-as minutes. The choices are kept in `pantry.mealplan.calendar.v1`. The stage
+10:00 for an hour, reminded an hour and the evening before; cooks at a time for
+each meal slot the plan has, breakfast 07:30, lunch 12:00, snack 15:00 and dinner
+17:30, sent as `cooks.by_slot`, reminded 30 minutes before) or all day, and each
+kind's reminders, chosen in words and sent as minutes. The choices are kept in `pantry.mealplan.calendar.v1`. The stage
 previews the events by day with their times and reminders, downloads the `.ics`,
 and offers one Google add-event link per event; there is no account and no
 sign-in. Nothing in the browser writes ICS or converts a date: `src/calendar.ts`

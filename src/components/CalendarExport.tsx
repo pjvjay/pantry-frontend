@@ -11,12 +11,13 @@ import { useEffect, useId, useMemo, useState } from 'react';
 
 import { ApiError, downloadCalendar, previewCalendar } from '../api';
 import {
-  INCLUDE_ALL, INCLUDE_LABELS, KIND_LABELS, LENGTHS, MAX_REMINDERS, TIMING_KEY, countsText, eventWhen, eventsByDay,
-  exportErrorText, exportProblem, exportRequest, googleLabel, googleLink, includeCounts, includeProblem, kindProblem,
-  readTimingForm, reminderChoices, reminderLabel, remindersText, timingFrom,
+  INCLUDE_ALL, INCLUDE_LABELS, KIND_LABELS, LENGTHS, MAX_REMINDERS, TIMING_KEY, cookProblem, countsText, eventWhen,
+  eventsByDay, exportErrorText, exportProblem, exportRequest, googleLabel, googleLink, includeCounts, includeProblem,
+  kindProblem, readTimingForm, reminderChoices, reminderLabel, remindersText, timingFrom,
 } from '../calendar';
-import type { KindTiming, ReminderChoice, TimingForm } from '../calendar';
-import type { ApprovedSchedule, CalendarInclude, CalendarPreview, CalendarTiming } from '../types';
+import type { CookTiming, KindTiming, ReminderChoice, TimingForm } from '../calendar';
+import { SLOTS, SLOT_LABELS } from '../mealplan/model';
+import type { ApprovedSchedule, CalendarInclude, CalendarPreview, CalendarTiming, MealSlot } from '../types';
 import { CalendarSyncPanel } from './CalendarSyncPanel';
 
 type Preview =
@@ -55,11 +56,13 @@ function browserZone(): string {
   }
 }
 
-export function useTiming(): { form: TimingForm; setForm: (f: TimingForm) => void; timing: CalendarTiming;
-  zone: string } {
+// slots: the meal slots the plan has, the ones cooking gets a time for.
+export function useTiming(slots: readonly MealSlot[]): { form: TimingForm; setForm: (f: TimingForm) => void;
+  timing: CalendarTiming; zone: string } {
   const [form, setFormState] = useState(readSaved);
   const [zone] = useState(browserZone);
-  const timing = useMemo(() => timingFrom(form, zone), [form, zone]);
+  const slotKey = slots.join('|');
+  const timing = useMemo(() => timingFrom(form, zone, slotKey.split('|') as MealSlot[]), [form, zone, slotKey]);
   const setForm = (f: TimingForm) => {
     setFormState(f);
     save(f);
@@ -92,6 +95,8 @@ function Reminders({ name, choices, remind, onChange }: {
   );
 }
 
+const lengthLabel = (n: number) => (n < 60 ? `${n} min` : `${n / 60} h`);
+
 function KindSettings({ name, k, onChange }: { name: string; k: KindTiming; onChange: (k: KindTiming) => void }) {
   const why = useId();
   const problem = kindProblem(k);
@@ -113,7 +118,7 @@ function KindSettings({ name, k, onChange }: { name: string; k: KindTiming; onCh
           <label className="mp-inline">
             for
             <select value={k.minutes} onChange={(e) => onChange({ ...k, minutes: Number(e.target.value) })}>
-              {LENGTHS.map((n) => <option key={n} value={n}>{n < 60 ? `${n} min` : `${n / 60} h`}</option>)}
+              {LENGTHS.map((n) => <option key={n} value={n}>{lengthLabel(n)}</option>)}
             </select>
           </label>
           {problem && <span id={why} className="cart-flag">Sent as all day until it is {problem}.</span>}
@@ -125,12 +130,53 @@ function KindSettings({ name, k, onChange }: { name: string; k: KindTiming; onCh
   );
 }
 
-export function TimingSettings({ form, onChange, zone }: { form: TimingForm; onChange: (f: TimingForm) => void;
-  zone: string }) {
+// Cooking: a start for each meal slot the plan has, and one length. Its reminders are minutes
+// before each start, the same for every slot.
+function CookSettings({ c, slots, onChange }: { c: CookTiming; slots: readonly MealSlot[];
+  onChange: (c: CookTiming) => void }) {
+  const why = useId();
+  const problem = cookProblem(c, slots);
+  const setSlot = (sl: MealSlot, t: string) => {
+    const bySlot = { ...c.bySlot, [sl]: t };
+    onChange({ ...c, bySlot, start: bySlot.dinner });
+  };
+  return (
+    <fieldset className="mp-basics-group mp-timing-kind">
+      <legend>Cooking</legend>
+      <label className="check">
+        <input type="checkbox" checked={c.timed} onChange={(e) => onChange({ ...c, timed: e.target.checked })} />
+        at a set time for each meal (otherwise all day)
+      </label>
+      {c.timed && (
+        <div className="mp-toolbar">
+          {SLOTS.filter((sl) => slots.includes(sl)).map((sl) => (
+            <label key={sl} className="mp-inline">
+              {SLOT_LABELS[sl]}
+              <input type="time" value={c.bySlot[sl]} step={900} aria-invalid={problem ? true : undefined}
+                     aria-describedby={problem ? why : undefined} onChange={(e) => setSlot(sl, e.target.value)} />
+            </label>
+          ))}
+          <label className="mp-inline">
+            for
+            <select value={c.minutes} onChange={(e) => onChange({ ...c, minutes: Number(e.target.value) })}>
+              {LENGTHS.map((n) => <option key={n} value={n}>{lengthLabel(n)}</option>)}
+            </select>
+          </label>
+          {problem && <span id={why} className="cart-flag">Sent as all day until it is {problem}.</span>}
+        </div>
+      )}
+      <Reminders name="Cooking" choices={reminderChoices(c.timed, true)} remind={c.remind}
+                 onChange={(remind) => onChange({ ...c, remind })} />
+    </fieldset>
+  );
+}
+
+export function TimingSettings({ form, onChange, zone, slots }: { form: TimingForm; onChange: (f: TimingForm) => void;
+  zone: string; slots: readonly MealSlot[] }) {
   return (
     <div className="mp-basics mp-timing">
       <KindSettings name="Shopping trips" k={form.trips} onChange={(trips) => onChange({ ...form, trips })} />
-      <KindSettings name="Cooking" k={form.cooks} onChange={(cooks) => onChange({ ...form, cooks })} />
+      <CookSettings c={form.cooks} slots={slots} onChange={(cooks) => onChange({ ...form, cooks })} />
       <fieldset className="mp-basics-group mp-timing-kind">
         <legend>Freeze and thaw reminders</legend>
         <p className="muted">All-day events on the day to freeze or start thawing.</p>

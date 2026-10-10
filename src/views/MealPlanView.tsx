@@ -139,7 +139,7 @@ export default function MealPlanView() {
   // state, not a ref, so it is used by the render it was asked for and by no later one: a
   // leftover request would pull focus out of whatever the shopper is typing in next.
   const [focusTo, setFocusTo] = useState<{ selector: string } | null>(null);
-  const timing = useTiming();
+  const timing = useTiming(d.prefs.slots_on);
 
   // Nothing stays held on another stage.
   useEffect(() => setHeld(null), [step]);
@@ -419,7 +419,8 @@ export default function MealPlanView() {
               Your approved trips and placed meals as calendar events, with the times and reminders
               below. No account or sign-in is needed for the file or the links.
             </p>
-            <TimingSettings form={timing.form} onChange={timing.setForm} zone={timing.zone} />
+            <TimingSettings form={timing.form} onChange={timing.setForm} zone={timing.zone}
+                            slots={d.prefs.slots_on} />
             <CalendarExport schedule={answer?.approved_schedule ?? null} current={schedule.current}
                             timing={timing.timing} />
             <PlanFile />

@@ -15,7 +15,7 @@
 import { dayLabel } from './mealplan/dates.ts';
 import type {
   ApprovedSchedule, CalendarEvent, CalendarEventKind, CalendarExportRequest, CalendarInclude,
-  CalendarPreview, CalendarTiming,
+  CalendarPreview, CalendarTiming, MealSlot,
 } from './types.ts';
 
 export const INCLUDE_ALL: readonly CalendarInclude[] = ['trips', 'cooks', 'reminders'];
@@ -143,8 +143,11 @@ const MINUTE_CHOICES: readonly ReminderChoice[] = [15, 30, 60, 120];
 const DAY_CHOICES: readonly ReminderChoice[] = ['evening', 'day_before'];
 
 // What can be chosen: a time the day before for any event; minutes before only for a timed one.
-export const reminderChoices = (timed: boolean): readonly ReminderChoice[] =>
-  (timed ? [...MINUTE_CHOICES, ...DAY_CHOICES] : DAY_CHOICES);
+// Cooking starts at a time a slot (perSlot), and one list of minutes goes for all of them, so
+// a time the day before (a different number of minutes for breakfast and dinner) cannot be
+// said for timed cooking: it takes minutes only.
+export const reminderChoices = (timed: boolean, perSlot = false): readonly ReminderChoice[] =>
+  (!timed ? DAY_CHOICES : perSlot ? MINUTE_CHOICES : [...MINUTE_CHOICES, ...DAY_CHOICES]);
 
 export function reminderLabel(c: ReminderChoice): string {
   if (c === 'evening') return `the evening before (${EVENING})`;
@@ -160,18 +163,29 @@ export interface KindTiming {
   remind: ReminderChoice[];
 }
 
+// Cooking: a start for each meal slot; start is the dinner's, as the request names it.
+export interface CookTiming extends KindTiming {
+  bySlot: Record<MealSlot, string>;
+}
+
+export const COOK_TIMES: Readonly<Record<MealSlot, string>> = {
+  breakfast: '07:30', lunch: '12:00', dinner: '17:30', snack: '15:00',
+};
+
+const SLOT_ORDER: readonly MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+
 // Freeze and thaw reminders are all-day events: only their reminders are chosen.
 export interface TimingForm {
   v: 1;
   trips: KindTiming;
-  cooks: KindTiming;
+  cooks: CookTiming;
   reminders: { remind: ReminderChoice[] };
 }
 
 export const DEFAULT_TIMING: TimingForm = {
   v: 1,
   trips: { timed: true, start: '10:00', minutes: 60, remind: [60, 'evening'] },
-  cooks: { timed: true, start: '17:30', minutes: 60, remind: [30] },
+  cooks: { timed: true, start: COOK_TIMES.dinner, minutes: 60, remind: [30], bySlot: { ...COOK_TIMES } },
   reminders: { remind: [] },
 };
 
@@ -195,8 +209,8 @@ export function reminderMinutes(c: ReminderChoice, start: string | null): number
 
 // The reminders to send for one kind: only those that can be chosen for it, in minutes, without
 // repeats, soonest first, at most three.
-function minutesFor(remind: readonly ReminderChoice[], start: string | null): number[] {
-  const allowed = reminderChoices(start !== null);
+function minutesFor(remind: readonly ReminderChoice[], start: string | null, perSlot = false): number[] {
+  const allowed = reminderChoices(start !== null, perSlot);
   const mins = remind.filter((c) => allowed.includes(c)).map((c) => reminderMinutes(c, start))
     .filter((n) => n >= 0 && n <= MAX_REMINDER_MIN);
   return [...new Set(mins)].sort((a, b) => a - b).slice(0, MAX_REMINDERS);
@@ -210,19 +224,32 @@ export function kindProblem(k: KindTiming): string | null {
   return null;
 }
 
-// The request's timing, in the browser's time zone. A kind with a time that cannot be used is
-// sent as all-day rather than guessed.
-export function timingFrom(form: TimingForm, timezone: string): CalendarTiming {
-  const time = (k: KindTiming) => (k.timed && !kindProblem(k) ? { start: k.start, minutes: k.minutes } : null);
-  const trips = time(form.trips);
-  const cooks = time(form.cooks);
+// Why cooking's times cannot be used, for the slots planned, or null.
+export function cookProblem(c: CookTiming, slots: readonly MealSlot[] = SLOT_ORDER): string | null {
+  if (!c.timed) return null;
+  if (!LENGTHS.includes(c.minutes)) return 'a length from the list';
+  const bad = SLOT_ORDER.filter((sl) => (slots.includes(sl) || sl === 'dinner') && !HHMM.test(c.bySlot[sl] ?? ''));
+  return bad.length ? `a time for ${bad.join(', ')} as hours and minutes, such as 07:30` : null;
+}
+
+// The request's timing, in the browser's time zone, for the meal slots the plan has. A kind
+// with a time that cannot be used is sent as all-day rather than guessed.
+export function timingFrom(form: TimingForm, timezone: string,
+  slots: readonly MealSlot[] = SLOT_ORDER): CalendarTiming {
+  const trips = form.trips.timed && !kindProblem(form.trips)
+    ? { start: form.trips.start, minutes: form.trips.minutes } : null;
+  const c = form.cooks;
+  const cooks = c.timed && !cookProblem(c, slots) ? {
+    start: c.bySlot.dinner, minutes: c.minutes,
+    by_slot: Object.fromEntries(SLOT_ORDER.filter((sl) => slots.includes(sl)).map((sl) => [sl, c.bySlot[sl]])),
+  } : null;
   return {
     timezone,
     trips,
     cooks,
     reminders: {
       trips: minutesFor(form.trips.remind, trips?.start ?? null),
-      cooks: minutesFor(form.cooks.remind, cooks?.start ?? null),
+      cooks: minutesFor(c.remind, cooks?.start ?? null, true),
       reminders: minutesFor(form.reminders.remind, null),
     },
   };
@@ -244,6 +271,18 @@ function readKind(x: unknown, fallback: KindTiming): KindTiming {
   return out;
 }
 
+// A saved cooking choice; a plan saved before cook times by slot gets the default times.
+function readCook(x: unknown): CookTiming {
+  const k = readKind(x, DEFAULT_TIMING.cooks);
+  const saved = (typeof x === 'object' && x !== null ? (x as { bySlot?: unknown }).bySlot : null) as
+    Record<string, unknown> | null | undefined;
+  const bySlot = Object.fromEntries(SLOT_ORDER.map((sl) => {
+    const t = saved?.[sl];
+    return [sl, typeof t === 'string' && HHMM.test(t) ? t : COOK_TIMES[sl]];
+  })) as Record<MealSlot, string>;
+  return { ...k, start: bySlot.dinner, bySlot };
+}
+
 // The saved choices, field by field; anything unreadable is the default.
 export function readTimingForm(raw: string | null): TimingForm {
   let x: unknown;
@@ -258,7 +297,7 @@ export function readTimingForm(raw: string | null): TimingForm {
   return {
     v: 1,
     trips: readKind(f.trips, DEFAULT_TIMING.trips),
-    cooks: readKind(f.cooks, DEFAULT_TIMING.cooks),
+    cooks: readCook(f.cooks),
     reminders: { remind: Array.isArray(rem?.remind)
       ? [...new Set(rem.remind.filter((c): c is ReminderChoice => DAY_CHOICES.includes(c as ReminderChoice)))]
       : DEFAULT_TIMING.reminders.remind },

@@ -1414,6 +1414,8 @@ export type CalendarEventKind = 'trip' | 'cook' | 'freeze' | 'thaw';
 export interface CalendarEventTime {
   start: string;                   // 'HH:MM', in `timezone`
   minutes: number;
+  // cooks: a start for each meal slot planned (start is the dinner's); absent for trips
+  by_slot?: Partial<Record<MealSlot, string>>;
 }
 
 export interface CalendarTiming {
