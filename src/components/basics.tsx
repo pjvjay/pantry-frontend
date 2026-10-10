@@ -206,8 +206,8 @@ export function BasicsStage() {
                          onSave={(v) => v !== null && set({ household_servings: v })} />
         </div>
         <p className="muted">
-          Meals shows an estimate against the budget; Ingredients and the Shopping plan show what the
-          trips cost, whole packs and all.
+          Meals prices what you choose in whole packs as you go, and stops an Add that would pass the
+          budget; Ingredients and the Shopping plan show what the trips cost.
         </p>
       </fieldset>
 

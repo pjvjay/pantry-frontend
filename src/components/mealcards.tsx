@@ -1,22 +1,23 @@
 // The wizard's Meals stage: recipes to add, as cards in Breakfast, Lunch and Dinner sections
 // (Snack collapsed), from /mealplan/catalog for the household's diet, avoid-tags and area. A
-// card says the recipe's diet, what a meal of it is estimated to cost, and what no store nearby
-// sells; Add and the count stepper put meals in the plan. A budget bar stays at the top while
-// the page scrolls: the budget, the estimated spend, what is left, and the slots filled. An Add
-// that would pass the budget cannot be pressed and says by how much; recipes that do not fit
-// the diet are counted under "n hidden by your diet". Quick add, Import a recipe and the
-// shopper's own recipes stay below, as other ways to add.
+// card says the recipe's diet, what one more meal of it adds to the plan's cost, and what cannot
+// be bought nearby (and whether only the origin rule stops it); Add and the count stepper put
+// meals in the plan. A budget bar stays at the top while the page scrolls: the budget, the
+// estimated spend, what is left, and the slots filled. An Add that would pass the budget cannot
+// be pressed and says by how much; recipes that do not fit the diet are counted under "n hidden
+// by your diet". Quick add, Import a recipe and the shopper's own recipes stay below, as other
+// ways to add.
 //
-// The estimate is pantry-api's: each line's share of its pack price. Trips buy whole packs, so
-// Ingredients and the Shopping plan show the real figures. The arithmetic is in
-// mealplan/catalog.ts.
+// The spend is the selection in whole packs, as trips buy it, so it is close to what Ingredients
+// and the Shopping plan show. The arithmetic is in mealplan/catalog.ts.
 import { useEffect, useId, useMemo, useState } from 'react';
 
 import {
-  addCheck, budgetBar, budgetBarText, budgetSaid, byKey, catalogSections, cleanRef, costPerMealText, dietBadge,
-  estimatedSpend, hiddenText, isMine, money, notInCatalog, ownRecipes, unavailableText,
+  addCheck, addCost, addCostText, budgetBar, budgetBarText, budgetSaid, byKey, catalogSections, cleanRef,
+  costPerMealText, dietBadge, estimateText, estimatedSpend, hiddenText, isMine, money, notInCatalog, ownRecipes,
+  picksOf, unavailableText,
 } from '../mealplan/catalog';
-import type { Spend } from '../mealplan/catalog';
+import type { Pick, Spend } from '../mealplan/catalog';
 import { MAX_WANTED, budgetOf, mealsOf, recipeTitle } from '../mealplan/model';
 import type { PlanEdit } from '../mealplan/model';
 import { useCatalog, useMealPlan } from '../mealplan/store';
@@ -49,13 +50,17 @@ function BudgetBar({ spend }: { spend: Spend }) {
 
 // ─── A recipe card ───────────────────────────────────────────
 
-function RecipeCard({ r, spend, onAdd }: { r: CatalogRecipe; spend: Spend; onAdd: (r: CatalogRecipe) => void }) {
+// spend and picks: the plan's selection as it is, which what one more meal adds depends on.
+function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend; picks: Pick[];
+  onAdd: (r: CatalogRecipe) => void }) {
   const mp = useMealPlan();
   const d = mp.state.draft;
   const overId = useId();
   const inPlan = d.recipes[r.key];
   const meals = inPlan ? mealsOf(d, r.key).length : 0;
-  const check = addCheck(budgetOf(d.prefs), spend, r.est_cost_per_meal);
+  const adds = addCost(picks, r);
+  const check = addCheck(budgetOf(d.prefs), spend, adds?.cost ?? null);
+  const cannot = unavailableText(r, d.settings.exclude_origin ?? []);
   const badge = dietBadge(r.diets);
   const blocked = check.ok ? null : `would go ${money(check.over)} over the budget`;
   const full = inPlan !== undefined && inPlan.wanted >= MAX_WANTED;
@@ -71,10 +76,13 @@ function RecipeCard({ r, spend, onAdd }: { r: CatalogRecipe; spend: Spend; onAdd
         {badge && <span className="chip chip-ok">{badge}</span>}
         {isMine(r) && <span className="chip chip-muted">my recipe</span>}
       </div>
-      <div className="mp-card-cost">{costPerMealText(r)}</div>
+      <div className="mp-card-cost">
+        {addCostText(adds)}
+        {r.est_cost_per_meal !== null && <span className="muted"> · {costPerMealText(r)}</span>}
+      </div>
       {r.contains.length > 0 && <div className="muted">contains {r.contains.join(', ')}</div>}
       {!r.fits && <div className="cart-flag">Not for your diet: {r.why_not ?? 'it does not fit'}.</div>}
-      {r.unavailable.length > 0 && <div className="cart-flag">{unavailableText(r)}</div>}
+      {cannot.map((t) => <div key={t} className="cart-flag">{t}</div>)}
       <div className="mp-card-ctl">
         {inPlan ? (
           <span className="mp-stepper">
@@ -117,6 +125,7 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
   }, [focusMore]);
   const recipes = useMemo(() => byKey(catalog.answer), [catalog.answer]);
   const spend = estimatedSpend(mp.state, recipes);
+  const picks = picksOf(mp.state, recipes);
   const c = catalog.answer;
   const sections = c ? catalogSections(c, mp.state) : [];
   const own = c ? ownRecipes(c, mp.state) : { shown: [], hidden: [] };
@@ -149,7 +158,7 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
           <div className="banner-hint">The lists below still add recipes, without estimates.</div>
         </div>
       )}
-      {c && <p className="muted mp-est-basis">{c.est_basis}</p>}
+      {c && <p className="muted mp-est-basis">{estimateText(spend)}</p>}
 
       {sections.map((sec) => {
         const head = (
@@ -165,7 +174,7 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
           <>
             {sec.shown.length > 0 ? (
               <ul className="mp-cards">
-                {sec.shown.map((r) => <RecipeCard key={r.key} r={r} spend={spend} onAdd={add} />)}
+                {sec.shown.map((r) => <RecipeCard key={r.key} r={r} spend={spend} picks={picks} onAdd={add} />)}
               </ul>
             ) : <p className="muted">No {sec.label.toLowerCase()} recipes fit your diet.</p>}
             <Hidden list={sec.hidden} />
@@ -225,7 +234,7 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
             {mp.myRecipesProblem && <p className="cart-flag">{mp.myRecipesProblem}</p>}
             {own.shown.length > 0 ? (
               <ul className="mp-cards">
-                {own.shown.map((r) => <RecipeCard key={r.key} r={r} spend={spend} onAdd={add} />)}
+                {own.shown.map((r) => <RecipeCard key={r.key} r={r} spend={spend} picks={picks} onAdd={add} />)}
               </ul>
             ) : (
               <p className="muted">None yet. Recipes you import or paste are saved in this browser and appear here.</p>

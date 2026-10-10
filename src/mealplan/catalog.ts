@@ -2,10 +2,13 @@
 // node --test runs it as it is (tests/pure-modules.test.ts checks all of this).
 //
 // The wizard's Meals stage: recipe cards by meal from /mealplan/catalog, and the budget bar
-// over them. A meal's cost here is pantry-api's estimate (each line's share of its pack price,
-// for the household); trips buy whole packs, so Ingredients and the Shopping plan show the real
-// figures. A cost the catalog does not know is unknown, never 0: a spend that leaves one out is
-// "at least", and an Add of a recipe with no estimate is never stopped by the budget.
+// over them. The selection is priced as trips buy it, in whole packs: each product once, enough
+// packs for every chosen meal that uses it (packCost), so the bar is close to what Ingredients
+// and the Shopping plan will show. A card says what one more meal adds to that, which may be
+// nothing when the packs already chosen cover it. A cost nobody knows is unknown, never 0: a
+// total that leaves an ingredient out is "at least", and an Add whose cost is unknown is never
+// stopped by the budget. "about $3.20 a meal" (pantry-api's share-of-the-pack estimate) stays on
+// the card as a guide.
 import { CAPACITY, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf, docRef, mealsOf, recipeTitle } from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
 import type { CatalogRecipe, CatalogRequest, MealCatalog, MealPlanDraft, RecipeDoc, RecipeRef } from '../types.ts';
@@ -17,6 +20,9 @@ const cents = (v: number) => Math.round(v * 100) / 100;
 export const money = (v: number) => `$${v.toFixed(2)}`;
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+const listOf = (parts: string[]) => (parts.length < 2 ? parts.join('')
+  : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`);
 
 // The request for the plan as it is: the household, its diet and avoid-tags, where it shops
 // and its origin rules, the slots it plans, and the shopper's own recipes.
@@ -59,8 +65,20 @@ export function costPerMealText(r: CatalogRecipe): string {
   return `about ${money(r.est_cost_per_meal)} a meal`;
 }
 
-export function unavailableText(r: CatalogRecipe): string {
-  return r.unavailable.length ? `Not sold nearby: ${r.unavailable.join(', ')}` : '';
+// What a plan's origin exclusion is called: "US-origin" for the default rule.
+export function excludedWords(excluded: readonly string[]): string {
+  if (excluded.length === 1 && excluded[0] === 'United States') return 'US-origin';
+  return excluded.length ? `from ${listOf([...excluded])}` : 'excluded-origin';
+}
+
+// What cannot be bought, split by why: the origin rule (held_back) or no offer nearby.
+export function unavailableText(r: CatalogRecipe, excluded: readonly string[] = []): string[] {
+  const held = r.held_back ?? [];
+  const rest = r.unavailable.filter((x) => !held.includes(x));
+  return [
+    held.length ? `Only ${excludedWords(excluded)} nearby, left out by your rule: ${held.join(', ')}` : '',
+    rest.length ? `Not sold nearby: ${rest.join(', ')}` : '',
+  ].filter(Boolean);
 }
 
 export const byKey = (c: MealCatalog | null): Map<string, CatalogRecipe> =>
@@ -68,24 +86,103 @@ export const byKey = (c: MealCatalog | null): Map<string, CatalogRecipe> =>
 
 // ─── Budget ──────────────────────────────────────────────────
 
-// The estimated spend of the plan's meals. unknown: recipes in the plan the catalog has no
-// estimate for, by title; the total leaves them out.
+// What a selection of meals costs in whole packs. unpriced: ingredients with no product or no
+// price (left out, said as "n ingredients not priced"); unknown: recipes the catalog cannot price
+// at all, by title. Both make the total "at least".
 export interface Spend {
   total: number;
   unknown: string[];
+  unpriced: string[];
+}
+
+// A recipe in the selection, with how many meals of it.
+export interface Pick {
+  key: string;
+  title: string;
+  meals: number;
+  recipe: CatalogRecipe | undefined;
+}
+
+// Whole packs, as a trip buys them. Per product: the need of every chosen meal that uses it,
+// over its pack size, rounded up; a product whose pack size is unknown, or with a line whose
+// need is unknown, is at least one pack (one in all, however many recipes share it). A line held
+// back by the origin rule buys nothing. A recipe from an older API, with no lines, counts its
+// meals at pantry-api's estimate a meal.
+export function packCost(picks: readonly Pick[]): Spend {
+  const products = new Map<number, { price: number; qty: number | null; need: number; unknown: boolean }>();
+  const unknown: string[] = [];
+  const unpriced = new Set<string>();
+  let total = 0;
+  for (const p of picks) {
+    if (p.meals <= 0) continue;
+    const r = p.recipe;
+    if (!r?.lines) {
+      const est = r?.est_cost_per_meal ?? null;
+      if (est === null) unknown.push(p.title);
+      else total += est * p.meals;
+      continue;
+    }
+    for (const ln of r.lines) {
+      if (ln.held_back) continue;
+      if (ln.product_id === null || ln.pack_price === null) {
+        unpriced.add(ln.ingredient.toLowerCase());
+        continue;
+      }
+      const qty = ln.pack_qty !== null && ln.pack_qty > 0 ? ln.pack_qty : null;
+      const e = products.get(ln.product_id) ?? { price: ln.pack_price, qty, need: 0, unknown: false };
+      if (ln.need_per_meal === null || e.qty === null) e.unknown = true;
+      else e.need += ln.need_per_meal * p.meals;
+      products.set(ln.product_id, e);
+    }
+  }
+  for (const e of products.values()) {
+    // a hair under a whole pack is that pack, not one more (floating-point sums)
+    const packs = e.qty === null ? 1 : Math.max(Math.ceil(e.need / e.qty - 1e-9), e.unknown ? 1 : 0);
+    total += packs * e.price;
+  }
+  return { total: cents(total), unknown, unpriced: [...unpriced].sort() };
+}
+
+// The plan's recipes as a selection: each with its meals and its catalog entry.
+export function picksOf(s: MealPlanState, recipes: Map<string, CatalogRecipe>): Pick[] {
+  return Object.keys(s.draft.recipes).map((key) => ({
+    key, title: recipeTitle(s, key), meals: mealsOf(s.draft, key).length, recipe: recipes.get(key),
+  }));
 }
 
 export function estimatedSpend(s: MealPlanState, recipes: Map<string, CatalogRecipe>): Spend {
-  let total = 0;
-  const unknown: string[] = [];
-  for (const key of Object.keys(s.draft.recipes)) {
-    const meals = mealsOf(s.draft, key).length;
-    if (!meals) continue;
-    const est = recipes.get(key)?.est_cost_per_meal ?? null;
-    if (est === null) unknown.push(recipeTitle(s, key));
-    else total += est * meals;
-  }
-  return { total: cents(total), unknown };
+  return packCost(picksOf(s, recipes));
+}
+
+// What one more meal of a recipe adds to the selection's whole-pack cost (0 when the packs
+// already chosen cover it), and whether that is "at least" (some of its ingredients have no
+// price). null: the catalog cannot price the recipe at all.
+export function addCost(picks: readonly Pick[], r: CatalogRecipe): { cost: number; atLeast: boolean } | null {
+  if (!r.lines && r.est_cost_per_meal === null) return null;
+  const before = packCost(picks);
+  const at = picks.findIndex((p) => p.key === r.key);
+  const more = at < 0 ? [...picks, { key: r.key, title: r.title, meals: 1, recipe: r }]
+    : picks.map((p, i) => (i === at ? { ...p, recipe: r, meals: p.meals + 1 } : p));
+  const after = packCost(more);
+  const atLeast = (r.lines ?? []).some((ln) => !ln.held_back && (ln.product_id === null || ln.pack_price === null));
+  return { cost: cents(Math.max(0, after.total - before.total)), atLeast };
+}
+
+// The card's line: "adds about $4.10", "adds at least $2.00", or that the packs already chosen
+// cover it.
+export function addCostText(a: { cost: number; atLeast: boolean } | null): string {
+  if (a === null) return 'cost unknown';
+  if (a.cost < 0.005) return a.atLeast ? 'adds nothing priced: your packs cover it' : 'adds nothing: your packs cover it';
+  return `adds ${a.atLeast ? 'at least' : 'about'} ${money(a.cost)}`;
+}
+
+// How the bar's estimate is made, under it.
+export function estimateText(spend: Spend): string {
+  const left = spend.unpriced.length
+    ? ` ${plural(spend.unpriced.length, 'ingredient is', 'ingredients are')} not priced and left out.` : '';
+  return 'Estimated in whole packs, as your trips buy them: each product once, enough packs for every '
+    + `meal chosen, at its lowest price nearby.${left} Shopping on more than one day can buy a product `
+    + 'twice, so the Shopping plan may cost more.';
 }
 
 // Whether one more meal of a recipe keeps the plan within its budget, and by how much it would
@@ -129,7 +226,7 @@ export function budgetBar(s: MealPlanState, spend: Spend): BudgetBar {
   return {
     budget,
     spent: spend.total,
-    atLeast: spend.unknown.length > 0,
+    atLeast: spend.unknown.length > 0 || spend.unpriced.length > 0,
     remaining: budget === null ? null : cents(budget - spend.total),
     filled: counts.reduce((t, c) => t + c.filled, 0),
     slots: counts.reduce((t, c) => t + c.days, 0),

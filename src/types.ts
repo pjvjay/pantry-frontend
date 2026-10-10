@@ -1627,10 +1627,24 @@ export interface CatalogRequest {
   recipes?: RecipeRef[];
 }
 
+// One ingredient of a catalog recipe, for pricing a selection in whole packs: the product the
+// plan would buy, one pack's price and size, and how much one meal for the household needs (in
+// the pack's unit). held_back: the only products nearby come from a country the plan leaves out.
+export interface CatalogLine {
+  ingredient: string;
+  product_id: number | null;
+  pack_price: number | null;
+  pack_qty: number | null;
+  pack_uom: string | null;
+  need_per_meal: number | null;
+  held_back: boolean;
+}
+
 // One recipe. fits false: hidden behind "n hidden by your diet", why_not saying why ("contains
 // meat", "contains dairy"). est_cost_per_meal: one meal for the household, each line's share of
 // its pack price (trips buy whole packs), null when nothing is priced. unavailable: ingredients
-// with no offer in range. An excluded product is never priced.
+// with no offer in range; held_back, those of them left out only by the origin rule. An excluded
+// product is never priced. lines and held_back are absent from an older API.
 export interface CatalogRecipe {
   key: string;
   ref: RecipeRef;
@@ -1645,6 +1659,8 @@ export interface CatalogRecipe {
   lines_total: number;
   lines_priced: number;
   unavailable: string[];
+  held_back?: string[];
+  lines?: CatalogLine[];
 }
 
 export interface MealCatalog {
