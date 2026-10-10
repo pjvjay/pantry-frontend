@@ -1044,6 +1044,12 @@ export interface Meal {
   pinned: boolean;
 }
 
+// A diet the plan's recipes keep to, and the contains-tags the shopper avoids (the products'
+// own tags). A plan saved before the wizard has neither, nor a budget: read them as 'any', none
+// and no budget.
+export type Diet = 'any' | 'pescatarian' | 'vegetarian' | 'vegan';
+export type AvoidTag = 'dairy' | 'gluten' | 'nuts' | 'soy' | 'egg';
+
 export interface MealPrefs {
   household_servings: number;      // 1..20
   slots_on: MealSlot[];
@@ -1053,6 +1059,10 @@ export interface MealPrefs {
   thaw_reminder: 'evening_before' | 'morning_of';
   allow_freezer: boolean;
   strategy: TripStrategy;
+  // groceries for the whole period, 0 < budget <= 10000; null or absent: no budget
+  budget?: number | null;
+  diet?: Diet;
+  avoid?: AvoidTag[];
 }
 
 // One line of a trip as the shopper approved it; price is kept for the delta only.
@@ -1233,7 +1243,8 @@ export type WarningLevel = 'must_fix' | 'decide' | 'note';
 
 // must_fix: unplaced, fridge_window_exceeded, meal_before_trip, needs_servings,
 // no_longer_stocked. decide: needs_review, not_stocked, buy_ahead_exceeded, trip_cap_exceeded,
-// unresolved_recipe. note: amount_unknown, shelf_life_unknown, price_changed.
+// unresolved_recipe. note: amount_unknown, shelf_life_unknown, price_changed. should_fix (the
+// wizard's API): over_budget, a strategy's known total above prefs.budget.
 export interface PlanWarning {
   level: WarningLevel;
   code: string;
@@ -1394,19 +1405,42 @@ export interface ExportBlocked {
 export type CalendarInclude = 'trips' | 'cooks' | 'reminders';
 export type CalendarEventKind = 'trip' | 'cook' | 'freeze' | 'thaw';
 
+// When trips and cooks happen and the reminders on each kind of event, in minutes before the
+// event (0..40320, at most 3 a kind); an all-day event counts them from its midnight, as Google
+// does. trips or cooks null: all-day, as without timing. Absent, the export is all-day events
+// with no reminders, exactly as before.
+export interface CalendarEventTime {
+  start: string;                   // 'HH:MM', in `timezone`
+  minutes: number;
+}
+
+export interface CalendarTiming {
+  timezone: string;                // IANA, the browser's own
+  trips: CalendarEventTime | null;
+  cooks: CalendarEventTime | null;
+  reminders: Record<CalendarInclude, number[]>;
+}
+
 export interface CalendarExportRequest {
   schedule: ApprovedSchedule;
   include: CalendarInclude[];      // at least one
+  timing?: CalendarTiming;
 }
 
-// One all-day event; `end` is the day after (exclusive), as the .ics and Google both read it.
+// One event; `end` is the day after (exclusive) for an all-day one, as the .ics and Google both
+// read it. A timed one has its start and end times in `timezone`. The times and reminders are
+// absent from an API before the wizard.
 export interface CalendarEvent {
   uid: string;
   item_id: string;
   kind: CalendarEventKind;
   date: string;
   end: string;
-  all_day: true;
+  all_day: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+  timezone?: string | null;
+  reminders_min?: number[];
   title: string;
   location: string | null;
   description: string;
@@ -1418,7 +1452,7 @@ export interface CalendarEvent {
 
 export interface CalendarPreview {
   calendar_name: string;
-  all_day: true;
+  all_day: boolean;
   events: CalendarEvent[];
   counts: Record<CalendarEventKind, number>;
   filename: string;
@@ -1547,9 +1581,11 @@ export interface CoveredLine {
   pinned_product_id: number | null;
 }
 
+// Without trip_date (the wizard's Ingredients stage): the ranking for every line in the plan
+// that buys product_id, with no trip cost (each row's trip null, plan_total null).
 export interface TripLineOptionsRequest {
   draft: MealPlanDraft;
-  trip_date: string;
+  trip_date?: string;
   product_id: number;
   strategy?: TripStrategy;
   limit?: number;                  // 1..25
@@ -1572,6 +1608,98 @@ export interface TripLineOptions {
 export interface ResolveResponse {
   resolved: ResolvedRecipe[];
   llm_cost_usd: number;
+  latency_ms: number;
+}
+
+// ─── the meal plan wizard (/mealplan/catalog, /mealplan/basket) ──
+// Deterministic, no model call, in demo mode and live alike.
+
+// Recipes to choose from, classified for the household's diet and avoid-tags. recipes: the
+// shopper's own docs, classified the same way when their lines allow it.
+export interface CatalogRequest {
+  household_servings: number;
+  diet: Diet;
+  avoid: AvoidTag[];
+  settings: PlanSettings;
+  slots?: MealSlot[];
+  recipes?: RecipeRef[];
+}
+
+// One recipe. fits false: hidden behind "n hidden by your diet", why_not saying why ("contains
+// meat", "contains dairy"). est_cost_per_meal: one meal for the household, each line's share of
+// its pack price (trips buy whole packs), null when nothing is priced. unavailable: ingredients
+// with no offer in range. An excluded product is never priced.
+export interface CatalogRecipe {
+  key: string;
+  ref: RecipeRef;
+  title: string;
+  slot: MealSlot;
+  diets: string[];                 // which of vegan, vegetarian, pescatarian it satisfies
+  contains: string[];
+  servings: number | null;
+  fits: boolean;
+  why_not: string | null;
+  est_cost_per_meal: number | null;
+  lines_total: number;
+  lines_priced: number;
+  unavailable: string[];
+}
+
+export interface MealCatalog {
+  v: 1;
+  recipes: CatalogRecipe[];
+  est_basis: string;               // how the estimate is made, and that trips buy whole packs
+  latency_ms: number;
+}
+
+export interface BasketProduct {
+  id: number;
+  name: string;
+  size: string;
+  labels: string[];
+  says_organic: boolean;
+  demo_product: boolean;
+}
+
+export interface BasketOrigin {
+  country: string | null;
+  claim: string;
+  status: 'evidenced' | 'unknown' | 'conflicting';
+  preferred_rank: number | null;   // its place in the plan's preference order
+}
+
+// One ingredient of a recipe as the plan would buy it. price: one pack; cost_for_need: this
+// recipe's share over all its meals. shared_with: the other recipe keys buying the same product.
+export interface BasketLine {
+  line_no: number;
+  ingredient: string;
+  need: string;
+  product: BasketProduct | null;
+  store: { name: string; distance_km: number | null } | null;
+  price: number | null;
+  cost_for_need: number | null;
+  origin: BasketOrigin;
+  pinned: boolean;
+  shared_with: string[];
+  available: boolean;
+  why_unavailable: string | null;
+}
+
+export interface BasketRecipe {
+  key: string;
+  title: string;
+  status: string;                  // the recipe's resolve status
+  meals: number;
+  lines: BasketLine[];
+}
+
+export interface MealBasket {
+  v: 1;
+  rev: number;
+  recipes: BasketRecipe[];
+  unavailable_count: number;
+  est_total: number | null;
+  budget: number | null;
   latency_ms: number;
 }
 

@@ -441,6 +441,10 @@ function setWindow(s: MealPlanState, e: Extract<PlanEdit, { type: 'setWindow' }>
 
 const PREF_CHECKS: { [K in keyof MealPrefs]-?: (v: unknown) => boolean } = {
   household_servings: (v) => isInt(v, 1, MAX_SERVINGS),
+  // the wizard's; checked with its settings
+  budget: (v) => v === null || v === undefined,
+  diet: (v) => v === undefined,
+  avoid: (v) => v === undefined,
   slots_on: (v) => Array.isArray(v) && v.length > 0 && v.every((x) => SLOTS.includes(x as Slot))
     && new Set(v).size === v.length,
   shop_weekdays: (v) => Array.isArray(v) && v.length > 0 && v.length <= 7
@@ -486,7 +490,7 @@ export function prefsProblem(p: unknown): string | null {
   if (typeof p !== 'object' || p === null) return 'settings are missing';
   const prefs = p as Record<string, unknown>;
   for (const [field, ok] of Object.entries(PREF_CHECKS)) {
-    if ((field !== 'max_trips' && !(field in prefs)) || !ok(prefs[field])) {
+    if ((!['max_trips', 'budget', 'diet', 'avoid'].includes(field) && !(field in prefs)) || !ok(prefs[field])) {
       return `the setting ${field.replace(/_/g, ' ')} is not valid`;
     }
   }
