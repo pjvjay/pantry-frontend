@@ -5,7 +5,8 @@
 // (/mealplan/basket), each with its product, the store and how far it is, the price, where it is
 // from and its labels. Nothing is worked out here: a fact the basket does not give is unknown.
 // An ingredient the plan cannot buy nearby is said so, with why (only products from a country
-// the plan leaves out, none stocked, none within the distance), and needs an answer before
+// the plan leaves out, none stocked, none within the distance, only at stores the shopper
+// turned off: then turning one back on is an answer too), and needs an answer before
 // Schedule: other meals (back to Meals), another product (its Options), or "skip this
 // ingredient".
 import { nameWithSize } from '../alternatives.ts';
@@ -62,6 +63,7 @@ export function unavailableHeading(kind: UnavailableKind | null | undefined, exc
     case 'origin_excluded': return `Only ${excludedWords(excluded)} nearby, left out by your rule`;
     case 'not_stocked': return 'No store nearby stocks it';
     case 'out_of_range': return 'Sold only beyond your distance';
+    case 'stores_off': return 'Sold only at stores you turned off';
     default: return 'Not sold nearby';
   }
 }
@@ -88,7 +90,8 @@ export interface LineView {
   pinned: boolean;
   shared: string;                  // "also bought for Chicken Fried Rice"
   available: boolean;
-  heading: string;                 // why it cannot be bought, when it cannot
+  kind: UnavailableKind | null;    // why it cannot be bought, as pantry-api says it
+  heading: string;                 // the same, in words
   why: string;                     // pantry-api's own reason, '' when it gives none
   skipped: boolean;
   // nothing more to do: sold nearby, skipped by the shopper, or its recipe has no meals now
@@ -123,7 +126,7 @@ function lineView(s: MealPlanState, recipeKey: string, meals: number, ln: Basket
     cost: ln.cost_for_need === null ? '' : `${money(ln.cost_for_need)} for these meals`,
     origin: originText(ln.origin), labels, pinned: ln.pinned,
     shared: others.length ? `also bought for ${listOf(others)}` : '',
-    available: ln.available, heading: ln.available ? '' : unavailableHeading(ln.unavailable_kind, excluded),
+    available: ln.available, kind: ln.available ? null : ln.unavailable_kind ?? null, heading: ln.available ? '' : unavailableHeading(ln.unavailable_kind, excluded),
     why: ln.why_unavailable ?? '',
     skipped, answered: ln.available || skipped || meals === 0,
     optionsLabel: product

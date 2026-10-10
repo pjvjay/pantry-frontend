@@ -20,8 +20,8 @@ import type {
   SelectionParseRequest,
   SelectionParseResult,
   ShelfLife,
+  MealStores,
   ShoppingPlan,
-  Store,
   TripLineOptions,
   TripLineOptionsRequest,
   WeekPlan,
@@ -74,7 +74,6 @@ const post = <T>(path: string, body: unknown, signal?: AbortSignal) =>
 
 export const getHealth = () => request<Health>('/health');
 export const getRecipes = () => request<Recipe[]>('/recipes');
-export const getStores = (signal?: AbortSignal) => request<Store[]>('/stores', { signal });
 export const planRecipe = (slug: string) =>
   request<ShoppingPlan>(`/plan/${slug}`, { method: 'POST' });
 export const planNL = (recipeText: string) =>
@@ -149,6 +148,11 @@ export const mealCatalog = (body: CatalogRequest, signal?: AbortSignal) =>
 
 export const mealBasket = (draft: MealPlanDraft, signal?: AbortSignal) =>
   post<MealBasket>('/mealplan/basket', { draft }, signal);
+
+// The stores near the shopper for the Ingredients stage: distance, in range, turned off, and how
+// many of the plan's products each sells.
+export const mealStores = (draft: MealPlanDraft, signal?: AbortSignal) =>
+  post<MealStores>('/mealplan/stores', { draft }, signal);
 
 // Options for one trip line, or without trip_date for a product across the whole plan: no LLM;
 // one re-schedule per candidate, so slower than schedule.

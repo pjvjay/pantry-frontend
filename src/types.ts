@@ -1093,15 +1093,28 @@ export interface PlanSettings {
   // the shopper's own words for lat/lon (an address searched, "Your current location", an
   // area's name), at most 200; only lat, lon and max_km decide what is in range
   address?: string | null;
+  // stores the shopper turned off in Ingredients: catalog, basket, schedule and Options skip
+  // them; resolve does not, so turning one off or on never checks the products again
+  stores_off?: number[];
 }
 
-// A store the catalog prices products at (GET /stores).
-export interface Store {
+// A store near the shopper (POST /mealplan/stores): how far, whether the plan's distance takes
+// it in, whether the shopper turned it off, and how many of the plan's products it sells (null:
+// not known yet).
+export interface StoreChoice {
   id: number;
   name: string;
-  lat: number;
-  lon: number;
   address: string;
+  distance_km: number | null;
+  in_range: boolean;
+  off: boolean;
+  sells: number | null;
+}
+
+export interface MealStores {
+  v: 1;
+  stores: StoreChoice[];
+  products_total: number;
 }
 
 // The demo hub's address search (GET /hub/geocode?q=…, OpenStreetMap's Nominatim): at most a
@@ -1720,8 +1733,9 @@ export interface BasketOrigin {
 }
 
 // Why an ingredient cannot be bought: only products from an excluded country nearby, none
-// stocked, or none within the distance. Absent from an older API.
-export type UnavailableKind = 'origin_excluded' | 'not_stocked' | 'out_of_range';
+// stocked, none within the distance, or only at stores the shopper turned off. Absent from an
+// older API.
+export type UnavailableKind = 'origin_excluded' | 'not_stocked' | 'out_of_range' | 'stores_off';
 
 // One ingredient of a recipe as the plan would buy it. price: one pack; cost_for_need: this
 // recipe's share over all its meals. shared_with: the other recipe keys buying the same product.

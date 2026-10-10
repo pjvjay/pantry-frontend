@@ -19,19 +19,19 @@
 //   meal plan" (pantry.mealplan.inbox.v1) join the tray, on load, when another tab saves, and
 //   when the Meal plan view opens (syncSaved; a save in this same page fires no storage event).
 // - Announcements: one polite live region, rendered here, for every edit and refusal.
-// - The wizard's catalog and basket (useCatalog, useBasket): asked from the view that shows
-//   them, only while it does, whenever what they depend on changes (300 ms after the last
+// - The wizard's catalog, basket and stores (useCatalog, useBasket, useStores): asked from the
+//   view that shows them, only while it does, whenever what they depend on changes (300 ms after the last
 //   change), and kept for that request: a stage opened again shows its answer with no call.
 //   Neither uses a model.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import {
-  ApiError, getMealStarters, mealBasket, mealCatalog, parseSelection, resolveRecipes, scheduleMealPlan,
-  suggestCookDays,
+  ApiError, getMealStarters, mealBasket, mealCatalog, mealStores, parseSelection, resolveRecipes,
+  scheduleMealPlan, suggestCookDays,
 } from '../api';
 import type {
-  CookDaysProposal, MealBasket, MealCatalog, MealSchedule, MealStarter, RecipeDoc, RecipeRef, Trip,
+  CookDaysProposal, MealBasket, MealCatalog, MealSchedule, MealStarter, MealStores, RecipeDoc, RecipeRef, Trip,
   TripStrategy,
 } from '../types';
 import {
@@ -505,4 +505,13 @@ export function useBasket(active: boolean): KeyedCall<MealBasket> {
   const { draft } = state;
   const key = useMemo(() => (Object.keys(draft.recipes).length ? basketKey(draft) : null), [draft]);
   return useKeyedCall(active, key, (signal) => mealBasket(draft, signal));
+}
+
+// The stores near the shopper, with what each sells of the plan's products, asked again whenever
+// the basket would be (the point, the distance, the stores turned off, the products).
+export function useStores(active: boolean): KeyedCall<MealStores> {
+  const { state } = useMealPlan();
+  const { draft } = state;
+  const key = useMemo(() => basketKey(draft), [draft]);
+  return useKeyedCall(active, key, (signal) => mealStores(draft, signal));
 }

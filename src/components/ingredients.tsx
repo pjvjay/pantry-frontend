@@ -20,11 +20,14 @@ import { useMealPlan } from '../mealplan/store';
 import type { KeyedCall } from '../mealplan/store';
 import type { MealBasket } from '../types';
 import { ServingsPrompt } from './mealtray';
+import { STORES_HEAD, StoresPanel } from './stores';
 import { TripLineOptionsDialog } from './tripoptions';
 
 type Open = (lineKey: string, productId: number, name: string) => void;
 
-function Line({ l, title, onOptions, onMeals }: { l: LineView; title: string; onOptions: Open; onMeals: () => void }) {
+// onStores: to the "Your stores" panel, for an ingredient sold only at stores turned off.
+function Line({ l, title, onOptions, onMeals, onStores }: { l: LineView; title: string; onOptions: Open;
+  onMeals: () => void; onStores: () => void }) {
   const mp = useMealPlan();
   const skip = (yes: boolean) => mp.dispatch({ type: 'skipLine', recipeKey: l.recipeKey, lineNo: l.lineNo,
     ingredient: l.ingredient, skip: yes });
@@ -60,6 +63,9 @@ function Line({ l, title, onOptions, onMeals }: { l: LineView; title: string; on
           </span>
           {!l.skipped && l.why && <span className="muted">{l.why}</span>}
           {/* the skip button stays where it is whichever it says, so focus stays on it */}
+          {!l.skipped && l.kind === 'stores_off' && (
+            <button type="button" className="secondary mini" onClick={onStores}>Turn a store back on</button>
+          )}
           {!l.skipped && <button type="button" className="secondary mini" onClick={onMeals}>Back to meals</button>}
           {!l.skipped && l.productId !== null && (
             <button type="button" className="secondary mini" aria-haspopup="dialog" onClick={open}>Another product</button>
@@ -73,7 +79,8 @@ function Line({ l, title, onOptions, onMeals }: { l: LineView; title: string; on
   );
 }
 
-function RecipeIngredients({ r, onOptions, onMeals }: { r: RecipeView; onOptions: Open; onMeals: () => void }) {
+function RecipeIngredients({ r, onOptions, onMeals, onStores }: { r: RecipeView; onOptions: Open; onMeals: () => void;
+  onStores: () => void }) {
   return (
     <section className="mp-ing-recipe" aria-label={r.title}>
       <h3 className="mp-section-head">
@@ -83,7 +90,9 @@ function RecipeIngredients({ r, onOptions, onMeals }: { r: RecipeView; onOptions
       {r.meals === 0 && <p className="muted">No meals of it in the plan: nothing is bought for it.</p>}
       {r.lines.length === 0 && <p className="muted">No ingredients to show yet.</p>}
       <ul className="mp-ing-lines">
-        {r.lines.map((l) => <Line key={l.key} l={l} title={r.title} onOptions={onOptions} onMeals={onMeals} />)}
+        {r.lines.map((l) => (
+          <Line key={l.key} l={l} title={r.title} onOptions={onOptions} onMeals={onMeals} onStores={onStores} />
+        ))}
       </ul>
     </section>
   );
@@ -110,13 +119,28 @@ export function IngredientsStage({ basket, onMeals }: { basket: KeyedCall<MealBa
   // recipes whose products are not checked yet, or could not be
   const waiting = keys.filter((k) => !d.resolved[k] || !USABLE_RESOLVE.includes(d.resolved[k].status));
 
+  // "Turn a store back on": the stores panel, its heading focused
+  const toStores = () => {
+    const h = document.getElementById(STORES_HEAD);
+    h?.scrollIntoView({ block: 'start' });
+    if (h) {
+      h.tabIndex = -1;
+      h.focus({ preventScroll: true });
+    }
+  };
   if (!keys.length) {
-    return <p className="mp-empty">No recipes yet. <button type="button" className="linkish" onClick={onMeals}>Add meals</button></p>;
+    return (
+      <>
+        <StoresPanel />
+        <p className="mp-empty">No recipes yet. <button type="button" className="linkish" onClick={onMeals}>Add meals</button></p>
+      </>
+    );
   }
   return (
     <>
+      <StoresPanel />
       <p className="muted">
-        Each recipe's ingredients as your trips would buy them, from the stores you shop at. Choose an
+        Each recipe's ingredients as your trips would buy them, from the stores above. Choose an
         ingredient to see the other products that could take its place.
       </p>
       {total && (
@@ -170,13 +194,15 @@ export function IngredientsStage({ basket, onMeals }: { basket: KeyedCall<MealBa
               {g.heading}: {g.lines.map((l) => `${l.ingredient} (${recipeTitle(mp.state, l.recipeKey)})`).join(', ')}.{' '}
             </span>
           ))}
-          For each, choose another product, skip it, or go back to Meals for other recipes.{' '}
+          For each, choose another product, skip it
+          {view.unanswered.some((l) => l.kind === 'stores_off') && ', turn a store back on'}, or go back to Meals for
+          other recipes.{' '}
           <button type="button" className="secondary mini" onClick={onMeals}>Back to meals</button>
         </div>
       )}
 
       {view?.recipes.map((r) => (
-        <RecipeIngredients key={r.key} r={r} onMeals={onMeals}
+        <RecipeIngredients key={r.key} r={r} onMeals={onMeals} onStores={toStores}
                            onOptions={(key, productId, name) => {
                              openedFrom.current = key;
                              setOptions({ productId, name });

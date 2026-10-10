@@ -256,6 +256,8 @@ export type PlanEdit =
   | { type: 'setPacks'; date: CivilDate; productId: number; packs: number | null }
   | { type: 'setStorage'; productId: number; storage: 'fridge' | 'freezer' | null }
   | { type: 'pinProduct'; recipeKey: string; lineNo: number; productId: number | null }
+  // a store near the shopper turned off (the plan buys nothing there) or back on
+  | { type: 'setStoreOff'; storeId: number; name: string; off: boolean }
   // the shopper does without a line no store nearby sells (skip), or needs it again
   | { type: 'skipLine'; recipeKey: string; lineNo: number; ingredient: string; skip: boolean }
   // the shopper's daily nutrition targets, all of them at once ({} clears them)
@@ -606,12 +608,23 @@ function setSettings(s: MealPlanState, patch: PlanSettings): Applied {
   if (patch.address != null && (typeof patch.address !== 'string' || patch.address.length > 200)) {
     return 'an address is at most 200 characters';
   }
+  if (patch.stores_off !== undefined && !(Array.isArray(patch.stores_off) && patch.stores_off.length <= 500
+    && patch.stores_off.every((id) => isInt(id, 1, Number.MAX_SAFE_INTEGER)))) {
+    return 'the stores turned off are not readable';
+  }
   const settings = { ...d.settings, ...patch };
   if ('address' in patch) settings.address = patch.address?.trim() || null;
-  // The address only names the place: a new name for the same point keeps the products.
+  if (patch.stores_off) settings.stores_off = [...new Set(patch.stores_off)].sort((a, b) => a - b);
+  // The address only names the place, and the stores turned off are skipped after products are
+  // resolved: neither checks the products again.
   if (sameArea(settings, d.settings)) {
-    if ((settings.address ?? null) === (d.settings.address ?? null)) return { state: s, said: '' };
-    return { state: set(s, { settings }), said: `Shopping from ${settings.address ?? 'the default place'}.` };
+    const keys = new Set([...Object.keys(settings), ...Object.keys(d.settings)]) as Set<keyof PlanSettings>;
+    if ([...keys].every((k) => JSON.stringify(settings[k] ?? null) === JSON.stringify(d.settings[k] ?? null))) {
+      return { state: s, said: '' };
+    }
+    const named = (settings.address ?? null) !== (d.settings.address ?? null);
+    return { state: set(s, { settings }),
+      said: named ? `Shopping from ${settings.address ?? 'the default place'}.` : 'Settings saved.' };
   }
   return { state: set(s, { settings, resolved: {} }),
     said: 'Shopping area changed; products will be checked again.' };
@@ -894,6 +907,14 @@ function apply(s: MealPlanState, e: PlanEdit): Applied {
       else delete pins[e.recipeKey];
       return { state: set(s, { pins }),
         said: e.productId === null ? 'Back to the planner’s product.' : 'Your product is used for this line.' };
+    }
+    case 'setStoreOff': {
+      if (!isInt(e.storeId, 1, Number.MAX_SAFE_INTEGER)) return 'that is not a store';
+      const now = d.settings.stores_off ?? [];
+      if (now.includes(e.storeId) === e.off) return { state: s, said: '' };
+      const stores_off = e.off ? [...now, e.storeId].sort((a, b) => a - b) : now.filter((x) => x !== e.storeId);
+      return { state: set(s, { settings: { ...d.settings, stores_off } }),
+        said: e.off ? `${e.name} turned off: the plan buys nothing there.` : `${e.name} is in use again.` };
     }
     case 'skipLine': {
       if (!d.recipes[e.recipeKey]) return 'that recipe is not in the plan';
