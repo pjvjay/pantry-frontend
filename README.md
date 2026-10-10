@@ -81,6 +81,8 @@ nothing. The logic is in pure modules under `src/mealplan/`:
 | `wizard.ts` | the six stages: the address (`#/mealplan?step=1..6`), the gates between stages, where a stage opens, the progress indicator, and Basics' origin rules |
 | `catalog.ts` | the Meals stage: recipe cards by meal from `/mealplan/catalog`, the budget bar's arithmetic, a real total against the budget |
 | `basket.ts` | the Ingredients stage: each recipe's ingredients from `/mealplan/basket`, and which ones no store nearby sells still need an answer |
+| `basics.ts` | Basics: where the shopper is (areas, the device's location, the address search's words), the budget's picks and the "Your plan" summary |
+| `stores.ts` | Ingredients' "Your stores": the distances, the stores near the shopper, and the warning when none is in range |
 
 **From the Assistant.** Each chat message carries the plan in brief
 (`chatDraft.contextOf`: window, meals, recipes, the dates of approved trips, the
@@ -109,12 +111,18 @@ back to it; Google's `?calendar=` return lands on Calendar, and the Assistant's 
 the Planner's "Open in Meal plan" on Schedule. On each change of stage focus moves
 to its heading. `views/MealPlanView.tsx` puts them together:
 
-1. **Basics** (`components/basics.tsx`): the start date and 1 or 2 weeks, the
-   budget for the period, the household, the diet (any, pescatarian, vegetarian,
-   vegan), what to avoid (dairy, gluten, nuts, soy, egg), the origin rules
-   (United States products left out and Canada preferred by default, then an
-   editable order of allies; a preference, never a whitelist), where and when the
-   household shops, and the meals to plan. All saved in the plan.
+1. **Basics** (`components/basics.tsx`): form cards (`components/fields.tsx`:
+   segments, tiles, chips and switches over native inputs) for the start date
+   and 1 or 2 weeks, the budget for the period with quick picks and its figure a
+   day, the diet (any, pescatarian, vegetarian, vegan), what to avoid (dairy,
+   gluten, nuts, soy, egg), the origin rules (United States products left out
+   and Canada preferred by default, then an editable order of allies; a
+   preference, never a whitelist), where the shopper is (an address searched
+   through the hub's `/hub/geocode`, on Search only, never as one types; the
+   device's location; or a Vancouver area), the shop days and the meals to plan,
+   with a "Your plan" summary beside them on a wide screen. All saved in the
+   plan, in this browser only. Every plan is for one person for now: a plan read
+   back is set to one.
 2. **Meals** (`components/mealcards.tsx`): recipe cards in Breakfast, Lunch and
    Dinner (Snack collapsed) from `/mealplan/catalog`, each with its diet, what
    one more meal adds to the plan's cost, what cannot be bought nearby (and
@@ -125,12 +133,18 @@ to its heading. `views/MealPlanView.tsx` puts them together:
    says by how much, and recipes that do not fit the diet are
    counted under "n hidden by your diet". Quick add, Import a recipe and My
    recipes are below. Next needs a meal.
-3. **Ingredients** (`components/ingredients.tsx`): each recipe's ingredients from
-   `/mealplan/basket`, with product, store and distance, price, origin and labels,
-   and the basket's total against the budget. An ingredient opens its Options
+3. **Ingredients** (`components/ingredients.tsx`): first "Your stores"
+   (`components/stores.tsx`): how far the shopper goes, and the stores near them
+   from `/mealplan/stores`, each with its distance, what it sells of the plan's
+   products and a switch (a store turned off is skipped, kept in
+   `settings.stores_off`, and never checks the products again). Then each
+   recipe's ingredients from `/mealplan/basket`, with product, store and
+   distance, price, origin and labels, and the basket's total against the
+   budget. An ingredient opens its Options
    across the whole plan (no trip); a choice pins every line that buys it. One no
    store nearby sells needs an answer before Schedule: Back to meals, another
-   product, or Skip this ingredient (kept with the plan as `skipped`).
+   product, Skip this ingredient (kept with the plan as `skipped`), or, when only
+   stores turned off sell it, turning one back on.
 4. **Schedule** (`components/mealcal.tsx`, the tray from `components/mealtray.tsx`):
    7 or 14 days of Breakfast, Lunch, Dinner and Snack, Fill empty slots, Suggest
    cook days, Undo and Redo, and the nutrition band (`components/nutrition.tsx`).
