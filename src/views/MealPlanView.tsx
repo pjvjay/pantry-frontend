@@ -8,8 +8,9 @@
 //                    each one no store nearby sells (components/ingredients.tsx).
 //   4 Schedule:      the 7 or 14 day calendar with the tray, drag and drop, Fill empty slots,
 //                    Suggest cook days, undo and the nutrition band (components/mealcal.tsx).
-//   5 Shopping plan: the trips code suggests, the warnings and their fixes, the total against
-//                    the budget (components/mealtrips.tsx).
+//   5 Shopping plan: the week's trips as a strip to move them on, the trips code suggests, the
+//                    warnings and their fixes, the total against the budget
+//                    (components/mealtrips.tsx).
 //   6 Calendar:      times and reminders, the events, the .ics and Google Calendar
 //                    (components/CalendarExport.tsx).
 // Where a stage opens and what stops Next are decided in mealplan/wizard.ts. The plan lives in
@@ -22,7 +23,7 @@ import type { KeyboardEvent } from 'react';
 import { BasicsStage, PlanFile, ShoppingSettings } from '../components/basics';
 import { CalendarExport, TimingSettings, useTiming } from '../components/CalendarExport';
 import { IngredientsStage } from '../components/ingredients';
-import { ActionBar, DragGhost, MoveSheet, PlanBoard } from '../components/mealcal';
+import { ActionBar, DragGhost, MoveSheet, PlanBoard, WeekStrip } from '../components/mealcal';
 import type { BoardCtl } from '../components/mealcal';
 import { MealsStage } from '../components/mealcards';
 import { CookDaysDiff, CoverageChips, ShopPanel, TripSheet, WarningsPanel } from '../components/mealtrips';
@@ -393,6 +394,7 @@ export default function MealPlanView() {
         {step === 5 && (
           <>
             {statusLine}
+            {answer && <WeekStrip ctl={ctl} />}
             {planTotal && (
               <p className={`mp-total ${planTotal.over ? 'cart-flag' : ''}`}>
                 <strong>{STRATEGY_NAMES[strategy]}</strong> {planTotal.text}
@@ -430,13 +432,13 @@ export default function MealPlanView() {
 
       <StageNav step={step} facts={facts} go={go} onBlocked={mp.announce} />
 
-      {step === 4 && (
+      {(step === 4 || step === 5) && (
         <>
           <ActionBar ctl={ctl} onCancel={cancelHeld} onTray={() => dropOn('tray')} />
           <DragGhost ctl={ctl} ghostRef={ghost} preview={preview} />
-          <MoveSheet ctl={ctl} mealId={mealSheet} onClose={() => setMealSheet(null)} />
         </>
       )}
+      {step === 4 && <MoveSheet ctl={ctl} mealId={mealSheet} onClose={() => setMealSheet(null)} />}
       <TripSheet date={tripSheet} optionsFor={tripOptions}
                  onClose={() => { setTripSheet(null); setTripOptions(null); }} />
       <TargetsEditor open={targetsOpen} onClose={() => setTargetsOpen(false)} targets={d.nutrition_targets}

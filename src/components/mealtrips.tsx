@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom';
 import { sizeInName } from '../alternatives';
 import {
   costText, forMealsText, needText, packsText, priceDeltaText, shelfText, strategyOf, tripChipText, tripLook,
-  tripPriced, tripToCartSummary,
+  tripMoveDays, tripPriced, tripToCartSummary,
 } from '../mealplan/board';
 import {
   productNames, remedyLabel, remedyStep, tripMoveConsequence, warningRows, warningsFor,
@@ -145,8 +145,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
     <TripLineOptionsDialog date={date} productId={options?.productId ?? null} productName={optionsName}
                            onClose={() => setOptions(null)} />
   );
-  const others = useMemo(() => windowDates(windowOf(d)).filter((x) => x !== date
-    && !d.trips.some((t) => t.date === x)), [d, date]);
+  const others = useMemo(() => (date ? tripMoveDays(d, date) : []), [d, date]);
   if (!date) return null;
   if (!trip) {
     return (
@@ -357,6 +356,27 @@ export function CoverageChips({ coverage }: { coverage: PlanCoverage }) {
 
 // ─── The Shopping plan ───────────────────────────────────────
 
+// "Move to…" on a suggested trip's card: another day, then Move (moveTrip, as a drag makes it).
+function MoveTo({ date }: { date: string }) {
+  const mp = useMealPlan();
+  const [to, setTo] = useState('');
+  const days = tripMoveDays(mp.state.draft, date);
+  if (!days.length) return null;
+  return (
+    <span className="mp-move-to">
+      <label className="mp-inline">
+        Move to
+        <select value={to} onChange={(e) => setTo(e.target.value)}>
+          <option value="">a day…</option>
+          {days.map((x) => <option key={x} value={x}>{dayLabel(x)}</option>)}
+        </select>
+      </label>
+      <button type="button" className="secondary mini" disabled={!to} aria-label={`Move the trip on ${dayLabel(date)}`}
+              onClick={() => { mp.dispatch({ type: 'moveTrip', from: date, to }); setTo(''); }}>Move</button>
+    </span>
+  );
+}
+
 const KIND_MARK: Record<PlanAction['kind'], string> = { shop: '🛒', freeze: '❄', thaw: '↘', cook: '🍳' };
 
 export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; onOpenTrip: (date: string) => void }) {
@@ -416,6 +436,7 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
                     </button>
                     <button type="button" className="secondary mini"
                             onClick={() => mp.dispatch({ type: 'dismissTrip', date: t.date })}>Dismiss</button>
+                    <MoveTo date={t.date} />
                   </>
                 ) : (
                   <>

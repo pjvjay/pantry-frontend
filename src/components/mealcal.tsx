@@ -10,11 +10,17 @@
 //   - the keyboard: Enter or Space picks it up, Tab or the arrow keys reach a slot, Enter
 //     places, Escape cancels, Delete sends it back to the tray.
 // The decisions are in mealplan/dnd.ts and consequences.ts; this file draws them.
+//
+// The Shopping plan stage shows the trips alone as a week strip (WeekStrip): each day's Shop row
+// and how many meals are cooked that day. Its trips move the same ways, and a Move button picks
+// one up from the keyboard.
 import { useMemo } from 'react';
 import type { KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
 import { dayLabel } from '../mealplan/dates';
-import { costText, mealsByCell, shownSlots, tripChipText, tripLook, tripPriced, tripsByDate } from '../mealplan/board';
+import {
+  costText, mealCountText, mealsByCell, mealsByDay, shownSlots, tripChipText, tripLook, tripPriced, tripsByDate,
+} from '../mealplan/board';
 import { moveChoices } from '../mealplan/consequences';
 import type { MoveChoice } from '../mealplan/consequences';
 import { canDrop, keyIntent, keyMove, shopKey, slotLabel } from '../mealplan/dnd';
@@ -127,7 +133,9 @@ export function DayCard({ ctl, date, slots, cells, trip, footer }: {
 
 // ─── Shop row and trip chips ─────────────────────────────────
 
-export function ShopRow({ ctl, date, trip }: { ctl: BoardCtl; date: string; trip: Trip | null }) {
+// keyMove: the trip chip has a Move button (the week strip), for picking it up from the keyboard.
+export function ShopRow({ ctl, date, trip, keyMove = false }: { ctl: BoardCtl; date: string; trip: Trip | null;
+  keyMove?: boolean }) {
   const d = ctl.state.draft;
   const key = shopKey(date);
   const p = moving(ctl);
@@ -137,7 +145,7 @@ export function ShopRow({ ctl, date, trip }: { ctl: BoardCtl; date: string; trip
     <div className="mp-shop" data-drop={key} data-target={target || undefined}
          data-over={ctl.drag?.over === key || undefined}>
       <span className="mp-row-k">Shop</span>
-      {trip && <TripChip ctl={ctl} trip={trip} />}
+      {trip && <TripChip ctl={ctl} trip={trip} keyMove={keyMove} />}
       {!trip && dismissed && <span className="muted mp-shop-none">no trip (you dismissed it)</span>}
       {target && ctl.held && (
         <button type="button" className="mp-slot-target" data-cell-shop={date} onClick={() => ctl.dropOn(key)}>
@@ -148,7 +156,7 @@ export function ShopRow({ ctl, date, trip }: { ctl: BoardCtl; date: string; trip
   );
 }
 
-export function TripChip({ ctl, trip }: { ctl: BoardCtl; trip: Trip }) {
+export function TripChip({ ctl, trip, keyMove = false }: { ctl: BoardCtl; trip: Trip; keyMove?: boolean }) {
   const elsewhere = approvedElsewhere(ctl.state.draft, trip.date, ctl.strategy);
   const look = tripLook(trip, elsewhere);
   const payload: DragPayload = { kind: 'trip', tripId: trip.id, date: trip.date };
@@ -166,6 +174,39 @@ export function TripChip({ ctl, trip }: { ctl: BoardCtl; trip: Trip }) {
           {trip.lines.length === 1 ? ' item' : ' items'}
         </span>
       </button>
+      {keyMove && movable && (
+        <button type="button" className="secondary mini mp-trip-move" aria-pressed={held}
+                aria-label={held ? `Put the trip on ${dayLabel(trip.date)} down` : `Move the trip on ${dayLabel(trip.date)}`}
+                onClick={() => ctl.pick(payload)}>
+          {held ? 'Moving…' : 'Move'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── The week strip ──────────────────────────────────────────
+
+// The plan's days in weeks, each with its Shop row (the trip, a drop target for another one) and
+// how many meals are cooked that day. One column a day on a wide screen, a row a day on a phone.
+export function WeekStrip({ ctl }: { ctl: BoardCtl }) {
+  const d = ctl.state.draft;
+  const trips = useMemo(() => tripsByDate(ctl.schedule?.strategies.find((s) => s.name === ctl.strategy)),
+    [ctl.schedule, ctl.strategy]);
+  const meals = useMemo(() => mealsByDay(d), [d]);
+  return (
+    <div className="mp-strip" role="group" aria-label="Trips by day">
+      {weeksOf(windowOf(d)).map((week, i) => (
+        <ol key={week[0]} className="mp-strip-week" aria-label={`Week ${i + 1}, from ${dayLabel(week[0])}`}>
+          {week.map((date) => (
+            <li key={date} className="mp-strip-day">
+              <span className="mp-strip-date">{dayLabel(date)}</span>
+              <ShopRow ctl={ctl} date={date} trip={trips.get(date) ?? null} keyMove />
+              <span className="muted mp-strip-meals">{mealCountText(meals.get(date) ?? 0)}</span>
+            </li>
+          ))}
+        </ol>
+      ))}
     </div>
   );
 }

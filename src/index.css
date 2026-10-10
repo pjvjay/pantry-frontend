@@ -1132,6 +1132,26 @@ details.mp-section > summary .mp-section-head { display: inline; }
 .mp-hidden ul { margin: 4px 0; padding-left: 18px; }
 .mp-more { margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--border); }
 
+/* Shopping plan: the week strip, a column a day (a row a day on a phone), each with its Shop
+   row, the same drop target as on the calendar */
+.mp-strip { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; }
+.mp-strip-week { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.mp-strip-day {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 4px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
+}
+.mp-strip-date { font-size: 12px; font-weight: 650; }
+.mp-strip-meals { font-size: 11.5px; }
+.mp-strip .mp-shop { min-height: 40px; border-bottom: none; }
+.mp-strip .mp-row-k {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap;
+}
+.mp-strip .mp-trip { flex-wrap: wrap; }
+/* under the chip's words, the width of the chip, so the price is never covered */
+.mp-trip-move { flex: 1 0 100%; margin: 2px 0 0; }
+.mp-move-to { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mp-move-to button { margin: 0; }
+
 /* Ingredients: one row per ingredient; one no store nearby sells has a --warn edge and its words */
 .mp-unanswered { margin: 8px 0; font-size: 13.5px; }
 .mp-unanswered button { margin: 0; }
@@ -1154,6 +1174,10 @@ details.mp-section > summary .mp-section-head { display: inline; }
 .mp-ing-answer { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .mp-ing-answer button { margin: 0; }
 
+@media (max-width: 900px) {
+  .mp-strip-week { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .mp-strip-day { display: grid; grid-template-columns: 6.5em minmax(0, 1fr) auto; align-items: center; column-gap: 8px; }
+}
 @media (max-width: 640px) {
   .mp-step-mark { width: 28px; height: 28px; }
   .mp-step:not(:last-child)::after { top: 13px; left: calc(50% + 17px); right: calc(-50% + 17px); }

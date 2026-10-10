@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  costText, forMealsText, lineWarn, mealsByCell, packsText, priceDeltaText, shelfText, shownSlots,
-  summaryLine, trayRows, tripChipText, tripLook, tripToCartSummary, weekEdit,
+  costText, forMealsText, lineWarn, mealCountText, mealsByCell, mealsByDay, packsText, priceDeltaText, shelfText,
+  shownSlots, summaryLine, trayRows, tripChipText, tripLook, tripMoveDays, tripToCartSummary, weekEdit,
 } from '../src/mealplan/board.ts';
 import { cellKey, step } from '../src/mealplan/model.ts';
 import type { MealSchedule } from '../src/types.ts';
@@ -197,4 +197,25 @@ test('adding a week keeps the plan and fills free dinners, then the tray', () =>
     .map((m) => m.date), [null]);
   assert.match(out.said, /1 wait in the tray/);
   assert.deepEqual(weekEdit(s, [], 'add', TODAY, 'x'), { refused: 'the week has no dinners' });
+});
+
+test('the Shopping plan\'s week strip: meals cooked a day, and the days a trip can move to', () => {
+  let s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 3)),
+    { type: 'place', mealId: `${PIZZA}#1`, date: D(1), slot: 'dinner' },
+    { type: 'place', mealId: `${PIZZA}#2`, date: D(1), slot: 'lunch' },
+    { type: 'place', mealId: `${PIZZA}#3`, date: D(4), slot: 'dinner' });
+  const byDay = mealsByDay(s.draft);
+  assert.deepEqual([...byDay.values()], [0, 2, 0, 0, 1, 0, 0]);
+  assert.equal(byDay.size, 7, 'every day of the plan, meals or not');
+  assert.equal(mealCountText(2), '2 meals');
+  assert.equal(mealCountText(1), '1 meal');
+  assert.equal(mealCountText(0), 'no meals');
+  assert.deepEqual(tripMoveDays(s.draft, D(0)), [D(1), D(2), D(3), D(4), D(5), D(6)]);
+  // a day with an approved trip takes no other (the reducer refuses it)
+  const t = trip(D(3), [line(5, 'Chicken Thighs')]);
+  s = run(s, { type: 'approveTrip', trip: t, strategy: 'fresh', rev: s.draft.rev });
+  assert.deepEqual(tripMoveDays(s.draft, D(0)), [D(1), D(2), D(4), D(5), D(6)]);
+  // the edit a move makes, as the strip's drop and the card's "Move to…" both send it
+  const moved = run(s, { type: 'moveTrip', from: D(0), to: D(2) });
+  assert.ok(moved.draft.fixed_dates.includes(D(2)) && moved.draft.dismissed_dates.includes(D(0)));
 });
