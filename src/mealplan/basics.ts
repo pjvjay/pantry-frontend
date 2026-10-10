@@ -1,20 +1,16 @@
 // Pure module: no React, DOM or import.meta.env, and sibling imports name their .ts file, so
 // node --test runs it as it is (tests/pure-modules.test.ts checks all of this).
 //
-// The wizard's Basics stage, decided without the browser: where the household shops (an
-// address searched through the demo hub, the device's location, or one of the demo's Vancouver
-// areas), how far it goes, which demo stores that reaches, and the words for each. The point is
-// what counts (lat, lon, max_km); the address only names it. With no point the server's own
-// reference point, downtown Vancouver, is used, and distances here are measured from it too.
-import type { PlanSettings, Store } from '../types.ts';
-
-// pantry-api's DEFAULT_LAT and DEFAULT_LON: where a plan with no point shops from.
-export const DEFAULT_POINT = { lat: 49.28, lon: -123.12 } as const;
-
-export interface Point {
-  lat: number;
-  lon: number;
-}
+// The wizard's Basics stage, decided without the browser: where the shopper is (an address
+// searched through the demo hub, the device's location, or one of the demo's Vancouver areas)
+// and the words around the search; the stores near it are chosen later, in Ingredients
+// (stores.ts). The point is what counts (lat, lon); the address only names it. With no point
+// the server's own reference point, downtown Vancouver, is used. Also here: the budget's quick
+// picks and daily figure, and the "Your plan" summary beside the form.
+import { addDays, dayLabel } from './dates.ts';
+import { DIET_LABELS, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf } from './model.ts';
+import { originRules } from './wizard.ts';
+import type { MealPlanDraft, PlanSettings } from '../types.ts';
 
 // The demo's areas as quick picks. Downtown is the server's default: no point, no address.
 export interface Area {
@@ -30,33 +26,6 @@ export const AREAS: readonly Area[] = [
   { id: 'east-vancouver', label: 'East Vancouver', lat: 49.2765, lon: -123.07 },
   { id: 'richmond', label: 'Richmond', lat: 49.1666, lon: -123.1336 },
 ];
-
-// How far the household goes; null is any distance.
-export const DISTANCES: readonly (number | null)[] = [2, 5, 10, 25, null];
-
-export const distanceLabel = (km: number | null): string => (km === null ? 'Any' : `${km} km`);
-
-// The choices shown: the usual ones, and a plan's own distance among them when it is another.
-export function distanceChoices(current: number | null | undefined): (number | null)[] {
-  const c = current ?? null;
-  if (DISTANCES.includes(c)) return [...DISTANCES];
-  return [...DISTANCES.filter((x) => x !== null), c as number, null].sort((a, b) =>
-    (a === null ? 1 : b === null ? -1 : a - b));
-}
-
-const RADIUS_KM = 6371.0088;
-const rad = (d: number) => (d * Math.PI) / 180;
-
-// Great-circle distance in km.
-export function haversineKm(a: Point, b: Point): number {
-  const dLat = rad(b.lat - a.lat);
-  const dLon = rad(b.lon - a.lon);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
-export const pointOf = (st: PlanSettings): Point =>
-  (st.lat != null && st.lon != null ? { lat: st.lat, lon: st.lon } : { ...DEFAULT_POINT });
 
 // The area a plan's point is, if it is one.
 export function areaOf(st: PlanSettings): Area | null {
@@ -83,36 +52,6 @@ export function locationSettings(lat: number, lon: number): PlanSettings | null 
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
   const round = (x: number) => Math.round(x * 1e4) / 1e4;
   return { lat: round(lat), lon: round(lon), address: CURRENT_LOCATION };
-}
-
-export interface StoreNear {
-  id: number;
-  name: string;
-  address: string;
-  km: number;
-}
-
-// The demo's stores from the household's point, nearest first, and those within its distance.
-export function storesNear(stores: readonly Store[], st: PlanSettings): { inRange: StoreNear[]; nearest: StoreNear | null } {
-  const from = pointOf(st);
-  const all = stores.map((s) => ({ id: s.id, name: s.name, address: s.address,
-    km: haversineKm(from, { lat: s.lat, lon: s.lon }) })).sort((a, b) => a.km - b.km || a.id - b.id);
-  const max = st.max_km ?? null;
-  return { inRange: max === null ? all : all.filter((s) => s.km <= max), nearest: all[0] ?? null };
-}
-
-export const kmText = (km: number): string => `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
-
-// The line over the stores in range, or the warning when there are none.
-export function rangeText(near: { inRange: StoreNear[]; nearest: StoreNear | null }, st: PlanSettings): {
-  text: string; warn: boolean;
-} {
-  const n = near.inRange.length;
-  const within = st.max_km == null ? 'at any distance' : `within ${distanceLabel(st.max_km)}`;
-  if (n) return { text: `${n} demo ${n === 1 ? 'store' : 'stores'} ${within}`, warn: false };
-  const nearest = near.nearest ? ` The nearest is ${near.nearest.name}, ${kmText(near.nearest.km)} away.` : '';
-  return { warn: true, text: `No store ${within} of ${placeText(st)}. The demo's stores are all in Vancouver: `
-    + `pick a Vancouver area or a longer distance.${nearest}` };
 }
 
 export const PRIVACY_NOTE = 'Your address is sent to OpenStreetMap only when you search, and saved only in this browser.';
@@ -146,4 +85,65 @@ export function locationErrorText(code: number | 'unsupported'): string {
     case 3: return 'Finding your location took too long: try again, or search an address.';
     default: return 'This browser cannot share your location: search an address or pick an area.';
   }
+}
+
+// The hub's refusal code from what a failed call carried: {code, message}, or the code alone.
+export function refusalCode(detail: unknown): string | null {
+  if (detail && typeof detail === 'object' && typeof (detail as { code?: unknown }).code === 'string') {
+    return (detail as { code: string }).code;
+  }
+  return typeof detail === 'string' && /^[a-z_]+$/.test(detail) ? detail : null;
+}
+
+// ─── Budget ──────────────────────────────────────────────────
+
+export const BUDGET_PICKS: readonly number[] = [50, 75, 100, 150];
+
+const money = (v: number) => `$${v.toFixed(2)}`;
+
+// "about $10.71 a day"
+export const perDayText = (budget: number, days: number): string => `about ${money(budget / days)} a day`;
+
+// ─── The summary ─────────────────────────────────────────────
+
+const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+// "Every day", "Weekdays", "Weekends", or the days: "Mon, Wed and Sat".
+export function weekdaysText(days: readonly number[]): string {
+  const d = [...days].sort((a, b) => a - b);
+  if (d.length === 7) return 'Every day';
+  if (d.join() === '0,1,2,3,4') return 'Weekdays';
+  if (d.join() === '5,6') return 'Weekends';
+  const names = d.map((i) => WEEKDAY_NAMES[i]);
+  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+export interface SummaryRow {
+  key: 'when' | 'budget' | 'diet' | 'avoid' | 'origin' | 'where' | 'days' | 'meals';
+  label: string;
+  value: string;
+  note?: string;
+}
+
+// The "Your plan" card: each answer in Basics in a few words.
+export function planSummary(d: MealPlanDraft): SummaryRow[] {
+  const budget = budgetOf(d.prefs);
+  const avoid = avoidOf(d.prefs);
+  const o = originRules(d.settings);
+  const st = d.settings;
+  const slots = SLOTS.filter((sl) => d.prefs.slots_on.includes(sl)).map((sl) => SLOT_LABELS[sl]);
+  const origin = [o.excludeUS ? 'No US products' : 'US products allowed',
+    o.preferCanada ? 'Canada first' : '', o.allies.length ? `then ${o.allies.length} more` : ''].filter(Boolean);
+  return [
+    { key: 'when', label: 'When', value: `${dayLabel(d.start_date)} – ${dayLabel(addDays(d.start_date, d.days - 1))}`,
+      note: d.days === 7 ? '1 week' : d.days === 14 ? '2 weeks' : `${d.days} days` },
+    { key: 'budget', label: 'Budget', value: budget === null ? 'No budget' : money(budget),
+      ...(budget === null ? {} : { note: perDayText(budget, d.days) }) },
+    { key: 'diet', label: 'Diet', value: DIET_LABELS[dietOf(d.prefs)] },
+    { key: 'avoid', label: 'Leave out', value: avoid.length ? avoid.join(', ') : 'Nothing' },
+    { key: 'origin', label: 'Origin', value: origin.join(' · ') },
+    { key: 'where', label: 'Where you are', value: placeText(st) },
+    { key: 'days', label: 'Shop on', value: weekdaysText(d.prefs.shop_weekdays) },
+    { key: 'meals', label: 'Meals', value: slots.join(', ') },
+  ];
 }

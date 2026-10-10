@@ -1,49 +1,14 @@
-// The wizard's Basics: where the household shops (an address, the device's location, a demo
-// area), how far it goes, the demo stores that reaches, and the words around the search.
+// The wizard's Basics: where the shopper is (an address, the device's location, a demo area),
+// the words around the search, the budget's figures and the "Your plan" summary.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  AREAS, CURRENT_LOCATION, DEFAULT_POINT, DISTANCES, PRIVACY_NOTE, areaOf, areaSettings, distanceChoices,
-  distanceLabel, geocodeErrorText, haversineKm, kmText, locationErrorText, locationSettings, placeText, pointOf,
-  rangeText, searchProblem, storesNear,
+  AREAS, BUDGET_PICKS, CURRENT_LOCATION, PRIVACY_NOTE, areaOf, areaSettings, geocodeErrorText, locationErrorText,
+  locationSettings, perDayText, placeText, planSummary, refusalCode, searchProblem, weekdaysText,
 } from '../src/mealplan/basics.ts';
 import { sameArea, step } from '../src/mealplan/model.ts';
-import type { Store } from '../src/types.ts';
 import { add, planWith, run } from './helpers/mealplan.ts';
-
-const STORES: Store[] = [
-  { id: 1, name: 'Pantry Mart Downtown', lat: 49.2827, lon: -123.1207, address: '800 Robson St' },
-  { id: 2, name: 'GreenLeaf Grocers Kitsilano', lat: 49.2681, lon: -123.1686, address: '2200 W 4th Ave' },
-  { id: 3, name: 'ValuFresh East Van', lat: 49.2766, lon: -123.0700, address: '1800 Commercial Dr' },
-];
-
-test('distances are great-circle km, measured from the default point when the plan has none', () => {
-  assert.equal(haversineKm(DEFAULT_POINT, DEFAULT_POINT), 0);
-  // downtown to Kitsilano is about 3.7 km
-  const d = haversineKm(DEFAULT_POINT, { lat: 49.2684, lon: -123.1683 });
-  assert.ok(d > 3.5 && d < 3.9, String(d));
-  assert.deepEqual(pointOf({}), { lat: 49.28, lon: -123.12 });
-  assert.deepEqual(pointOf({ lat: 1, lon: 2 }), { lat: 1, lon: 2 });
-  assert.equal(kmText(0.43), '0.4 km');
-  assert.equal(kmText(12.6), '13 km');
-});
-
-test('the stores in range, nearest first, and a clear warning when none is', () => {
-  const kits = { ...areaSettings(AREAS[1]), max_km: 2 };
-  const near = storesNear(STORES, kits);
-  assert.deepEqual(near.inRange.map((s) => s.name), ['GreenLeaf Grocers Kitsilano']);
-  assert.equal(near.nearest?.name, 'GreenLeaf Grocers Kitsilano');
-  assert.deepEqual(rangeText(near, kits), { text: '1 demo store within 2 km', warn: false });
-  assert.equal(storesNear(STORES, { max_km: null }).inRange.length, 3, 'any distance: every store');
-  assert.equal(rangeText(storesNear(STORES, {}), {}).text, '3 demo stores at any distance');
-  // Toronto, 5 km: nothing, and why
-  const far = { lat: 43.6532, lon: -79.3832, address: 'Toronto', max_km: 5 };
-  const none = rangeText(storesNear(STORES, far), far);
-  assert.equal(none.warn, true);
-  assert.match(none.text, /^No store within 5 km of Toronto\. The demo's stores are all in Vancouver: pick a Vancouver area or a longer distance\. The nearest is .*, \d+ km away\.$/);
-  assert.equal(rangeText(storesNear([], far), far).text.endsWith('a longer distance.'), true);
-});
 
 test('the areas: downtown is the server default, the others their point and name', () => {
   assert.deepEqual(AREAS.map((a) => a.label), ['Downtown Vancouver', 'Kitsilano', 'East Vancouver', 'Richmond']);
@@ -55,14 +20,6 @@ test('the areas: downtown is the server default, the others their point and name
   assert.equal(placeText({}), 'Downtown Vancouver');
   assert.equal(placeText({ lat: 49.3, lon: -123.1, address: '1055 Canada Pl, Vancouver' }), '1055 Canada Pl, Vancouver');
   assert.equal(placeText({ lat: 49.31234, lon: -123.1 }), '49.3123, -123.1000');
-});
-
-test('the distance is one of 2, 5, 10, 25 km or any, and a plan\'s own distance is kept among them', () => {
-  assert.deepEqual(DISTANCES, [2, 5, 10, 25, null]);
-  assert.deepEqual(DISTANCES.map(distanceLabel), ['2 km', '5 km', '10 km', '25 km', 'Any']);
-  assert.deepEqual(distanceChoices(5), [2, 5, 10, 25, null]);
-  assert.deepEqual(distanceChoices(undefined), [2, 5, 10, 25, null]);
-  assert.deepEqual(distanceChoices(3.5), [2, 3.5, 5, 10, 25, null]);
 });
 
 test('the device\'s location is kept to four decimals, and named as such', () => {
@@ -102,4 +59,44 @@ test('the address names the place: a new name alone keeps the products, a new po
   assert.equal(step(s, { type: 'setSettings', settings: { address: 'Home' } }).said, 'Shopping from Home.');
   assert.equal(run(named, { type: 'setSettings', settings: { address: '  ' } }).draft.settings.address, null);
   assert.match(step(s, { type: 'setSettings', settings: { address: 'x'.repeat(201) } }).refused ?? '', /200 characters/);
+});
+
+test('the hub\'s refusal code is read from {code, message} or from the code alone', () => {
+  assert.equal(refusalCode({ code: 'rate_limited', message: 'slow down' }), 'rate_limited');
+  assert.equal(refusalCode('geocoder_off'), 'geocoder_off');
+  assert.equal(refusalCode('Something went wrong.'), null);
+  assert.equal(refusalCode(null), null);
+});
+
+test('"Your plan" sums Basics up in a few words', () => {
+  let s = planWith(7);
+  let rows = Object.fromEntries(planSummary(s.draft).map((r) => [r.key, r]));
+  assert.deepEqual(rows.when, { key: 'when', label: 'When', value: 'Fri 9 Oct – Thu 15 Oct', note: '1 week' });
+  assert.deepEqual(rows.budget, { key: 'budget', label: 'Budget', value: 'No budget' });
+  assert.equal(rows.diet.value, 'Anything');
+  assert.equal(rows.avoid.value, 'Nothing');
+  assert.equal(rows.origin.value, 'No US products · Canada first · then 15 more');
+  assert.deepEqual(rows.where, { key: 'where', label: 'Where you are', value: 'Downtown Vancouver' });
+  assert.equal(rows.days.value, 'Every day');
+  assert.equal(rows.meals.value, 'Breakfast, Lunch, Dinner, Snack');
+  s = run(s, { type: 'setPrefs', prefs: { budget: 75, diet: 'vegan', avoid: ['soy', 'nuts'], shop_weekdays: [5, 6],
+    slots_on: ['dinner'] } }, { type: 'setSettings', settings: { ...areaSettings(AREAS[1]), max_km: null,
+    exclude_origin: [], preference: [] } }, { type: 'setWindow', start_date: s.draft.start_date, days: 14 });
+  rows = Object.fromEntries(planSummary(s.draft).map((r) => [r.key, r]));
+  assert.deepEqual([rows.budget.value, rows.budget.note], ['$75.00', 'about $5.36 a day']);
+  assert.equal(rows.when.note, '2 weeks');
+  assert.equal(rows.diet.value, 'Vegan');
+  assert.equal(rows.avoid.value, 'nuts, soy');
+  assert.equal(rows.origin.value, 'US products allowed');
+  assert.equal(rows.where.value, 'Kitsilano', 'the location only: stores are chosen in Ingredients');
+  assert.equal(rows.days.value, 'Weekends');
+  assert.equal(rows.meals.value, 'Dinner');
+});
+
+test('the budget\'s quick picks and its figure a day; shop days in words', () => {
+  assert.deepEqual(BUDGET_PICKS, [50, 75, 100, 150]);
+  assert.equal(perDayText(75, 7), 'about $10.71 a day');
+  assert.equal(weekdaysText([0, 1, 2, 3, 4]), 'Weekdays');
+  assert.equal(weekdaysText([5, 0, 2]), 'Mon, Wed and Sat');
+  assert.equal(weekdaysText([3]), 'Thu');
 });
