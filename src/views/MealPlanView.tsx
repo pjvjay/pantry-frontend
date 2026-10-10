@@ -345,7 +345,9 @@ export default function MealPlanView() {
 
       <Stepper step={step} facts={facts} />
 
-      <section className="panel mp-stage" aria-labelledby="mp-stage-head">
+      {/* Basics and Calendar are forms of cards, drawn on the page itself */}
+      <section className={`panel mp-stage${step === 1 || step === 6 ? ' mp-stage-flat' : ''}`}
+               aria-labelledby="mp-stage-head">
         <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{stepTitle(step)}</h2>
         {behind && (
           <p className="banner banner-update mp-behind">

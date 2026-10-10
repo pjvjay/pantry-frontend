@@ -24,6 +24,14 @@
   /* text on an accent background: 5.09:1 on light's accent */
   --on-accent: #fff;
   --focus: var(--accent);
+  /* the wizard's forms: a raised card, a softer fill for controls, a ring for a focused field */
+  --surface-2: #f1f2ee;
+  --accent-ring: rgb(13 125 98 / 0.22);
+  --shadow-1: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.07);
+  --shadow-2: 0 6px 20px rgb(16 24 40 / 0.09);
+  --radius: 10px;
+  --radius-lg: 14px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -47,6 +55,10 @@
     --line-strong: #7c838c;
     /* dark's accent is light, so text on it is dark: 8.93:1 (white would be 1.92:1) */
     --on-accent: #0b1f17;
+    --surface-2: #23272b;
+    --accent-ring: rgb(52 211 153 / 0.28);
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.35);
+    --shadow-2: 0 8px 24px rgb(0 0 0 / 0.45);
   }
 }
 
@@ -1197,6 +1209,218 @@ details.mp-section > summary .mp-section-head { display: inline; }
   .mp-ally-ctl button { min-width: 44px; min-height: 44px; }
 }
 
+/* --- Form pieces (components/fields.tsx): cards, segments, tiles, chips, switches ------------
+   Each control is drawn over the browser's own radio button or checkbox: the input stays where
+   it is, transparent over the drawn face (or hidden beside it for a switch), so clicks, the
+   keyboard and screen readers reach the real thing. A checked or focused input styles its
+   sibling face; the focus ring is always visible on keyboard focus. */
+.ico { flex: none; display: block; }
+.fc {
+  min-width: 0; margin: 0; padding: 14px 16px 16px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--panel); box-shadow: var(--shadow-1);
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.fc:focus-within { border-color: var(--line-strong); box-shadow: var(--shadow-2); }
+.fc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.fc-icon {
+  flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+}
+.view .fc-title { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.3; }
+.fc-help { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.fc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 10px; }
+.fc-row:first-of-type { margin-top: 0; }
+.fc-sub { margin: 14px 0 6px; font-size: 12px; font-weight: 650; letter-spacing: 0.03em; text-transform: uppercase; color: var(--muted); }
+.fc-note { margin: 8px 0 0; font-size: 13px; }
+.fc-field { display: flex; flex-direction: column; gap: 4px; }
+.fc-inline { flex-direction: row; align-items: center; gap: 8px; }
+.fc-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.fc-input {
+  padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--bg);
+  color: var(--text); font: inherit; font-size: 14px; transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.fc-input:hover { border-color: var(--line-strong); }
+.fc-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.fc-range { margin: 12px 0 0; font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.fc-place { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font-size: 15px; color: var(--accent); }
+.fc-place strong { color: var(--text); overflow-wrap: anywhere; }
+.fc-privacy { margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 12px; color: var(--muted); }
+
+/* one of a few, as joined segments */
+.seg {
+  display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; max-width: 100%;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2);
+}
+.seg-opt { position: relative; display: block; }
+.seg-opt input, .tile input, .tchip input {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer;
+}
+.seg-opt span {
+  display: block; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted);
+  white-space: nowrap; transition: background 0.2s var(--ease), color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.seg-opt:hover span { color: var(--text); }
+.seg-opt input:checked + span { background: var(--panel); color: var(--text); box-shadow: var(--shadow-1); }
+.seg-opt input:focus-visible + span, .tile input:focus-visible + .tile-face, .tchip input:focus-visible + span {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
+
+/* one of several, as tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; }
+.tile { position: relative; display: block; }
+.tile-face {
+  display: flex; flex-direction: column; gap: 3px; height: 100%; padding: 10px 12px;
+  border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--bg);
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.tile-face .ico { color: var(--muted); margin-bottom: 2px; transition: color 0.2s var(--ease); }
+.tile-name { font-weight: 650; font-size: 14px; }
+.tile-hint { font-size: 12px; color: var(--muted); }
+.tile:hover .tile-face { border-color: var(--line-strong); }
+.tile input:checked + .tile-face { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.tile input:checked + .tile-face .ico, .tile input:checked + .tile-face .tile-name { color: var(--accent); }
+
+/* on or off among others, as chips; plain chips have no tick */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tchip { position: relative; display: inline-block; }
+.tchip span {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 12px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg); font-size: 13px; font-weight: 600;
+  color: var(--text); transition: background 0.2s var(--ease), border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+.tchip:not(.tchip-plain) span::before {
+  content: ''; flex: none; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--line-strong);
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.tchip-plain span { justify-content: center; min-width: 52px; }
+.tchip:hover span { border-color: var(--line-strong); }
+.tchip input:checked + span { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.tchip input:checked + span::before { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 3px var(--panel); }
+
+/* a rule, as a switch: the input hidden beside the drawn track */
+.switches { display: flex; flex-direction: column; }
+.switch { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 0; cursor: pointer; }
+.switches .switch + .switch { border-top: 1px solid var(--border); }
+.switch input { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; }
+.switch-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.switch-label { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.switch-hint { font-size: 12px; color: var(--muted); }
+.switch-track {
+  position: relative; flex: none; width: 40px; height: 24px; border-radius: 999px; background: var(--line-strong);
+  transition: background 0.2s var(--ease);
+}
+.switch-track::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); transition: transform 0.2s var(--ease);
+}
+.switch input:checked ~ .switch-track { background: var(--accent); }
+.switch input:checked ~ .switch-track::after { transform: translateX(16px); }
+.switch input:focus-visible ~ .switch-track { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* a quick pick, a button that says whether it is the value */
+.qpicks { display: flex; flex-wrap: wrap; gap: 6px; }
+.qpick {
+  margin: 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg);
+  color: var(--text); font-size: 13px; font-weight: 600; transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.qpick:hover { border-color: var(--line-strong); }
+.qpick[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn-ico { display: inline-flex; align-items: center; gap: 6px; }
+
+/* a sum of money, large */
+.money {
+  display: inline-flex; align-items: baseline; gap: 2px; padding: 4px 14px; border: 1.5px solid var(--border);
+  border-radius: var(--radius); background: var(--bg); transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.money:hover { border-color: var(--line-strong); }
+.money:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.money-sym { font-size: 22px; font-weight: 650; color: var(--muted); }
+.money input {
+  width: 6.5ch; padding: 4px 2px; border: none; background: transparent; color: var(--text);
+  font: inherit; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.money input:focus { outline: none; }
+.money input::placeholder { font-size: 16px; font-weight: 500; color: var(--muted); }
+
+/* an address search: the field, its button, and what it found */
+.search {
+  display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border: 1.5px solid var(--border);
+  border-radius: 999px; background: var(--bg); transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.search-ico { color: var(--muted); display: grid; }
+.search-input { flex: 1; min-width: 0; padding: 6px 2px; border: none; background: transparent; color: var(--text); font: inherit; }
+.search-input:focus { outline: none; }
+.search button { margin: 0; border-radius: 999px; padding: 6px 14px; }
+.geo { margin-top: 8px; }
+.geo-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.geo-list li + li { border-top: 1px solid var(--border); }
+.geo-pick {
+  display: flex; align-items: flex-start; gap: 8px; width: 100%; margin: 0; padding: 9px 12px; border-radius: 0;
+  background: var(--panel); color: var(--text); font-weight: 500; font-size: 13.5px; text-align: left;
+  transition: background 0.15s var(--ease);
+}
+.geo-pick .ico { margin-top: 2px; color: var(--accent); }
+.geo-pick:hover { background: var(--accent-soft); }
+.geo-attr { margin: 4px 0 0; font-size: 11.5px; color: var(--muted); text-align: right; }
+
+/* country chips in an order: number, name, earlier, later, off */
+.cchips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.cchip {
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px 2px 2px 4px; border: 1px solid var(--border);
+  border-radius: 999px; background: var(--bg); font-size: 13px;
+}
+.cchip-n {
+  display: grid; place-items: center; min-width: 20px; height: 20px; border-radius: 999px; background: var(--accent-soft);
+  color: var(--accent); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.cchip-name { padding: 0 4px; font-weight: 600; }
+.cchip-btn {
+  margin: 0; width: 26px; height: 26px; padding: 0; border-radius: 50%; background: transparent; color: var(--muted);
+  font-size: 15px; line-height: 1; transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+.cchip-btn:hover { background: var(--surface-2); color: var(--text); }
+.cchip-btn[aria-disabled="true"] { opacity: 0.35; cursor: default; }
+
+/* --- Basics: the form cards, and "Your plan" beside them on a wide screen -------------------- */
+.mp-stage-flat { padding: 0; border: none; background: transparent; }
+.mp-stage-flat > h2 { margin-bottom: 12px; }
+.bx { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.bx-forms { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+@media (min-width: 760px) {
+  /* two cards a row, the wide ones across both */
+  .bx-forms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bx-forms .fc-wide { grid-column: 1 / -1; }
+}
+.sum {
+  padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-1);
+  background: linear-gradient(180deg, var(--accent-soft), var(--panel) 120px);
+}
+.view .sum-title { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; color: var(--accent); }
+.sum-list { margin: 0; display: grid; gap: 10px; }
+.sum-row { display: grid; gap: 1px; }
+.sum-row dt { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 650; letter-spacing: 0.03em; text-transform: uppercase; color: var(--muted); }
+.sum-row dd { margin: 0 0 0 22px; font-weight: 600; overflow-wrap: anywhere; }
+.sum-note { display: block; font-size: 12.5px; font-weight: 400; color: var(--muted); }
+@media (min-width: 960px) {
+  .bx { grid-template-columns: minmax(0, 1fr) 300px; }
+  .sum { position: sticky; top: 16px; }
+}
+
+/* --- Ingredients: your stores ----------------------------------------------------------------- */
+.fc-stores { margin-bottom: 14px; }
+.stores-head { display: flex; align-items: center; gap: 6px; margin: 12px 0 4px; font-weight: 600; }
+.stores-list { list-style: none; margin: 0; padding: 0; }
+.stores-list li + li { border-top: 1px solid var(--border); }
+.store-off .switch-label { color: var(--muted); text-decoration: line-through; }
+.stores-far { margin-top: 8px; font-size: 13px; }
+.stores-far summary { cursor: pointer; color: var(--muted); }
+.stores-far ul { margin: 6px 0 0; padding-left: 18px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tile:active .tile-face, .tchip:active span, .qpick:active { transform: scale(0.98); }
+}
+
 /* --- Calendar export (components/CalendarExport.tsx): the preview, a day at a time ---------- */
 .cal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 12px; }
 .cal-actions button { margin: 0; }
@@ -1291,6 +1515,11 @@ details.mp-section > summary .mp-section-head { display: inline; }
   .mp-shop[data-target], .mp-slot[data-target], .mp-tray[data-target] { outline-color: ButtonText; }
   .mp-shop[data-over], .mp-slot[data-over], .mp-tray[data-over], .mp-chip[data-held] { outline-color: Highlight; }
   .mp-grip { background: none; border: 1px solid ButtonText; }
+  /* the form pieces draw their state with fills: say it with system colours as well */
+  .tile input:checked + .tile-face, .tchip input:checked + span, .seg-opt input:checked + span,
+  .qpick[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .switch-track { border: 1px solid ButtonText; }
+  .switch input:checked ~ .switch-track { background: Highlight; }
 }
 
 /* The Assistant's meal-plan draft (components/MealPlanCard.tsx): the days as a strip of seven
