@@ -80,6 +80,7 @@ nothing. The logic is in pure modules under `src/mealplan/`:
 | `chatDraft.ts` | the Assistant's meal-plan draft: the plan sent with each chat message (`meal_plan`, at most 64 KB), the card's strip and diff, and Apply as one undo step |
 | `wizard.ts` | the six stages: the address (`#/mealplan?step=1..6`), the gates between stages, where a stage opens, the progress indicator, and Basics' origin rules |
 | `catalog.ts` | the Meals stage: recipe cards by meal from `/mealplan/catalog`, the budget bar's arithmetic, a real total against the budget |
+| `room.ts` | how many of each meal the plan's days hold (one breakfast, lunch and dinner and two snacks a day, for the meals planned), and why a recipe's + stops |
 | `basket.ts` | the Ingredients stage: each recipe's ingredients from `/mealplan/basket`, and which ones no store nearby sells still need an answer |
 | `basics.ts` | Basics: where the shopper is (areas, the device's location, the address search's words), the budget's picks and the "Your plan" summary |
 | `stores.ts` | Ingredients' "Your stores": the distances, the stores near the shopper, and the warning when none is in range |
@@ -129,8 +130,9 @@ to its heading. `views/MealPlanView.tsx` puts them together:
    whether only the origin rule stops it), and Add or a count. The selection is
    priced in whole packs, as trips buy it (`catalog.packCost`). A budget bar
    stays at the top while the page scrolls (budget, estimated spend, what is
-   left, slots filled); an Add that would pass the budget cannot be pressed and
-   says by how much, and recipes that do not fit the diet are
+   left, slots filled); an Add stops once every place for its meal is taken
+   ("All 7 dinners this week are planned", counting every recipe's meals of
+   it) or when it would pass the budget, saying by how much, and recipes that do not fit the diet are
    counted under "n hidden by your diet". Quick add, Import a recipe and My
    recipes are below. Next needs a meal.
 3. **Ingredients** (`components/ingredients.tsx`): first "Your stores"

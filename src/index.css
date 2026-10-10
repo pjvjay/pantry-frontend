@@ -1130,6 +1130,9 @@ details.mp-section > summary .mp-section-head { display: inline; }
 .mp-card-ctl button { margin: 0; }
 .mp-card-ctl button[aria-disabled="true"] { opacity: 0.55; cursor: default; }
 .mp-card-over { font-size: 12.5px; }
+/* every place for the meal is taken: said plainly, not as a problem */
+.mp-card-full { font-size: 12.5px; color: var(--muted); }
+.mp-stepper button[aria-disabled="true"] { opacity: 0.55; cursor: default; }
 .mp-hidden { margin-top: 6px; font-size: 13px; }
 .mp-hidden summary { cursor: pointer; color: var(--muted); }
 .mp-hidden ul { margin: 4px 0; padding-left: 18px; }

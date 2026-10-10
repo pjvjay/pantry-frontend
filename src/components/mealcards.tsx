@@ -18,8 +18,9 @@ import {
   picksOf, unavailableText,
 } from '../mealplan/catalog';
 import type { Pick, Spend } from '../mealplan/catalog';
-import { MAX_WANTED, budgetOf, mealsOf, recipeTitle } from '../mealplan/model';
+import { budgetOf, mealsOf, recipeTitle } from '../mealplan/model';
 import type { PlanEdit } from '../mealplan/model';
+import { addStop } from '../mealplan/room';
 import { useCatalog, useMealPlan } from '../mealplan/store';
 import type { CatalogRecipe } from '../types';
 import { ImportSheet } from './ImportSheet';
@@ -63,11 +64,13 @@ function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend
   const check = addCheck(budgetOf(d.prefs), spend, adds?.cost ?? null);
   const cannot = unavailableText(r, d.settings.exclude_origin ?? []);
   const badge = dietBadge(r.diets);
-  const blocked = check.ok ? null : `would go ${money(check.over)} over the budget`;
-  const full = inPlan !== undefined && inPlan.wanted >= MAX_WANTED;
+  // the meal's places first, then the budget: both are said when both stop it
+  const full = addStop(d, inPlan?.slot ?? r.slot, inPlan?.wanted ?? 0);
+  const over = check.ok ? null : money(check.over);
+  const blocked = over && `would go ${over} over the budget`;
   const addProps = {
     'aria-disabled': blocked || full ? true : undefined,
-    'aria-describedby': blocked ? overId : undefined,
+    'aria-describedby': blocked || full ? overId : undefined,
     onClick: () => { if (!blocked && !full) onAdd(r); },
   } as const;
   return (
@@ -97,7 +100,13 @@ function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend
         ) : (
           <button type="button" className="mini" aria-label={`Add ${r.title}`} {...addProps}>+ Add</button>
         )}
-        {blocked && <span id={overId} className="cart-flag mp-card-over">{blocked}</span>}
+        {(full || blocked) && (
+          <span id={overId} className="mp-card-over">
+            {full && <span className="mp-card-full">{full}.</span>}
+            {full && blocked && ' '}
+            {blocked && <span className="cart-flag">{full ? `It would also go ${over} over the budget.` : blocked}</span>}
+          </span>
+        )}
       </div>
     </li>
   );
@@ -166,7 +175,7 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
           <>
             {sec.label}{' '}
             <span className="muted">
-              · {sec.count.filled} of {sec.count.days} filled
+              · {sec.count.filled} of {sec.count.capacity} filled
               {sec.overflow > 0 && `; ${sec.overflow} more than the days hold will wait in the tray`}
             </span>
           </>
@@ -201,6 +210,7 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
             {others.map((k) => {
               const r = mp.state.draft.recipes[k];
               const title = recipeTitle(mp.state, k);
+              const full = addStop(mp.state.draft, r.slot, r.wanted);
               return (
                 <li key={k}>
                   <span>{title} <span className="muted">· cost not estimated</span></span>
@@ -210,10 +220,11 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
                             onClick={() => mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted - 1 })}>−</button>
                     <output aria-label={`${title} meals`}>{mealsOf(mp.state.draft, k).length}</output>
                     <button type="button" className="secondary mini" aria-label={`One ${title} meal more`}
-                            disabled={r.wanted >= MAX_WANTED}
-                            onClick={() => mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted + 1 })}>+</button>
+                            aria-disabled={full ? true : undefined} aria-describedby={full ? `mp-full-${k}` : undefined}
+                            onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted + 1 }); }}>+</button>
                     <button type="button" className="linkish" aria-label={`Remove ${title} from the plan`}
                             onClick={() => mp.dispatch({ type: 'removeRecipe', key: k })}>remove</button>
+                    {full && <span id={`mp-full-${k}`} className="mp-card-full">{full}.</span>}
                   </span>
                 </li>
               );

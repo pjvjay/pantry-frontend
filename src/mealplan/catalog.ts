@@ -9,8 +9,10 @@
 // total that leaves an ingredient out is "at least", and an Add whose cost is unknown is never
 // stopped by the budget. "about $3.20 a meal" (pantry-api's share-of-the-pack estimate) stays on
 // the card as a guide.
-import { CAPACITY, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf, docRef, mealsOf, recipeTitle } from './model.ts';
+import { SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf, docRef, mealsOf, recipeTitle } from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
+import { roomOf } from './room.ts';
+import type { SlotRoom } from './room.ts';
 import type { CatalogRecipe, CatalogRequest, MealCatalog, MealPlanDraft, RecipeDoc, RecipeRef } from '../types.ts';
 
 // The shopper's own recipes sent for classifying, at most this many.
@@ -196,22 +198,12 @@ export function addCheck(budget: number | null, spend: Spend, cost: number | nul
   return over > 0 ? { ok: false, over } : { ok: true };
 }
 
-// Slots filled out of days × slots switched on: a slot-day counts once however many meals it
-// holds, so two snacks on a day fill one. Meals still in the tray count, by their slot.
-export interface SlotCount {
-  slot: Slot;
-  label: string;
-  meals: number;
-  filled: number;
-  days: number;
-}
+// Places filled out of the places the days hold, for the meals switched on (room.ts): a day
+// holds one of each meal and two snacks. Meals still in the tray count, by their slot. The same
+// count stops a recipe's + once its meal is full, so the two always agree.
+export type SlotCount = SlotRoom;
 
-export function slotCounts(d: MealPlanDraft): SlotCount[] {
-  return SLOTS.filter((sl) => d.prefs.slots_on.includes(sl)).map((slot) => {
-    const meals = d.meals.filter((m) => m.slot === slot).length;
-    return { slot, label: SLOT_LABELS[slot], meals, filled: Math.min(meals, d.days), days: d.days };
-  });
-}
+export const slotCounts = (d: MealPlanDraft): SlotCount[] => roomOf(d);
 
 export interface BudgetBar {
   budget: number | null;
@@ -231,7 +223,7 @@ export function budgetBar(s: MealPlanState, spend: Spend): BudgetBar {
     atLeast: spend.unknown.length > 0 || spend.unpriced.length > 0,
     remaining: budget === null ? null : cents(budget - spend.total),
     filled: counts.reduce((t, c) => t + c.filled, 0),
-    slots: counts.reduce((t, c) => t + c.days, 0),
+    slots: counts.reduce((t, c) => t + c.capacity, 0),
   };
 }
 
@@ -291,7 +283,7 @@ export function catalogSections(c: MealCatalog, s: MealPlanState): Section[] {
       hidden: here.filter((r) => !r.fits && !d.recipes[r.key]),
       collapsed: slot === 'snack',
       count,
-      overflow: Math.max(0, count.meals - d.days * CAPACITY[slot]),
+      overflow: Math.max(0, count.meals - count.capacity),
     };
   });
 }

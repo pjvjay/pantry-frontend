@@ -12,8 +12,9 @@ import { getRecipes } from '../api';
 import { trayRows } from '../mealplan/board';
 import type { TrayRow } from '../mealplan/board';
 import { canDrop, TRAY_KEY } from '../mealplan/dnd';
-import { MAX_WANTED, SLOTS, SLOT_LABELS, USABLE_RESOLVE, docRef, libraryRef, starterRef } from '../mealplan/model';
+import { SLOTS, SLOT_LABELS, USABLE_RESOLVE, docRef, libraryRef, starterRef } from '../mealplan/model';
 import type { Slot } from '../mealplan/model';
+import { addStop } from '../mealplan/room';
 import { accepted, chipText, countLine, decide, waiting } from '../mealplan/selectionPreview';
 import type { Preview, PreviewItem } from '../mealplan/selectionPreview';
 import { useMealPlan } from '../mealplan/store';
@@ -191,6 +192,7 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
     ? 'demo recipe' : null);
   const answered = r.servings ?? null;
   const needsServings = resolved?.status === 'needs_servings' && answered === null;
+  const full = addStop(d, r.slot, r.wanted);
   return (
     <li className="mp-recipe">
       <div className="mp-recipe-head">
@@ -206,8 +208,8 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
                   onClick={() => mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted - 1 })}>−</button>
           <output aria-label={`${row.title} meals`}>{row.wanted}</output>
           <button type="button" className="secondary mini" aria-label={`One ${row.title} meal more`}
-                  disabled={row.wanted >= MAX_WANTED}
-                  onClick={() => mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted + 1 })}>+</button>
+                  aria-disabled={full ? true : undefined} aria-describedby={full ? `mp-full-${row.key}` : undefined}
+                  onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted + 1 }); }}>+</button>
         </span>
         <span className="muted">{countLine(row.wanted, household)}</span>
         <label className="mp-inline">
@@ -217,6 +219,7 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
           </select>
         </label>
         <span className="muted">{row.placed} of {row.wanted} placed</span>
+        {full && <span id={`mp-full-${row.key}`} className="mp-card-full">{full}.</span>}
       </div>
       {pending && mp.resolve.status !== 'error' && <div className="muted">Checking products…</div>}
       {pending && mp.resolve.status === 'error' && (

@@ -101,17 +101,17 @@ test('sections by meal: what fits, what is in the plan anyway, and the rest hidd
   assert.deepEqual(notInCatalog(CATALOG, s), ['starter:lentil_soup']);
 });
 
-test('slots filled out of days × slots on: a slot-day counts once, tray meals by their slot', () => {
+test('places filled out of what the days hold: two snacks a day, tray meals by their slot', () => {
   const s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 9), add('mango_milkshake', 'Mango Milkshake', 3, 'snack'),
     add('oat_porridge', 'Oat Porridge', 2, 'breakfast'));
   const counts = slotCounts(s.draft);
-  assert.deepEqual(counts.map((c) => [c.slot, c.meals, c.filled, c.days]),
-    [['breakfast', 2, 2, 7], ['lunch', 0, 0, 7], ['dinner', 9, 7, 7], ['snack', 3, 3, 7]]);
+  assert.deepEqual(counts.map((c) => [c.slot, c.meals, c.filled, c.capacity]),
+    [['breakfast', 2, 2, 7], ['lunch', 0, 0, 7], ['dinner', 9, 7, 7], ['snack', 3, 3, 14]]);
   const dinner = catalogSections(CATALOG, s)[2];
   assert.equal(dinner.overflow, 2, 'two dinners more than the week holds');
   const bar = budgetBar(s, estimatedSpend(s, byKey(CATALOG)));
   assert.equal(bar.filled, 12);
-  assert.equal(bar.slots, 28);
+  assert.equal(bar.slots, 35);
 });
 
 test('the estimate is meals × each recipe\'s cost a meal; an unknown is left out and said', () => {
@@ -140,9 +140,9 @@ test('the budget bar: budget, estimated spend, what is left or over, and the slo
   let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 3));
   s = run(s, { type: 'setPrefs', prefs: { budget: 50 } });
   let bar = budgetBar(s, estimatedSpend(s, byKey(CATALOG)));
-  assert.deepEqual(bar, { budget: 50, spent: 19.5, atLeast: false, remaining: 30.5, filled: 3, slots: 28 });
+  assert.deepEqual(bar, { budget: 50, spent: 19.5, atLeast: false, remaining: 30.5, filled: 3, slots: 35 });
   assert.deepEqual(budgetBarText(bar), { budget: '$50.00', spent: '$19.50', remaining: '$30.50 left',
-    slots: '3 of 28 slots filled' });
+    slots: '3 of 35 slots filled' });
   assert.equal(budgetSaid(bar), 'About $30.50 left of $50.00.');
   s = run(s, add('mango_milkshake', 'Mango Milkshake', 1, 'snack'), { type: 'setPrefs', prefs: { budget: 10 } });
   bar = budgetBar(s, estimatedSpend(s, byKey(CATALOG)));
