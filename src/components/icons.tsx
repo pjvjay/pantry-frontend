@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 
 export type IconName =
   | 'calendar' | 'wallet' | 'plate' | 'fish' | 'sprout' | 'leaf' | 'ban' | 'globe' | 'pin' | 'cart'
-  | 'utensils' | 'clock' | 'bell' | 'search' | 'locate' | 'store' | 'check' | 'sparkle' | 'list';
+  | 'utensils' | 'clock' | 'bell' | 'search' | 'locate' | 'store' | 'check' | 'sparkle' | 'list' | 'cup' | 'bowl'
+  | 'apple' | 'alert' | 'map';
 
 const PATHS: Record<IconName, ReactNode> = {
   calendar: <><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></>,
@@ -29,6 +30,14 @@ const PATHS: Record<IconName, ReactNode> = {
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   sparkle: <path d="M12 3.5l1.8 5 5 1.8-5 1.8-1.8 5-1.8-5-5-1.8 5-1.8z" />,
   list: <path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" />,
+  cup: <><path d="M4.5 9h11v4.5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z" /><path d="M15.5 10.5h1.2a2.6 2.6 0 0 1 0 5.2h-1.6" />
+    <path d="M8 3.5c-.6 1 .6 1.8 0 3M11.5 3.5c-.6 1 .6 1.8 0 3M4 21h14" /></>,
+  bowl: <><path d="M3.5 11.5h17a8.5 8.5 0 0 1-17 0z" /><path d="M9 20.5h6" />
+    <path d="M8.5 8.5c-.6-1.2.6-2 0-3.5M12 8.5c-.6-1.2.6-2 0-3.5M15.5 8.5c-.6-1.2.6-2 0-3.5" /></>,
+  apple: <><path d="M12 8c-1.7-1.3-4.3-1.4-6 .1-2.5 2.2-2 7 .3 10.2 1.3 1.8 2.9 2.9 4.2 2.2.9-.5 2.1-.5 3 0 1.3.7 2.9-.4 4.2-2.2C20 15.1 20.5 10.3 18 8.1c-1.7-1.5-4.3-1.4-6-.1z" />
+    <path d="M12 8c0-2.2.9-3.8 2.8-4.8" /></>,
+  alert: <><path d="M10.3 4.4a2 2 0 0 1 3.4 0l7.4 12.8a2 2 0 0 1-1.7 3H4.6a2 2 0 0 1-1.7-3z" /><path d="M12 9.5v4.2M12 16.8h.01" /></>,
+  map: <><path d="M3.5 6.5l5.5-2.5 6 2.5 5.5-2.5v13.5L15 20l-6-2.5-5.5 2.5z" /><path d="M9 4v13.5M15 6.5V20" /></>,
 };
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {

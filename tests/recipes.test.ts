@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { readMyRecipes } from '../src/myRecipes.ts';
 import {
   MEAL_PLAN_INBOX_KEY, NO_HUB_NOTE, RECIPES_KEY, addToMealPlan, amountText, basisBadge,
   chatMessageFor, confirmAll, dailyText, docFromParsed, durationText, estimateSeconds,
@@ -224,6 +225,10 @@ test('parse-lines\' answer becomes a doc to review, every line as pantry read it
   const video = { url: 'https://www.youtube.com/watch?v=abcdefghijk', title: 'Dal', channel: 'Cook' };
   assert.deepEqual(docFromParsed(parsed, { source: pastedFromVideo(video) }).source,
     { kind: 'pasted', method: 'paste', url: video.url, site: 'youtube.com', page_title: 'Dal', channel: 'Cook' });
+  // the video's thumbnail goes with it, as the recipe's picture
+  const thumb = 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg';
+  assert.equal(pastedFromVideo({ ...video, thumbnail_url: thumb }).image_url, thumb);
+  assert.equal('image_url' in pastedFromVideo({ ...video, thumbnail_url: null }), false);
 });
 
 // ─── the hub ─────────────────────────────────────────────────
@@ -313,6 +318,15 @@ test('saving writes {v: 1, recipes} under pantry.recipes.v1, keyed my:<id>, as r
   assert.deepEqual(value.recipes, [{ ...doc, key: `my:${ID}` }]);
   // the meal plan's reader takes my:<id> keys of word characters and dashes, at most 64
   assert.match(value.recipes[0].key, /^my:[\w-]{1,64}$/);
+});
+
+test('the page’s picture is saved with the recipe, and the meal plan reads it back', () => {
+  const store = new Memory();
+  const image = 'https://blog.example/img/dal.jpg';
+  const doc = pageDoc({ source: { ...pageDoc().source, image_url: image } });
+  saveRecipe(store, retitle(withServings(doc, null), ' Red Lentil Dal '), ID);
+  assert.equal(JSON.parse(store.data[RECIPES_KEY]).recipes[0].source.image_url, image);
+  assert.equal(readMyRecipes(store).recipes[0].source.image_url, image);
 });
 
 test('saving the same import again updates it rather than adding a copy', () => {

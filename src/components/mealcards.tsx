@@ -18,6 +18,7 @@ import {
   picksOf, unavailableText,
 } from '../mealplan/catalog';
 import type { Pick, Spend } from '../mealplan/catalog';
+import { recipePicture } from '../mealplan/images';
 import { budgetOf, mealsOf, recipeTitle } from '../mealplan/model';
 import type { PlanEdit } from '../mealplan/model';
 import { addStop } from '../mealplan/room';
@@ -25,6 +26,7 @@ import { useCatalog, useMealPlan } from '../mealplan/store';
 import type { CatalogRecipe } from '../types';
 import { ImportSheet } from './ImportSheet';
 import { AddRecipes, QuickAdd } from './mealtray';
+import { RecipePicture } from './pictures';
 
 // ─── The budget bar ──────────────────────────────────────────
 
@@ -75,6 +77,7 @@ function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend
   } as const;
   return (
     <li className={`mp-card${inPlan ? ' mp-card-in' : ''}`}>
+      <RecipePicture pic={recipePicture(r.image, r.ref.doc)} slot={r.slot} size="card" />
       <div className="mp-card-head">
         <strong className="mp-card-title">{r.title}</strong>
         {badge && <span className="chip chip-ok">{badge}</span>}
@@ -84,9 +87,9 @@ function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend
         {addCostText(adds)}
         {r.est_cost_per_meal !== null && <span className="muted"> · {costPerMealText(r)}</span>}
       </div>
-      {r.contains.length > 0 && <div className="muted">contains {r.contains.join(', ')}</div>}
-      {!r.fits && <div className="cart-flag">Not for your diet: {r.why_not ?? 'it does not fit'}.</div>}
-      {cannot.map((t) => <div key={t} className="cart-flag">{t}</div>)}
+      {r.contains.length > 0 && <div className="muted mp-card-note">contains {r.contains.join(', ')}</div>}
+      {!r.fits && <div className="cart-flag mp-card-note">Not for your diet: {r.why_not ?? 'it does not fit'}.</div>}
+      {cannot.map((t) => <div key={t} className="cart-flag mp-card-note">{t}</div>)}
       <div className="mp-card-ctl">
         {inPlan ? (
           <span className="mp-stepper">

@@ -55,6 +55,8 @@ export interface RecipeSource {
   extractor?: string | null;
   model?: string | null;
   label?: string | null;           // e.g. "demo recipe"
+  // the page's preview image or the video's thumbnail, as the import read it (absent before)
+  image_url?: string | null;
 }
 
 export interface RecipeDoc {
@@ -1685,6 +1687,10 @@ export interface CatalogLine {
   held_back: boolean;
 }
 
+// A recipe's picture as pantry-api names it: a Wikipedia article's lead image, or an image on
+// the web (a recipe page's own); null when it has none. The hub fetches either.
+export type RecipeImage = { kind: 'wiki'; title: string } | { kind: 'url'; url: string };
+
 // One recipe. fits false: hidden behind "n hidden by your diet", why_not saying why ("contains
 // meat", "contains dairy"). est_cost_per_meal: one meal for the household, each line's share of
 // its pack price (trips buy whole packs), null when nothing is priced. unavailable: ingredients
@@ -1706,6 +1712,7 @@ export interface CatalogRecipe {
   unavailable: string[];
   held_back?: string[];
   lines?: CatalogLine[];
+  image?: RecipeImage | null;      // absent from an older API
 }
 
 export interface MealCatalog {
@@ -1761,6 +1768,7 @@ export interface BasketRecipe {
   status: string;                  // the recipe's resolve status
   meals: number;
   lines: BasketLine[];
+  image?: RecipeImage | null;      // absent from an older API
 }
 
 export interface MealBasket {

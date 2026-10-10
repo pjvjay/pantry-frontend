@@ -256,10 +256,12 @@ export const getMetrics = () => json<Metrics>(`${HUB}/metrics`);
 export const runDetail = (id: string) => json<RunDetail>(`${HUB}/runs/${encodeURIComponent(id)}`);
 
 // Pictures, fetched once by the hub and served from its cache: an ingredient's Wikipedia
-// thumbnail, and an image from a recipe page.
+// thumbnail, an image from a recipe page, and a Wikipedia article's lead image (404 when it has
+// none).
 export const ingredientImage = (name: string) =>
   `${HUB}/images/ingredient?name=${encodeURIComponent(name)}`;
 export const remoteImage = (url: string) => `${HUB}/images/remote?url=${encodeURIComponent(url)}`;
+export const wikiImage = (title: string) => `${HUB}/images/wiki?title=${encodeURIComponent(title)}`;
 
 export const simPresets = () =>
   json<{ presets: Record<string, { label: string; models: Record<string, string> }>;
