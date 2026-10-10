@@ -14,8 +14,9 @@
 // A gate is ok, pending (an answer is on its way: Next waits for it, but the stages after it
 // stay reachable) or blocked, with the words Next shows. An edit that blocks an earlier gate
 // never moves the shopper off the stage they are on: the stepper and Next say what to fix.
-import { USABLE_RESOLVE, recipeTitle } from './model.ts';
+import { DEFAULT_ALLIES, EXCLUDED_BY_DEFAULT, PREFERRED_FIRST, USABLE_RESOLVE, recipeTitle } from './model.ts';
 import type { MealPlanState } from './model.ts';
+import type { PlanSettings } from '../types.ts';
 
 export type StepNo = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -178,4 +179,56 @@ export function stepViews(current: StepNo, f: WizardFacts): StepView[] {
       attention: n < current && g.state === 'blocked' ? g.text : null,
     };
   });
+}
+
+// ─── Basics: the origin rules ────────────────────────────────
+
+// The plan's origin rules as Basics shows them: leave out United States products (the one hard
+// rule), prefer Canada, then the other countries in the shopper's order. Countries excluded
+// some other way (the Assistant, an imported plan) are kept as they are.
+export interface OriginRules {
+  excludeUS: boolean;
+  preferCanada: boolean;
+  allies: string[];
+  otherExcluded: string[];
+}
+
+export function originRules(st: PlanSettings): OriginRules {
+  const ex = st.exclude_origin ?? [];
+  const pref = st.preference ?? [];
+  return {
+    excludeUS: ex.includes(EXCLUDED_BY_DEFAULT),
+    preferCanada: pref.includes(PREFERRED_FIRST),
+    allies: pref.filter((c) => c !== PREFERRED_FIRST),
+    otherExcluded: ex.filter((c) => c !== EXCLUDED_BY_DEFAULT),
+  };
+}
+
+// The settings for the rules: Canada first when preferred, then the allies in order.
+export function originSettings(r: OriginRules): Required<Pick<PlanSettings, 'exclude_origin' | 'preference'>> {
+  return {
+    exclude_origin: [...(r.excludeUS ? [EXCLUDED_BY_DEFAULT] : []), ...r.otherExcluded],
+    preference: [...(r.preferCanada ? [PREFERRED_FIRST] : []), ...r.allies],
+  };
+}
+
+// The list with one country moved up (-1) or down (+1); unchanged at either end.
+export function moveCountry(list: readonly string[], country: string, by: -1 | 1): string[] {
+  const i = list.indexOf(country);
+  const j = i + by;
+  if (i < 0 || j < 0 || j >= list.length) return [...list];
+  const out = [...list];
+  [out[i], out[j]] = [out[j], out[i]];
+  return out;
+}
+
+// Default allies the shopper took off the list, to add back.
+export const alliesToAdd = (allies: readonly string[]): string[] =>
+  DEFAULT_ALLIES.filter((c) => !allies.includes(c));
+
+// "United Kingdom, France, Germany and 12 more"
+export function alliesText(allies: readonly string[]): string {
+  if (!allies.length) return 'no other countries';
+  if (allies.length <= 3) return listOf([...allies]);
+  return `${allies.slice(0, 3).join(', ')} and ${allies.length - 3} more`;
 }

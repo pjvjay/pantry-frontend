@@ -4,8 +4,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  STEPS, furthest, gate, nextBlock, routeStep, stepFromHash, stepHash, stepTitle, stepViews, wizardFacts,
+  STEPS, alliesText, alliesToAdd, furthest, gate, moveCountry, nextBlock, originRules, originSettings, routeStep,
+  stepFromHash, stepHash, stepTitle, stepViews, wizardFacts,
 } from '../src/mealplan/wizard.ts';
+import { DEFAULT_ALLIES, DEFAULT_ORIGIN } from '../src/mealplan/model.ts';
 import type { WizardFacts } from '../src/mealplan/wizard.ts';
 import { add, planWith, run } from './helpers/mealplan.ts';
 
@@ -107,4 +109,31 @@ test('the facts come from the plan, the last resolve call and the basket', () =>
   assert.deepEqual(f.checking, []);
   assert.deepEqual(f.failed, ['Chicken Fried Rice']);
   assert.equal(f.basket, 'waiting');
+});
+
+test('origin rules: the United States left out, Canada first, then the allies in the shopper\'s order', () => {
+  const r = originRules(DEFAULT_ORIGIN);
+  assert.deepEqual(r, { excludeUS: true, preferCanada: true, allies: [...DEFAULT_ALLIES], otherExcluded: [] });
+  assert.deepEqual(originSettings(r), DEFAULT_ORIGIN, 'round trip');
+  assert.equal(alliesText(r.allies), 'United Kingdom, France, Germany and 12 more');
+  assert.equal(alliesText(['Japan', 'Mexico']), 'Japan and Mexico');
+  assert.equal(alliesText([]), 'no other countries');
+  // a plan saved before the wizard has no rules at all
+  assert.deepEqual(originRules({}), { excludeUS: false, preferCanada: false, allies: [], otherExcluded: [] });
+  assert.deepEqual(originSettings(originRules({})), { exclude_origin: [], preference: [] });
+  // Canada goes first when preferred; other exclusions are kept
+  assert.deepEqual(originSettings(originRules({ exclude_origin: ['China', 'United States'], preference: ['Japan', 'Canada'] })),
+    { exclude_origin: ['United States', 'China'], preference: ['Canada', 'Japan'] });
+  assert.deepEqual(originSettings({ ...r, excludeUS: false, preferCanada: false }).exclude_origin, []);
+});
+
+test('the allies reorder one place at a time, and a removed one can be added back', () => {
+  const list = ['France', 'Japan', 'Mexico'];
+  assert.deepEqual(moveCountry(list, 'Japan', -1), ['Japan', 'France', 'Mexico']);
+  assert.deepEqual(moveCountry(list, 'Japan', 1), ['France', 'Mexico', 'Japan']);
+  assert.deepEqual(moveCountry(list, 'France', -1), list, 'already first');
+  assert.deepEqual(moveCountry(list, 'Mexico', 1), list, 'already last');
+  assert.deepEqual(moveCountry(list, 'Peru', 1), list);
+  assert.deepEqual(alliesToAdd(DEFAULT_ALLIES.filter((c) => c !== 'Japan' && c !== 'Spain')), ['Spain', 'Japan']);
+  assert.deepEqual(alliesToAdd(DEFAULT_ALLIES), []);
 });
