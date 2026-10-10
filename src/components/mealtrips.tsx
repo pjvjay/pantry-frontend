@@ -26,7 +26,7 @@ import { Sheet } from './Sheet';
 import { TripLineOptionsDialog } from './tripoptions';
 
 const counts = (c: WarningCounts) =>
-  [c.must_fix && `${c.must_fix} must fix`, c.decide && `${c.decide} to decide`,
+  [c.must_fix && `${c.must_fix} must fix`, c.should_fix && `${c.should_fix} should fix`, c.decide && `${c.decide} to decide`,
     c.note && `${c.note} ${c.note === 1 ? 'note' : 'notes'}`].filter(Boolean).join(', ') || 'no warnings';
 
 // ─── Trip sheet ──────────────────────────────────────────────
@@ -269,7 +269,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
 
 // ─── Warnings ────────────────────────────────────────────────
 
-const LEVEL_NAMES = { must_fix: 'Must fix', decide: 'To decide', note: 'Notes' } as const;
+const LEVEL_NAMES = { must_fix: 'Must fix', should_fix: 'Should fix', decide: 'To decide', note: 'Notes' } as const;
 
 export function WarningsPanel({ schedule, onAsk }: {
   schedule: MealSchedule;
@@ -281,7 +281,7 @@ export function WarningsPanel({ schedule, onAsk }: {
   const list = warningsFor(schedule, strategy);
   const names = productNames(schedule);
   if (!list.length) return <p className="muted">No warnings for this plan.</p>;
-  const groups = (['must_fix', 'decide', 'note'] as const)
+  const groups = (['must_fix', 'should_fix', 'decide', 'note'] as const)
     .map((level) => [level, list.filter((w) => w.level === level)] as const)
     .filter(([, ws]) => ws.length);
   const run = (op: RemedyOp) => {

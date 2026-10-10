@@ -158,7 +158,7 @@ export function moveChoices(s: MealPlanState, sc: MealSchedule | null, mealId: s
 
 // ─── Warnings and their remedies ─────────────────────────────
 
-const LEVEL_ORDER: Record<WarningLevel, number> = { must_fix: 0, decide: 1, note: 2 };
+const LEVEL_ORDER: Record<WarningLevel, number> = { must_fix: 0, should_fix: 1, decide: 2, note: 3 };
 
 // The warnings that apply under one strategy (plan-wide ones included), most urgent first, in
 // the server's order within a level.
@@ -248,6 +248,7 @@ export function remedyLabel(op: RemedyOp, s: MealPlanState, names: Map<number, s
     case 'set_pref':
       if (op.field === 'days') return op.value === 14 ? 'Make the plan two weeks' : `Make the plan ${String(op.value)} days`;
       if (op.field === 'max_trips') return `Allow ${String(op.value)} trips`;
+      if (op.field === 'budget' && typeof op.value === 'number') return `Make the budget $${op.value.toFixed(2)}`;
       return `Change ${op.field.replace(/_/g, ' ')}`;
     case 'approve_trip': return `Review the trip on ${shortDate(op.date)}`;
     case 'remove_meal': return `Remove ${mealTitle(op.meal_id)}`;

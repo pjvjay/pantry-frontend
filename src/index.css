@@ -957,7 +957,7 @@ tr.row-active td { background: var(--accent-soft); }
 .mp-warnings { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
 .mp-warn-group { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 13.5px; }
 .mp-warn-group summary { cursor: pointer; font-weight: 650; }
-.mp-warn-must_fix { border-color: var(--warn); }
+.mp-warn-must_fix, .mp-warn-should_fix { border-color: var(--warn); }
 .mp-warn-must_fix summary { color: var(--warn); }
 .mp-warn-group ul { margin: 6px 0 0; padding-left: 18px; }
 .mp-warn-group li { margin-bottom: 6px; }

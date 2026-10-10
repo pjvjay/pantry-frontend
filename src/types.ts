@@ -1239,12 +1239,13 @@ export type RemedyOp =
   | { op: 'approve_trip'; date: string; strategy: TripStrategy }
   | { op: 'remove_meal'; meal_id: string };
 
-export type WarningLevel = 'must_fix' | 'decide' | 'note';
+export type WarningLevel = 'must_fix' | 'should_fix' | 'decide' | 'note';
 
 // must_fix: unplaced, fridge_window_exceeded, meal_before_trip, needs_servings,
-// no_longer_stocked. decide: needs_review, not_stocked, buy_ahead_exceeded, trip_cap_exceeded,
-// unresolved_recipe. note: amount_unknown, shelf_life_unknown, price_changed. should_fix (the
-// wizard's API): over_budget, a strategy's known total above prefs.budget.
+// no_longer_stocked. should_fix: over_budget, a strategy's known total above prefs.budget
+// (remedies: the other strategy when it fits, or a budget that covers the total). decide:
+// needs_review, not_stocked, buy_ahead_exceeded, trip_cap_exceeded, unresolved_recipe. note:
+// amount_unknown, shelf_life_unknown, price_changed.
 export interface PlanWarning {
   level: WarningLevel;
   code: string;
@@ -1257,7 +1258,8 @@ export interface PlanWarning {
   recipe_key: string | null;
 }
 
-export type WarningCounts = Record<WarningLevel, number>;
+// should_fix is absent from an API before the wizard.
+export type WarningCounts = Record<Exclude<WarningLevel, 'should_fix'>, number> & { should_fix?: number };
 
 export interface StrategyResult {
   name: TripStrategy;

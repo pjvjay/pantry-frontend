@@ -105,9 +105,9 @@ const warning = (level: PlanWarning['level'], code: string, strategy: PlanWarnin
 test('warnings for a strategy include the plan-wide ones, most urgent first', () => {
   const sc = { ...real, warnings: [warning('note', 'shelf_life_unknown', null),
     warning('must_fix', 'fridge_window_exceeded', 'fewest_trips'), warning('decide', 'not_stocked', 'fresh'),
-    warning('must_fix', 'needs_servings', null)] };
+    warning('should_fix', 'over_budget', 'fresh'), warning('must_fix', 'needs_servings', null)] };
   assert.deepEqual(warningsFor(sc, 'fresh').map((w) => w.code),
-    ['needs_servings', 'not_stocked', 'shelf_life_unknown']);
+    ['needs_servings', 'over_budget', 'not_stocked', 'shelf_life_unknown']);
   assert.deepEqual(warningsFor(sc, 'fewest_trips').map((w) => w.code),
     ['fridge_window_exceeded', 'needs_servings', 'shelf_life_unknown']);
 });
@@ -166,6 +166,16 @@ test('"Make the plan two weeks" lengthens the plan from the same start', () => {
   assert.equal(next.draft.start_date, s.draft.start_date);
   assert.equal(next.draft.days, 14);
   assert.equal(remedyLabel({ op: 'set_pref', field: 'max_trips', value: 3 }, s, new Map()), 'Allow 3 trips');
+});
+
+test('over the budget: the remedies switch strategy, or make the budget cover the total', () => {
+  const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 2)), { type: 'setPrefs', prefs: { budget: 150 } });
+  const raise: RemedyOp = { op: 'set_pref', field: 'budget', value: 220 };
+  assert.equal(remedyLabel(raise, s, new Map()), 'Make the budget $220.00');
+  const r = remedyStep(raise, s);
+  assert.ok('edit' in r);
+  assert.equal(run(s, r.edit).draft.prefs.budget, 220);
+  assert.equal(remedyLabel({ op: 'set_strategy', strategy: 'fewest_trips' }, s, new Map()), 'Shop in fewest trips');
 });
 
 test('remedies read as buttons, with product and recipe names from the plan', () => {
