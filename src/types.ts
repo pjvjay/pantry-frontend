@@ -643,6 +643,8 @@ export interface HubStatus {
   // descriptions (it has a YouTube key), and whether Gemini may watch a video
   recipe_import?: { links: boolean; youtube_description: boolean; reason?: string };
   video_import?: VideoTranscribe;
+  // whether /hub/geocode answers (an older hub does not say: off)
+  geocoder?: boolean;
 }
 
 export interface McpTarget {
@@ -1088,6 +1090,33 @@ export interface PlanSettings {
   // against them (absent: none)
   exclude_origin?: string[];
   preference?: string[];
+  // the shopper's own words for lat/lon (an address searched, "Your current location", an
+  // area's name), at most 200; only lat, lon and max_km decide what is in range
+  address?: string | null;
+}
+
+// A store the catalog prices products at (GET /stores).
+export interface Store {
+  id: number;
+  name: string;
+  lat: number;
+  lon: number;
+  address: string;
+}
+
+// The demo hub's address search (GET /hub/geocode?q=…, OpenStreetMap's Nominatim): at most a
+// few places, and the attribution the source asks for. Refusals: 400 bad_query, 429
+// rate_limited, 502 geocoder_unavailable, 503 geocoder_off.
+export interface GeocodeResult {
+  label: string;
+  lat: number;
+  lon: number;
+}
+
+export interface GeocodeAnswer {
+  results: GeocodeResult[];
+  attribution: string;
+  source: string;
 }
 
 // The browser's plan, sent whole to /mealplan/schedule and /mealplan/suggest-cook-days.

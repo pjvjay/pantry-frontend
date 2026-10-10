@@ -603,8 +603,16 @@ function setSettings(s: MealPlanState, patch: PlanSettings): Applied {
   if (!names(patch.exclude_origin) || !names(patch.preference)) {
     return 'origin rules are at most 50 country names';
   }
+  if (patch.address != null && (typeof patch.address !== 'string' || patch.address.length > 200)) {
+    return 'an address is at most 200 characters';
+  }
   const settings = { ...d.settings, ...patch };
-  if (sameArea(settings, d.settings)) return { state: s, said: '' };
+  if ('address' in patch) settings.address = patch.address?.trim() || null;
+  // The address only names the place: a new name for the same point keeps the products.
+  if (sameArea(settings, d.settings)) {
+    if ((settings.address ?? null) === (d.settings.address ?? null)) return { state: s, said: '' };
+    return { state: set(s, { settings }), said: `Shopping from ${settings.address ?? 'the default place'}.` };
+  }
   return { state: set(s, { settings, resolved: {} }),
     said: 'Shopping area changed; products will be checked again.' };
 }

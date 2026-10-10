@@ -21,6 +21,7 @@ import type {
   SelectionParseResult,
   ShelfLife,
   ShoppingPlan,
+  Store,
   TripLineOptions,
   TripLineOptionsRequest,
   WeekPlan,
@@ -73,6 +74,7 @@ const post = <T>(path: string, body: unknown, signal?: AbortSignal) =>
 
 export const getHealth = () => request<Health>('/health');
 export const getRecipes = () => request<Recipe[]>('/recipes');
+export const getStores = (signal?: AbortSignal) => request<Store[]>('/stores', { signal });
 export const planRecipe = (slug: string) =>
   request<ShoppingPlan>(`/plan/${slug}`, { method: 'POST' });
 export const planNL = (recipeText: string) =>

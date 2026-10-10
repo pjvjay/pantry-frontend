@@ -10,6 +10,7 @@ import type {
   CalendarDisconnectResult,
   CalendarSyncRequest,
   CalendarSyncStatus,
+  GeocodeAnswer,
   HubStatus,
   ImportResult,
   McpCatalog,
@@ -120,6 +121,11 @@ export const setRuntime = (patch: Partial<Pick<RuntimeSettings, 'demo_mode' | 'm
 // ─── hub ──────────────────────────────────────────────────────
 
 export const getStatus = () => json<HubStatus>(`${HUB}/status`);
+
+// An address to places (OpenStreetMap through the hub). Only ever on the shopper's search, never
+// as they type: Nominatim's policy forbids autocomplete.
+export const geocode = (q: string, signal?: AbortSignal) =>
+  json<GeocodeAnswer>(`${HUB}/geocode?q=${encodeURIComponent(q)}`, { signal });
 export const resetDemo = () => json<{ ok: boolean; output: string }>(`${HUB}/demo/reset`,
   { method: 'POST' });
 
