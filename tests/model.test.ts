@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MAX_RECIPES, SETTING_RULES, approvedElsewhere, approvedFrom, historyStep, libraryRef, newPlan, readNumber,
-  recorded, redoPlan, step, undoPlan,
+  DEFAULT_ALLIES, MAX_RECIPES, SETTING_RULES, approvedElsewhere, approvedFrom, avoidOf, budgetOf, dietOf,
+  historyStep, libraryRef, lineKey, newPlan, prefsProblem, readNumber, recorded, redoPlan, step, undoPlan,
 } from '../src/mealplan/model.ts';
 import type { MealPlanState, PlanEdit } from '../src/mealplan/model.ts';
 import { canRedo, canUndo, startHistory } from '../src/mealplan/undo.ts';
@@ -36,6 +36,13 @@ test('a new plan starts tomorrow, empty, with the household defaults', () => {
   assert.equal(s.draft.prefs.buy_ahead_days, 7);
   assert.deepEqual(s.draft.prefs.slots_on, ['breakfast', 'lunch', 'dinner', 'snack']);
   assert.deepEqual(s.draft.meals, []);
+  // the wizard's Basics: no budget, any diet, nothing avoided, US products left out, Canada first
+  assert.equal(budgetOf(s.draft.prefs), null);
+  assert.equal(dietOf(s.draft.prefs), 'any');
+  assert.deepEqual(avoidOf(s.draft.prefs), []);
+  assert.deepEqual(s.draft.settings.exclude_origin, ['United States']);
+  assert.deepEqual(s.draft.settings.preference, ['Canada', ...DEFAULT_ALLIES]);
+  assert.equal(DEFAULT_ALLIES.length, 15);
 });
 
 test('a recipe brings its meals into the tray, numbered as the engine numbers them', () => {
@@ -236,6 +243,60 @@ test('settings are checked, and a slot with meals in it cannot be switched off',
   assert.deepEqual(s.draft.prefs.shop_weekdays, [2, 5]);
   assert.equal(s.draft.prefs.buy_ahead_days, 3);
   assert.equal(step(s, { type: 'setPrefs', prefs: { buy_ahead_days: 3 } }).state, s, 'no change, no rev');
+});
+
+test('a budget, a diet and avoid-tags are settings, checked as pantry-api checks them', () => {
+  let s = planWith(7);
+  s = run(s, { type: 'setPrefs', prefs: { budget: 120.5, diet: 'vegetarian', avoid: ['soy', 'dairy'] } });
+  assert.equal(budgetOf(s.draft.prefs), 120.5);
+  assert.equal(dietOf(s.draft.prefs), 'vegetarian');
+  assert.deepEqual(avoidOf(s.draft.prefs), ['dairy', 'soy'], 'kept in a fixed order');
+  assert.match(refusal(s, { type: 'setPrefs', prefs: { budget: 0 } }), /budget/);
+  assert.match(refusal(s, { type: 'setPrefs', prefs: { budget: 10000.01 } }), /budget/);
+  assert.match(refusal(s, { type: 'setPrefs', prefs: { diet: 'keto' as never } }), /diet/);
+  assert.match(refusal(s, { type: 'setPrefs', prefs: { avoid: ['meat' as never] } }), /avoid/);
+  assert.match(refusal(s, { type: 'setPrefs', prefs: { avoid: ['soy', 'soy'] } }), /avoid/);
+  s = run(s, { type: 'setPrefs', prefs: { budget: null } });
+  assert.equal(budgetOf(s.draft.prefs), null, 'no budget');
+  assert.deepEqual(readNumber('', SETTING_RULES.budget), { value: null });
+  assert.deepEqual(readNumber('85.50', SETTING_RULES.budget), { value: 85.5 });
+  assert.deepEqual(readNumber('0', SETTING_RULES.budget), { problem: 'a number from 1 to 10000, or empty for any' });
+});
+
+test('settings saved before the wizard (no budget, diet or avoid-tags) are still settings', () => {
+  const old: Record<string, unknown> = { ...planWith(7).draft.prefs };
+  delete old.budget;
+  delete old.diet;
+  delete old.avoid;
+  assert.equal(prefsProblem(old), null);
+  assert.equal(budgetOf(old as never), null);
+  assert.equal(dietOf(old as never), 'any');
+  assert.deepEqual(avoidOf(old as never), []);
+  assert.match(prefsProblem({ ...old, diet: 'paleo' }) ?? '', /diet/);
+});
+
+test('a line no store nearby sells can be skipped, and needed again, as undoable edits', () => {
+  let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1), add('chicken_fried_rice', 'Chicken Fried Rice', 1));
+  const skip = { type: 'skipLine', recipeKey: PIZZA, lineNo: 3, ingredient: 'Saffron', skip: true } as const;
+  const out = step(s, skip);
+  assert.equal(out.said, 'Saffron skipped: Pepperoni Pizza goes without it.');
+  s = out.state;
+  assert.deepEqual(s.skipped, [lineKey(PIZZA, 3)]);
+  assert.equal(step(s, skip).state, s, 'skipping twice changes nothing');
+  assert.match(refusal(s, { ...skip, recipeKey: 'starter:gone' }), /not in the plan/);
+  s = run(s, { ...skip, recipeKey: RICE, lineNo: 1, ingredient: 'Soy sauce' });
+  // the server's answers keep it; taking the recipe out forgets its lines only
+  s = run(s, { type: 'fillEmpty' });
+  const merged = run(s, { type: 'mergeSchedule',
+    schedule: schedule(s.draft.rev, [placed(`${PIZZA}#1`, PIZZA, 'Pepperoni Pizza', D(0))]) });
+  assert.notEqual(merged, s);
+  assert.equal(merged.draft.meals.find((m) => m.id === `${PIZZA}#1`)?.date, D(0));
+  s = merged;
+  assert.deepEqual(s.skipped, [lineKey(RICE, 1), lineKey(PIZZA, 3)].sort());
+  assert.deepEqual(run(s, { type: 'removeRecipe', key: PIZZA }).skipped, [lineKey(RICE, 1)]);
+  const back = run(s, { ...skip, skip: false });
+  assert.equal(step(s, { ...skip, skip: false }).said, 'Saffron is needed for Pepperoni Pizza again.');
+  assert.deepEqual(back.skipped, [lineKey(RICE, 1)]);
 });
 
 test('a settings number is read when the shopper is done typing, and an empty one is not 0', () => {

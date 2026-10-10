@@ -19,9 +19,9 @@ import { record, replace, undo as undoHistory, redo as redoHistory } from './und
 import type { History } from './undo.ts';
 import { targetsProblem } from '../nutritionFormat.ts';
 import type {
-  ApprovedTrip, CookDaysProposal, Meal, MealPlanDraft, MealPrefs, MealSchedule, MealSlot,
-  NutritionTargets, PlanSettings, RecipeDoc, RecipeRef, ResolveStatus, ResolvedRecipe, Trip,
-  TripStrategy,
+  ApprovedTrip, AvoidTag, CookDaysProposal, Diet, Meal, MealPlanDraft, MealPrefs, MealSchedule,
+  MealSlot, NutritionTargets, PlanSettings, RecipeDoc, RecipeRef, ResolveStatus, ResolvedRecipe,
+  Trip, TripStrategy,
 } from '../types.ts';
 
 export type Slot = MealSlot;
@@ -33,6 +33,30 @@ export const SLOT_LABELS: Record<Slot, string> = {
 };
 
 export const STRATEGY_NAMES: Record<TripStrategy, string> = { fresh: 'Shop fresh', fewest_trips: 'Fewest trips' };
+
+// The household's diet, strictest last, and the contains-tags it can avoid (the products' own).
+export const DIETS: readonly Diet[] = ['any', 'pescatarian', 'vegetarian', 'vegan'];
+export const DIET_LABELS: Record<Diet, string> = {
+  any: 'Anything', pescatarian: 'Pescatarian', vegetarian: 'Vegetarian', vegan: 'Vegan',
+};
+export const AVOID_TAGS: readonly AvoidTag[] = ['dairy', 'gluten', 'nuts', 'soy', 'egg'];
+
+// A budget is groceries for the whole period, as pantry-api takes it (0 < budget <= 10000).
+export const MAX_BUDGET = 10000;
+
+// The plan's origin rules. Only the exclusion is a hard rule; the preference is an order (Canada,
+// then the allies the shopper keeps), never a whitelist: most products carry no origin evidence,
+// so a whitelist would empty the shelves. Every name is one pantry-api's validate_countries knows.
+export const EXCLUDED_BY_DEFAULT = 'United States';
+export const PREFERRED_FIRST = 'Canada';
+export const DEFAULT_ALLIES: readonly string[] = [
+  'United Kingdom', 'France', 'Germany', 'Italy', 'Spain', 'Netherlands', 'Ireland', 'Denmark',
+  'Norway', 'Sweden', 'Australia', 'New Zealand', 'Japan', 'South Korea', 'Mexico',
+];
+export const DEFAULT_ORIGIN: Required<Pick<PlanSettings, 'exclude_origin' | 'preference'>> = {
+  exclude_origin: [EXCLUDED_BY_DEFAULT],
+  preference: [PREFERRED_FIRST, ...DEFAULT_ALLIES],
+};
 
 // One meal per slot over at most two weeks: 14 days × 4 slots holds 56 meals.
 export const MAX_DAYS = 14;
@@ -96,15 +120,18 @@ export function parseCellKey(key: string): { date: CivilDate; slot: Slot } | nul
 
 // ─── The plan ────────────────────────────────────────────────
 
-// What the console keeps: the draft the server reads, plus two things only the console needs.
+// What the console keeps: the draft the server reads, plus what only the console needs.
 //   titles: a recipe's name before its resolve answers (a library slug or starter key is not a
 //     name), so the tray and announcements never show a key.
 //   spread: the meals whose date the server chose rather than the shopper. Lowering a count
 //     takes these off before refusing to touch a meal the shopper put somewhere.
+//   skipped: recipe lines the shopper agreed to do without when no store nearby sells them
+//     (lineKey), the Ingredients stage's "skip this ingredient". Absent from older plans.
 export interface MealPlanState {
   draft: MealPlanDraft;
   titles: Record<string, string>;
   spread: string[];
+  skipped?: string[];
 }
 
 export const DEFAULT_PREFS: MealPrefs = {
@@ -115,8 +142,18 @@ export const DEFAULT_PREFS: MealPrefs = {
   thaw_reminder: 'evening_before',
   allow_freezer: true,
   strategy: 'fresh',
+  budget: null,
+  diet: 'any',
+  avoid: [],
 };
 
+// A plan saved before the wizard has no budget, diet or avoid-tags: no budget, any diet, none.
+export const budgetOf = (p: MealPrefs): number | null => p.budget ?? null;
+export const dietOf = (p: MealPrefs): Diet => p.diet ?? 'any';
+export const avoidOf = (p: MealPrefs): AvoidTag[] => p.avoid ?? [];
+
+// A recipe line, as `skipped` keeps it: 'starter:pepperoni_pizza|3'.
+export const lineKey = (recipeKey: string, lineNo: number): string => `${recipeKey}|${lineNo}`;
 // `id` comes from the caller (crypto.randomUUID in the browser) so this module reads no clock
 // and no random source.
 export function newPlan(today: CivilDate, id: string, days = 7): MealPlanState {
@@ -125,9 +162,11 @@ export function newPlan(today: CivilDate, id: string, days = 7): MealPlanState {
     draft: {
       v: 1, id, rev: 0, start_date: w.start_date, days: w.days,
       prefs: { ...DEFAULT_PREFS, slots_on: [...DEFAULT_PREFS.slots_on],
-        shop_weekdays: [...DEFAULT_PREFS.shop_weekdays] },
+        shop_weekdays: [...DEFAULT_PREFS.shop_weekdays], avoid: [] },
       recipes: {}, resolved: {}, meals: [], pins: {}, trips: [], dismissed_dates: [],
-      fixed_dates: [], packs_override: {}, storage_overrides: {}, settings: {},
+      fixed_dates: [], packs_override: {}, storage_overrides: {},
+      settings: { exclude_origin: [...DEFAULT_ORIGIN.exclude_origin],
+        preference: [...DEFAULT_ORIGIN.preference] },
     },
     titles: {},
     spread: [],
@@ -210,6 +249,8 @@ export type PlanEdit =
   | { type: 'setPacks'; date: CivilDate; productId: number; packs: number | null }
   | { type: 'setStorage'; productId: number; storage: 'fridge' | 'freezer' | null }
   | { type: 'pinProduct'; recipeKey: string; lineNo: number; productId: number | null }
+  // the shopper does without a line no store nearby sells (skip), or needs it again
+  | { type: 'skipLine'; recipeKey: string; lineNo: number; ingredient: string; skip: boolean }
   // the shopper's daily nutrition targets, all of them at once ({} clears them)
   | { type: 'setTargets'; targets: NutritionTargets }
   | { type: 'applyCookDays'; proposal: CookDaysProposal }
@@ -292,12 +333,14 @@ function removeRecipe(s: MealPlanState, key: string): Applied {
   const gone = mealsOf(d, key).map((m) => m.id);
   const drop = <T>(r: Record<string, T>) =>
     Object.fromEntries(Object.entries(r).filter(([k]) => k !== key));
+  const skipped = s.skipped?.filter((k) => !k.startsWith(`${key}|`));
   return {
     state: {
       draft: { ...d, recipes: drop(d.recipes), resolved: drop(d.resolved), pins: drop(d.pins),
         meals: d.meals.filter((m) => m.recipe_key !== key) },
       titles: drop(s.titles),
       spread: without(s.spread, ...gone),
+      ...(skipped?.length ? { skipped } : {}),
     },
     said: `${title} removed from the plan.`,
   };
@@ -441,10 +484,11 @@ function setWindow(s: MealPlanState, e: Extract<PlanEdit, { type: 'setWindow' }>
 
 const PREF_CHECKS: { [K in keyof MealPrefs]-?: (v: unknown) => boolean } = {
   household_servings: (v) => isInt(v, 1, MAX_SERVINGS),
-  // the wizard's; checked with its settings
-  budget: (v) => v === null || v === undefined,
-  diet: (v) => v === undefined,
-  avoid: (v) => v === undefined,
+  budget: (v) => v === null || v === undefined
+    || (typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= MAX_BUDGET),
+  diet: (v) => v === undefined || DIETS.includes(v as Diet),
+  avoid: (v) => v === undefined || (Array.isArray(v) && v.every((x) => AVOID_TAGS.includes(x as AvoidTag))
+    && new Set(v).size === v.length),
   slots_on: (v) => Array.isArray(v) && v.length > 0 && v.every((x) => SLOTS.includes(x as Slot))
     && new Set(v).size === v.length,
   shop_weekdays: (v) => Array.isArray(v) && v.length > 0 && v.length <= 7
@@ -457,6 +501,10 @@ const PREF_CHECKS: { [K in keyof MealPrefs]-?: (v: unknown) => boolean } = {
 };
 
 export const isPrefField = (f: string): f is keyof MealPrefs => f in PREF_CHECKS;
+
+// Settings a saved plan may lack: max_trips always could, and the wizard's budget, diet and
+// avoid-tags arrived after plans were saved.
+const OPTIONAL_PREFS: ReadonlySet<string> = new Set(['max_trips', 'budget', 'diet', 'avoid']);
 
 // A number field in the settings, read once the shopper is done with it (Enter, or leaving the
 // field) rather than on each keystroke: clearing a field to type a new number, or typing 0 on
@@ -472,6 +520,7 @@ export const SETTING_RULES = {
   household_servings: { min: 1, max: MAX_SERVINGS, whole: true },
   buy_ahead_days: { min: 0, max: MAX_DAYS, whole: true },
   max_km: { min: 0.5, max: 100, whole: false, optional: true },
+  budget: { min: 1, max: MAX_BUDGET, whole: false, optional: true },
 } satisfies Record<string, NumberRule>;
 
 export function readNumber(text: string, rule: NumberRule): { value: number | null } | { problem: string } {
@@ -485,12 +534,12 @@ export function readNumber(text: string, rule: NumberRule): { value: number | nu
     + `${rule.optional ? ', or empty for any' : ''}` };
 }
 
-// A whole set of settings, as a saved plan carries it: every field but max_trips is required.
+// A whole set of settings, as a saved plan carries it: every field but OPTIONAL_PREFS is required.
 export function prefsProblem(p: unknown): string | null {
   if (typeof p !== 'object' || p === null) return 'settings are missing';
   const prefs = p as Record<string, unknown>;
   for (const [field, ok] of Object.entries(PREF_CHECKS)) {
-    if ((!['max_trips', 'budget', 'diet', 'avoid'].includes(field) && !(field in prefs)) || !ok(prefs[field])) {
+    if ((!OPTIONAL_PREFS.has(field) && !(field in prefs)) || !ok(prefs[field])) {
       return `the setting ${field.replace(/_/g, ' ')} is not valid`;
     }
   }
@@ -516,6 +565,7 @@ function setPrefs(s: MealPlanState, patch: Partial<MealPrefs>): Applied {
   const prefs: MealPrefs = { ...d.prefs, ...patch };
   if (patch.shop_weekdays) prefs.shop_weekdays = [...patch.shop_weekdays].sort((a, b) => a - b);
   if (patch.slots_on) prefs.slots_on = SLOTS.filter((sl) => patch.slots_on?.includes(sl));
+  if (patch.avoid) prefs.avoid = AVOID_TAGS.filter((t) => patch.avoid?.includes(t));
   if (JSON.stringify(prefs) === JSON.stringify(d.prefs)) return { state: s, said: '' };
   return { state: set(s, { prefs }), said: 'Settings saved.' };
 }
@@ -711,7 +761,7 @@ function mergeSchedule(s: MealPlanState, sc: MealSchedule): Applied {
     changed = true;
   }
   if (!changed) return { state: s, said: '' };
-  return { state: { draft: { ...d, meals }, titles, spread: [...spread] }, said: '' };
+  return { state: { ...s, draft: { ...d, meals }, titles, spread: [...spread] }, said: '' };
 }
 
 function apply(s: MealPlanState, e: PlanEdit): Applied {
@@ -829,6 +879,18 @@ function apply(s: MealPlanState, e: PlanEdit): Applied {
       else delete pins[e.recipeKey];
       return { state: set(s, { pins }),
         said: e.productId === null ? 'Back to the planner’s product.' : 'Your product is used for this line.' };
+    }
+    case 'skipLine': {
+      if (!d.recipes[e.recipeKey]) return 'that recipe is not in the plan';
+      if (!isInt(e.lineNo, 1, 1000)) return 'that line is not in the recipe';
+      const k = lineKey(e.recipeKey, e.lineNo);
+      const now = s.skipped ?? [];
+      if (now.includes(k) === e.skip) return { state: s, said: '' };
+      const skipped = e.skip ? sortedUnique([...now, k]) : now.filter((x) => x !== k);
+      const title = recipeTitle(s, e.recipeKey);
+      return { state: { ...s, skipped },
+        said: e.skip ? `${e.ingredient} skipped: ${title} goes without it.`
+          : `${e.ingredient} is needed for ${title} again.` };
     }
     case 'setTargets': {
       const problem = targetsProblem(e.targets);

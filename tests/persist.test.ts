@@ -58,6 +58,32 @@ test('a plan round-trips through the saved text under pantry.mealplan.v1', () =>
   assert.equal(back.available, true);
 });
 
+test('a plan saved before the wizard (no budget, diet, avoid-tags or skipped lines) still loads', () => {
+  const s = samplePlan();
+  const saved = JSON.parse(serialize(s, SAVED_AT));
+  delete saved.draft.prefs.budget;
+  delete saved.draft.prefs.diet;
+  delete saved.draft.prefs.avoid;
+  saved.draft.settings = {};
+  assert.equal('skipped' in saved, false, 'nothing skipped, nothing written');
+  const back = parsePlan(JSON.stringify(saved));
+  assert.equal(back.problem, null);
+  assert.equal(back.state?.draft.prefs.budget, undefined);
+  assert.deepEqual(back.state?.draft.settings, {});
+});
+
+test('skipped lines are saved, and lines of recipes no longer in the plan are forgotten', () => {
+  const s = run(samplePlan(),
+    { type: 'skipLine', recipeKey: 'starter:pepperoni_pizza', lineNo: 4, ingredient: 'Basil', skip: true });
+  const saved = JSON.parse(serialize(s, SAVED_AT));
+  assert.deepEqual(saved.skipped, ['starter:pepperoni_pizza|4']);
+  assert.deepEqual(parsePlan(JSON.stringify(saved)).state, s);
+  saved.skipped.push('starter:gone|2');
+  assert.deepEqual(parsePlan(JSON.stringify(saved)).state?.skipped, ['starter:pepperoni_pizza|4']);
+  saved.skipped = 'basil';
+  assert.match(parsePlan(JSON.stringify(saved)).problem ?? '', /skipped ingredients/);
+});
+
 test('nothing saved yet is an empty start, not a problem', () => {
   assert.deepEqual(readPlan(memory()), { state: null, savedAt: null, problem: null, available: true,
     backedUp: false });

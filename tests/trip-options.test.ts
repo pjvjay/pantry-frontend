@@ -158,7 +158,9 @@ test("the plan's origin rules are part of its shopping area", () => {
   assert.ok(sameArea({}, { lat: null, exclude_origin: [] }));
   assert.ok(!sameArea({}, { exclude_origin: ['United States'] }));
   assert.ok(!sameArea({ preference: ['Canada'] }, { preference: ['Mexico'] }));
-  let s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1)),
+  // a new plan has the default rules; this one starts with none
+  let s = run(planWith(7, { type: 'setSettings', settings: { exclude_origin: [], preference: [] } },
+    add('pepperoni_pizza', 'Pepperoni Pizza', 1)),
     { type: 'setResolved', resolved: [{ key: PIZZA, title: 'Pepperoni Pizza', status: 'ok', lines: [] }] });
   assert.ok(s.draft.resolved[PIZZA]);
   // new rules: the products are checked again under them

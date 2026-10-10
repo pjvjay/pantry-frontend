@@ -3,7 +3,10 @@
 //
 // The plan is saved in this browser only, under 'pantry.mealplan.v1':
 //
-//   {v: 1, saved_at: '<ISO instant>', draft: MealPlanDraft, titles, spread}
+//   {v: 1, saved_at: '<ISO instant>', draft: MealPlanDraft, titles, spread, skipped?}
+//
+// skipped (the lines the shopper does without) and the draft's budget, diet and avoid-tags came
+// with the wizard; a plan saved before it has none of them and reads as it did.
 //
 // The same text is the JSON export, and import reads it back through the same checks. The key
 // and v carry the version: a later console that changes the shape writes v 2 (under a new key
@@ -33,6 +36,7 @@ export interface SavedPlan {
   draft: MealPlanDraft;
   titles: Record<string, string>;
   spread: string[];
+  skipped?: string[];
 }
 
 // Older saved versions, read up to the current one. Empty while there is only version 1.
@@ -109,12 +113,16 @@ export function savedProblem(x: unknown): string | null {
   if (!Array.isArray(x.spread) || !x.spread.every((id) => typeof id === 'string')) {
     return 'the placed meals are not readable';
   }
+  if (x.skipped !== undefined && (!Array.isArray(x.skipped)
+    || !x.skipped.every((k) => typeof k === 'string' && k.length <= 120))) {
+    return 'the skipped ingredients are not readable';
+  }
   return null;
 }
 
 export function serialize(s: MealPlanState, savedAt: string): string {
   const saved: SavedPlan = { v: SAVED_VERSION, saved_at: savedAt, draft: s.draft,
-    titles: s.titles, spread: s.spread };
+    titles: s.titles, spread: s.spread, ...(s.skipped?.length ? { skipped: s.skipped } : {}) };
   return JSON.stringify(saved);
 }
 
@@ -149,10 +157,12 @@ export function parsePlan(raw: string): Loaded {
   const problem = savedProblem(value);
   if (problem) return { state: null, savedAt: null, problem: `The saved plan cannot be read: ${problem}.` };
   const saved = value as unknown as SavedPlan;
-  // Only meals still in the plan are remembered as spread.
+  // Only meals still in the plan are remembered as spread, and lines of its recipes as skipped.
   const ids = new Set(saved.draft.meals.map((m) => m.id));
+  const skipped = (saved.skipped ?? []).filter((k) => k.slice(0, k.lastIndexOf('|')) in saved.draft.recipes);
   return {
-    state: { draft: saved.draft, titles: saved.titles, spread: saved.spread.filter((id) => ids.has(id)) },
+    state: { draft: saved.draft, titles: saved.titles, spread: saved.spread.filter((id) => ids.has(id)),
+      ...(skipped.length ? { skipped } : {}) },
     savedAt: typeof saved.saved_at === 'string' ? saved.saved_at : null,
     problem: null,
   };
