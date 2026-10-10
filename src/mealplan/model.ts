@@ -137,8 +137,12 @@ export interface MealPlanState {
   skipped?: string[];
 }
 
+// Every plan is for one person for now: the wizard asks no household size, and a plan read
+// from storage or a file is set to one (persist.ts). The field stays, as pantry-api takes it.
+export const SOLO = 1;
+
 export const DEFAULT_PREFS: MealPrefs = {
-  household_servings: 2,
+  household_servings: SOLO,
   slots_on: [...SLOTS],
   shop_weekdays: [0, 1, 2, 3, 4, 5, 6],
   buy_ahead_days: 7,

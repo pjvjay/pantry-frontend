@@ -2,7 +2,7 @@
 // Pepperoni Pizza + 2 Chicken Fried Rice + 3 chicken briyani + 7 mango milkshakes in 2 weeks")
 // into chips; only an exact or plural match goes in without asking, and anything matched by an
 // alias or by spelling is a one-tap question. Each recipe in the plan has a count (a count is
-// one meal for the household: "3 meals × 2 people"), a slot, and its meals still waiting in
+// one meal: every plan is for one person for now), a slot, and its meals still waiting in
 // the tray. A recipe that does not say how many it serves asks the shopper, and the answer is
 // labelled as theirs. The wizard shows Quick add in Meals, beside the recipe cards, and the tray
 // on Schedule, without the ways to add (compact).
@@ -368,8 +368,8 @@ export function FirstRunSheet({ open, onClose, onExample }: {
              <button type="button" onClick={() => { onExample(); onClose(); }}>Try the example</button>
            </>}>
       <ol className="mp-firstrun">
-        <li><strong>Basics</strong>: one or two weeks, a budget, your household, diet and where your food comes from.</li>
-        <li><strong>Meals</strong>: add breakfasts, lunches and dinners; the budget bar says what is left. A count is one meal for your household.</li>
+        <li><strong>Basics</strong>: one or two weeks, a budget, your diet and where your food comes from.</li>
+        <li><strong>Meals</strong>: add breakfasts, lunches and dinners; the budget bar says what is left. A count is one meal.</li>
         <li><strong>Ingredients</strong>: what each recipe buys, where, for how much and from which country; choose another product or skip one nobody nearby sells.</li>
         <li><strong>Schedule</strong> meals on days: drag a meal's grip, tap a meal and then a slot, use its ⋯ menu, or the keyboard (Enter to pick up, Tab to a slot, Enter to place).</li>
         <li><strong>Shopping plan</strong>: code suggests the fewest trips that keep each item within its cited storage time. You approve, move or dismiss each one; an approved trip is never rewritten.</li>

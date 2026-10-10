@@ -84,6 +84,23 @@ test('skipped lines are saved, and lines of recipes no longer in the plan are fo
   assert.match(parsePlan(JSON.stringify(saved)).problem ?? '', /skipped ingredients/);
 });
 
+test('a plan read back is for one person, and no meal keeps a head count of its own', () => {
+  const s = run(samplePlan(), { type: 'setPrefs', prefs: { household_servings: 4 } },
+    { type: 'setMealServings', mealId: 'starter:pepperoni_pizza#1', servings: 3 });
+  assert.equal(s.draft.prefs.household_servings, 4);
+  const back = parsePlan(serialize(s, SAVED_AT)).state;
+  assert.equal(back?.draft.prefs.household_servings, 1);
+  assert.ok(back?.draft.meals.every((m) => m.servings === undefined));
+  assert.deepEqual(back?.draft.meals.map((m) => m.id), s.draft.meals.map((m) => m.id));
+  // an import is read the same way
+  const store = memory({ [PLAN_KEY]: serialize(s, SAVED_AT) });
+  assert.equal(readPlan(store).state?.draft.prefs.household_servings, 1);
+  // a plan already for one person comes back as it was
+  const solo = samplePlan();
+  assert.equal(parsePlan(serialize(solo, SAVED_AT)).state?.draft.prefs.household_servings, 1);
+  assert.deepEqual(parsePlan(serialize(solo, SAVED_AT)).state, solo);
+});
+
 test('nothing saved yet is an empty start, not a problem', () => {
   assert.deepEqual(readPlan(memory()), { state: null, savedAt: null, problem: null, available: true,
     backedUp: false });

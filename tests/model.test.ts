@@ -27,12 +27,12 @@ const refusal = (s: MealPlanState, e: PlanEdit) => {
   return out.refused;
 };
 
-test('a new plan starts tomorrow, empty, with the household defaults', () => {
+test('a new plan starts tomorrow, empty, for one person, with the defaults', () => {
   const s = newPlan(TODAY, 'p', 14);
   assert.equal(s.draft.start_date, '2026-10-09');
   assert.equal(s.draft.days, 14);
   assert.equal(s.draft.rev, 0);
-  assert.equal(s.draft.prefs.household_servings, 2);
+  assert.equal(s.draft.prefs.household_servings, 1);
   assert.equal(s.draft.prefs.buy_ahead_days, 7);
   assert.deepEqual(s.draft.prefs.slots_on, ['breakfast', 'lunch', 'dinner', 'snack']);
   assert.deepEqual(s.draft.meals, []);

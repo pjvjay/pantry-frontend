@@ -26,7 +26,7 @@ import type { MoveChoice } from '../mealplan/consequences';
 import { canDrop, keyIntent, keyMove, shopKey, slotLabel } from '../mealplan/dnd';
 import type { DragPayload } from '../mealplan/dnd';
 import {
-  MAX_SERVINGS, SLOT_LABELS, approvedElsewhere, cellKey, parseCellKey, recipeTitle, weeksOf, windowOf,
+  SLOT_LABELS, approvedElsewhere, cellKey, parseCellKey, recipeTitle, weeksOf, windowOf,
 } from '../mealplan/model';
 import type { MealPlanState, PlanEdit, Slot } from '../mealplan/model';
 import type { Meal, MealSchedule, Trip, TripStrategy } from '../types';
@@ -332,8 +332,6 @@ export function MoveSheet({ ctl, mealId, onClose }: {
   }, [choices]);
   if (!meal) return null;
   const t = title(ctl, meal);
-  const household = ctl.state.draft.prefs.household_servings;
-  const servings = meal.servings ?? null;
   const go = (e: PlanEdit) => {
     dispatch(e);
     onClose();
@@ -346,24 +344,6 @@ export function MoveSheet({ ctl, mealId, onClose }: {
              <button type="button" className="danger" onClick={() => go({ type: 'remove', mealId: meal.id })}>Remove this meal</button>
            </>}>
       <div className="mp-move-opts">
-        {/* A group, not a label: a label hands its clicks to its first button, so pressing the
-            word or the number would take a person off the meal. */}
-        <div className="mp-stepper" role="group" aria-labelledby="mp-move-serves">
-          <span id="mp-move-serves">Serves</span>
-          <button type="button" className="secondary mini" aria-label="One person fewer"
-                  disabled={(servings ?? household) <= 1}
-                  onClick={() => dispatch({ type: 'setMealServings', mealId: meal.id, servings: Math.max(1, (servings ?? household) - 1) })}>−</button>
-          <output aria-live="polite">{servings ?? household}</output>
-          <button type="button" className="secondary mini" aria-label="One person more"
-                  disabled={(servings ?? household) >= MAX_SERVINGS}
-                  onClick={() => dispatch({ type: 'setMealServings', mealId: meal.id, servings: Math.min(MAX_SERVINGS, (servings ?? household) + 1) })}>+</button>
-          <span className="muted">{servings === null ? '(your household)' : '(this meal only)'}</span>
-          {servings !== null && (
-            <button type="button" className="linkish" onClick={() => dispatch({ type: 'setMealServings', mealId: meal.id, servings: null })}>
-              back to the household
-            </button>
-          )}
-        </div>
         {meal.date && (
           <label className="check">
             <input type="checkbox" checked={meal.pinned}

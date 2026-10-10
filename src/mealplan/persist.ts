@@ -6,7 +6,9 @@
 //   {v: 1, saved_at: '<ISO instant>', draft: MealPlanDraft, titles, spread, skipped?}
 //
 // skipped (the lines the shopper does without) and the draft's budget, diet and avoid-tags came
-// with the wizard; a plan saved before it has none of them and reads as it did.
+// with the wizard; a plan saved before it has none of them and reads as it did. Every plan is
+// for one person for now: a plan read back is set to one, and a meal's own head count is
+// dropped (nothing in the console shows or changes it any more).
 //
 // The same text is the JSON export, and import reads it back through the same checks. The key
 // and v carry the version: a later console that changes the shape writes v 2 (under a new key
@@ -14,7 +16,7 @@
 // A saved value this console cannot read is never thrown away: it is copied to
 // 'pantry.mealplan.v1.backup' and the page starts with an empty plan and says why.
 import { isCivilDate } from './dates.ts';
-import { MAX_DAYS, MAX_MEALS, MAX_RECIPES, MAX_WANTED, SLOTS, prefsProblem, refProblem }
+import { MAX_DAYS, MAX_MEALS, MAX_RECIPES, MAX_WANTED, SLOTS, SOLO, prefsProblem, refProblem }
   from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
 import { targetsProblem } from '../nutritionFormat.ts';
@@ -160,12 +162,22 @@ export function parsePlan(raw: string): Loaded {
   // Only meals still in the plan are remembered as spread, and lines of its recipes as skipped.
   const ids = new Set(saved.draft.meals.map((m) => m.id));
   const skipped = (saved.skipped ?? []).filter((k) => k.slice(0, k.lastIndexOf('|')) in saved.draft.recipes);
+  const draft = soloDraft(saved.draft);
   return {
-    state: { draft: saved.draft, titles: saved.titles, spread: saved.spread.filter((id) => ids.has(id)),
+    state: { draft, titles: saved.titles, spread: saved.spread.filter((id) => ids.has(id)),
       ...(skipped.length ? { skipped } : {}) },
     savedAt: typeof saved.saved_at === 'string' ? saved.saved_at : null,
     problem: null,
   };
+}
+
+// The draft for one person: the household is one, and no meal has a head count of its own. The
+// same object when it already is.
+export function soloDraft(d: MealPlanDraft): MealPlanDraft {
+  const own = d.meals.some((m) => m.servings != null);
+  if (d.prefs.household_servings === SOLO && !own) return d;
+  return { ...d, prefs: { ...d.prefs, household_servings: SOLO },
+    meals: own ? d.meals.map(({ servings: _gone, ...m }) => m) : d.meals };
 }
 
 export interface ReadResult extends Loaded {

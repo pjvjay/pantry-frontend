@@ -82,7 +82,10 @@ test('several fits, or a name that is in some titles, is a choice the shopper ma
 
 test('counts say what they mean', () => {
   assert.equal(countLine(3, 2), '3 meals × 2 people');
-  assert.equal(countLine(1, 1), '1 meal × 1 person');
+  // one person (every plan, for now): the count alone
+  assert.equal(countLine(1, 1), '1 meal');
+  assert.equal(countLine(3, 1), '3 meals');
+  assert.equal(meaningOf(3, 'Chicken Biryani', 'dinner', 1), '3 × Chicken Biryani = 3 dinners');
   assert.equal(meaningOf(7, 'Mango Milkshake', 'snack', 2), '7 × Mango Milkshake = 7 snacks for 2 people');
   assert.equal(meaningOf(2, 'Porridge', 'breakfast', 4), '2 × Porridge = 2 breakfasts for 4 people');
   const p = buildPreview(SENTENCE, 2);

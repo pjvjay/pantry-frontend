@@ -1,5 +1,5 @@
 // The wizard's Basics stage: how long the plan runs and from when, the budget for that period,
-// the household, its diet and what it avoids, where its food may come from, and where and when
+// the diet and what it avoids (every plan is for one person for now), where its food may come from, and where and when
 // it shops. Every answer is saved in the plan (prefs and settings) as it is given. Also here:
 // the shopping settings the Shopping plan stage shows, and the plan's file actions.
 //
@@ -196,14 +196,11 @@ export function BasicsStage() {
       </fieldset>
 
       <fieldset className="mp-basics-group">
-        <legend>Budget and household</legend>
+        <legend>Budget</legend>
         <div className="form-row compact">
           <NumberSetting label={`groceries for the ${d.days === 7 ? 'week' : `${d.days} days`} ($)`}
                          value={budgetOf(p)} rule={SETTING_RULES.budget} step={1} placeholder="no budget"
                          onSave={(v) => set({ budget: v })} />
-          <NumberSetting label="people in the household" value={p.household_servings}
-                         rule={SETTING_RULES.household_servings}
-                         onSave={(v) => v !== null && set({ household_servings: v })} />
         </div>
         <p className="muted">
           Meals prices what you choose in whole packs as you go, and stops an Add that would pass the

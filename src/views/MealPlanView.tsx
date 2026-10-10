@@ -1,7 +1,7 @@
 // The Meal plan tab (#/mealplan?step=1..6): six stages under a progress indicator, with Back
 // and Next under each.
-//   1 Basics:        the period, the budget, the household, its diet and origin rules, where
-//                    and when it shops (components/basics.tsx).
+//   1 Basics:        the period, the budget, the diet and origin rules, where and when to shop
+//                    (components/basics.tsx). Every plan is for one person for now.
 //   2 Meals:         recipe cards by meal under a budget bar; Quick add, import and the
 //                    shopper's own recipes (components/mealcards.tsx).
 //   3 Ingredients:   each recipe's ingredients as the plan would buy them, and an answer for
