@@ -18,6 +18,7 @@ import { accepted, chipText, countLine, decide, waiting } from '../mealplan/sele
 import type { Preview, PreviewItem } from '../mealplan/selectionPreview';
 import { useMealPlan } from '../mealplan/store';
 import type { Recipe } from '../types';
+import { Icon } from './icons';
 import { MealChip } from './mealcal';
 import type { BoardCtl } from './mealcal';
 import { Sheet } from './Sheet';
@@ -117,10 +118,11 @@ export function QuickAdd({ text, setText }: { text: string; setText: (t: string)
     <div className="mp-quick">
       <form onSubmit={(e) => { e.preventDefault(); if (text.trim()) read(); }}>
         <label className="mp-quick-label" htmlFor="mp-quick-text">Quick add</label>
-        <div className="mp-quick-row">
-          <input id="mp-quick-text" value={text} onChange={(e) => setText(e.target.value)} maxLength={8000}
-                 placeholder={EXAMPLE_SENTENCE} autoComplete="off" />
-          <button type="submit" disabled={!text.trim() || status === 'reading'}>
+        <div className="search mp-quick-row">
+          <span className="search-ico"><Icon name="sparkle" size={18} /></span>
+          <input id="mp-quick-text" className="search-input" value={text} onChange={(e) => setText(e.target.value)}
+                 maxLength={8000} placeholder={EXAMPLE_SENTENCE} autoComplete="off" />
+          <button type="submit" className="mini" disabled={!text.trim() || status === 'reading'}>
             {status === 'reading' ? 'Reading…' : 'Read'}
           </button>
         </div>

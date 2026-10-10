@@ -19,6 +19,8 @@ import type { CookTiming, KindTiming, ReminderChoice, TimingForm } from '../cale
 import { SLOTS, SLOT_LABELS } from '../mealplan/model';
 import type { ApprovedSchedule, CalendarInclude, CalendarPreview, CalendarTiming, MealSlot } from '../types';
 import { CalendarSyncPanel } from './CalendarSyncPanel';
+import { FormCard, Switch, ToggleChip } from './fields';
+import { Icon } from './icons';
 
 type Preview =
   | { status: 'idle' | 'loading'; data: CalendarPreview | null; error: null }
@@ -70,63 +72,70 @@ export function useTiming(slots: readonly MealSlot[]): { form: TimingForm; setFo
   return { form, setForm, timing, zone };
 }
 
-function Reminders({ name, choices, remind, onChange }: {
-  name: string;
+function Reminders({ labelledBy, choices, remind, onChange }: {
+  labelledBy: string;
   choices: readonly ReminderChoice[];
   remind: ReminderChoice[];
   onChange: (r: ReminderChoice[]) => void;
 }) {
   const full = remind.filter((c) => choices.includes(c)).length >= MAX_REMINDERS;
   return (
-    <fieldset className="mp-checks mp-reminders">
-      <legend>{name}: remind me</legend>
-      {choices.map((c) => {
-        const on = remind.includes(c);
-        return (
-          <label key={String(c)} className="check">
-            <input type="checkbox" checked={on} disabled={!on && full}
-                   onChange={() => onChange(on ? remind.filter((x) => x !== c) : [...remind, c])} />
-            {reminderLabel(c)}
-          </label>
-        );
-      })}
-      {full && <span className="muted">at most {MAX_REMINDERS}</span>}
-    </fieldset>
+    <>
+      <p id={labelledBy} className="fc-sub">Remind me</p>
+      <div className="chips" role="group" aria-labelledby={labelledBy}>
+        {choices.map((c) => {
+          const on = remind.includes(c);
+          return (
+            <ToggleChip key={String(c)} checked={on} disabled={!on && full}
+                        onChange={() => onChange(on ? remind.filter((x) => x !== c) : [...remind, c])}>
+              {reminderLabel(c)}
+            </ToggleChip>
+          );
+        })}
+      </div>
+      {full && <p className="muted fc-note">At most {MAX_REMINDERS}: take one off to choose another.</p>}
+    </>
   );
 }
 
 const lengthLabel = (n: number) => (n < 60 ? `${n} min` : `${n / 60} h`);
 
-function KindSettings({ name, k, onChange }: { name: string; k: KindTiming; onChange: (k: KindTiming) => void }) {
+function LengthField({ minutes, onChange }: { minutes: number; onChange: (n: number) => void }) {
+  return (
+    <label className="fc-field">
+      <span className="fc-label">For</span>
+      <select className="fc-input" value={minutes} onChange={(e) => onChange(Number(e.target.value))}>
+        {LENGTHS.map((n) => <option key={n} value={n}>{lengthLabel(n)}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function KindSettings({ k, onChange }: { k: KindTiming; onChange: (k: KindTiming) => void }) {
+  const head = useId();
+  const rem = useId();
   const why = useId();
   const problem = kindProblem(k);
   return (
-    <fieldset className="mp-basics-group mp-timing-kind">
-      <legend>{name}</legend>
-      <label className="check">
-        <input type="checkbox" checked={k.timed} onChange={(e) => onChange({ ...k, timed: e.target.checked })} />
-        at a set time (otherwise all day)
-      </label>
+    <FormCard icon="cart" title="Shopping trips" help="When you go, and when you hear about it." headId={head}>
+      <Switch checked={k.timed} onChange={(timed) => onChange({ ...k, timed })} hint="Otherwise all day">
+        At a set time
+      </Switch>
       {k.timed && (
-        <div className="mp-toolbar">
-          <label className="mp-inline">
-            from
-            <input type="time" value={k.start} step={900} aria-invalid={problem ? true : undefined}
+        <div className="fc-row">
+          <label className="fc-field">
+            <span className="fc-label">From</span>
+            <input className="fc-input" type="time" value={k.start} step={900} aria-invalid={problem ? true : undefined}
                    aria-describedby={problem ? why : undefined}
                    onChange={(e) => onChange({ ...k, start: e.target.value })} />
           </label>
-          <label className="mp-inline">
-            for
-            <select value={k.minutes} onChange={(e) => onChange({ ...k, minutes: Number(e.target.value) })}>
-              {LENGTHS.map((n) => <option key={n} value={n}>{lengthLabel(n)}</option>)}
-            </select>
-          </label>
-          {problem && <span id={why} className="cart-flag">Sent as all day until it is {problem}.</span>}
+          <LengthField minutes={k.minutes} onChange={(minutes) => onChange({ ...k, minutes })} />
         </div>
       )}
-      <Reminders name={name} choices={reminderChoices(k.timed)} remind={k.remind}
+      {problem && <p id={why} className="cart-flag fc-note">Sent as all day until it is {problem}.</p>}
+      <Reminders labelledBy={rem} choices={reminderChoices(k.timed)} remind={k.remind}
                  onChange={(remind) => onChange({ ...k, remind })} />
-    </fieldset>
+    </FormCard>
   );
 }
 
@@ -134,6 +143,8 @@ function KindSettings({ name, k, onChange }: { name: string; k: KindTiming; onCh
 // before each start, the same for every slot.
 function CookSettings({ c, slots, onChange }: { c: CookTiming; slots: readonly MealSlot[];
   onChange: (c: CookTiming) => void }) {
+  const head = useId();
+  const rem = useId();
   const why = useId();
   const problem = cookProblem(c, slots);
   const setSlot = (sl: MealSlot, t: string) => {
@@ -141,50 +152,53 @@ function CookSettings({ c, slots, onChange }: { c: CookTiming; slots: readonly M
     onChange({ ...c, bySlot, start: bySlot.dinner });
   };
   return (
-    <fieldset className="mp-basics-group mp-timing-kind">
-      <legend>Cooking</legend>
-      <label className="check">
-        <input type="checkbox" checked={c.timed} onChange={(e) => onChange({ ...c, timed: e.target.checked })} />
-        at a set time for each meal (otherwise all day)
-      </label>
+    <FormCard icon="utensils" title="Cooking" help="A start for each meal; the same reminders for all." headId={head}>
+      <Switch checked={c.timed} onChange={(timed) => onChange({ ...c, timed })} hint="Otherwise all day">
+        At a set time for each meal
+      </Switch>
       {c.timed && (
-        <div className="mp-toolbar">
+        <div className="fc-row fc-times">
           {SLOTS.filter((sl) => slots.includes(sl)).map((sl) => (
-            <label key={sl} className="mp-inline">
-              {SLOT_LABELS[sl]}
-              <input type="time" value={c.bySlot[sl]} step={900} aria-invalid={problem ? true : undefined}
-                     aria-describedby={problem ? why : undefined} onChange={(e) => setSlot(sl, e.target.value)} />
+            <label key={sl} className="fc-field">
+              <span className="fc-label">{SLOT_LABELS[sl]}</span>
+              <input className="fc-input" type="time" value={c.bySlot[sl]} step={900}
+                     aria-invalid={problem ? true : undefined} aria-describedby={problem ? why : undefined}
+                     onChange={(e) => setSlot(sl, e.target.value)} />
             </label>
           ))}
-          <label className="mp-inline">
-            for
-            <select value={c.minutes} onChange={(e) => onChange({ ...c, minutes: Number(e.target.value) })}>
-              {LENGTHS.map((n) => <option key={n} value={n}>{lengthLabel(n)}</option>)}
-            </select>
-          </label>
-          {problem && <span id={why} className="cart-flag">Sent as all day until it is {problem}.</span>}
+          <LengthField minutes={c.minutes} onChange={(minutes) => onChange({ ...c, minutes })} />
         </div>
       )}
-      <Reminders name="Cooking" choices={reminderChoices(c.timed, true)} remind={c.remind}
+      {problem && <p id={why} className="cart-flag fc-note">Sent as all day until it is {problem}.</p>}
+      <Reminders labelledBy={rem} choices={reminderChoices(c.timed, true)} remind={c.remind}
                  onChange={(remind) => onChange({ ...c, remind })} />
-    </fieldset>
+    </FormCard>
+  );
+}
+
+function ThawSettings({ form, onChange }: { form: TimingForm; onChange: (f: TimingForm) => void }) {
+  const head = useId();
+  const rem = useId();
+  return (
+    <FormCard icon="bell" title="Freeze and thaw" help="All-day events on the day to freeze or start thawing."
+              headId={head}>
+      <Reminders labelledBy={rem} choices={reminderChoices(false)} remind={form.reminders.remind}
+                 onChange={(remind) => onChange({ ...form, reminders: { remind } })} />
+    </FormCard>
   );
 }
 
 export function TimingSettings({ form, onChange, zone, slots }: { form: TimingForm; onChange: (f: TimingForm) => void;
   zone: string; slots: readonly MealSlot[] }) {
   return (
-    <div className="mp-basics mp-timing">
-      <KindSettings name="Shopping trips" k={form.trips} onChange={(trips) => onChange({ ...form, trips })} />
-      <CookSettings c={form.cooks} slots={slots} onChange={(cooks) => onChange({ ...form, cooks })} />
-      <fieldset className="mp-basics-group mp-timing-kind">
-        <legend>Freeze and thaw reminders</legend>
-        <p className="muted">All-day events on the day to freeze or start thawing.</p>
-        <Reminders name="Freeze and thaw" choices={reminderChoices(false)} remind={form.reminders.remind}
-                   onChange={(remind) => onChange({ ...form, reminders: { remind } })} />
-      </fieldset>
-      <p className="muted mp-timing-zone">Times are in your time zone, {zone}.</p>
-    </div>
+    <>
+      <div className="fc-grid">
+        <KindSettings k={form.trips} onChange={(trips) => onChange({ ...form, trips })} />
+        <CookSettings c={form.cooks} slots={slots} onChange={(cooks) => onChange({ ...form, cooks })} />
+        <ThawSettings form={form} onChange={onChange} />
+      </div>
+      <p className="muted mp-timing-zone"><Icon name="clock" size={14} /> Times are in your time zone, {zone}.</p>
+    </>
   );
 }
 
@@ -203,6 +217,7 @@ export function CalendarExport({ schedule, current, timing }: {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const statusId = useId();
+  const includeHead = useId();
   const problem = exportProblem(schedule) ?? includeProblem(include);
 
   // Preview again whenever the schedule, the kinds or the timing change; a newer request cancels
@@ -257,29 +272,28 @@ export function CalendarExport({ schedule, current, timing }: {
 
   return (
     <div className="cal-export">
-      <p id={statusId} className={`cal-status ${problem || preview.status === 'error' ? 'cart-flag' : 'muted'}`}
-         role={preview.status === 'error' ? 'alert' : 'status'}>
-        {status}
-      </p>
-
-      <fieldset className="mp-checks cal-include" aria-describedby={statusId}>
-        <legend>Include</legend>
-        {INCLUDE_ALL.map((k) => (
-          <label key={k} className="check">
-            <input type="checkbox" checked={include.includes(k)} onChange={() => toggle(k)} />
-            {INCLUDE_LABELS[k]}{counts && <span className="muted"> ({counts[k]})</span>}
-          </label>
-        ))}
-      </fieldset>
-
-      <div className="cal-actions">
-        <button type="button" disabled={!ready || downloading} onClick={() => void download()}>
-          {downloading ? 'Downloading…' : 'Download .ics'}
-        </button>
-        <span className={downloadError ? 'cart-flag cal-saved' : 'cal-saved'} role="status">
-          {downloadError ?? saved}
-        </span>
-      </div>
+      <FormCard icon="calendar" title="Your calendar" headId={includeHead}
+                help="A file for any calendar app, or one link per event; no account needed.">
+        <p id={statusId} className={`cal-status ${problem || preview.status === 'error' ? 'cart-flag' : 'muted'}`}
+           role={preview.status === 'error' ? 'alert' : 'status'}>
+          {status}
+        </p>
+        <div className="chips" role="group" aria-labelledby={includeHead} aria-describedby={statusId}>
+          {INCLUDE_ALL.map((k) => (
+            <ToggleChip key={k} checked={include.includes(k)} onChange={() => toggle(k)}>
+              {INCLUDE_LABELS[k]}{counts && <span className="tchip-n">{counts[k]}</span>}
+            </ToggleChip>
+          ))}
+        </div>
+        <div className="cal-actions">
+          <button type="button" className="btn-ico" disabled={!ready || downloading} onClick={() => void download()}>
+            <Icon name="calendar" size={16} />{downloading ? 'Downloading…' : 'Download .ics'}
+          </button>
+          <span className={downloadError ? 'cart-flag cal-saved' : 'cal-saved'} role="status">
+            {downloadError ?? saved}
+          </span>
+        </div>
+      </FormCard>
 
       {/* Google Calendar sync: only with the local demo hub and an OAuth client */}
       <CalendarSyncPanel open schedule={schedule} include={include} timing={timing} ready={ready} />

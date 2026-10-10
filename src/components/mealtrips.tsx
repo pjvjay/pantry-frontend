@@ -364,9 +364,9 @@ function MoveTo({ date }: { date: string }) {
   if (!days.length) return null;
   return (
     <span className="mp-move-to">
-      <label className="mp-inline">
-        Move to
-        <select value={to} onChange={(e) => setTo(e.target.value)}>
+      <label className="fc-field fc-inline">
+        <span className="fc-label">Move to</span>
+        <select className="fc-input fc-input-sm" value={to} onChange={(e) => setTo(e.target.value)}>
           <option value="">a day…</option>
           {days.map((x) => <option key={x} value={x}>{dayLabel(x)}</option>)}
         </select>
@@ -476,15 +476,15 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
           ))}
         </p>
       )}
-      <div className="form-row">
-        <label>
-          Add a trip on
-          <select value={addOn} onChange={(e) => setAddOn(e.target.value)}>
+      <div className="fc-row mp-addtrip">
+        <label className="fc-field fc-inline">
+          <span className="fc-label">Add a trip on</span>
+          <select className="fc-input" value={addOn} onChange={(e) => setAddOn(e.target.value)}>
             <option value="">choose a day</option>
             {free.map((x) => <option key={x} value={x}>{dayLabel(x)}</option>)}
           </select>
         </label>
-        <button type="button" className="secondary" disabled={!addOn}
+        <button type="button" className="secondary mini" disabled={!addOn}
                 onClick={() => { mp.dispatch({ type: 'addTrip', date: addOn }); setAddOn(''); }}>Add trip</button>
       </div>
       {actionsByDate.length > 0 && (

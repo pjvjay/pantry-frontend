@@ -74,15 +74,16 @@ export function Tile({ name, checked, onChange, icon, label, hint }: {
 }
 
 // Something on or off among others, as a chip (plain: no tick, for short labels like days).
-export function ToggleChip({ checked, onChange, children, plain = false }: {
+export function ToggleChip({ checked, onChange, children, plain = false, disabled = false }: {
   checked: boolean;
   onChange: (on: boolean) => void;
   children: ReactNode;
   plain?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <label className={plain ? 'tchip tchip-plain' : 'tchip'}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span>{children}</span>
     </label>
   );

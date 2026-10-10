@@ -996,10 +996,7 @@ tr.row-active td { background: var(--accent-soft); }
 
 .mp-tray { position: relative; border-radius: 10px; outline: 1px solid transparent; }
 .mp-tray[data-target] { outline: 2px dashed var(--line-strong); outline-offset: 4px; }
-.mp-quick-label { display: block; font-weight: 650; margin-bottom: 4px; }
-.mp-quick-row { display: flex; gap: 8px; }
-.mp-quick-row input { flex: 1; min-width: 0; }
-.mp-quick-row button { margin: 0; }
+.mp-quick-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 650; letter-spacing: 0.03em; text-transform: uppercase; color: var(--muted); }
 .mp-preview { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
 .mp-qchips { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .mp-qchip { padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); font-size: 13.5px; }
@@ -1086,25 +1083,6 @@ a.mp-step-link:hover .mp-step-name { text-decoration: underline; }
 .mp-wnav-next { margin-left: auto !important; }
 .mp-wnav-next[aria-disabled="true"] { opacity: 0.55; cursor: default; }
 .mp-wnav-why { flex-basis: 100%; margin: 0; text-align: right; font-size: 13px; }
-
-/* Basics, and the Calendar stage's times: groups of fields, one column on a phone */
-.mp-basics { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; margin-top: 8px; }
-.mp-basics-group { margin: 0; min-width: 0; padding: 8px 12px 10px; border: 1px solid var(--border); border-radius: 10px; }
-.mp-basics-group legend { padding: 0 4px; font-weight: 650; font-size: 13.5px; }
-.mp-basics-group > p { margin: 6px 0 0; }
-.mp-basics-group.mp-checks { margin-top: 0; align-content: flex-start; }
-.mp-origin, .mp-timing-kind { display: flex; flex-direction: column; gap: 6px; }
-.mp-allies summary { cursor: pointer; font-size: 13px; }
-.mp-allies ol { margin: 6px 0; padding: 0; list-style: none; font-size: 13px; }
-.mp-allies li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 0; }
-.mp-ally-name { min-width: 0; overflow-wrap: anywhere; }
-.mp-ally-ctl { display: inline-flex; gap: 4px; }
-.mp-ally-ctl button { min-width: 28px; min-height: 28px; }
-.mp-ally-ctl button[aria-disabled="true"] { opacity: 0.4; cursor: default; }
-.mp-reminders { margin: 2px 0 0; padding: 0; border: none; }
-.mp-reminders legend { padding: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
-.mp-timing { margin-bottom: 12px; }
-.mp-timing-zone { grid-column: 1 / -1; margin: 0; }
 
 /* Meals: the budget bar stays at the top of the page while the cards scroll under it */
 .mp-budget {
@@ -1206,7 +1184,8 @@ details.mp-section > summary .mp-section-head { display: inline; }
 @media (pointer: coarse) {
   .mp-step-link { min-height: 44px; }
   .mp-ing-open { min-height: 44px; }
-  .mp-ally-ctl button { min-width: 44px; min-height: 44px; }
+  .cchip-btn { width: 36px; height: 36px; }
+  .tchip span, .seg-opt span { min-height: 40px; display: inline-flex; align-items: center; }
 }
 
 /* --- Form pieces (components/fields.tsx): cards, segments, tiles, chips, switches ------------
@@ -1248,7 +1227,7 @@ details.mp-section > summary .mp-section-head { display: inline; }
 
 /* one of a few, as joined segments */
 .seg {
-  display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; max-width: 100%;
+  display: inline-grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 3px; max-width: 100%;
   border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2);
 }
 .seg-opt { position: relative; display: block; }
@@ -1257,12 +1236,19 @@ details.mp-section > summary .mp-section-head { display: inline; }
 }
 .seg-opt span {
   display: block; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted);
+  text-align: center;
   white-space: nowrap; transition: background 0.2s var(--ease), color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 .seg-opt:hover span { color: var(--text); }
 .seg-opt input:checked + span { background: var(--panel); color: var(--text); box-shadow: var(--shadow-1); }
 .seg-opt input:focus-visible + span, .tile input:focus-visible + .tile-face, .tchip input:focus-visible + span {
   outline: 2px solid var(--focus); outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  /* a phone: the segments share the card's width, on one row */
+  .seg { display: grid; width: 100%; }
+  .seg-opt span { padding: 6px 2px; }
 }
 
 /* one of several, as tiles */
@@ -1296,6 +1282,12 @@ details.mp-section > summary .mp-section-head { display: inline; }
 .tchip:hover span { border-color: var(--line-strong); }
 .tchip input:checked + span { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .tchip input:checked + span::before { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 3px var(--panel); }
+.tchip input:disabled { cursor: default; }
+.tchip input:disabled + span { opacity: 0.5; }
+.tchip-n {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  background: var(--surface-2); color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums;
+}
 
 /* a rule, as a switch: the input hidden beside the drawn track */
 .switches { display: flex; flex-direction: column; }
@@ -1386,12 +1378,17 @@ details.mp-section > summary .mp-section-head { display: inline; }
 .mp-stage-flat { padding: 0; border: none; background: transparent; }
 .mp-stage-flat > h2 { margin-bottom: 12px; }
 .bx { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
-.bx-forms { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+.bx-forms, .fc-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
 @media (min-width: 760px) {
   /* two cards a row, the wide ones across both */
-  .bx-forms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bx-forms, .fc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bx-forms .fc-wide { grid-column: 1 / -1; }
 }
+@media (min-width: 1100px) { .fc-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.fc-times .fc-input { width: 8.5em; }
+.fc-input-sm { padding: 4px 8px; font-size: 13px; }
+.mp-timing-zone { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; }
+.mp-addtrip { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--line-strong); border-radius: var(--radius); }
 .sum {
   padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-1);
   background: linear-gradient(180deg, var(--accent-soft), var(--panel) 120px);
@@ -1422,11 +1419,11 @@ details.mp-section > summary .mp-section-head { display: inline; }
 }
 
 /* --- Calendar export (components/CalendarExport.tsx): the preview, a day at a time ---------- */
-.cal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 12px; }
+.cal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 0; }
+.cal-export > .fc { margin: 14px 0; }
 .cal-actions button { margin: 0; }
 .cal-when { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cal-status { white-space: pre-line; }
-.cal-include { margin: 8px 0 12px; }
 .cal-head { margin: 14px 0 6px; font-size: 14px; }
 .cal-days, .cal-events { list-style: none; margin: 0; padding: 0; }
 .cal-day { margin-bottom: 10px; }
