@@ -1595,7 +1595,7 @@ export interface TripLineOptions {
   v: 1;
   rev: number;
   strategy: TripStrategy;
-  trip_date: string;
+  trip_date?: string | null;       // null or absent: asked across the whole plan
   product_id: number;
   product: string;
   stocked: boolean;

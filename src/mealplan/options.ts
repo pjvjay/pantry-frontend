@@ -6,6 +6,10 @@
 // recipe line the trip line's purchase covers (/mealplan/alternatives); choosing one pins it on
 // each of those lines, as one undo step, and the plan is re-scheduled with no model call. Nothing
 // here works a fact out: names, amounts and totals are shown as the server gave them.
+//
+// The wizard's Ingredients stage opens the same dialog on an ingredient, with no trip: the
+// ranking then covers every line in the plan that buys the product, with no trip cost, and the
+// words say which recipes a choice changes rather than which trip.
 import { dayLabel } from './dates.ts';
 import type { PlanEdit } from './model.ts';
 import type { CoveredLine, MealPlanDraft, Trip, TripLine, TripLineOptions } from '../types.ts';
@@ -17,8 +21,9 @@ const listOf = (parts: string[]) => (parts.length < 2 ? parts.join('')
   : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`);
 
 // The data attribute on a trip line's Options button, so focus can find the line again once a
-// choice has redrawn the trip with another product: '2026-10-10:122'.
-export const tripLineKey = (date: string, productId: number) => `${date}:${productId}`;
+// choice has redrawn the trip with another product: '2026-10-10:122', or 'plan:122' for an
+// ingredient across the plan.
+export const tripLineKey = (date: string | null | undefined, productId: number) => `${date ?? 'plan'}:${productId}`;
 
 // The Options button's name: what it opens and what the line buys now, the way the chat cart's
 // line says it ("Options for Table Salt 1kg: now 1 pack, $1.54 at Pantry Mart Downtown"). It
@@ -74,26 +79,35 @@ export function coveredText(lines: readonly CoveredLine[]): string {
 // the recipe and line, as the plan asks of the meal-plan context.
 export function optionsDescription(o: TripLineOptions): string {
   const r = o.ranking;
-  const need = r.need ? `These meals need ${r.need} on this trip.`
+  const date = o.trip_date ?? null;
+  const need = r.need ? `These meals need ${r.need}${date ? ' on this trip' : ''}.`
     : (r.need_note ? `${r.need_note}.` : 'No amount is compared for this line.');
   const recipes = listOf([...new Set(o.lines.map((c) => c.title))]);
-  return `For ${coveredText(o.lines)}, bought on the ${dayLabel(o.trip_date)} trip. ${need} `
+  if (!date) {
+    return `For ${coveredText(o.lines)}. ${need} A choice here changes it in every ${recipes} `
+      + 'meal in the plan.';
+  }
+  return `For ${coveredText(o.lines)}, bought on the ${dayLabel(date)} trip. ${need} `
     + `A choice here is used for every ${recipes} meal in the plan.`;
 }
 
 // Said above the rows when the line's own product can no longer be bought, so it has no row.
 export function stockNotice(o: TripLineOptions): string {
-  return o.stocked ? ''
-    : `${o.product} is no longer sold at a store in range. Choose another product, or leave it `
-      + 'off the trip.';
+  if (o.stocked) return '';
+  return `${o.product} is no longer sold at a store in range. Choose another product, or `
+    + `${o.trip_date ? 'leave it off the trip' : 'skip this ingredient'}.`;
 }
 
 // What a screen reader hears after a choice, from the two answers' own numbers:
 // "Table Salt 1kg is now Sea Salt 500g on the Sat 10 Oct trip. Trip $118.20, was $118.83."
+// Across the plan: "Table Salt 1kg is now Sea Salt 500g in Pepperoni Pizza and Chicken Biryani."
 export function choiceAnnouncement(o: TripLineOptions, productName: string,
   before: Trip | undefined, after: Trip | undefined): string {
+  if (!o.trip_date) {
+    return `${o.product} is now ${productName} in ${listOf([...new Set(o.lines.map((c) => c.title))])}.`;
+  }
   const head = `${o.product} is now ${productName} on the ${dayLabel(o.trip_date)} trip.`;
-  if (!after) return `${head} The trips changed: see the Shop band.`;
+  if (!after) return `${head} The trips changed: see the Shopping plan.`;
   const was = before?.total_cost ?? null;
   const now = after.total_cost;
   const change = was !== null && now !== null && was.toFixed(2) !== now.toFixed(2)

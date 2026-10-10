@@ -7,6 +7,10 @@
 // plan as it would be is scheduled first (no model call): a choice pantry-api refuses says why in
 // the dialog and changes nothing, and otherwise that answer is shown at once. Focus then returns
 // to the trip line that now buys the chosen product.
+//
+// With no date (the wizard's Ingredients stage) the dialog is for an ingredient across the whole
+// plan: the ranking has no trip cost, the words name the recipes a choice changes, and focus
+// returns to the ingredient it was opened from.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
@@ -21,7 +25,8 @@ import type { TripLineOptions } from '../types';
 import { AlternativesDialog } from './alternatives';
 
 export function TripLineOptionsDialog({ date, productId, productName, onClose }: {
-  date: string;
+  // null: across the whole plan, with no trip
+  date: string | null;
   // null: closed
   productId: number | null;
   productName: string;
@@ -48,8 +53,10 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose }:
         ? document.querySelector<HTMLElement>(`[data-trip-line="${focusKey.current}"]`) : null;
     },
   }), []);
+  // across the plan: the ingredient it was opened from, which stays where it is
+  const opener = useMemo<RefObject<HTMLElement | null>>(() => ({ current: null }), []);
 
-  const load = (limit: number) => tripLineOptions({ draft: draft.current, trip_date: date,
+  const load = (limit: number) => tripLineOptions({ draft: draft.current, ...(date ? { trip_date: date } : {}),
     product_id: productId as number, strategy, limit }).then((o) => {
     setOpts(o);
     return o.ranking;
@@ -66,8 +73,8 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose }:
     const trial = step(mp.state, edit);
     if (trial.refused) throw new Error(trial.refused);
     const answer = await scheduleMealPlan(trial.state.draft);
-    const before = strategyOf(mp.schedule.answer, strategy)?.trips.find((t) => t.date === date);
-    const after = strategyOf(answer, strategy)?.trips.find((t) => t.date === date);
+    const before = date ? strategyOf(mp.schedule.answer, strategy)?.trips.find((t) => t.date === date) : undefined;
+    const after = date ? strategyOf(answer, strategy)?.trips.find((t) => t.date === date) : undefined;
     const pick = chosen ?? opts.lines[0]?.planner_product_id ?? null;
     // the planner's own pick may have no row (no store in range sells it): its line names it
     const name = opts.ranking.items.find((it) => it.product_id === pick)?.product
@@ -89,12 +96,12 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose }:
           ingredient: opts?.ranking.ingredient || productName },
       }}
       blocked=""
-      returnFocus={returnFocus}
+      returnFocus={date ? returnFocus : opener}
       onChoose={choose}
       onClose={onClose}
       load={load}
       loadKey={`${openKey}@${mp.state.draft.rev}`}
-      place="trip"
+      place={date ? 'trip' : 'plan'}
       description={opts ? optionsDescription(opts) : undefined}
       notice={opts ? stockNotice(opts) : ''}
     />

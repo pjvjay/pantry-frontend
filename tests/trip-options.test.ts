@@ -41,8 +41,21 @@ function opts(lines: CoveredLine[], over: Partial<TripLineOptions> = {}): TripLi
 
 const both = [covered(BIRYANI, 'Chicken Biryani', 7, SALT), covered(PIZZA, 'Pepperoni Pizza', 3, SALT)];
 
-test('a trip line is found again by its date and product', () => {
+test('a trip line is found again by its date and product, an ingredient across the plan by its product', () => {
   assert.equal(tripLineKey(D(1), SALT), '2026-10-10:122');
+  assert.equal(tripLineKey(null, SALT), 'plan:122');
+});
+
+test('Options across the plan (no trip) say which recipes a choice changes', () => {
+  const plan = opts(both, { trip_date: null, plan_total: null });
+  assert.equal(optionsDescription(plan),
+    'For Chicken Biryani (line 7) and Pepperoni Pizza (line 3). These meals need 13.5 g. A choice here '
+    + 'changes it in every Chicken Biryani and Pepperoni Pizza meal in the plan.');
+  assert.equal(stockNotice({ ...plan, stocked: false }),
+    'Table Salt 1kg is no longer sold at a store in range. Choose another product, or skip this ingredient.');
+  assert.equal(choiceAnnouncement(plan, 'Sea Salt 500g', undefined, undefined),
+    'Table Salt 1kg is now Sea Salt 500g in Chicken Biryani and Pepperoni Pizza.');
+  assert.equal(chosenLineKey(plan, SEA_SALT), 'plan:123');
 });
 
 test("the Options button says what it opens and what the line buys now, starting with its word", () => {
@@ -137,7 +150,7 @@ test('after a choice a screen reader hears the trip total from the two answers',
     trip(D(1), [], { total_cost: 120, total_is_floor: true })),
   'Table Salt 1kg is now Sea Salt 500g on the Sat 10 Oct trip. Trip at least $120.00, was $118.83.');
   assert.equal(choiceAnnouncement(opts(both), 'Sea Salt 500g', before, undefined),
-    'Table Salt 1kg is now Sea Salt 500g on the Sat 10 Oct trip. The trips changed: see the Shop band.');
+    'Table Salt 1kg is now Sea Salt 500g on the Sat 10 Oct trip. The trips changed: see the Shopping plan.');
 });
 
 test('a pin the schedule refuses can be taken off, and nothing else is offered', () => {

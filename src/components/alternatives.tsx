@@ -12,7 +12,8 @@
 //
 // The meal plan opens the same dialog on a trip line (components/tripoptions.tsx): it passes
 // `load` (pantry-api's ranking for the line, over REST, no hub), the trip's words, and a
-// description naming the recipe lines the purchase covers.
+// description naming the recipe lines the purchase covers. The wizard's Ingredients stage opens
+// it on an ingredient across the whole plan, in the plan's words.
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import {
@@ -88,8 +89,9 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
   // whenever loadKey changes.
   load?: (limit: number) => Promise<AlternativeRanking>;
   loadKey?: string;
-  // 'trip': the line is on a meal-plan trip, and the dialog says so
-  place?: 'cart' | 'trip';
+  // 'trip': the line is on a meal-plan trip, and the dialog says so; 'plan': an ingredient
+  // across a meal plan, with no trip
+  place?: 'cart' | 'trip' | 'plan';
   // in place of the need and the lines covered, under the title
   description?: string;
   // said above the rows (the line's own product can no longer be bought)
@@ -126,8 +128,9 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
   }, [conversationId, ref, lineNo, loadKey]);
 
   const ingredient = ranking?.ingredient || target?.line.ingredient || '';
-  const updating = place === 'trip' ? 'Updating your plan…' : 'Updating your cart…';
-  const buyer = place === 'trip' ? 'the trip' : 'the cart';
+  const updating = place === 'cart' ? 'Updating your cart…' : 'Updating your plan…';
+  const buyer = place === 'trip' ? 'the trip' : place === 'plan' ? 'the plan' : 'the cart';
+  const holds = place === 'trip' ? 'On this trip' : place === 'plan' ? 'In your plan' : 'In your cart';
   const why = blocked || (choosing !== null ? updating : '');
 
   const choose = async (productId: number | null) => {
@@ -198,8 +201,8 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
       {ranking && rows && (
         <>
           {current && (
-            <section className="alt-section" aria-label={place === 'trip' ? 'On this trip' : 'In your cart'}>
-              <h3>{place === 'trip' ? 'On this trip' : 'In your cart'} ({target?.pinned ? 'chosen by you' : 'chosen by the planner'})</h3>
+            <section className="alt-section" aria-label={holds}>
+              <h3>{holds} ({target?.pinned ? 'chosen by you' : 'chosen by the planner'})</h3>
               <ul className="alt-list">
                 <Row item={current} buyer={buyer} action={target?.pinned ? (
                   <button type="button" className="secondary alt-use" {...actionProps}
