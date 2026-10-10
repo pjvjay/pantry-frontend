@@ -1047,31 +1047,44 @@ tr.row-active td { background: var(--accent-soft); }
    ringed, ahead ones outlined, and one the plan cannot be on yet dimmed; a done stage an edit
    has undone shows "!" in --warn. On a phone only the current stage's name shows; the others
    keep theirs for screen readers. */
-.mp-steps { margin-top: 20px; }
+.mp-steps {
+  margin-top: 20px; padding: 14px 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--panel); box-shadow: var(--shadow-1);
+}
 .mp-steps ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .mp-step { position: relative; display: flex; justify-content: center; min-width: 0; }
 .mp-step:not(:last-child)::after {
-  content: ''; position: absolute; top: 15px; left: calc(50% + 20px); right: calc(-50% + 20px);
-  height: 2px; background: var(--line-strong);
+  content: ''; position: absolute; top: 15px; left: calc(50% + 22px); right: calc(-50% + 22px);
+  height: 2px; border-radius: 2px; background: var(--border);
 }
 .mp-step-done:not(:last-child)::after { background: var(--accent); }
 .mp-step-link {
-  display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 0 2px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: 0 2px;
   color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; text-align: center;
+  border-radius: var(--radius);
 }
+.mp-step-link:focus-visible { outline: none; }
+.mp-step-link:focus-visible .mp-step-mark { outline: 2px solid var(--focus); outline-offset: 3px; }
 .mp-step-mark {
   display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
   border-radius: 50%; border: 2px solid var(--line-strong); background: var(--panel);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums; font-weight: 700;
+  transition: background 0.25s var(--ease), border-color 0.25s var(--ease), color 0.25s var(--ease),
+    box-shadow 0.25s var(--ease), transform 0.2s var(--ease);
 }
-.mp-step-name { overflow-wrap: anywhere; }
+.mp-step:not(:last-child)::after { transition: background 0.3s var(--ease); }
+.mp-step-name { overflow-wrap: anywhere; transition: color 0.2s var(--ease); }
+a.mp-step-link:hover .mp-step-mark { transform: translateY(-1px); box-shadow: var(--shadow-2); }
+a.mp-step-link:hover .mp-step-name { color: var(--text); }
 .mp-step-done .mp-step-link { color: var(--text); }
 .mp-step-done .mp-step-mark { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.mp-step-current .mp-step-link { color: var(--accent); }
-.mp-step-current .mp-step-mark { border: 3px solid var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.mp-step-current .mp-step-link { color: var(--accent); font-weight: 700; }
+.mp-step-current .mp-step-mark {
+  border: 2px solid var(--accent); background: var(--accent-soft); color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
 .mp-step-attention .mp-step-mark { background: var(--panel); border-color: var(--warn); color: var(--warn); }
-.mp-step-closed .mp-step-link { opacity: 0.6; cursor: default; }
-a.mp-step-link:hover .mp-step-name { text-decoration: underline; }
+.mp-step-closed .mp-step-link { opacity: 0.55; cursor: default; }
 
 .mp-stage { margin-top: 16px; }
 .mp-stage > h2:focus { outline: none; }
@@ -1170,7 +1183,8 @@ details.mp-section > summary .mp-section-head { display: inline; }
 }
 @media (max-width: 640px) {
   .mp-step-mark { width: 28px; height: 28px; }
-  .mp-step:not(:last-child)::after { top: 13px; left: calc(50% + 17px); right: calc(-50% + 17px); }
+  .mp-step:not(:last-child)::after { top: 13px; left: calc(50% + 18px); right: calc(-50% + 18px); }
+  .mp-steps { padding: 12px 4px 10px; }
   .mp-step:not(.mp-step-current) .mp-step-name {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap;
   }
