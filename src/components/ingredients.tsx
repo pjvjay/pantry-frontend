@@ -5,13 +5,14 @@
 // could take its place, ranked, and the recipes a choice changes; one choice pins every line
 // that buys it, as one undo step.
 //
-// An ingredient no store nearby sells is said so, and Schedule waits until each one has an
+// An ingredient the plan cannot buy nearby says why (only products from a country the plan
+// leaves out, none stocked, none within the distance), and Schedule waits until each one has an
 // answer: other meals (back to Meals), another product (its Options), or "skip this ingredient"
 // (the recipe goes without it). The words are in mealplan/basket.ts.
 import { useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
-import { basketAtLeast, basketView } from '../mealplan/basket';
+import { basketAtLeast, basketView, unansweredGroups } from '../mealplan/basket';
 import type { LineView, RecipeView } from '../mealplan/basket';
 import { againstBudget } from '../mealplan/catalog';
 import { USABLE_RESOLVE, budgetOf, recipeTitle } from '../mealplan/model';
@@ -55,8 +56,9 @@ function Line({ l, title, onOptions, onMeals }: { l: LineView; title: string; on
       {!l.available && (
         <div className="mp-ing-answer" role="group" aria-label={`${l.ingredient}: not sold nearby`}>
           <span className={l.skipped ? 'muted' : 'cart-flag'}>
-            {l.skipped ? `Skipped: ${title} goes without it.` : `Not sold nearby: ${l.why}.`}
+            {l.skipped ? `Skipped: ${title} goes without it.` : `${l.heading}.`}
           </span>
+          {!l.skipped && l.why && <span className="muted">{l.why}</span>}
           {/* the skip button stays where it is whichever it says, so focus stays on it */}
           {!l.skipped && <button type="button" className="secondary mini" onClick={onMeals}>Back to meals</button>}
           {!l.skipped && l.productId !== null && (
@@ -160,11 +162,15 @@ export function IngredientsStage({ basket, onMeals }: { basket: KeyedCall<MealBa
       {view && view.unanswered.length > 0 && (
         <div className="banner banner-update mp-unanswered">
           <strong>
-            {view.unanswered.length === 1 ? '1 ingredient is' : `${view.unanswered.length} ingredients are`} not
-            sold near you:
+            {view.unanswered.length === 1 ? '1 ingredient' : `${view.unanswered.length} ingredients`} the plan
+            cannot buy near you.
           </strong>{' '}
-          {view.unanswered.map((l) => `${l.ingredient} (${recipeTitle(mp.state, l.recipeKey)})`).join(', ')}. For
-          each, choose another product, skip it, or go back to Meals for other recipes.{' '}
+          {unansweredGroups(view.unanswered).map((g) => (
+            <span key={g.heading}>
+              {g.heading}: {g.lines.map((l) => `${l.ingredient} (${recipeTitle(mp.state, l.recipeKey)})`).join(', ')}.{' '}
+            </span>
+          ))}
+          For each, choose another product, skip it, or go back to Meals for other recipes.{' '}
           <button type="button" className="secondary mini" onClick={onMeals}>Back to meals</button>
         </div>
       )}

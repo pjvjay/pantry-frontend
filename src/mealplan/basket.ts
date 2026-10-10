@@ -4,11 +4,14 @@
 // The wizard's Ingredients stage: every chosen recipe's ingredients as the plan would buy them
 // (/mealplan/basket), each with its product, the store and how far it is, the price, where it is
 // from and its labels. Nothing is worked out here: a fact the basket does not give is unknown.
-// An ingredient no store nearby sells is said so and needs an answer before Schedule: other
-// meals (back to Meals), another product (its Options), or "skip this ingredient".
+// An ingredient the plan cannot buy nearby is said so, with why (only products from a country
+// the plan leaves out, none stocked, none within the distance), and needs an answer before
+// Schedule: other meals (back to Meals), another product (its Options), or "skip this
+// ingredient".
+import { excludedWords } from './catalog.ts';
 import { lineKey, mealsOf, recipeTitle } from './model.ts';
 import type { MealPlanState } from './model.ts';
-import type { BasketLine, BasketOrigin, MealBasket, MealPlanDraft } from '../types.ts';
+import type { BasketLine, BasketOrigin, MealBasket, MealPlanDraft, UnavailableKind } from '../types.ts';
 
 const money = (v: number) => `$${v.toFixed(2)}`;
 
@@ -41,16 +44,25 @@ export function basketKey(d: MealPlanDraft): string {
   });
 }
 
-// Where an ingredient is from: the evidence's own words ("Canada: origin") or the country, or
-// that nobody says. A country in the plan's preference order says so.
+// Where an ingredient is from: the evidence's own words as pantry-api gives them ("From
+// Thailand", "Made in Canada, ingredients may be imported"), else the country, else that nobody
+// says. Sources that disagree are flagged; a country in the plan's preference order says so.
 export function originText(o: BasketOrigin): { text: string; flag: boolean } {
-  if (o.status === 'conflicting') return { text: 'origin unclear: sources disagree', flag: true };
-  if (o.status !== 'evidenced' || !o.country) return { text: 'origin unknown', flag: false };
   const claim = o.claim.trim();
-  const words = !claim || claim === 'full' ? o.country
-    : claim === 'processing' ? `${o.country} (processed there)`
-      : claim.toLowerCase().includes(o.country.toLowerCase()) ? claim : `${o.country} (${claim})`;
-  return { text: `${words}${o.preferred_rank !== null ? ' · a preferred origin' : ''}`, flag: false };
+  const flag = o.status === 'conflicting';
+  const words = claim || (flag ? 'origin unclear: sources disagree'
+    : o.status === 'evidenced' && o.country ? o.country : 'origin unknown');
+  return { text: `${words}${o.preferred_rank !== null ? ' · a preferred origin' : ''}`, flag };
+}
+
+// Why an ingredient cannot be bought, as the row and the stage's banner say it.
+export function unavailableHeading(kind: UnavailableKind | null | undefined, excluded: readonly string[]): string {
+  switch (kind) {
+    case 'origin_excluded': return `Only ${excludedWords(excluded)} nearby, left out by your rule`;
+    case 'not_stocked': return 'No store nearby stocks it';
+    case 'out_of_range': return 'Sold only beyond your distance';
+    default: return 'Not sold nearby';
+  }
 }
 
 export function storeText(line: BasketLine): string {
@@ -75,7 +87,8 @@ export interface LineView {
   pinned: boolean;
   shared: string;                  // "also bought for Chicken Fried Rice"
   available: boolean;
-  why: string;
+  heading: string;                 // why it cannot be bought, when it cannot
+  why: string;                     // pantry-api's own reason, '' when it gives none
   skipped: boolean;
   // nothing more to do: sold nearby, skipped by the shopper, or its recipe has no meals now
   answered: boolean;
@@ -92,6 +105,7 @@ export interface RecipeView {
 }
 
 function lineView(s: MealPlanState, recipeKey: string, meals: number, ln: BasketLine): LineView {
+  const excluded = s.draft.settings.exclude_origin ?? [];
   const p = ln.product;
   const product = p ? [p.name, p.size].filter(Boolean).join(' ') : null;
   const k = lineKey(recipeKey, ln.line_no);
@@ -108,7 +122,8 @@ function lineView(s: MealPlanState, recipeKey: string, meals: number, ln: Basket
     cost: ln.cost_for_need === null ? '' : `${money(ln.cost_for_need)} for these meals`,
     origin: originText(ln.origin), labels, pinned: ln.pinned,
     shared: others.length ? `also bought for ${listOf(others)}` : '',
-    available: ln.available, why: ln.why_unavailable ?? 'no store nearby sells it',
+    available: ln.available, heading: ln.available ? '' : unavailableHeading(ln.unavailable_kind, excluded),
+    why: ln.why_unavailable ?? '',
     skipped, answered: ln.available || skipped || meals === 0,
     optionsLabel: product
       ? `Options for ${ln.ingredient}: now ${product}, ${ln.price === null ? 'price unknown' : money(ln.price)}`
@@ -135,3 +150,14 @@ export const unansweredCount = (b: MealBasket | null, s: MealPlanState): number 
 // Whether the basket's total leaves out a price: some ingredient it buys has none.
 export const basketAtLeast = (b: MealBasket): boolean =>
   b.recipes.some((r) => r.lines.some((ln) => ln.available && ln.product !== null && ln.price === null));
+
+// The unanswered ingredients by why, for the stage's banner, in the order first met.
+export function unansweredGroups(lines: readonly LineView[]): { heading: string; lines: LineView[] }[] {
+  const out: { heading: string; lines: LineView[] }[] = [];
+  for (const l of lines) {
+    const g = out.find((x) => x.heading === l.heading);
+    if (g) g.lines.push(l);
+    else out.push({ heading: l.heading, lines: [l] });
+  }
+  return out;
+}

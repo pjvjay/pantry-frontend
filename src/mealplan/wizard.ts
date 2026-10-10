@@ -8,8 +8,8 @@
 //
 // Moving on from a stage needs what the later ones work from, its gate:
 //   2 Meals: at least one meal;
-//   3 Ingredients: every recipe's products checked, and every ingredient no store nearby sells
-//     answered (back to Meals for another recipe, another product, or "skip this ingredient");
+//   3 Ingredients: every recipe's products checked, and every ingredient the plan cannot buy
+//     nearby answered (back to Meals for another recipe, another product, or "skip this ingredient");
 //   5 Shopping plan: at least one approved trip, which the Calendar exports.
 // A gate is ok, pending (an answer is on its way: Next waits for it, but the stages after it
 // stay reachable) or blocked, with the words Next shows. An edit that blocks an earlier gate
@@ -62,7 +62,7 @@ export interface WizardFacts {
   // the ingredients as the plan would buy them: still to come, could not be had, or answered
   // for the plan as it is now
   basket: 'waiting' | 'error' | 'ok';
-  unanswered: number;              // ingredients no store nearby sells, not yet answered
+  unanswered: number;              // ingredients the plan cannot buy nearby, not yet answered
   approved: number;                // approved trips
 }
 
@@ -120,7 +120,7 @@ export function gate(n: StepNo, f: WizardFacts): Gate {
       }
       if (f.unanswered > 0) {
         return { step: n, state: 'blocked', text: `Answer ${plural(f.unanswered, 'ingredient', 'ingredients')} `
-          + 'no store nearby sells: another product, skip it, or other meals' };
+          + 'the plan cannot buy nearby: another product, skip it, or other meals' };
       }
       return ok(n);
     case 5:

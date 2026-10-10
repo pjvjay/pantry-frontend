@@ -1681,10 +1681,15 @@ export interface BasketProduct {
 
 export interface BasketOrigin {
   country: string | null;
-  claim: string;
+  claim: string;                   // as the evidence says it: "From Thailand", "Made in Canada, …"
+
   status: 'evidenced' | 'unknown' | 'conflicting';
   preferred_rank: number | null;   // its place in the plan's preference order
 }
+
+// Why an ingredient cannot be bought: only products from an excluded country nearby, none
+// stocked, or none within the distance. Absent from an older API.
+export type UnavailableKind = 'origin_excluded' | 'not_stocked' | 'out_of_range';
 
 // One ingredient of a recipe as the plan would buy it. price: one pack; cost_for_need: this
 // recipe's share over all its meals. shared_with: the other recipe keys buying the same product.
@@ -1701,6 +1706,7 @@ export interface BasketLine {
   shared_with: string[];
   available: boolean;
   why_unavailable: string | null;
+  unavailable_kind?: UnavailableKind | null;
 }
 
 export interface BasketRecipe {
