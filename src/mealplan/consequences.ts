@@ -170,6 +170,61 @@ export function warningsFor(sc: MealSchedule, strategy: TripStrategy): PlanWarni
     .map(({ w }) => w);
 }
 
+// ─── One row for warnings that say the same thing ───────────
+
+// The engine warns once per product: a breakfast moved before the trip is a must-fix for each
+// thing it needs, six rows with the same "Move Ginger Congee to Mon 12 Oct". A row stands for
+// warnings with the same level, code, meals and remedies, and lists their products: "Ginger
+// Congee on Mon 12 Oct needs Fresh Ginger, Soy Sauce and 4 more, and no shopping day comes
+// before it." When the sentences differ in more than the product, the first is kept and the
+// rest named after it.
+export interface WarningRow {
+  warning: PlanWarning;            // the first, whose remedies the row offers
+  count: number;
+  products: string[];              // every product the row stands for, in order
+  text: string;
+}
+
+// "A and B", "A, B and C", "A, B and 4 more"
+export function productsText(names: readonly string[]): string {
+  if (names.length <= 3) return names.length < 2 ? names.join('')
+    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
+}
+
+export function warningRows(list: readonly PlanWarning[], names: Map<number, string>): WarningRow[] {
+  const keyOf = (w: PlanWarning) => (w.meal_ids.length && w.product_id !== null
+    ? `${w.level}|${w.code}|${[...w.meal_ids].sort().join(',')}|${JSON.stringify(w.remedies)}` : null);
+  const groups: PlanWarning[][] = [];
+  const byKey = new Map<string, PlanWarning[]>();
+  for (const w of list) {
+    const k = keyOf(w);
+    const g = k === null ? undefined : byKey.get(k);
+    if (g) g.push(w);
+    else {
+      const fresh = [w];
+      groups.push(fresh);
+      if (k !== null) byKey.set(k, fresh);
+    }
+  }
+  return groups.map((ws) => {
+    const first = ws[0];
+    const products = [...new Set(ws.map((w) => (w.product_id === null ? ''
+      : names.get(w.product_id) ?? `product ${w.product_id}`)).filter(Boolean))];
+    if (ws.length < 2) return { warning: first, count: 1, products, text: first.message };
+    // the sentence with its product taken out, the same for every warning in the row
+    const hole = '\u0000';
+    const shapes = ws.map((w) => {
+      const name = w.product_id === null ? undefined : names.get(w.product_id);
+      return name && w.message.includes(name) ? w.message.replace(name, hole) : null;
+    });
+    const same = shapes[0] !== null && shapes.every((x) => x === shapes[0]);
+    const text = same ? (shapes[0] as string).replace(hole, productsText(products))
+      : `${first.message} The same for ${productsText(products.slice(1))}.`;
+    return { warning: first, count: ws.length, products, text };
+  });
+}
+
 export function productNames(sc: MealSchedule | null): Map<number, string> {
   const names = new Map<number, string>();
   for (const st of sc?.strategies ?? []) {

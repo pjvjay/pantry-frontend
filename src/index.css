@@ -962,6 +962,8 @@ tr.row-active td { background: var(--accent-soft); }
 .mp-warn-group ul { margin: 6px 0 0; padding-left: 18px; }
 .mp-warn-group li { margin-bottom: 6px; }
 .mp-remedies { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.mp-warn-all { font-size: 12.5px; }
+.mp-warn-all summary { cursor: pointer; color: var(--muted); font-weight: 400; }
 .mp-coverage { display: flex; flex-wrap: wrap; gap: 6px; }
 .mp-coverage .chip { white-space: normal; }
 .mp-strategy { border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; gap: 4px; }

@@ -8,19 +8,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { sizeInName } from '../alternatives';
 import {
   costText, forMealsText, needText, packsText, priceDeltaText, shelfText, strategyOf, tripChipText, tripLook,
   tripPriced, tripToCartSummary,
 } from '../mealplan/board';
-import { productNames, remedyLabel, remedyStep, tripMoveConsequence, warningsFor } from '../mealplan/consequences';
+import {
+  productNames, remedyLabel, remedyStep, tripMoveConsequence, warningRows, warningsFor,
+} from '../mealplan/consequences';
 import { dayLabel } from '../mealplan/dates';
 import { MAX_PACKS, STRATEGY_NAMES, approvedElsewhere, inWindow, windowDates, windowOf } from '../mealplan/model';
 import { tripLineKey, tripOptionsLabel } from '../mealplan/options';
 import { useMealPlan } from '../mealplan/store';
 import type {
-  MealSchedule, PlanAction, PlanCoverage, PlanWarning, RemedyOp, Trip, TripLine, WarningCounts,
+  MealSchedule, PlanAction, PlanCoverage, RemedyOp, Trip, TripLine, WarningCounts,
 } from '../types';
-import { sizeInName } from '../alternatives';
 import { CartCard, copyText } from './cart';
 import { SourceCredits } from './nutrition';
 import { Sheet } from './Sheet';
@@ -282,9 +284,10 @@ export function WarningsPanel({ schedule, onAsk }: {
   const list = warningsFor(schedule, strategy);
   const names = productNames(schedule);
   if (!list.length) return <p className="muted">No warnings for this plan.</p>;
+  // one row for warnings that say the same thing, one product at a time
   const groups = (['must_fix', 'should_fix', 'decide', 'note'] as const)
-    .map((level) => [level, list.filter((w) => w.level === level)] as const)
-    .filter(([, ws]) => ws.length);
+    .map((level) => [level, warningRows(list.filter((w) => w.level === level), names)] as const)
+    .filter(([, rows]) => rows.length);
   const run = (op: RemedyOp) => {
     const r = remedyStep(op, mp.state);
     if ('edit' in r) mp.dispatch(r.edit);
@@ -292,13 +295,19 @@ export function WarningsPanel({ schedule, onAsk }: {
   };
   return (
     <div className="mp-warnings">
-      {groups.map(([level, ws]) => (
+      {groups.map(([level, rows]) => (
         <details key={level} open={level !== 'note'} className={`mp-warn-group mp-warn-${level}`}>
-          <summary>{level === 'must_fix' ? '⚠ ' : ''}{LEVEL_NAMES[level]} ({ws.length})</summary>
+          <summary>{level === 'must_fix' ? '⚠ ' : ''}{LEVEL_NAMES[level]} ({rows.length})</summary>
           <ul>
-            {ws.map((w: PlanWarning, i) => (
+            {rows.map(({ warning: w, text, products, count }, i) => (
               <li key={`${w.code}-${i}`}>
-                <span>{w.message}</span>
+                <span>{text}</span>
+                {count > 1 && products.length > 3 && (
+                  <details className="mp-warn-all">
+                    <summary>All {products.length} products</summary>
+                    {products.join(', ')}
+                  </details>
+                )}
                 {w.remedies.length > 0 && (
                   <span className="mp-remedies">
                     {w.remedies.map((op, j) => (
