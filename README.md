@@ -161,9 +161,15 @@ to its heading. `views/MealPlanView.tsx` puts them together:
    store nearby sells needs an answer before Schedule: Back to meals, another
    product, Skip this ingredient (kept with the plan as `skipped`), or, when only
    stores turned off sell it, turning one back on.
-4. **Schedule** (`components/mealcal.tsx`, the tray from `components/mealtray.tsx`):
-   7 or 14 days of Breakfast, Lunch, Dinner and Snack, Fill empty slots, Suggest
-   cook days, Undo and Redo, and the nutrition band (`components/nutrition.tsx`).
+4. **Schedule** (`components/mealcal.tsx`, the tray from `components/mealtray.tsx`),
+   laid out as a sprint board: the plan's recipes in a sidebar card (each with
+   its picture, how many of its meals are placed, its count and meal, and the
+   meals still to place as cards to drag), the calendar in a card beside it, both
+   in view from 1024 px, the sidebar staying put while the board scrolls; on a
+   phone the sidebar sits above the board and folds away. The whole sidebar is
+   the tray's drop target. 7 or 14 days of Breakfast, Lunch, Dinner and Snack,
+   each meal's card with its recipe's thumbnail, Fill empty slots, Suggest cook
+   days, Undo and Redo, and the nutrition band (`components/nutrition.tsx`).
 5. **Shopping plan** (`components/mealtrips.tsx`): a week strip of the plan's days,
    each trip draggable (or picked up with Move) to another day and each day's
    meal count, the strategy's total against the budget, the trips code suggests

@@ -5,8 +5,8 @@
 // one meal: every plan is for one person for now), a slot, and its meals still waiting in
 // the tray. A recipe that does not say how many it serves asks the shopper, and the answer is
 // labelled as theirs. The wizard shows Quick add in Meals, beside the recipe cards, and the tray
-// on Schedule, without the ways to add (compact).
-import { useEffect, useRef, useState } from 'react';
+// on Schedule, as the sidebar beside the board.
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { getRecipes } from '../api';
 import { trayRows } from '../mealplan/board';
@@ -22,6 +22,7 @@ import type { Recipe } from '../types';
 import { Icon } from './icons';
 import { MealChip } from './mealcal';
 import type { BoardCtl } from './mealcal';
+import { RecipePicture } from './pictures';
 import { Sheet } from './Sheet';
 
 // The sentence the plan was written around; the first-run sheet offers it as an example.
@@ -181,25 +182,38 @@ export function ServingsPrompt({ recipeKey, title }: { recipeKey: string; title:
   );
 }
 
+// A recipe in the sidebar: its picture and name, how many of its meals are placed, its count
+// and meal, what is wrong with it, and the meals still to place as cards to drag onto the board.
 function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
   const mp = useMealPlan();
   const d = mp.state.draft;
   const r = d.recipes[row.key];
   const resolved = d.resolved[row.key];
-  const household = d.prefs.household_servings;
   const pending = mp.resolve.pending.includes(row.key);
   const label = resolved?.label ?? (row.key.startsWith('my:') ? 'my recipe' : row.key.startsWith('starter:')
     ? 'demo recipe' : null);
   const answered = r.servings ?? null;
   const needsServings = resolved?.status === 'needs_servings' && answered === null;
   const full = addStop(d, r.slot, r.wanted);
+  const done = row.wanted > 0 && row.placed >= row.wanted;
   return (
-    <li className="mp-recipe">
+    <li className={`mp-recipe${done ? ' mp-recipe-done' : ''}`}>
       <div className="mp-recipe-head">
-        <strong>{row.title}</strong>
-        {label && <span className={`chip ${label.startsWith('demo') ? 'chip-warn' : 'chip-muted'}`}>{label}</span>}
-        <button type="button" className="linkish mp-recipe-remove" aria-label={`Remove ${row.title} from the plan`}
-                onClick={() => mp.dispatch({ type: 'removeRecipe', key: row.key })}>remove</button>
+        <RecipePicture pic={ctl.pictures?.get(row.key) ?? null} slot={row.slot} size="head" />
+        <div className="mp-recipe-what">
+          <strong className="mp-recipe-title">{row.title}</strong>
+          <span className="mp-recipe-meta">
+            <span className="mp-recipe-placed">
+              {done && <Icon name="check" size={14} />}{row.placed} of {row.wanted} placed
+            </span>
+            {label && <span className={`chip ${label.startsWith('demo') ? 'chip-warn' : 'chip-muted'}`}>{label}</span>}
+          </span>
+          <span className="mp-recipe-meter" aria-hidden="true">
+            <span style={{ width: `${row.wanted ? Math.min(100, Math.round((row.placed / row.wanted) * 100)) : 0}%` }} />
+          </span>
+        </div>
+        <button type="button" className="mp-recipe-remove" aria-label={`Remove ${row.title} from the plan`}
+                title="Remove from the plan" onClick={() => mp.dispatch({ type: 'removeRecipe', key: row.key })}>×</button>
       </div>
       <div className="mp-recipe-ctl">
         <span className="mp-stepper">
@@ -211,16 +225,14 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
                   aria-disabled={full ? true : undefined} aria-describedby={full ? `mp-full-${row.key}` : undefined}
                   onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted + 1 }); }}>+</button>
         </span>
-        <span className="muted">{countLine(row.wanted, household)}</span>
         <label className="mp-inline">
           as
           <select value={row.slot} onChange={(e) => mp.dispatch({ type: 'setRecipeSlot', key: row.key, slot: e.target.value as Slot })}>
             {SLOTS.map((sl) => <option key={sl} value={sl}>{SLOT_LABELS[sl]}</option>)}
           </select>
         </label>
-        <span className="muted">{row.placed} of {row.wanted} placed</span>
-        {full && <span id={`mp-full-${row.key}`} className="mp-card-full">{full}.</span>}
       </div>
+      {full && <div id={`mp-full-${row.key}`} className="mp-card-full">{full}.</div>}
       {pending && mp.resolve.status !== 'error' && <div className="muted">Checking products…</div>}
       {pending && mp.resolve.status === 'error' && (
         <div className="cart-flag">
@@ -244,7 +256,7 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
         </div>
       )}
       {resolved && (resolved.not_stocked.length + resolved.out_of_range.length + resolved.skipped.length) > 0 && (
-        <div className="muted">
+        <div className="muted mp-recipe-note">
           Not bought: {[...resolved.not_stocked, ...resolved.out_of_range, ...resolved.skipped]
             .map((x) => x.ingredient).join(', ')}
         </div>
@@ -322,40 +334,41 @@ export function AddRecipes() {
 
 // ─── The tray ────────────────────────────────────────────────
 
-export function RecipeTray({ ctl, quickText, setQuickText, compact = false, emptyText }: {
-  ctl: BoardCtl;
-  quickText: string;
-  setQuickText: (t: string) => void;
-  // without Quick add and Add a recipe (the wizard's Schedule stage)
-  compact?: boolean;
-  emptyText?: string;
-}) {
+// The Schedule stage's sidebar, a sprint board's backlog: the plan's recipes, each with its
+// picture, how many of its meals are placed, and the ones still to place as cards to drag onto
+// the board, tap or pick up from the keyboard. The whole sidebar is the tray's drop target, so a
+// meal dragged back anywhere on it goes back. Beside the board on a wide screen, where it stays
+// in view as the board scrolls; above it on a phone, where it folds away.
+export function RecipeTray({ ctl, emptyText }: { ctl: BoardCtl; emptyText: string }) {
+  const head = useId();
+  const body = useId();
+  const [open, setOpen] = useState(true);
   const rows = trayRows(ctl.state);
   const p = ctl.drag?.payload ?? ctl.held;
   const meal = p?.kind === 'meal' ? ctl.state.draft.meals.find((m) => m.id === p.mealId) : undefined;
   const target = p?.kind === 'meal' && canDrop(p, TRAY_KEY) && meal?.date !== null;
   const toPlace = rows.reduce((t, r) => t + r.waiting.length, 0);
   return (
-    <div className="mp-tray" data-drop={TRAY_KEY} data-target={target || undefined}
-         data-over={ctl.drag?.over === TRAY_KEY || undefined}>
-      {!compact && <QuickAdd text={quickText} setText={setQuickText} />}
-      {rows.length === 0 ? (
-        <p className="mp-empty">
-          {emptyText ?? 'Choose what you\'d like to cook: type it in Quick add, or add a recipe below (for example 3 × Tomato Penne).'}
-        </p>
-      ) : (
-        <>
-          <h3 className="mp-tray-head">In this plan <span className="muted">· {toPlace} to place</span></h3>
-          <ul className="mp-recipes">{rows.map((row) => <RecipeRow key={row.key} row={row} ctl={ctl} />)}</ul>
-        </>
-      )}
+    <aside className={`mp-tray mp-side${open ? '' : ' mp-side-shut'}`} aria-labelledby={head} data-drop={TRAY_KEY}
+           data-target={target || undefined} data-over={ctl.drag?.over === TRAY_KEY || undefined}>
+      <div className="mp-side-head">
+        <h3 id={head} className="mp-side-title">
+          <Icon name="list" size={18} />Recipes
+          {rows.length > 0 && <span className="mp-side-count">{toPlace ? `${toPlace} to place` : 'all placed'}</span>}
+        </h3>
+        <button type="button" className="secondary mini mp-side-fold" aria-expanded={open} aria-controls={body}
+                onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
       {target && ctl.held && (
         <button type="button" className="mp-slot-target" onClick={() => ctl.dropOn(TRAY_KEY)}>
           Put it back in the tray
         </button>
       )}
-      {!compact && <AddRecipes />}
-    </div>
+      <div id={body} className="mp-side-body">
+        {rows.length === 0 ? <p className="mp-empty">{emptyText}</p>
+          : <ul className="mp-recipes">{rows.map((row) => <RecipeRow key={row.key} row={row} ctl={ctl} />)}</ul>}
+      </div>
+    </aside>
   );
 }
 

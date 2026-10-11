@@ -861,10 +861,13 @@ tr.row-active td { background: var(--accent-soft); }
 .mp-day-nut { font-size: 11.5px; line-height: 1.35; }
 
 .mp-chip {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas:
-    "grip main more" "grip nut more"; align-items: center; column-gap: 2px;
-  margin-top: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas:
+    "grip thumb main more" "grip thumb nut more"; align-items: center; column-gap: 2px;
+  margin-top: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+  box-shadow: var(--shadow-1); transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
+.mp-chip:hover { border-color: var(--line-strong); }
+.mp-chip > .rpic-thumb { grid-area: thumb; margin: 0 2px; }
 .mp-chip[data-held] { outline: 2px solid var(--accent); }
 .mp-chip[data-risk] { border-color: var(--warn); }
 /* the one element that does not scroll the page under a finger */
@@ -890,7 +893,8 @@ tr.row-active td { background: var(--accent-soft); }
 /* A narrow day column (seven of them on a laptop screen): the grip and the ⋯ share the top row
    and the name gets the chip's whole width, so it wraps between words, not inside them. */
 @container (max-width: 150px) {
-  .mp-chip { grid-template-areas: "grip . more" "main main main" "nut nut nut"; }
+  .mp-chip { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "grip thumb more" "main main main" "nut nut nut"; }
+  .mp-chip > .rpic-thumb { justify-self: start; }
   .mp-chip-title { overflow-wrap: break-word; hyphens: auto; }
 }
 
@@ -1013,13 +1017,58 @@ tr.row-active td { background: var(--accent-soft); }
 .mp-servings { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; padding: 6px 8px; border: 2px solid var(--warn); border-radius: 8px; font-size: 13px; }
 .mp-servings button { margin: 0; }
 .mp-tray-head { margin: 12px 0 4px; font-size: 14px; }
-.mp-recipes { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
-.mp-recipe { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 13.5px; min-width: 0; }
-.mp-recipe-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.mp-recipe-remove { margin-left: auto; }
-.mp-recipe-ctl { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-top: 4px; }
-.mp-tray-chips { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px; }
-.mp-tray-chips .mp-chip { width: 200px; max-width: 100%; }
+.mp-recipes { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 8px; }
+.mp-recipe {
+  display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg); font-size: 13.5px; min-width: 0;
+}
+.mp-recipe-head { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.mp-recipe-what { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.mp-recipe-title { font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.mp-recipe-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.mp-recipe-meta .chip { padding: 0 7px; font-size: 11px; }
+.mp-recipe-placed { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mp-recipe-done .mp-recipe-placed { color: var(--accent); font-weight: 600; }
+.mp-recipe-meter { display: block; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.mp-recipe-meter span { display: block; height: 100%; background: var(--accent); transition: width 0.3s var(--ease); }
+.mp-recipe-remove {
+  align-self: flex-start; flex: none; width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 50%;
+  background: transparent; color: var(--muted); font-size: 18px; line-height: 1;
+}
+.mp-recipe-remove:hover { background: var(--surface-2); color: var(--text); }
+.mp-recipe-ctl { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.mp-recipe-note { font-size: 12.5px; }
+.mp-tray-chips { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.mp-tray-chips .mp-chip { margin: 0; }
+
+/* Schedule: a sprint board. The recipes to place in a sidebar card, the calendar in a card
+   beside it, both in view on a wide screen; the sidebar stays put while the board scrolls, and
+   on a phone sits above the board and folds away. */
+.sched { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; margin-top: 10px; }
+.mp-side, .sched-board {
+  min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--panel); box-shadow: var(--shadow-1);
+}
+.mp-side { display: flex; flex-direction: column; gap: 10px; }
+.mp-side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.view .mp-side-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; font-weight: 650; }
+.mp-side-title .ico { color: var(--accent); }
+.mp-side-count {
+  padding: 1px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+  font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums;
+}
+.mp-side-fold { margin: 0; }
+.mp-side .mp-slot-target { margin: 0; min-height: 36px; }
+.mp-side-shut .mp-side-body { display: none; }
+.sched-board > .mp-period:first-child { margin-top: 0; }
+@media (min-width: 1024px) {
+  .sched { grid-template-columns: 300px minmax(0, 1fr); }
+  .mp-side { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; overscroll-behavior: contain; }
+  .mp-side .mp-recipes { grid-template-columns: minmax(0, 1fr); }
+  /* both in view: the sidebar never folds */
+  .mp-side-fold { display: none; }
+  .mp-side-shut .mp-side-body { display: block; }
+}
 .mp-add-list { list-style: none; padding: 0; margin: 0; }
 .mp-add-list li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 3px 0; }
 .mp-firstrun li { margin-bottom: 8px; }

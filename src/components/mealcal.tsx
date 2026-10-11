@@ -25,12 +25,14 @@ import { moveChoices } from '../mealplan/consequences';
 import type { MoveChoice } from '../mealplan/consequences';
 import { canDrop, keyIntent, keyMove, shopKey, slotLabel } from '../mealplan/dnd';
 import type { DragPayload } from '../mealplan/dnd';
+import type { PictureSource } from '../mealplan/images';
 import {
   SLOT_LABELS, approvedElsewhere, cellKey, parseCellKey, recipeTitle, weeksOf, windowOf,
 } from '../mealplan/model';
 import type { MealPlanState, PlanEdit, Slot } from '../mealplan/model';
 import type { Meal, MealSchedule, Trip, TripStrategy } from '../types';
 import { DayNutritionLine, MealEnergy, RecipeNutrition } from './nutrition';
+import { RecipePicture } from './pictures';
 import { Sheet } from './Sheet';
 import type { DragView } from './usePointerDrag';
 
@@ -49,6 +51,7 @@ export interface BoardCtl {
   openTrip: (trip: Trip) => void;
   atRisk: Set<string>;             // meals a must-fix warning names, under this strategy
   hideEmpty: boolean;
+  pictures?: Map<string, PictureSource | null>;   // each recipe's, for its cards (mealplan/images.ts)
 }
 
 const title = (ctl: BoardCtl, m: Meal) => recipeTitle(ctl.state, m.recipe_key);
@@ -247,9 +250,11 @@ export function MealChip({ ctl, meal, inTray = false }: { ctl: BoardCtl; meal: M
     }
   };
   const servings = meal.servings ? ` · serves ${meal.servings}` : '';
+  const slot = meal.slot ?? ctl.state.draft.recipes[meal.recipe_key]?.slot ?? 'dinner';
   return (
     <div className="mp-chip" data-meal={meal.id} data-held={held || undefined} data-risk={risk || undefined}>
       <span className="mp-grip" aria-hidden="true" title="Drag to move" {...ctl.grip({ kind: 'meal', mealId: meal.id })} />
+      <RecipePicture pic={ctl.pictures?.get(meal.recipe_key) ?? null} slot={slot} size="thumb" />
       <button type="button" className="mp-chip-main" aria-pressed={held} onKeyDown={onKeyDown}
               onClick={() => ctl.pick({ kind: 'meal', mealId: meal.id })}
               aria-label={`${t}${meal.date && meal.slot ? `, ${SLOT_LABELS[meal.slot]} ${dayLabel(meal.date)}` : ', in the tray'}`

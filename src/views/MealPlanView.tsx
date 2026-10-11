@@ -6,8 +6,9 @@
 //                    shopper's own recipes (components/mealcards.tsx).
 //   3 Ingredients:   each recipe's ingredients as the plan would buy them, and an answer for
 //                    each one no store nearby sells (components/ingredients.tsx).
-//   4 Schedule:      the 7 or 14 day calendar with the tray, drag and drop, Fill empty slots,
-//                    Suggest cook days, undo and the nutrition band (components/mealcal.tsx).
+//   4 Schedule:      the 7 or 14 day calendar beside the recipes to place (the tray, as a sprint
+//                    board's backlog), drag and drop, Fill empty slots, Suggest cook days, undo
+//                    and the nutrition band (components/mealcal.tsx, mealtray.tsx).
 //   5 Shopping plan: the week's trips as a strip to move them on, the trips code suggests, the
 //                    warnings and their fixes, the total against the budget
 //                    (components/mealtrips.tsx).
@@ -38,6 +39,7 @@ import { moveConsequence, tripMoveConsequence, warningsFor } from '../mealplan/c
 import { addDays, dayLabel } from '../mealplan/dates';
 import { dropEdit, keyIntent, parseTarget } from '../mealplan/dnd';
 import type { DragEffect, DragPayload } from '../mealplan/dnd';
+import { planPictures } from '../mealplan/images';
 import { STRATEGY_NAMES, budgetOf, recipeTitle } from '../mealplan/model';
 import type { PlanEdit } from '../mealplan/model';
 import { pinFix } from '../mealplan/options';
@@ -231,11 +233,14 @@ export default function MealPlanView() {
   const atRisk = useMemo(() => new Set(answer ? warningsFor(answer, strategy)
     .filter((w) => w.level === 'must_fix').flatMap((w) => w.meal_ids) : []), [answer, strategy]);
 
+  // Each recipe's picture for its cards: the basket names them, the shopper's own docs carry theirs.
+  const pictures = useMemo(() => planPictures(d, basket.answer?.recipes ?? []), [d.recipes, basket.answer]);
+
   const ctl: BoardCtl = {
     state, schedule: answer, strategy, held, drag, grip, pick, dropOn, dispatch: apply,
     openMeal: (id) => { setHeld(null); setMealSheet(id); },
     openTrip: (t) => setTripSheet(t.date),
-    atRisk, hideEmpty,
+    atRisk, hideEmpty, pictures,
   };
 
   // What dropping here would mean, for the ghost: a preview from the last answer.
@@ -345,8 +350,8 @@ export default function MealPlanView() {
 
       <Stepper step={step} facts={facts} />
 
-      {/* Basics, Meals, Ingredients and Calendar are cards, drawn on the page itself */}
-      <section className={`panel mp-stage${[1, 2, 3, 6].includes(step) ? ' mp-stage-flat' : ''}`}
+      {/* every stage but the Shopping plan is cards, drawn on the page itself */}
+      <section className={`panel mp-stage${step !== 5 ? ' mp-stage-flat' : ''}`}
                aria-labelledby="mp-stage-head">
         <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{stepTitle(step)}</h2>
         {behind && (
@@ -381,19 +386,23 @@ export default function MealPlanView() {
               </label>
             </div>
             {statusLine}
-            <RecipeTray ctl={ctl} quickText={quickText} setQuickText={setQuickText} compact
-                        emptyText="No meals yet: add some in Meals." />
-            <PeriodBand period={answer?.period_nutrition} coverage={answer?.coverage.nutrition}
-                        onTargets={() => setTargetsOpen(true)}
-                        targetCount={Object.keys(d.nutrition_targets ?? {}).length} />
-            <CookDaysDiff />
-            {trayCount > 0 && !placedAny && (
-              <div className="mp-empty mp-empty-place">
-                <button type="button" onClick={fill}>Fill empty slots for me</button>
-                <p className="muted">or drag a meal onto a day, or tap a meal then a slot</p>
-              </div>
-            )}
-            <PlanBoard ctl={ctl} />
+            {/* a sprint board: the recipes to place beside the calendar, both in view */}
+            <div className="sched">
+              <RecipeTray ctl={ctl} emptyText="No meals yet: add some in Meals." />
+              <section className="sched-board" aria-label="Calendar">
+                <PeriodBand period={answer?.period_nutrition} coverage={answer?.coverage.nutrition}
+                            onTargets={() => setTargetsOpen(true)}
+                            targetCount={Object.keys(d.nutrition_targets ?? {}).length} />
+                <CookDaysDiff />
+                {trayCount > 0 && !placedAny && (
+                  <div className="mp-empty mp-empty-place">
+                    <button type="button" onClick={fill}>Fill empty slots for me</button>
+                    <p className="muted">or drag a meal onto a day, or tap a meal then a slot</p>
+                  </div>
+                )}
+                <PlanBoard ctl={ctl} />
+              </section>
+            </div>
           </>
         )}
 
