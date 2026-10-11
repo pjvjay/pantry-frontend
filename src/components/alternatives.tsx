@@ -78,7 +78,7 @@ function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; act
 }
 
 export function AlternativesDialog({ conversationId, target, blocked, returnFocus, onChoose,
-  onClose, load, loadKey, place = 'cart', description, notice }: {
+  onClose, load, loadKey, place = 'cart', description, notice, title, empty, extra }: {
   conversationId: string | null;
   // null: closed
   target: OptionsTarget | null;
@@ -100,6 +100,12 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
   description?: string;
   // said above the rows (the line's own product can no longer be bought)
   notice?: string;
+  // the heading, in place of "Options for <ingredient>" (a meal plan line with no product)
+  title?: string;
+  // in place of "No other product …" when no row can be chosen, and the held-back products
+  // then listed open; and what follows the rows (a meal plan line's rows out of reach)
+  empty?: ReactNode;
+  extra?: ReactNode;
 }) {
   const [ranking, setRanking] = useState<AlternativeRanking | null>(null);
   const [error, setError] = useState('');
@@ -183,7 +189,7 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
       onClose={onClose}
       className="alt-sheet"
       returnFocus={returnFocus}
-      title={`Options for ${ingredient}`}
+      title={title ?? `Options for ${ingredient}`}
       description={description
         ?? (ranking ? [needText(ranking), covers].filter(Boolean).join(' ') : undefined)}
       footer={ranking?.data_note ? <p className="alt-data-note">{ranking.data_note}</p> : undefined}
@@ -219,22 +225,27 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
           )}
           {list('Same ingredient', rows.same, 'same')}
           {list('Not the same ingredient', rows.other, 'other')}
-          {others === 0 && (
+          {others === 0 && !current && empty}
+          {others === 0 && !(empty && !current) && (
             <p className="muted">No other product sold in range fills this line.</p>
           )}
+          {extra}
 
           {ranking.held_back.length > 0 && (
-            <details className="alt-held">
+            <details className="alt-held" open={(empty && others === 0 && !current) || undefined}>
               <summary>
                 {ranking.held_back.length} held back by your origin rule (cannot be chosen here)
               </summary>
-              <ul>
+              <ul className="alt-held-list">
                 {ranking.held_back.map((h) => (
                   <li key={h.product_id}>
-                    {h.product}: {h.country}
-                    {h.field === 'conflicting_evidence' ? ' (sources disagree)' : ''}
-                    {h.verbatim && <> — <span className="verbatim">“{h.verbatim}”</span></>}
-                    {h.demo && ' (demo label photo)'}
+                    <ProductPicture product={h.product} ingredient={ingredient} />
+                    <span>
+                      <strong>{h.product}</strong>: {h.country}
+                      {h.field === 'conflicting_evidence' ? ' (sources disagree)' : ''}
+                      {h.verbatim && <> — <span className="verbatim">“{h.verbatim}”</span></>}
+                      {h.demo && ' (demo label photo)'}
+                    </span>
                   </li>
                 ))}
               </ul>

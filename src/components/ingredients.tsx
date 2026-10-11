@@ -16,7 +16,7 @@ import { basketAtLeast, basketView, unansweredGroups } from '../mealplan/basket'
 import type { LineView, RecipeView } from '../mealplan/basket';
 import { againstBudget } from '../mealplan/catalog';
 import { USABLE_RESOLVE, budgetOf, recipeTitle } from '../mealplan/model';
-import { useMealPlan } from '../mealplan/store';
+import { useMealPlan, useStores } from '../mealplan/store';
 import type { KeyedCall } from '../mealplan/store';
 import type { MealBasket } from '../types';
 import { Icon } from './icons';
@@ -25,22 +25,22 @@ import { ProductPicture, RecipePicture } from './pictures';
 import { STORES_HEAD, StoresPanel } from './stores';
 import { TripLineOptionsDialog } from './tripoptions';
 
-type Open = (lineKey: string, productId: number, name: string) => void;
+type Open = (l: LineView) => void;
 
 // One ingredient as a row: its product's picture, its name and the product, the price, then the
 // need, store and cost, its origin and labels. The row is one button that opens the
 // ingredient's Options (its words name the product and price; the rest describes it), so a
-// click anywhere on it, Enter or Space open them. A row the plan cannot buy is tinted, with an
-// edge, a warning sign and what is wrong in bold, and its answers under it, outside the button.
-// With no product there are no Options to open: the row is not a button, and its answers say
-// what can be done. onStores: to "Your stores", for an ingredient sold only at stores turned off.
+// click anywhere on it, Enter or Space open them; a row with no product opens them for its
+// recipe line ("nothing chosen yet"). A row the plan cannot buy is tinted, with an edge, a
+// warning sign and what is wrong in bold, and its answers under it, outside the button.
+// onStores: to "Your stores", for an ingredient sold only at stores turned off.
 function Line({ l, title, onOptions, onMeals, onStores }: { l: LineView; title: string; onOptions: Open;
   onMeals: () => void; onStores: () => void }) {
   const mp = useMealPlan();
   const facts = useId();
   const skip = (yes: boolean) => mp.dispatch({ type: 'skipLine', recipeKey: l.recipeKey, lineNo: l.lineNo,
     ingredient: l.ingredient, skip: yes });
-  const open = () => { if (l.productId !== null) onOptions(l.key, l.productId, l.product ?? l.ingredient); };
+  const open = () => onOptions(l);
   const meta = [l.need, l.available ? l.store : '', l.available ? l.cost : ''].filter(Boolean).join(' · ');
   const body = (
     <>
@@ -48,7 +48,7 @@ function Line({ l, title, onOptions, onMeals, onStores }: { l: LineView; title: 
       <span className="mp-ing-main">
         <span className="mp-ing-title">
           <span className="mp-ing-name">{l.ingredient}</span>
-          <span className="mp-ing-product">{l.product ?? 'nothing chosen'}</span>
+          <span className="mp-ing-product">{l.product ?? 'nothing chosen yet'}</span>
         </span>
         <span id={facts} className="mp-ing-about">
           {l.issue && (
@@ -68,19 +68,17 @@ function Line({ l, title, onOptions, onMeals, onStores }: { l: LineView; title: 
       </span>
       <span className="mp-ing-side">
         {l.available && <span className="mp-ing-price">{l.price}</span>}
-        {l.productId !== null && <span className="mp-ing-go" aria-hidden="true">Options ›</span>}
+        <span className="mp-ing-go" aria-hidden="true">Options ›</span>
       </span>
     </>
   );
   const cls = `mp-ing${l.issue ? ' mp-ing-missing' : ''}${l.skipped ? ' mp-ing-skipped' : ''}`;
   return (
     <li className={cls}>
-      {l.productId !== null ? (
-        <button type="button" className="mp-ing-open" aria-haspopup="dialog" aria-label={l.optionsLabel}
-                aria-describedby={facts} data-ing-line={l.key} onClick={open}>
-          {body}
-        </button>
-      ) : <div className="mp-ing-open">{body}</div>}
+      <button type="button" className="mp-ing-open" aria-haspopup="dialog" aria-label={l.optionsLabel}
+              aria-describedby={facts} data-ing-line={l.key} onClick={open}>
+        {body}
+      </button>
       {!l.available && (
         <div className="mp-ing-answer" role="group" aria-label={`${l.ingredient}: not sold nearby`}>
           {l.skipped ? <span className="muted">{title} goes without it.</span>
@@ -90,8 +88,10 @@ function Line({ l, title, onOptions, onMeals, onStores }: { l: LineView; title: 
             <button type="button" className="secondary mini" onClick={onStores}>Turn a store back on</button>
           )}
           {!l.skipped && <button type="button" className="secondary mini" onClick={onMeals}>Back to meals</button>}
-          {!l.skipped && l.productId !== null && (
-            <button type="button" className="secondary mini" aria-haspopup="dialog" onClick={open}>Another product</button>
+          {!l.skipped && (
+            <button type="button" className="secondary mini" aria-haspopup="dialog" onClick={open}>
+              {l.productId === null ? 'Choose a product' : 'Another product'}
+            </button>
           )}
           <button type="button" className="secondary mini" onClick={() => skip(!l.skipped)}>
             {l.skipped ? 'Need it after all' : 'Skip this ingredient'}
@@ -131,7 +131,9 @@ function RecipeIngredients({ r, onOptions, onMeals, onStores }: { r: RecipeView;
 export function IngredientsStage({ basket, onMeals }: { basket: KeyedCall<MealBasket>; onMeals: () => void }) {
   const mp = useMealPlan();
   const d = mp.state.draft;
-  const [options, setOptions] = useState<{ productId: number; name: string } | null>(null);
+  const stores = useStores(true);
+  // the ingredient whose Options are open, by its line, so the sheet follows the row's answers
+  const [optionsFor, setOptionsFor] = useState<string | null>(null);
   // The ingredient Options was opened from: focus goes back to its name, which stays whatever
   // the choice (the answer buttons beside it go once it is sold nearby).
   const openedFrom = useRef('');
@@ -146,6 +148,7 @@ export function IngredientsStage({ basket, onMeals }: { basket: KeyedCall<MealBa
   const shown = new Set(view?.recipes.map((r) => r.key) ?? []);
   const keys = Object.keys(d.recipes);
   const total = b ? againstBudget(b.est_total, basketAtLeast(b), budgetOf(d.prefs)) : null;
+  const open = optionsFor ? view?.recipes.flatMap((r) => r.lines).find((l) => l.key === optionsFor) ?? null : null;
   // recipes whose products are not checked yet, or could not be
   const waiting = keys.filter((k) => !d.resolved[k] || !USABLE_RESOLVE.includes(d.resolved[k].status));
 
@@ -161,14 +164,14 @@ export function IngredientsStage({ basket, onMeals }: { basket: KeyedCall<MealBa
   if (!keys.length) {
     return (
       <>
-        <StoresPanel />
+        <StoresPanel stores={stores} />
         <p className="mp-empty">No recipes yet. <button type="button" className="linkish" onClick={onMeals}>Add meals</button></p>
       </>
     );
   }
   return (
     <>
-      <StoresPanel />
+      <StoresPanel stores={stores} />
       <p className="muted">
         Each recipe's ingredients as your trips would buy them, from the stores above. Choose an
         ingredient to see the other products that could take its place.
@@ -233,17 +236,21 @@ export function IngredientsStage({ basket, onMeals }: { basket: KeyedCall<MealBa
 
       {view?.recipes.map((r) => (
         <RecipeIngredients key={r.key} r={r} onMeals={onMeals} onStores={toStores}
-                           onOptions={(key, productId, name) => {
-                             openedFrom.current = key;
-                             setOptions({ productId, name });
+                           onOptions={(l) => {
+                             openedFrom.current = l.key;
+                             setOptionsFor(l.key);
                            }} />
       ))}
       {keys.filter((k) => !shown.has(k) && d.resolved[k] && USABLE_RESOLVE.includes(d.resolved[k].status)).map((k) => (
         <p key={k} className="muted">{recipeTitle(mp.state, k)}: checking its ingredients…</p>
       ))}
 
-      <TripLineOptionsDialog date={null} productId={options?.productId ?? null} productName={options?.name ?? ''}
-                             onClose={() => setOptions(null)} returnTo={returnTo} />
+      <TripLineOptionsDialog date={null} productId={open?.productId ?? null} productName={open ? open.product ?? open.ingredient : ''}
+                             line={open && open.productId === null ? {
+                               recipeKey: open.recipeKey, lineNo: open.lineNo, ingredient: open.ingredient,
+                               skipped: open.skipped, onMeals, onStores: toStores, stores: stores.answer,
+                             } : null}
+                             onClose={() => setOptionsFor(null)} returnTo={returnTo} />
     </>
   );
 }

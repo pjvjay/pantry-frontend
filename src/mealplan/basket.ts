@@ -158,7 +158,7 @@ function lineView(s: MealPlanState, recipeKey: string, meals: number, ln: Basket
     optionsLabel: product
       ? `Options for ${ln.ingredient}: now ${product}, ${ln.price === null ? 'price unknown' : money(ln.price)}`
         + `${ln.store ? ` at ${ln.store.name}` : ''}${ln.available ? '' : '; not sold nearby'}`
-      : `${ln.ingredient}: nothing chosen`,
+      : `Options for ${ln.ingredient}: nothing chosen yet${ln.available ? '' : ', not sold nearby'}`,
   };
 }
 

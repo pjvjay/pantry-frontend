@@ -8,8 +8,10 @@
 import { useId, useState } from 'react';
 
 import { placeText } from '../mealplan/basics';
-import { useMealPlan, useStores } from '../mealplan/store';
+import { useMealPlan } from '../mealplan/store';
+import type { KeyedCall } from '../mealplan/store';
 import { distanceChoices, distanceLabel, kmText, sellsText, storesLine, storesView } from '../mealplan/stores';
+import type { MealStores } from '../types';
 import { FormCard, Segmented, Switch } from './fields';
 import { StoreMap, useTilesOn } from './storemap';
 import type { MapStore } from './storemap';
@@ -17,10 +19,11 @@ import type { MapStore } from './storemap';
 // The heading Ingredients' "Your stores" answers move focus to.
 export const STORES_HEAD = 'mp-stores-head';
 
-export function StoresPanel() {
+// stores: /mealplan/stores, asked by the stage, which also lets an ingredient's Options turn one
+// back on.
+export function StoresPanel({ stores }: { stores: KeyedCall<MealStores> }) {
   const mp = useMealPlan();
   const st = mp.state.draft.settings;
-  const stores = useStores(true);
   const tilesOn = useTilesOn();
   const kmHead = useId();
   // the store lit on the map and in the list: the one under the pointer, else the focused row

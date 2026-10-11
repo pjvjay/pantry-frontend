@@ -47,7 +47,7 @@ test('each ingredient: its product, store and distance, price, origin and labels
   assert.equal(rice[1].product, null);
   assert.equal(rice[1].heading, 'Only US-origin nearby, left out by your rule');
   assert.equal(rice[1].why, '');
-  assert.equal(rice[1].optionsLabel, 'shaoxing wine: nothing chosen');
+  assert.equal(rice[1].optionsLabel, 'Options for shaoxing wine: nothing chosen yet, not sold nearby');
 });
 
 test('what no store nearby sells needs an answer: skipping it, other meals, or another product', () => {

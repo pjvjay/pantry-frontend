@@ -156,7 +156,12 @@ to its heading. `views/MealPlanView.tsx` puts them together:
    (`/hub/images/ingredient`), product, store and distance, price, origin and
    labels, and the basket's total against the budget. The whole row is a button
    that opens the ingredient's Options across the whole plan (no trip); a choice
-   pins every line that buys it. A row with no match is tinted, edged and
+   pins every line that buys it. A row with no product opens them for its recipe
+   line ("Options for X: nothing chosen yet", `/mealplan/alternatives` with
+   `line`): what can be chosen, what is out of reach (only at a store turned off,
+   with Turn it back on; only beyond the distance, with Go up to the distance
+   that takes it in), what the origin rule holds back with its evidence, and when
+   nothing can be chosen, the row's own answers. A row with no match is tinted, edged and
    labelled with what is wrong (`basket.lineIssue`), and one no
    store nearby sells needs an answer before Schedule: Back to meals, another
    product, Skip this ingredient (kept with the plan as `skipped`), or, when only

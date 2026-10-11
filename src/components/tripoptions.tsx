@@ -10,7 +10,11 @@
 //
 // With no date (the wizard's Ingredients stage) the dialog is for an ingredient across the whole
 // plan: the ranking has no trip cost, the words name the recipes a choice changes, and focus
-// returns to the ingredient it was opened from (returnTo).
+// returns to the ingredient it was opened from (returnTo). An ingredient the plan buys nothing
+// for is asked by its recipe line (line mode): "Options for X: nothing chosen yet", the rows that
+// can be chosen, the ones out of reach (only at a store turned off, or beyond the distance) with
+// a button that brings each in, the ones held back by the origin rule with their evidence, and
+// when nothing can be chosen, the row's own answers.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
@@ -18,22 +22,40 @@ import { scheduleMealPlan, tripLineOptions } from '../api';
 import { strategyOf } from '../mealplan/board';
 import { step } from '../mealplan/model';
 import {
-  choiceAnnouncement, chosenLineKey, optionsDescription, optionsEdit, stockNotice, tripLineKey,
+  choiceAnnouncement, chosenLineKey, lineChoices, nothingText, optionsDescription, optionsEdit, optionsRequest,
+  optionsTitle, reachText, stockNotice, storeToTurnOn, tripLineKey,
 } from '../mealplan/options';
+import type { OptionsAsk, OutOfReach } from '../mealplan/options';
 import { useMealPlan } from '../mealplan/store';
-import type { TripLineOptions } from '../types';
+import { distanceLabel, widerDistance } from '../mealplan/stores';
+import type { MealStores, TripLineOptions } from '../types';
 import { AlternativesDialog } from './alternatives';
+import { ProductPicture } from './pictures';
 
-export function TripLineOptionsDialog({ date, productId, productName, onClose, returnTo }: {
+// A recipe line with no product, opened in line mode, and the row's own answers for the sheet
+// when nothing can be chosen: back to Meals, skip it or need it after all, and Your stores.
+export interface LineAsk {
+  recipeKey: string;
+  lineNo: number;
+  ingredient: string;
+  skipped: boolean;
+  onMeals: () => void;
+  onStores: () => void;
+  stores: MealStores | null;
+}
+
+export function TripLineOptionsDialog({ date, productId, productName, onClose, returnTo, line = null }: {
   // null: across the whole plan, with no trip
   date: string | null;
   // across the plan: where focus goes on close (the ingredient opened from, whose answer
   // buttons a choice may take away), instead of the element that opened the dialog
   returnTo?: RefObject<HTMLElement | null>;
-  // null: closed
+  // null with no line: closed
   productId: number | null;
   productName: string;
   onClose: () => void;
+  // a line with no product (the Ingredients stage), asked by its recipe line
+  line?: LineAsk | null;
 }) {
   const mp = useMealPlan();
   const strategy = mp.state.draft.prefs.strategy;
@@ -41,11 +63,13 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
   // The draft the next load sends: the latest, not the one of the render that made `load`.
   const draft = useRef(mp.state.draft);
   draft.current = mp.state.draft;
+  const ask: OptionsAsk | null = productId !== null ? { productId }
+    : line ? { line: { recipeKey: line.recipeKey, lineNo: line.lineNo } } : null;
 
   // The trip line focus returns to: the one the dialog was opened from, or after a choice the
   // line that now buys the chosen product (a new element, found by its data-trip-line).
   const focusKey = useRef('');
-  const openKey = productId === null ? '' : tripLineKey(date, productId);
+  const openKey = productId !== null ? tripLineKey(date, productId) : line ? `line:${line.recipeKey}|${line.lineNo}` : '';
   useEffect(() => {
     if (openKey) focusKey.current = openKey;
     setOpts(null);
@@ -59,10 +83,13 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
   // across the plan: the ingredient it was opened from, which stays where it is
   const opener = useMemo<RefObject<HTMLElement | null>>(() => ({ current: null }), []);
 
-  const load = (limit: number) => tripLineOptions({ draft: draft.current, ...(date ? { trip_date: date } : {}),
-    product_id: productId as number, strategy, limit }).then((o) => {
+  const load = (limit: number) => tripLineOptions(optionsRequest(draft.current, ask as OptionsAsk, date, strategy,
+    limit)).then((o) => {
     setOpts(o);
-    return o.ranking;
+    if (o.product_id !== null) return o.ranking;
+    // a line's rows out of reach are shown apart, so only the ones that can be chosen are ranked
+    const { choosable } = lineChoices(o.ranking);
+    return { ...o.ranking, items: choosable, total: o.ranking.total - (o.ranking.items.length - choosable.length) };
   });
 
   const choose = async (chosen: number | null) => {
@@ -90,13 +117,71 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
     onClose();
   };
 
+  const ingredient = opts?.ranking.ingredient || line?.ingredient || productName;
+  const choices = opts && opts.product_id === null ? lineChoices(opts.ranking) : null;
+  const maxKm = mp.state.draft.settings.max_km;
+
+  // A row out of reach, with what would bring it in: its store turned back on, or a longer
+  // distance. Either is an undoable edit; the sheet then asks again.
+  const reachRow = (x: OutOfReach) => {
+    const store = x.reach === 'stores_off' ? storeToTurnOn(x, line?.stores ?? null) : null;
+    const km = x.reach === 'out_of_range' ? widerDistance(maxKm, x.distanceKm) : undefined;
+    return (
+      <li key={x.item.product_id} className="alt-reach-row">
+        <ProductPicture product={x.item.product} ingredient={ingredient} />
+        <span className="alt-reach-what">
+          <strong>{x.item.product}</strong>
+          <span className="alt-reach-why">{reachText(x, maxKm)}</span>
+        </span>
+        {x.reach === 'stores_off' && (store ? (
+          <button type="button" className="secondary mini"
+                  onClick={() => mp.dispatch({ type: 'setStoreOff', storeId: store.id, name: store.name, off: false })}>
+            Turn {store.name} back on
+          </button>
+        ) : line && (
+          <button type="button" className="secondary mini" onClick={() => { onClose(); line.onStores(); }}>
+            Your stores
+          </button>
+        ))}
+        {km !== undefined && (
+          <button type="button" className="secondary mini"
+                  onClick={() => mp.dispatch({ type: 'setSettings', settings: { max_km: km } })}>
+            {km === null ? 'Go any distance' : `Go up to ${distanceLabel(km)}`}
+          </button>
+        )}
+      </li>
+    );
+  };
+
+  const extra = choices && choices.outOfReach.length > 0 && (
+    <section className="alt-section alt-section-reach" aria-label="Out of reach">
+      <h3>Out of reach as your plan stands</h3>
+      <ul className="alt-reach">{choices.outOfReach.map(reachRow)}</ul>
+    </section>
+  );
+
+  const empty = line && choices && (
+    <div className="alt-nothing" role="note">
+      <p>{nothingText(ingredient, choices)}</p>
+      <div className="alt-nothing-actions">
+        {!line.skipped && (
+          <button type="button" className="secondary mini" onClick={() => { onClose(); line.onMeals(); }}>Back to meals</button>
+        )}
+        <button type="button" className="secondary mini"
+                onClick={() => mp.dispatch({ type: 'skipLine', recipeKey: line.recipeKey, lineNo: line.lineNo,
+                  ingredient: line.ingredient, skip: !line.skipped })}>
+          {line.skipped ? 'Need it after all' : 'Skip this ingredient'}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <AlternativesDialog
       conversationId={null}
-      target={productId === null ? null : {
+      target={ask === null ? null : {
         ref: 0, pinned: opts?.pinned ?? false,
-        line: { line_no: productId, product: productName,
-          ingredient: opts?.ranking.ingredient || productName },
+        line: { line_no: productId ?? line?.lineNo ?? 0, product: productName, ingredient },
       }}
       blocked=""
       returnFocus={date ? returnFocus : returnTo ?? opener}
@@ -105,8 +190,11 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
       load={load}
       loadKey={`${openKey}@${mp.state.draft.rev}`}
       place={date ? 'trip' : 'plan'}
+      title={productId === null && line ? optionsTitle(ingredient, false) : undefined}
       description={opts ? optionsDescription(opts) : undefined}
       notice={opts ? stockNotice(opts) : ''}
+      empty={empty || undefined}
+      extra={extra || undefined}
     />
   );
 }
