@@ -80,7 +80,7 @@ function Line({ l, title, onOptions, onMeals, onStores }: { l: LineView; title: 
                 aria-describedby={facts} data-ing-line={l.key} onClick={open}>
           {body}
         </button>
-      ) : <div className="mp-ing-open mp-ing-still">{body}</div>}
+      ) : <div className="mp-ing-open">{body}</div>}
       {!l.available && (
         <div className="mp-ing-answer" role="group" aria-label={`${l.ingredient}: not sold nearby`}>
           {l.skipped ? <span className="muted">{title} goes without it.</span>

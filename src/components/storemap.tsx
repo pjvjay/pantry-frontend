@@ -93,7 +93,7 @@ export function StoreMap({ origin, stores, maxKm, hot, onHot, onPick }: {
                 + `${hot === s.id ? ' smap-pin-hot' : ''}`;
               return (
                 <button key={s.id} type="button" tabIndex={-1} className={cls} style={{ left: p.x, top: p.y }}
-                        title={s.name} onClick={() => onPick(s.id)}
+                        onClick={() => onPick(s.id)}
                         onMouseEnter={() => onHot(s.id)} onMouseLeave={() => onHot(null)}>
                   <Icon name="store" size={15} />
                   {hot === s.id && <span className="smap-pin-name">{s.name}</span>}
