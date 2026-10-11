@@ -9,10 +9,16 @@
 //
 // The wizard's Ingredients stage opens the same dialog on an ingredient, with no trip: the
 // ranking then covers every line in the plan that buys the product, with no trip cost, and the
-// words say which recipes a choice changes rather than which trip.
+// words say which recipes a choice changes rather than which trip. An ingredient the plan buys
+// nothing for is asked by its recipe line instead (line mode, below): its rows are what could
+// fill it, and when none can be chosen the sheet says why and offers the row's own answers.
 import { dayLabel } from './dates.ts';
 import type { PlanEdit } from './model.ts';
-import type { CoveredLine, MealPlanDraft, Trip, TripLine, TripLineOptions } from '../types.ts';
+import { distanceLabel, kmText } from './stores.ts';
+import type {
+  AlternativeRanking, CoveredLine, HeldBack, MealPlanDraft, MealStores, RankedAlternative, Trip, TripLine,
+  TripLineOptions, TripLineOptionsRequest, TripStrategy,
+} from '../types.ts';
 
 const money = (v: number | null | undefined) =>
   (typeof v === 'number' && Number.isFinite(v) ? `$${v.toFixed(2)}` : 'price unknown');
@@ -62,8 +68,8 @@ export function optionsEdit(lines: readonly CoveredLine[], productId: number | n
 // covered line's product when going back to the planner's picks).
 export function chosenLineKey(o: TripLineOptions, productId: number | null): string {
   const first = o.lines[0];
-  const pid = first ? productFor(first, productId) : null;
-  return tripLineKey(o.trip_date, pid ?? o.product_id);
+  const pid = (first ? productFor(first, productId) : null) ?? o.product_id;
+  return pid === null ? '' : tripLineKey(o.trip_date, pid);
 }
 
 // "Pepperoni Pizza (line 3) and Chicken Biryani (lines 7 and 9)"
@@ -93,7 +99,7 @@ export function optionsDescription(o: TripLineOptions): string {
 
 // Said above the rows when the line's own product can no longer be bought, so it has no row.
 export function stockNotice(o: TripLineOptions): string {
-  if (o.stocked) return '';
+  if (o.stocked || o.product_id === null) return '';
   return `${o.product} is no longer sold at a store in range. Choose another product, or `
     + `${o.trip_date ? 'leave it off the trip' : 'skip this ingredient'}.`;
 }
@@ -104,7 +110,10 @@ export function stockNotice(o: TripLineOptions): string {
 export function choiceAnnouncement(o: TripLineOptions, productName: string,
   before: Trip | undefined, after: Trip | undefined): string {
   if (!o.trip_date) {
-    return `${o.product} is now ${productName} in ${listOf([...new Set(o.lines.map((c) => c.title))])}.`;
+    const recipes = listOf([...new Set(o.lines.map((c) => c.title))]);
+    return o.product_id === null
+      ? `${o.ranking.ingredient || o.lines[0]?.ingredient || 'The ingredient'}: ${productName} chosen in ${recipes}.`
+      : `${o.product} is now ${productName} in ${recipes}.`;
   }
   const head = `${o.product} is now ${productName} on the ${dayLabel(o.trip_date)} trip.`;
   if (!after) return `${head} The trips changed: see the Shopping plan.`;
@@ -126,4 +135,102 @@ export function pinFix(code: string | null, detail: unknown)
     || !Number.isInteger(d.line_no)) return null;
   return { edit: { type: 'pinProduct', recipeKey: d.recipe_key, lineNo: d.line_no, productId: null },
     label: 'Use the planner’s product for that line' };
+}
+
+// ─── An ingredient with no product (line mode) ───────────────
+
+// What the plan asks for: one product across the plan, or one recipe line with none.
+export type OptionsAsk = { productId: number } | { line: { recipeKey: string; lineNo: number } };
+
+export function optionsRequest(draft: MealPlanDraft, ask: OptionsAsk, tripDate: string | null,
+  strategy: TripStrategy, limit: number): TripLineOptionsRequest {
+  return {
+    draft, ...(tripDate ? { trip_date: tripDate } : {}),
+    ...('productId' in ask ? { product_id: ask.productId }
+      : { line: { recipe_key: ask.line.recipeKey, line_no: ask.line.lineNo } }),
+    strategy, limit,
+  };
+}
+
+// The sheet's heading: "Options for Yellow Onion", or with no product "Options for Yellow Onion:
+// nothing chosen yet".
+export const optionsTitle = (ingredient: string, hasProduct: boolean): string =>
+  `Options for ${ingredient}${hasProduct ? '' : ': nothing chosen yet'}`;
+
+// Why a row cannot be chosen as the plan stands: sold only at stores the shopper turned off, or
+// only beyond the plan's distance. pantry-api marks such a row; its field is read under the
+// basket's name for the same thing (unavailable_kind) and the other names it may take.
+export type Reach = 'stores_off' | 'out_of_range';
+
+const REACH_FIELDS = ['unavailable_kind', 'reach', 'unreachable', 'only'] as const;
+
+export function reachOf(row: object): Reach | null {
+  const r = row as Record<string, unknown>;
+  for (const f of REACH_FIELDS) {
+    const v = r[f];
+    if (typeof v !== 'string') continue;
+    if (/stores?[_ ]off|turned[_ ]off/i.test(v)) return 'stores_off';
+    if (/out[_ ]of[_ ]range|beyond|distance|too[_ ]far/i.test(v)) return 'out_of_range';
+  }
+  return null;
+}
+
+export interface OutOfReach {
+  item: RankedAlternative;
+  reach: Reach;
+  store: string;                   // '' when pantry-api names none
+  storeId: number | null;
+  distanceKm: number | null;
+}
+
+// A line's rows as the sheet shows them: those that can be chosen, those out of reach (with the
+// store and how far), and those the origin rule holds back. Marked rows may come among the items
+// or in a list of their own.
+export function lineChoices(r: AlternativeRanking): { choosable: RankedAlternative[]; outOfReach: OutOfReach[];
+  held: HeldBack[] } {
+  const extra = (['out_of_reach', 'unreachable'] as const).flatMap((k) => {
+    const v = (r as unknown as Record<string, unknown>)[k];
+    return Array.isArray(v) ? v as RankedAlternative[] : [];
+  });
+  const outOfReach: OutOfReach[] = [];
+  const choosable: RankedAlternative[] = [];
+  for (const item of [...r.items, ...extra]) {
+    const reach = reachOf(item) ?? (extra.includes(item) ? 'out_of_range' : null);
+    if (!reach) choosable.push(item);
+    else if (!outOfReach.some((x) => x.item.product_id === item.product_id)) {
+      outOfReach.push({ item, reach, store: item.offer?.store ?? '', storeId: item.store_id ?? null,
+        distanceKm: item.offer?.distance_km ?? null });
+    }
+  }
+  return { choosable, outOfReach, held: r.held_back };
+}
+
+// "Only at GreenLeaf Grocers Kitsilano, which you turned off", "Only beyond your 5 km: MegaSave
+// Richmond, 13.9 km away".
+export function reachText(x: OutOfReach, maxKm: number | null | undefined): string {
+  if (x.reach === 'stores_off') return `Only at ${x.store || 'a store'}, which you turned off`;
+  const where = [x.store, x.distanceKm !== null ? `${kmText(x.distanceKm)} away` : ''].filter(Boolean).join(', ');
+  return `Only beyond your ${distanceLabel(maxKm ?? null)}${where ? `: ${where}` : ''}`;
+}
+
+// The store a "Turn it back on" means: the one pantry-api names by id, else the turned-off store
+// of that name. null when neither is known (the sheet then points to Your stores).
+export function storeToTurnOn(x: OutOfReach, stores: MealStores | null): { id: number; name: string } | null {
+  const list = stores?.stores ?? [];
+  const s = (x.storeId !== null ? list.find((y) => y.id === x.storeId) : undefined)
+    ?? list.find((y) => y.off && y.name === x.store);
+  return s ? { id: s.id, name: s.name } : null;
+}
+
+// Said when nothing can be chosen: what there is, and what can be done, in the row's own words.
+export function nothingText(ingredient: string, c: { outOfReach: OutOfReach[]; held: HeldBack[] }): string {
+  const why = [
+    c.outOfReach.some((x) => x.reach === 'stores_off') ? 'sold only at stores you turned off' : '',
+    c.outOfReach.some((x) => x.reach === 'out_of_range') ? 'sold only beyond your distance' : '',
+    c.held.length ? 'held back by your origin rule' : '',
+  ].filter(Boolean);
+  const or = why.length < 2 ? why.join('') : `${why.slice(0, -1).join(', ')} or ${why[why.length - 1]}`;
+  const what = why.length ? `every product for it is ${or} (below)` : 'no store in reach sells a product for it';
+  return `Nothing can be chosen for ${ingredient} as your plan stands: ${what}. Go back to Meals for other `
+    + 'recipes, or skip it.';
 }

@@ -70,3 +70,12 @@ export function storesLine(v: StoresView, st: PlanSettings): string {
   return v.on === n ? `${n} ${n === 1 ? 'store' : 'stores'} ${within}, all in use`
     : `${v.on} of ${n} stores ${within} in use`;
 }
+
+// The distance that takes in a store `km` away: the first usual choice past the plan's and at
+// least that far, else any distance (null); with `km` unknown, the next one up. undefined when
+// the plan already goes any distance.
+export function widerDistance(current: number | null | undefined, km: number | null): number | null | undefined {
+  if (current == null) return undefined;
+  const next = DISTANCES.find((d) => d !== null && d > current && (km === null || d >= km));
+  return next === undefined ? null : next;
+}

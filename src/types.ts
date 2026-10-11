@@ -432,6 +432,11 @@ export interface RankedAlternative {
   says_organic: boolean;
   reasons: AltReason[];            // at most 5: match, pack, origin, trip, rating
   rank_reason: string;             // why it sits below the row above, in plain words
+  // A meal plan line's Options: the row is sold only at stores the shopper turned off, or only
+  // beyond the plan's distance, so it cannot be chosen as the plan stands (absent otherwise).
+  // Read by mealplan/options.reachOf, which also takes the field's other likely names.
+  unavailable_kind?: 'stores_off' | 'out_of_range' | null;
+  store_id?: number | null;        // the store such a row is sold at, when pantry-api names it
 }
 
 // A product the plan's origin exclusion holds back: shown with its evidence, never choosable.
@@ -1642,10 +1647,16 @@ export interface CoveredLine {
 
 // Without trip_date (the wizard's Ingredients stage): the ranking for every line in the plan
 // that buys product_id, with no trip cost (each row's trip null, plan_total null).
+// A recipe line the plan buys nothing for (no product matches, or none can be bought) is asked
+// by `line` instead of product_id: the answer then has product_id null and product '', `lines`
+// that line and the plan's other productless lines for the same ingredient, the rows that can be
+// chosen in ranking.items, the ones the origin rule holds back in ranking.held_back, and rows
+// sold only at stores turned off or only beyond the distance marked (unavailable_kind).
 export interface TripLineOptionsRequest {
   draft: MealPlanDraft;
   trip_date?: string;
-  product_id: number;
+  product_id?: number;
+  line?: { recipe_key: string; line_no: number };
   strategy?: TripStrategy;
   limit?: number;                  // 1..25
 }
@@ -1655,8 +1666,8 @@ export interface TripLineOptions {
   rev: number;
   strategy: TripStrategy;
   trip_date?: string | null;       // null or absent: asked across the whole plan
-  product_id: number;
-  product: string;
+  product_id: number | null;       // null: asked by line, for a line with no product
+  product: string;                 // '' with no product
   stocked: boolean;
   pinned: boolean;
   lines: CoveredLine[];

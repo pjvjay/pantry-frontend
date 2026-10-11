@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { basketKey, unavailableHeading } from '../src/mealplan/basket.ts';
 import { sameArea, step } from '../src/mealplan/model.ts';
 import {
-  DISTANCES, distanceChoices, distanceLabel, kmText, sellsText, storesLine, storesView,
+  DISTANCES, distanceChoices, distanceLabel, kmText, sellsText, storesLine, storesView, widerDistance,
 } from '../src/mealplan/stores.ts';
 import type { MealStores, StoreChoice } from '../src/types.ts';
 import { add, planWith, run } from './helpers/mealplan.ts';
@@ -83,4 +83,13 @@ test('turning a store off is an undoable edit that keeps the products and asks f
 
 test('an ingredient sold only at stores turned off says so', () => {
   assert.equal(unavailableHeading('stores_off', []), 'Sold only at stores you turned off');
+});
+
+test('a wider distance takes in a store that far, or the next one up, or any distance', () => {
+  assert.equal(widerDistance(5, 13.9), 25);
+  assert.equal(widerDistance(5, 7), 10);
+  assert.equal(widerDistance(5, null), 10, 'how far unknown: one step');
+  assert.equal(widerDistance(25, 40), null, 'past the last choice: any distance');
+  assert.equal(widerDistance(3, 4), 5, 'a plan’s own distance between the usual ones');
+  assert.equal(widerDistance(null, 50), undefined, 'already any distance');
 });
