@@ -19,7 +19,7 @@ import {
 } from '../mealplan/catalog';
 import type { Pick, Spend } from '../mealplan/catalog';
 import { recipePicture } from '../mealplan/images';
-import { budgetOf, mealsOf, recipeTitle } from '../mealplan/model';
+import { budgetOf, docRef, mealsOf, recipeTitle } from '../mealplan/model';
 import type { PlanEdit } from '../mealplan/model';
 import { addStop } from '../mealplan/room';
 import { useCatalog, useMealPlan } from '../mealplan/store';
@@ -66,6 +66,8 @@ function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend
   const check = addCheck(budgetOf(d.prefs), spend, adds?.cost ?? null);
   const cannot = unavailableText(r, d.settings.exclude_origin ?? []);
   const badge = dietBadge(r.diets);
+  // the shopper's own recipe as saved here, with the picture its import kept
+  const ownDoc = isMine(r) ? mp.myRecipes.find((x) => x.key === r.key) ?? inPlan?.ref.doc ?? r.ref.doc : null;
   // the meal's places first, then the budget: both are said when both stop it
   const full = addStop(d, inPlan?.slot ?? r.slot, inPlan?.wanted ?? 0);
   const over = check.ok ? null : money(check.over);
@@ -77,7 +79,7 @@ function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend
   } as const;
   return (
     <li className={`mp-card${inPlan ? ' mp-card-in' : ''}`}>
-      <RecipePicture pic={recipePicture(r.image, r.ref.doc)} slot={r.slot} size="card" />
+      <RecipePicture pic={recipePicture(r.image, ownDoc)} slot={r.slot} size="card" />
       <div className="mp-card-head">
         <strong className="mp-card-title">{r.title}</strong>
         {badge && <span className="chip chip-ok">{badge}</span>}
@@ -148,8 +150,10 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
   // hears what changed and what is left of the budget after it.
   const add = (r: CatalogRecipe) => {
     const inPlan = mp.state.draft.recipes[r.key];
+    // the shopper's own recipe goes in as saved here, its picture and all
+    const own = isMine(r) ? mp.myRecipes.find((x) => x.key === r.key) : undefined;
     const edit: PlanEdit = inPlan ? { type: 'setWanted', key: r.key, wanted: inPlan.wanted + 1 }
-      : { type: 'addRecipe', ref: cleanRef(r.ref), title: r.title, slot: r.slot, wanted: 1 };
+      : { type: 'addRecipe', ref: own ? docRef(own) : cleanRef(r.ref), title: r.title, slot: r.slot, wanted: 1 };
     const out = mp.dispatch(edit);
     if (out.refused) return;
     if (!inPlan) setFocusMore({ key: r.key });
