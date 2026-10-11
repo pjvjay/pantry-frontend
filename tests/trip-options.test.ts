@@ -6,11 +6,12 @@ import assert from 'node:assert/strict';
 
 import { historyStep, sameArea, step, undoPlan } from '../src/mealplan/model.ts';
 import {
-  choiceAnnouncement, chosenLineKey, coveredText, lineChoices, nothingText, optionsDescription, optionsEdit,
-  optionsRequest, optionsTitle, pinFix, reachOf, reachText, stockNotice, storeToTurnOn, tripLineKey, tripOptionsLabel,
+  choiceAnnouncement, chosenLineKey, coveredText, lineChoices, nearestText, nothingText, optionsDescription,
+  optionsEdit, optionsRequest, optionsTitle, pinFix, reachText, stockNotice, storesToTurnOn, tripLineKey,
+  tripOptionsLabel,
 } from '../src/mealplan/options.ts';
 import { startHistory } from '../src/mealplan/undo.ts';
-import type { CoveredLine, HeldBack, MealStores, RankedAlternative, TripLineOptions } from '../src/types.ts';
+import type { CoveredLine, HeldBack, MealStores, OutOfReachRow, RankedAlternative, TripLineOptions } from '../src/types.ts';
 import { D, add, line, planWith, run, trip } from './helpers/mealplan.ts';
 
 const PIZZA = 'starter:pepperoni_pizza';
@@ -226,54 +227,53 @@ test('choosing for a line with no product pins every line it covers, and says so
   assert.equal(chosenLineKey(o, null), '', 'back to the planner: no product to find');
 });
 
-test('a row out of reach: only at a store turned off, or only beyond the distance, under any of its names', () => {
-  assert.equal(reachOf(row(1, 'A', { unavailable_kind: 'stores_off' })), 'stores_off');
-  assert.equal(reachOf(row(1, 'A', { unavailable_kind: 'out_of_range' })), 'out_of_range');
-  assert.equal(reachOf({ reach: 'beyond_distance' }), 'out_of_range');
-  assert.equal(reachOf({ only: 'turned_off_stores' }), 'stores_off');
-  assert.equal(reachOf(row(1, 'A')), null);
-  assert.equal(reachOf({ unavailable_kind: 'origin_excluded' }), null, 'held back is its own list');
-});
+const offRow: OutOfReachRow = { product_id: 45, product: 'Whole Chicken 1.6kg', why: 'stores_off',
+  stores: ['GreenLeaf Grocers Kitsilano'], nearest: { store: 'GreenLeaf Grocers Kitsilano', price: 13.99, distance_km: 2.9 } };
+const farRow: OutOfReachRow = { product_id: 160, product: 'Chicken Drumsticks 1kg', why: 'out_of_range',
+  stores: ['MegaSave Richmond'], nearest: { store: 'MegaSave Richmond', price: 8.99, distance_km: 13.9 } };
+const noneRow: OutOfReachRow = { product_id: 7, product: 'Cornish Hen', why: 'not_stocked', stores: [], nearest: null };
 
-test('a line’s rows: the ones to choose, the ones out of reach, the ones held back', () => {
-  const ranking = { ...opts([]).ranking, held_back: [held], items: [
-    row(1, 'Red Onions 1kg'),
-    row(2, 'Sweet Onions 2lb', { unavailable_kind: 'stores_off', store_id: 2,
-      offer: { store: 'GreenLeaf Grocers Kitsilano', price: 3, distance_km: 2.9, on_trip: false } }),
-  ] };
-  const far = row(3, 'Organic Onions', { offer: { store: 'MegaSave Richmond', price: 5, distance_km: 13.9, on_trip: false } });
-  const c = lineChoices({ ...ranking, out_of_reach: [far] } as typeof ranking);
+test('a line’s rows: the ones to choose, the ones out of reach (ranking.out_of_reach), the ones held back', () => {
+  const ranking = { ...opts([]).ranking, held_back: [held], items: [row(1, 'Red Onions 1kg')],
+    out_of_reach: [offRow, farRow, noneRow] };
+  const c = lineChoices(ranking);
   assert.deepEqual(c.choosable.map((x) => x.product), ['Red Onions 1kg']);
-  assert.deepEqual(c.outOfReach.map((x) => [x.item.product, x.reach, x.store, x.storeId, x.distanceKm]), [
-    ['Sweet Onions 2lb', 'stores_off', 'GreenLeaf Grocers Kitsilano', 2, 2.9],
-    ['Organic Onions', 'out_of_range', 'MegaSave Richmond', null, 13.9],
-  ], 'a list of its own counts as beyond the distance unless it says otherwise');
+  assert.deepEqual(c.outOfReach.map((x) => x.product), ['Whole Chicken 1.6kg', 'Chicken Drumsticks 1kg', 'Cornish Hen']);
   assert.deepEqual(c.held, [held]);
-  assert.equal(reachText(c.outOfReach[0], 5), 'Only at GreenLeaf Grocers Kitsilano, which you turned off');
-  assert.equal(reachText(c.outOfReach[1], 5), 'Only beyond your 5 km: MegaSave Richmond, 14 km away');
-  assert.equal(reachText({ ...c.outOfReach[1], store: '', distanceKm: null }, 10), 'Only beyond your 10 km');
-  assert.equal(reachText({ ...c.outOfReach[0], store: '' }, 5), 'Only at a store, which you turned off');
+  assert.deepEqual(lineChoices(opts([]).ranking).outOfReach, [], 'absent outside line mode');
 });
 
-test('the store "Turn it back on" means: by id, else the turned-off store of that name', () => {
+test('why a row is out of reach, where it is sold and its nearest offer, in words', () => {
+  assert.equal(reachText(offRow, 5), 'Only at GreenLeaf Grocers Kitsilano, which you turned off');
+  assert.equal(reachText({ ...offRow, stores: ['A', 'B'] }, 5), 'Only at A and B, which you turned off');
+  assert.equal(reachText(farRow, 5), 'Only beyond your 5 km');
+  assert.equal(reachText(farRow, null), 'Only beyond your distance');
+  assert.equal(reachText(noneRow, 5), 'No store stocks it');
+  assert.equal(nearestText(farRow), '$8.99 at MegaSave Richmond, 14 km away');
+  assert.equal(nearestText({ ...offRow, nearest: { store: 'GreenLeaf', price: 3, distance_km: null } }), '$3.00 at GreenLeaf');
+  assert.equal(nearestText(noneRow), '');
+});
+
+test('"Turn it back on": the stores it is sold at that the shopper turned off', () => {
   const stores = { v: 1, products_total: 0, stores: [
-    { id: 1, name: 'Pantry Mart Downtown', address: '', distance_km: 0.3, in_range: true, off: false, sells: null },
+    { id: 1, name: 'Pantry Mart Downtown', address: '', distance_km: 0.3, in_range: true, off: true, sells: null },
     { id: 2, name: 'GreenLeaf Grocers Kitsilano', address: '', distance_km: 2.9, in_range: true, off: true, sells: null },
+    { id: 3, name: 'ValueFoods East Van', address: '', distance_km: 4.1, in_range: true, off: false, sells: null },
   ] } as MealStores;
-  const x = lineChoices({ ...opts([]).ranking, items: [row(2, 'Sweet Onions', { unavailable_kind: 'stores_off',
-    offer: { store: 'GreenLeaf Grocers Kitsilano', price: 3, distance_km: 2.9, on_trip: false } })] }).outOfReach[0];
-  assert.deepEqual(storeToTurnOn(x, stores), { id: 2, name: 'GreenLeaf Grocers Kitsilano' }, 'by name');
-  assert.deepEqual(storeToTurnOn({ ...x, store: '', storeId: 1 }, stores), { id: 1, name: 'Pantry Mart Downtown' });
-  assert.equal(storeToTurnOn({ ...x, store: 'Elsewhere' }, stores), null);
-  assert.equal(storeToTurnOn(x, null), null);
+  assert.deepEqual(storesToTurnOn(offRow, stores), [{ id: 2, name: 'GreenLeaf Grocers Kitsilano' }]);
+  assert.deepEqual(storesToTurnOn({ ...offRow, stores: ['GreenLeaf Grocers Kitsilano', 'ValueFoods East Van'] }, stores),
+    [{ id: 2, name: 'GreenLeaf Grocers Kitsilano' }], 'one still on is not turned on again');
+  assert.deepEqual(storesToTurnOn(farRow, stores), [], 'beyond the distance: a wider distance, not a store');
+  assert.deepEqual(storesToTurnOn(offRow, null), []);
 });
 
 test('nothing to choose: said plainly, with what there is and the row’s own answers', () => {
-  const off = lineChoices({ ...opts([]).ranking, items: [row(2, 'A', { unavailable_kind: 'stores_off' })] });
-  assert.equal(nothingText('yellow onion', { outOfReach: off.outOfReach, held: [held] }),
+  assert.equal(nothingText('yellow onion', { outOfReach: [offRow], held: [held] }),
     'Nothing can be chosen for yellow onion as your plan stands: every product for it is sold only at stores you '
     + 'turned off or held back by your origin rule (below). Go back to Meals for other recipes, or skip it.');
   assert.equal(nothingText('saffron', { outOfReach: [], held: [] }),
     'Nothing can be chosen for saffron as your plan stands: no store in reach sells a product for it. Go back to '
     + 'Meals for other recipes, or skip it.');
+  assert.match(nothingText('hen', { outOfReach: [farRow, noneRow], held: [] }),
+    /every product for it is sold only beyond your distance or stocked at no store \(below\)/);
 });

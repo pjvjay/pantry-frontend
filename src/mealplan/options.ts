@@ -16,8 +16,8 @@ import { dayLabel } from './dates.ts';
 import type { PlanEdit } from './model.ts';
 import { distanceLabel, kmText } from './stores.ts';
 import type {
-  AlternativeRanking, CoveredLine, HeldBack, MealPlanDraft, MealStores, RankedAlternative, Trip, TripLine,
-  TripLineOptions, TripLineOptionsRequest, TripStrategy,
+  AlternativeRanking, CoveredLine, HeldBack, MealPlanDraft, MealStores, OutOfReachRow, RankedAlternative, Trip,
+  TripLine, TripLineOptions, TripLineOptionsRequest, TripStrategy,
 } from '../types.ts';
 
 const money = (v: number | null | undefined) =>
@@ -157,76 +157,44 @@ export function optionsRequest(draft: MealPlanDraft, ask: OptionsAsk, tripDate: 
 export const optionsTitle = (ingredient: string, hasProduct: boolean): string =>
   `Options for ${ingredient}${hasProduct ? '' : ': nothing chosen yet'}`;
 
-// Why a row cannot be chosen as the plan stands: sold only at stores the shopper turned off, or
-// only beyond the plan's distance. pantry-api marks such a row; its field is read under the
-// basket's name for the same thing (unavailable_kind) and the other names it may take.
-export type Reach = 'stores_off' | 'out_of_range';
-
-const REACH_FIELDS = ['unavailable_kind', 'reach', 'unreachable', 'only'] as const;
-
-export function reachOf(row: object): Reach | null {
-  const r = row as Record<string, unknown>;
-  for (const f of REACH_FIELDS) {
-    const v = r[f];
-    if (typeof v !== 'string') continue;
-    if (/stores?[_ ]off|turned[_ ]off/i.test(v)) return 'stores_off';
-    if (/out[_ ]of[_ ]range|beyond|distance|too[_ ]far/i.test(v)) return 'out_of_range';
-  }
-  return null;
-}
-
-export interface OutOfReach {
-  item: RankedAlternative;
-  reach: Reach;
-  store: string;                   // '' when pantry-api names none
-  storeId: number | null;
-  distanceKm: number | null;
-}
-
-// A line's rows as the sheet shows them: those that can be chosen, those out of reach (with the
-// store and how far), and those the origin rule holds back. Marked rows may come among the items
-// or in a list of their own.
-export function lineChoices(r: AlternativeRanking): { choosable: RankedAlternative[]; outOfReach: OutOfReach[];
+// A line's rows as the sheet shows them: those that can be chosen, those out of reach (sold only
+// at stores turned off, only beyond the distance, or nowhere), and those the origin rule holds
+// back.
+export function lineChoices(r: AlternativeRanking): { choosable: RankedAlternative[]; outOfReach: OutOfReachRow[];
   held: HeldBack[] } {
-  const extra = (['out_of_reach', 'unreachable'] as const).flatMap((k) => {
-    const v = (r as unknown as Record<string, unknown>)[k];
-    return Array.isArray(v) ? v as RankedAlternative[] : [];
-  });
-  const outOfReach: OutOfReach[] = [];
-  const choosable: RankedAlternative[] = [];
-  for (const item of [...r.items, ...extra]) {
-    const reach = reachOf(item) ?? (extra.includes(item) ? 'out_of_range' : null);
-    if (!reach) choosable.push(item);
-    else if (!outOfReach.some((x) => x.item.product_id === item.product_id)) {
-      outOfReach.push({ item, reach, store: item.offer?.store ?? '', storeId: item.store_id ?? null,
-        distanceKm: item.offer?.distance_km ?? null });
-    }
+  return { choosable: r.items, outOfReach: r.out_of_reach ?? [], held: r.held_back };
+}
+
+// Why a row is out of reach: "Only at GreenLeaf Grocers Kitsilano, which you turned off", "Only
+// beyond your 5 km", "No store stocks it".
+export function reachText(x: OutOfReachRow, maxKm: number | null | undefined): string {
+  if (x.why === 'stores_off') {
+    const n = x.stores.length;
+    return `Only at ${n ? listOf(x.stores) : 'stores'}, which you turned off`;
   }
-  return { choosable, outOfReach, held: r.held_back };
+  if (x.why === 'out_of_range') return `Only beyond your ${maxKm == null ? 'distance' : distanceLabel(maxKm)}`;
+  return 'No store stocks it';
 }
 
-// "Only at GreenLeaf Grocers Kitsilano, which you turned off", "Only beyond your 5 km: MegaSave
-// Richmond, 13.9 km away".
-export function reachText(x: OutOfReach, maxKm: number | null | undefined): string {
-  if (x.reach === 'stores_off') return `Only at ${x.store || 'a store'}, which you turned off`;
-  const where = [x.store, x.distanceKm !== null ? `${kmText(x.distanceKm)} away` : ''].filter(Boolean).join(', ');
-  return `Only beyond your ${distanceLabel(maxKm ?? null)}${where ? `: ${where}` : ''}`;
+// Its nearest offer: "$8.99 at MegaSave Richmond, 14 km away"; '' with none.
+export function nearestText(x: OutOfReachRow): string {
+  const n = x.nearest;
+  if (!n) return '';
+  return `${money(n.price)} at ${n.store}${n.distance_km !== null ? `, ${kmText(n.distance_km)} away` : ''}`;
 }
 
-// The store a "Turn it back on" means: the one pantry-api names by id, else the turned-off store
-// of that name. null when neither is known (the sheet then points to Your stores).
-export function storeToTurnOn(x: OutOfReach, stores: MealStores | null): { id: number; name: string } | null {
-  const list = stores?.stores ?? [];
-  const s = (x.storeId !== null ? list.find((y) => y.id === x.storeId) : undefined)
-    ?? list.find((y) => y.off && y.name === x.store);
-  return s ? { id: s.id, name: s.name } : null;
+// The stores "Turn it back on" means: those it is sold at that the shopper turned off, by name.
+export function storesToTurnOn(x: OutOfReachRow, stores: MealStores | null): { id: number; name: string }[] {
+  if (x.why !== 'stores_off') return [];
+  return (stores?.stores ?? []).filter((s) => s.off && x.stores.includes(s.name)).map((s) => ({ id: s.id, name: s.name }));
 }
 
 // Said when nothing can be chosen: what there is, and what can be done, in the row's own words.
-export function nothingText(ingredient: string, c: { outOfReach: OutOfReach[]; held: HeldBack[] }): string {
+export function nothingText(ingredient: string, c: { outOfReach: OutOfReachRow[]; held: HeldBack[] }): string {
   const why = [
-    c.outOfReach.some((x) => x.reach === 'stores_off') ? 'sold only at stores you turned off' : '',
-    c.outOfReach.some((x) => x.reach === 'out_of_range') ? 'sold only beyond your distance' : '',
+    c.outOfReach.some((x) => x.why === 'stores_off') ? 'sold only at stores you turned off' : '',
+    c.outOfReach.some((x) => x.why === 'out_of_range') ? 'sold only beyond your distance' : '',
+    c.outOfReach.some((x) => x.why === 'not_stocked') ? 'stocked at no store' : '',
     c.held.length ? 'held back by your origin rule' : '',
   ].filter(Boolean);
   const or = why.length < 2 ? why.join('') : `${why.slice(0, -1).join(', ')} or ${why[why.length - 1]}`;

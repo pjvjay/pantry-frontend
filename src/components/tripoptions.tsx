@@ -12,9 +12,10 @@
 // plan: the ranking has no trip cost, the words name the recipes a choice changes, and focus
 // returns to the ingredient it was opened from (returnTo). An ingredient the plan buys nothing
 // for is asked by its recipe line (line mode): "Options for X: nothing chosen yet", the rows that
-// can be chosen, the ones out of reach (only at a store turned off, or beyond the distance) with
-// a button that brings each in, the ones held back by the origin rule with their evidence, and
-// when nothing can be chosen, the row's own answers.
+// can be chosen, the ones out of reach (only at a store turned off, only beyond the distance, or
+// stocked nowhere) with where they are sold, the nearest offer and a button that brings each in,
+// the ones held back by the origin rule with their evidence, and when nothing can be chosen, the
+// row's own answers.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
@@ -22,13 +23,13 @@ import { scheduleMealPlan, tripLineOptions } from '../api';
 import { strategyOf } from '../mealplan/board';
 import { step } from '../mealplan/model';
 import {
-  choiceAnnouncement, chosenLineKey, lineChoices, nothingText, optionsDescription, optionsEdit, optionsRequest,
-  optionsTitle, reachText, stockNotice, storeToTurnOn, tripLineKey,
+  choiceAnnouncement, chosenLineKey, lineChoices, nearestText, nothingText, optionsDescription, optionsEdit,
+  optionsRequest, optionsTitle, reachText, stockNotice, storesToTurnOn, tripLineKey,
 } from '../mealplan/options';
-import type { OptionsAsk, OutOfReach } from '../mealplan/options';
+import type { OptionsAsk } from '../mealplan/options';
 import { useMealPlan } from '../mealplan/store';
 import { distanceLabel, widerDistance } from '../mealplan/stores';
-import type { MealStores, TripLineOptions } from '../types';
+import type { MealStores, OutOfReachRow, TripLineOptions } from '../types';
 import { AlternativesDialog } from './alternatives';
 import { ProductPicture } from './pictures';
 
@@ -86,10 +87,7 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
   const load = (limit: number) => tripLineOptions(optionsRequest(draft.current, ask as OptionsAsk, date, strategy,
     limit)).then((o) => {
     setOpts(o);
-    if (o.product_id !== null) return o.ranking;
-    // a line's rows out of reach are shown apart, so only the ones that can be chosen are ranked
-    const { choosable } = lineChoices(o.ranking);
-    return { ...o.ranking, items: choosable, total: o.ranking.total - (o.ranking.items.length - choosable.length) };
+    return o.ranking;
   });
 
   const choose = async (chosen: number | null) => {
@@ -121,28 +119,35 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
   const choices = opts && opts.product_id === null ? lineChoices(opts.ranking) : null;
   const maxKm = mp.state.draft.settings.max_km;
 
-  // A row out of reach, with what would bring it in: its store turned back on, or a longer
-  // distance. Either is an undoable edit; the sheet then asks again.
-  const reachRow = (x: OutOfReach) => {
-    const store = x.reach === 'stores_off' ? storeToTurnOn(x, line?.stores ?? null) : null;
-    const km = x.reach === 'out_of_range' ? widerDistance(maxKm, x.distanceKm) : undefined;
+  // A row out of reach, with where it is sold and what would bring it in: its store turned back
+  // on, or a longer distance. Either is an undoable edit; the sheet then asks again.
+  const reachRow = (x: OutOfReachRow) => {
+    const turnOn = storesToTurnOn(x, line?.stores ?? null);
+    const km = x.why === 'out_of_range' ? widerDistance(maxKm, x.nearest?.distance_km ?? null) : undefined;
+    const near = nearestText(x);
+    const others = x.stores.filter((n) => n !== x.nearest?.store);
     return (
-      <li key={x.item.product_id} className="alt-reach-row">
-        <ProductPicture product={x.item.product} ingredient={ingredient} />
+      <li key={x.product_id} className="alt-reach-row">
+        <ProductPicture product={x.product} ingredient={ingredient} />
         <span className="alt-reach-what">
-          <strong>{x.item.product}</strong>
+          <strong>{x.product}</strong>
           <span className="alt-reach-why">{reachText(x, maxKm)}</span>
+          {near && <span className="alt-reach-near">Nearest: {near}</span>}
+          {x.why !== 'stores_off' && others.length > 0 && (
+            <span className="alt-reach-near">Also at {others.join(', ')}</span>
+          )}
         </span>
-        {x.reach === 'stores_off' && (store ? (
-          <button type="button" className="secondary mini"
-                  onClick={() => mp.dispatch({ type: 'setStoreOff', storeId: store.id, name: store.name, off: false })}>
-            Turn {store.name} back on
+        {turnOn.map((st) => (
+          <button key={st.id} type="button" className="secondary mini"
+                  onClick={() => mp.dispatch({ type: 'setStoreOff', storeId: st.id, name: st.name, off: false })}>
+            Turn {st.name} back on
           </button>
-        ) : line && (
+        ))}
+        {x.why === 'stores_off' && !turnOn.length && line && (
           <button type="button" className="secondary mini" onClick={() => { onClose(); line.onStores(); }}>
             Your stores
           </button>
-        ))}
+        )}
         {km !== undefined && (
           <button type="button" className="secondary mini"
                   onClick={() => mp.dispatch({ type: 'setSettings', settings: { max_km: km } })}>

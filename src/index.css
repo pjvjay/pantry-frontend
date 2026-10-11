@@ -734,6 +734,7 @@ tr.row-active td { background: var(--accent-soft); }
 .alt-reach-row button { margin: 0 0 0 auto; }
 .alt-reach-what { display: flex; flex-direction: column; flex: 1 1 12em; min-width: 0; }
 .alt-reach-why { color: var(--warn); }
+.alt-reach-near { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .alt-section-reach h3 { color: var(--warn); }
 .alt-nothing {
   margin: 4px 0 10px; padding: 10px 12px; border-radius: 10px; font-size: 13.5px;

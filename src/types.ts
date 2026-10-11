@@ -432,11 +432,6 @@ export interface RankedAlternative {
   says_organic: boolean;
   reasons: AltReason[];            // at most 5: match, pack, origin, trip, rating
   rank_reason: string;             // why it sits below the row above, in plain words
-  // A meal plan line's Options: the row is sold only at stores the shopper turned off, or only
-  // beyond the plan's distance, so it cannot be chosen as the plan stands (absent otherwise).
-  // Read by mealplan/options.reachOf, which also takes the field's other likely names.
-  unavailable_kind?: 'stores_off' | 'out_of_range' | null;
-  store_id?: number | null;        // the store such a row is sold at, when pantry-api names it
 }
 
 // A product the plan's origin exclusion holds back: shown with its evidence, never choosable.
@@ -448,6 +443,17 @@ export interface HeldBack {
   verbatim: string;
   source: string;
   demo: boolean;
+}
+
+// A product for a meal plan line that cannot be chosen as the plan stands: sold only at stores
+// the shopper turned off, only beyond the plan's distance, or at no store at all. stores: where
+// it is sold; nearest: the closest of those offers (null when none).
+export interface OutOfReachRow {
+  product_id: number;
+  product: string;
+  why: 'stores_off' | 'out_of_range' | 'not_stocked';
+  stores: string[];
+  nearest: { store: string; price: number; distance_km: number | null } | null;
 }
 
 export interface AlternativeRanking {
@@ -464,6 +470,7 @@ export interface AlternativeRanking {
   ranking_text: string;
   items: RankedAlternative[];      // the first `limit` rows, plus the cart's pick wherever it ranks
   held_back: HeldBack[];
+  out_of_reach?: OutOfReachRow[];  // a meal plan line's (line mode); absent otherwise
   total: number;                   // every ranked row
   unavailable: number;             // matching products with no offer in range
   counts: { exact: number; no_new_stop: number; preferred_origin: number; says_organic: number;
@@ -1648,10 +1655,10 @@ export interface CoveredLine {
 // Without trip_date (the wizard's Ingredients stage): the ranking for every line in the plan
 // that buys product_id, with no trip cost (each row's trip null, plan_total null).
 // A recipe line the plan buys nothing for (no product matches, or none can be bought) is asked
-// by `line` instead of product_id: the answer then has product_id null and product '', `lines`
-// that line and the plan's other productless lines for the same ingredient, the rows that can be
-// chosen in ranking.items, the ones the origin rule holds back in ranking.held_back, and rows
-// sold only at stores turned off or only beyond the distance marked (unavailable_kind).
+// by `line` instead of product_id (exactly one): the answer then has product_id null, product ''
+// and stocked false, `lines` that line and the plan's other productless lines for the same
+// ingredient, the rows that can be chosen in ranking.items (never `current`), the ones the
+// origin rule holds back in ranking.held_back, and the ones out of reach in ranking.out_of_reach.
 export interface TripLineOptionsRequest {
   draft: MealPlanDraft;
   trip_date?: string;
