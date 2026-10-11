@@ -168,6 +168,9 @@ export interface PlanLineItem {
   // or they are in different units
   need_qty?: number | null;
   need_uom?: 'g' | 'ml' | 'each' | null;
+  // how the line was matched to products, and the pick's group (absent from an older pantry)
+  matching?: MatchingMode | null;
+  group?: MatchGroup | null;
 }
 
 // An ingredient a partial plan (allow_partial) left out instead of aborting.
@@ -432,6 +435,29 @@ export interface RankedAlternative {
   says_organic: boolean;
   reasons: AltReason[];            // at most 5: match, pack, origin, trip, rating
   rank_reason: string;             // why it sits below the row above, in plain words
+  // Matching by meaning: the row's group (ESCI-style) and its plain name ("Same item", "Works
+  // instead", "Looser match"; "Not a candidate" for the cart's pick when it is none), the
+  // matcher's score (null when matched by words) and the row's reasons on one line ("butter ·
+  // 454 g covers 80 g · no new allergens"). Absent from an older pantry, which has only `tier`.
+  group?: MatchGroup;
+  group_label?: string;
+  score?: number | null;
+  summary?: string;
+}
+
+export type MatchGroup = 'same_item' | 'works_instead' | 'looser_match' | 'outside';
+export type MatchingMode = 'meaning' | 'words';
+
+// A product that would fill the line but fails a hard rule, so it is never offered: it adds a
+// contains-tag the plan's own product lacks (adds_tags), breaks the plan's diet or avoid list
+// (diet), or is outside the plan's required tags or aisles (constraints). `text` says it.
+export interface FilteredProduct {
+  product_id: number;
+  product: string;
+  group: MatchGroup;
+  why: 'adds_tags' | 'diet' | 'constraints';
+  tags: string[];
+  text: string;
 }
 
 // A product the plan's origin exclusion holds back: shown with its evidence, never choosable.
@@ -474,8 +500,14 @@ export interface AlternativeRanking {
   total: number;                   // every ranked row
   unavailable: number;             // matching products with no offer in range
   counts: { exact: number; no_new_stop: number; preferred_origin: number; says_organic: number;
-            rated: number };
+            rated: number; same_item?: number; works_instead?: number; looser_match?: number };
   data_note: string;
+  // how the line was matched: by meaning, or by words when its name is one no seed knows and the
+  // embedding model could not be reached (matching_note says why); `filtered` what a hard rule
+  // keeps out. Absent from an older pantry.
+  matching?: MatchingMode;
+  matching_note?: string;
+  filtered?: FilteredProduct[];
 }
 
 // 5A: weekly menu optimizer (/plan/week)
@@ -518,6 +550,20 @@ export interface Health {
   escalation_model: string;
   confidence_threshold: number;
   demo_mode?: boolean;
+  // the product matcher: "meaning" with its seeds; `unknown_names` how a name no seed knows is
+  // matched right now ("words" while the embedding model is down). Absent from an older pantry.
+  matching?: {
+    mode: MatchingMode;
+    profiles: number;
+    product_types: number;
+    seed_ingredients: number;
+    embedding_model: string | null;
+    dims: number | null;
+    embedder: string | null;
+    embedder_up: boolean;
+    unknown_names: MatchingMode;
+    detail: string;
+  };
 }
 
 // ─── Provenance (pantry-api origins.py) ──────────────────────
