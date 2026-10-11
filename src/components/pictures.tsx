@@ -41,7 +41,9 @@ export function RecipePicture({ pic, slot, size }: {
              onLoad={() => setLoaded(src)} onError={() => setFailed(src)} />
       )}
       {/* the credit of a decorative picture: shown, not read out */}
-      {ready && size === 'card' && pic && <span className="rpic-credit" aria-hidden="true">Photo: {pic.credit}</span>}
+      {ready && size === 'card' && pic && (
+        <span className="rpic-credit" aria-hidden="true"><span className="rpic-credit-k">Photo: </span>{pic.credit}</span>
+      )}
     </span>
   );
 }

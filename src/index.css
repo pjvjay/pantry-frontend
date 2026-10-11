@@ -1186,6 +1186,15 @@ details.mp-section > summary .mp-section-head { display: inline; }
 .mp-card-note { font-size: 12.5px; }
 .mp-card-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; padding-top: 8px; }
 .mp-card-ctl button { margin: 0; }
+@media (max-width: 520px) {
+  /* a phone: the picture a square beside the words, so a list of recipes stays short */
+  .mp-card { display: grid; grid-template-columns: 84px minmax(0, 1fr); column-gap: 12px; row-gap: 0; padding: 12px; }
+  .mp-card > .rpic-card { grid-row: span 6; width: 84px; margin: 0; aspect-ratio: 1; border-radius: var(--radius); }
+  .mp-card > :not(.rpic-card) { grid-column: 2; }
+  .mp-card > :not(.rpic-card) + :not(.rpic-card) { margin-top: 3px; }
+  .rpic-card .rpic-credit { right: 4px; bottom: 4px; max-width: calc(100% - 8px); padding: 1px 6px; font-size: 10px; }
+  .rpic-card .rpic-credit-k { display: none; }
+}
 .mp-card-ctl button[aria-disabled="true"] { opacity: 0.55; cursor: default; }
 .mp-card-over { font-size: 12.5px; }
 /* every place for the meal is taken: said plainly, not as a problem */
@@ -1523,7 +1532,6 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
   overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity 0.2s var(--ease);
 }
 .mp-card:hover .rpic-credit, .mp-card:focus-within .rpic-credit { opacity: 1; }
-@media (hover: none) { .rpic-credit { opacity: 1; } }
 .ppic {
   position: relative; display: block; flex: none; width: 44px; height: 44px; overflow: hidden;
   border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface-2); color: var(--muted);
