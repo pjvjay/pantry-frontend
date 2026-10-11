@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  basketAtLeast, basketKey, basketView, originText, unansweredCount, unansweredGroups, unavailableHeading,
+  basketAtLeast, basketKey, basketView, lineIssue, originText, unansweredCount, unansweredGroups, unavailableHeading,
 } from '../src/mealplan/basket.ts';
 import type { MealBasket } from '../src/types.ts';
 import { D, add, planWith, run } from './helpers/mealplan.ts';
@@ -118,4 +118,47 @@ test('why an ingredient cannot be bought: the origin rule, nothing stocked, or t
   assert.equal(unavailableHeading('not_stocked', []), 'No store nearby stocks it');
   assert.equal(unavailableHeading('out_of_range', []), 'Sold only beyond your distance');
   assert.equal(unavailableHeading(undefined, []), 'Not sold nearby', 'an older API');
+});
+
+test('a row with no match says what is wrong, and a matched one nothing', () => {
+  const view = basketView(BASKET, plan());
+  const [dough, salt, basil] = view.recipes[0].lines;
+  assert.equal(dough.issue, null);
+  assert.equal(salt.issue, null);
+  assert.deepEqual(basil.issue, { kind: 'out_of_range', label: 'Sold only beyond your distance' });
+  // held back by the origin rule, with no product left: the rule is what is wrong
+  assert.deepEqual(view.recipes[1].lines[1].issue,
+    { kind: 'origin_excluded', label: 'Only US-origin nearby, left out by your rule' });
+  const us = ['United States'];
+  assert.deepEqual(lineIssue({ available: false, productId: 7, kind: 'stores_off' }, us),
+    { kind: 'stores_off', label: 'Sold only at stores you turned off' });
+  assert.deepEqual(lineIssue({ available: false, productId: null, kind: 'not_stocked' }, us),
+    { kind: 'not_stocked', label: 'No store nearby stocks it' });
+  assert.deepEqual(lineIssue({ available: false, productId: null, kind: null }, us),
+    { kind: 'no_product', label: 'No product matches it' }, 'an older API, nothing chosen');
+  assert.deepEqual(lineIssue({ available: true, productId: null, kind: null }, us),
+    { kind: 'no_product', label: 'No product matches it' }, 'sold nearby, but no product named');
+  assert.deepEqual(lineIssue({ available: false, productId: 7, kind: null }, us),
+    { kind: 'unknown', label: 'Not sold nearby' });
+  assert.equal(lineIssue({ available: true, productId: 7, kind: null }, us), null);
+});
+
+test('a skipped row stays unmatched; its picture is asked by the product’s own name', () => {
+  const s = run(plan(), { type: 'skipLine', recipeKey: PIZZA, lineNo: 5, ingredient: 'fresh basil', skip: true });
+  const basil = basketView(BASKET, s).recipes[0].lines[2];
+  assert.equal(basil.skipped, true);
+  assert.equal(basil.issue?.kind, 'out_of_range');
+  const [dough, salt] = basketView(BASKET, s).recipes[0].lines;
+  assert.equal(dough.productName, 'Pizza Dough Ball 500g');
+  assert.equal(salt.productName, 'Table Salt', 'not "Table Salt 1kg"');
+  assert.equal(basketView(BASKET, s).recipes[1].lines[1].productName, null);
+});
+
+test('each recipe heading has its meal and its picture', () => {
+  const view = basketView({ ...BASKET, recipes: BASKET.recipes.map((r) => (r.key === PIZZA
+    ? { ...r, image: { kind: 'wiki' as const, title: 'Pepperoni pizza' } } : r)) }, plan());
+  assert.deepEqual(view.recipes.map((r) => [r.slot, r.picture]), [
+    ['dinner', { via: 'wiki', title: 'Pepperoni pizza', credit: 'Wikipedia' }],
+    ['dinner', null],
+  ]);
 });

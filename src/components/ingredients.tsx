@@ -9,7 +9,7 @@
 // leaves out, none stocked, none within the distance), and Schedule waits until each one has an
 // answer: other meals (back to Meals), another product (its Options), or "skip this ingredient"
 // (the recipe goes without it). The words are in mealplan/basket.ts.
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
 import { basketAtLeast, basketView, unansweredGroups } from '../mealplan/basket';
@@ -19,49 +19,72 @@ import { USABLE_RESOLVE, budgetOf, recipeTitle } from '../mealplan/model';
 import { useMealPlan } from '../mealplan/store';
 import type { KeyedCall } from '../mealplan/store';
 import type { MealBasket } from '../types';
+import { Icon } from './icons';
 import { ServingsPrompt } from './mealtray';
+import { ProductPicture, RecipePicture } from './pictures';
 import { STORES_HEAD, StoresPanel } from './stores';
 import { TripLineOptionsDialog } from './tripoptions';
 
 type Open = (lineKey: string, productId: number, name: string) => void;
 
-// onStores: to the "Your stores" panel, for an ingredient sold only at stores turned off.
+// One ingredient as a row: its product's picture, its name and the product, the price, then the
+// need, store and cost, its origin and labels. The row is one button that opens the
+// ingredient's Options (its words name the product and price; the rest describes it), so a
+// click anywhere on it, Enter or Space open them. A row the plan cannot buy is tinted, with an
+// edge, a warning sign and what is wrong in bold, and its answers under it, outside the button.
+// With no product there are no Options to open: the row is not a button, and its answers say
+// what can be done. onStores: to "Your stores", for an ingredient sold only at stores turned off.
 function Line({ l, title, onOptions, onMeals, onStores }: { l: LineView; title: string; onOptions: Open;
   onMeals: () => void; onStores: () => void }) {
   const mp = useMealPlan();
+  const facts = useId();
   const skip = (yes: boolean) => mp.dispatch({ type: 'skipLine', recipeKey: l.recipeKey, lineNo: l.lineNo,
     ingredient: l.ingredient, skip: yes });
   const open = () => { if (l.productId !== null) onOptions(l.key, l.productId, l.product ?? l.ingredient); };
+  const meta = [l.need, l.available ? l.store : '', l.available ? l.cost : ''].filter(Boolean).join(' · ');
+  const body = (
+    <>
+      <ProductPicture product={l.productName} ingredient={l.ingredient} />
+      <span className="mp-ing-main">
+        <span className="mp-ing-title">
+          <span className="mp-ing-name">{l.ingredient}</span>
+          <span className="mp-ing-product">{l.product ?? 'nothing chosen'}</span>
+        </span>
+        <span id={facts} className="mp-ing-about">
+          {l.issue && (
+            <span className="mp-ing-issue">
+              <Icon name="alert" size={16} />
+              <strong>{l.skipped ? `Skipped: ${l.issue.label.charAt(0).toLowerCase()}${l.issue.label.slice(1)}` : l.issue.label}</strong>
+            </span>
+          )}
+          {meta && <span className="mp-ing-meta">{meta}</span>}
+          <span className="mp-ing-facts">
+            <span className={l.origin.flag ? 'cart-flag' : 'muted'}>{l.origin.text}</span>
+            {l.labels.map((x) => <span key={x} className="chip chip-muted">{x}</span>)}
+            {l.pinned && <span className="chip chip-ok">your choice</span>}
+            {l.shared && <span className="muted">{l.shared}</span>}
+          </span>
+        </span>
+      </span>
+      <span className="mp-ing-side">
+        {l.available && <span className="mp-ing-price">{l.price}</span>}
+        {l.productId !== null && <span className="mp-ing-go" aria-hidden="true">Options ›</span>}
+      </span>
+    </>
+  );
+  const cls = `mp-ing${l.issue ? ' mp-ing-missing' : ''}${l.skipped ? ' mp-ing-skipped' : ''}`;
   return (
-    <li className={`mp-ing${l.available ? '' : ' mp-ing-missing'}${l.skipped ? ' mp-ing-skipped' : ''}`}>
-      <div className="mp-ing-head">
-        {l.productId !== null ? (
-          <button type="button" className="mp-ing-open" aria-haspopup="dialog" aria-label={l.optionsLabel}
-                  data-ing-line={l.key} onClick={open}>
-            <span className="mp-ing-name">{l.ingredient}</span>
-            <span className="mp-ing-product">{l.product}</span>
-            <span aria-hidden="true"> ›</span>
-          </button>
-        ) : (
-          <span className="mp-ing-name">{l.ingredient} <span className="muted">· nothing chosen</span></span>
-        )}
-        <span className="mp-ing-price">{l.available ? l.price : ''}</span>
-      </div>
-      <div className="muted">
-        {[l.need, l.available ? l.store : '', l.available ? l.cost : ''].filter(Boolean).join(' · ')}
-      </div>
-      <div className="mp-ing-facts">
-        <span className={l.origin.flag ? 'cart-flag' : 'muted'}>{l.origin.text}</span>
-        {l.labels.map((x) => <span key={x} className="chip chip-muted">{x}</span>)}
-        {l.pinned && <span className="chip chip-ok">your choice</span>}
-        {l.shared && <span className="muted">{l.shared}</span>}
-      </div>
+    <li className={cls}>
+      {l.productId !== null ? (
+        <button type="button" className="mp-ing-open" aria-haspopup="dialog" aria-label={l.optionsLabel}
+                aria-describedby={facts} data-ing-line={l.key} onClick={open}>
+          {body}
+        </button>
+      ) : <div className="mp-ing-open mp-ing-still">{body}</div>}
       {!l.available && (
         <div className="mp-ing-answer" role="group" aria-label={`${l.ingredient}: not sold nearby`}>
-          <span className={l.skipped ? 'muted' : 'cart-flag'}>
-            {l.skipped ? `Skipped: ${title} goes without it.` : `${l.heading}.`}
-          </span>
-          {!l.skipped && l.why && <span className="muted">{l.why}</span>}
+          {l.skipped ? <span className="muted">{title} goes without it.</span>
+            : l.why && <span className="mp-ing-why">{l.why}.</span>}
           {/* the skip button stays where it is whichever it says, so focus stays on it */}
           {!l.skipped && l.kind === 'stores_off' && (
             <button type="button" className="secondary mini" onClick={onStores}>Turn a store back on</button>
@@ -81,12 +104,19 @@ function Line({ l, title, onOptions, onMeals, onStores }: { l: LineView; title: 
 
 function RecipeIngredients({ r, onOptions, onMeals, onStores }: { r: RecipeView; onOptions: Open; onMeals: () => void;
   onStores: () => void }) {
+  const head = useId();
   return (
-    <section className="mp-ing-recipe" aria-label={r.title}>
-      <h3 className="mp-section-head">
-        {r.title} <span className="muted">· {r.meals} {r.meals === 1 ? 'meal' : 'meals'}</span>
-        {r.unanswered > 0 && <span className="cart-flag"> · {r.unanswered} to answer</span>}
-      </h3>
+    <section className="mp-ing-recipe" aria-labelledby={head}>
+      <div className="mp-ing-recipe-head">
+        <RecipePicture pic={r.picture} slot={r.slot} size="head" />
+        <div>
+          <h3 id={head} className="mp-ing-recipe-title">{r.title}</h3>
+          <p className="mp-ing-recipe-sub">
+            {r.meals} {r.meals === 1 ? 'meal' : 'meals'} · {r.lines.length} {r.lines.length === 1 ? 'ingredient' : 'ingredients'}
+            {r.unanswered > 0 && <span className="cart-flag"> · {r.unanswered} to answer</span>}
+          </p>
+        </div>
+      </div>
       {r.meals === 0 && <p className="muted">No meals of it in the plan: nothing is bought for it.</p>}
       {r.lines.length === 0 && <p className="muted">No ingredients to show yet.</p>}
       <ul className="mp-ing-lines">

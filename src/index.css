@@ -699,9 +699,10 @@ tr.row-active td { background: var(--accent-soft); }
 .alt-section-other h3 { color: var(--warn); }
 .alt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .alt-row {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: start;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 12px; align-items: start;
   padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
 }
+.alt-row .ppic { width: 48px; height: 48px; }
 .alt-row-current { border-color: var(--accent); }
 .alt-name { overflow-wrap: anywhere; }
 .alt-rank { color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -731,7 +732,8 @@ tr.row-active td { background: var(--accent-soft); }
 .alt-foot { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
 .alt-data-note { margin: 0 auto 0 0; align-self: center; font-size: 12px; color: var(--muted); }
 @media (max-width: 640px) {
-  .alt-row { grid-template-columns: minmax(0, 1fr); }
+  .alt-row { grid-template-columns: auto minmax(0, 1fr); }
+  .alt-row > .alt-use { grid-column: 1 / -1; }
   .alt-use { width: 100%; }
 }
 
@@ -1163,27 +1165,75 @@ details.mp-section > summary .mp-section-head { display: inline; }
 .mp-move-to { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .mp-move-to button { margin: 0; }
 
-/* Ingredients: one row per ingredient; one no store nearby sells has a --warn edge and its words */
+/* Ingredients: each recipe a card, as Basics' are, with its picture beside its name; each
+   ingredient a row that is one button (its Options), lifting on hover and ringed on focus. A row
+   the plan cannot buy is tinted with --warn, has a --warn edge, a sign and what is wrong in bold;
+   its answers sit under it, outside the button. */
 .mp-unanswered { margin: 8px 0; font-size: 13.5px; }
 .mp-unanswered button { margin: 0; }
-.mp-ing-recipe { margin-top: 14px; }
-.mp-ing-lines { list-style: none; margin: 0; padding: 0; }
-.mp-ing { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
-.mp-ing-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.mp-ing-open {
-  display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; margin: 0;
-  padding: 2px 0; background: none; border: none; color: var(--text); font: inherit; text-align: left; cursor: pointer;
+.mp-ing-recipe {
+  margin-top: 14px; padding: 14px 16px 10px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--panel); box-shadow: var(--shadow-1);
 }
-.mp-ing-open:hover .mp-ing-product { text-decoration: underline; }
+.mp-ing-recipe-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.view .mp-ing-recipe-title { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.mp-ing-recipe-sub { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.mp-ing-lines { list-style: none; margin: 0 -8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.mp-ing { position: relative; min-width: 0; border-radius: var(--radius); font-size: 13.5px; }
+.mp-ing + .mp-ing:not(.mp-ing-missing)::before {
+  content: ''; position: absolute; top: -2px; left: 64px; right: 8px; height: 1px; background: var(--border);
+}
+.mp-ing-missing + .mp-ing::before { display: none; }
+.mp-ing-open {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: start; gap: 2px 12px; width: 100%;
+  margin: 0; padding: 8px; border: none; border-radius: var(--radius); background: transparent; color: var(--text);
+  font: inherit; font-weight: 400; text-align: left; transition: background 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+button.mp-ing-open { cursor: pointer; }
+button.mp-ing-open:hover { background: var(--accent-soft); }
+button.mp-ing-open:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.mp-ing-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mp-ing-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .mp-ing-name { font-weight: 650; }
 .mp-ing-product { color: var(--accent); overflow-wrap: anywhere; }
-.mp-ing-price { margin-left: auto; font-variant-numeric: tabular-nums; }
-.mp-ing-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mp-ing-about { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mp-ing-meta { color: var(--muted); font-size: 12.5px; }
+.mp-ing-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12.5px; }
 .mp-ing-facts .chip { white-space: normal; }
-.mp-ing-missing { padding-left: 8px; border-left: 3px solid var(--warn); }
-.mp-ing-skipped { border-left-style: dashed; }
-.mp-ing-answer { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.mp-ing-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.mp-ing-price { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mp-ing-go {
+  font-size: 12px; font-weight: 600; color: var(--accent); white-space: nowrap; opacity: 0.6;
+  transition: opacity 0.15s var(--ease);
+}
+button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go { opacity: 1; }
+.mp-ing-issue { display: flex; align-items: center; gap: 6px; margin: 2px 0; color: var(--warn); }
+.mp-ing-issue strong { font-weight: 700; }
+.mp-ing-missing {
+  margin: 4px 0; background: color-mix(in srgb, var(--warn) 9%, var(--panel));
+  box-shadow: inset 4px 0 0 var(--warn), inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent);
+}
+.mp-ing-missing .mp-ing-open { padding-left: 14px; }
+.mp-ing-missing button.mp-ing-open:hover { background: color-mix(in srgb, var(--warn) 7%, transparent); }
+.mp-ing-missing .mp-ing-product { color: var(--muted); }
+/* skipped: still not bought, but answered; quieter, the edge dashed */
+.mp-ing-skipped { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); }
+.mp-ing-skipped::after {
+  content: ''; position: absolute; top: 6px; bottom: 6px; left: 0; border-left: 4px dashed var(--warn); border-radius: 2px;
+}
+.mp-ing-skipped .mp-ing-issue { color: var(--muted); }
+.mp-ing-answer {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 12px 10px 70px; font-size: 13px;
+}
 .mp-ing-answer button { margin: 0; }
+.mp-ing-why { color: var(--muted); flex-basis: 100%; }
+@media (max-width: 520px) {
+  /* a phone: the price and "Options" under the words, so the name keeps the width */
+  .mp-ing-open { grid-template-columns: 44px minmax(0, 1fr); }
+  .mp-ing-side { grid-column: 2; flex-direction: row; justify-content: space-between; align-items: center; }
+  .mp-ing-answer { padding-left: 14px; }
+  .mp-ing-recipe { padding: 12px 12px 8px; }
+}
 
 @media (max-width: 900px) {
   .mp-strip-week { grid-template-columns: minmax(0, 1fr); gap: 4px; }
@@ -1206,6 +1256,7 @@ details.mp-section > summary .mp-section-head { display: inline; }
 @media (pointer: coarse) {
   .mp-step-link { min-height: 44px; }
   .mp-ing-open { min-height: 44px; }
+  .mp-ing-go { opacity: 1; }
   .cchip-btn { width: 36px; height: 36px; }
   .tchip span, .seg-opt span { min-height: 40px; display: inline-flex; align-items: center; }
 }

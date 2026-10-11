@@ -22,6 +22,7 @@ import {
 } from '../alternatives';
 import { agentAlternatives } from '../hub';
 import type { AlternativeRanking, CartLine, RankedAlternative } from '../types';
+import { ProductPicture } from './pictures';
 import { Sheet } from './Sheet';
 
 // The line the dialog is open for: the card's plan (ref) and the cart line.
@@ -34,13 +35,16 @@ export interface OptionsTarget {
 // How many rows the hub asks pantry for (pantry allows 1..25).
 const LIMIT = 12;
 
-function Row({ item, action, buyer }: { item: RankedAlternative; action: ReactNode; buyer?: string }) {
+// ingredient: what the row's picture falls back to when the product has none.
+function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; action: ReactNode; buyer?: string;
+  ingredient: string }) {
   const price = priceLine(item, buyer);
   const trip = reasonOf(item, 'trip');
   const chips = chipReasons(item);
   const brandSize = [item.brand, sizeInName(item.product, item.size) ? '' : item.size].filter(Boolean).join(' · ');
   return (
     <li className={`alt-row${item.current ? ' alt-row-current' : ''}`}>
+      <ProductPicture product={item.product} ingredient={ingredient} />
       <div className="alt-main">
         <div className="alt-name">
           <span className="alt-rank">#{item.rank}</span> <strong>{item.product}</strong>
@@ -168,7 +172,7 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
     <section className={`alt-section alt-section-${tone}`} aria-label={heading}>
       <h3>{heading}</h3>
       <ul className="alt-list">
-        {items.map((it) => <Row key={it.product_id} item={it} action={useThis(it)} buyer={buyer} />)}
+        {items.map((it) => <Row key={it.product_id} item={it} action={useThis(it)} buyer={buyer} ingredient={ingredient} />)}
       </ul>
     </section>
   );
@@ -204,7 +208,7 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
             <section className="alt-section" aria-label={holds}>
               <h3>{holds} ({target?.pinned ? 'chosen by you' : 'chosen by the planner'})</h3>
               <ul className="alt-list">
-                <Row item={current} buyer={buyer} action={target?.pinned ? (
+                <Row item={current} buyer={buyer} ingredient={ingredient} action={target?.pinned ? (
                   <button type="button" className="secondary alt-use" {...actionProps}
                           onClick={() => void choose(null)}>
                     {choosing === 'back' ? updating : 'Back to the planner’s pick'}

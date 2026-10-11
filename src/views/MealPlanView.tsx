@@ -345,8 +345,8 @@ export default function MealPlanView() {
 
       <Stepper step={step} facts={facts} />
 
-      {/* Basics and Calendar are forms of cards, drawn on the page itself */}
-      <section className={`panel mp-stage${step === 1 || step === 6 ? ' mp-stage-flat' : ''}`}
+      {/* Basics, Meals, Ingredients and Calendar are cards, drawn on the page itself */}
+      <section className={`panel mp-stage${[1, 2, 3, 6].includes(step) ? ' mp-stage-flat' : ''}`}
                aria-labelledby="mp-stage-head">
         <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{stepTitle(step)}</h2>
         {behind && (

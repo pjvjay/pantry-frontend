@@ -11,8 +11,10 @@
 // ingredient".
 import { nameWithSize } from '../alternatives.ts';
 import { excludedWords } from './catalog.ts';
+import { recipePicture } from './images.ts';
+import type { PictureSource } from './images.ts';
 import { lineKey, mealsOf, recipeTitle } from './model.ts';
-import type { MealPlanState } from './model.ts';
+import type { MealPlanState, Slot } from './model.ts';
 import type { BasketLine, BasketOrigin, MealBasket, MealPlanDraft, UnavailableKind } from '../types.ts';
 
 const money = (v: number) => `$${v.toFixed(2)}`;
@@ -68,6 +70,24 @@ export function unavailableHeading(kind: UnavailableKind | null | undefined, exc
   }
 }
 
+// What is wrong with an ingredient's row, for its look and its bold label: nothing nearby can
+// be bought (why, in unavailableHeading's words), or no product matches it at all. null: the
+// plan buys it. An unmatched row stays unmatched once skipped; the row says it was skipped.
+export type IssueKind = UnavailableKind | 'no_product' | 'unknown';
+
+export interface LineIssue {
+  kind: IssueKind;
+  label: string;
+}
+
+export function lineIssue(l: { available: boolean; productId: number | null; kind: UnavailableKind | null },
+  excluded: readonly string[] = []): LineIssue | null {
+  if (l.available && l.productId !== null) return null;
+  if (!l.available && l.kind) return { kind: l.kind, label: unavailableHeading(l.kind, excluded) };
+  if (l.productId === null) return { kind: 'no_product', label: 'No product matches it' };
+  return { kind: 'unknown', label: unavailableHeading(null, excluded) };
+}
+
 export function storeText(line: BasketLine): string {
   if (!line.store) return 'no store nearby';
   const km = line.store.distance_km;
@@ -82,6 +102,7 @@ export interface LineView {
   need: string;
   productId: number | null;
   product: string | null;          // "Whole Milk 1L"
+  productName: string | null;      // "Whole Milk", what its picture is asked by
   store: string;
   price: string;                   // a pack
   cost: string;                    // this recipe's share, all its meals
@@ -92,6 +113,7 @@ export interface LineView {
   available: boolean;
   kind: UnavailableKind | null;    // why it cannot be bought, as pantry-api says it
   heading: string;                 // the same, in words
+  issue: LineIssue | null;         // what is wrong with the row, null when the plan buys it
   why: string;                     // pantry-api's own reason, '' when it gives none
   skipped: boolean;
   // nothing more to do: sold nearby, skipped by the shopper, or its recipe has no meals now
@@ -106,6 +128,8 @@ export interface RecipeView {
   meals: number;
   lines: LineView[];
   unanswered: number;
+  slot: Slot;
+  picture: PictureSource | null;
 }
 
 function lineView(s: MealPlanState, recipeKey: string, meals: number, ln: BasketLine): LineView {
@@ -120,13 +144,15 @@ function lineView(s: MealPlanState, recipeKey: string, meals: number, ln: Basket
   const labels = [...(p?.labels ?? [])];
   if (p?.says_organic && !labels.some((l) => /organic/i.test(l))) labels.push('says organic');
   if (p?.demo_product) labels.push('demo product');
+  const kind = ln.available ? null : ln.unavailable_kind ?? null;
   return {
     key: k, recipeKey, lineNo: ln.line_no, ingredient: ln.ingredient, need: ln.need,
-    productId: p?.id ?? null, product, store, price,
+    productId: p?.id ?? null, product, productName: p?.name ?? null, store, price,
     cost: ln.cost_for_need === null ? '' : `${money(ln.cost_for_need)} for these meals`,
     origin: originText(ln.origin), labels, pinned: ln.pinned,
     shared: others.length ? `also bought for ${listOf(others)}` : '',
-    available: ln.available, kind: ln.available ? null : ln.unavailable_kind ?? null, heading: ln.available ? '' : unavailableHeading(ln.unavailable_kind, excluded),
+    available: ln.available, kind, heading: ln.available ? '' : unavailableHeading(ln.unavailable_kind, excluded),
+    issue: lineIssue({ available: ln.available, productId: p?.id ?? null, kind }, excluded),
     why: ln.why_unavailable ?? '',
     skipped, answered: ln.available || skipped || meals === 0,
     optionsLabel: product
@@ -142,8 +168,10 @@ export function basketView(b: MealBasket, s: MealPlanState): { recipes: RecipeVi
   const recipes = b.recipes.filter((r) => s.draft.recipes[r.key]).map((r) => {
     const meals = mealsOf(s.draft, r.key).length;
     const lines = r.lines.map((ln) => lineView(s, r.key, meals, ln));
+    const mine = s.draft.recipes[r.key];
     return { key: r.key, title: r.title || recipeTitle(s, r.key), status: r.status, meals, lines,
-      unanswered: lines.filter((l) => !l.answered).length };
+      unanswered: lines.filter((l) => !l.answered).length, slot: mine.slot,
+      picture: recipePicture(r.image, mine.ref.doc) };
   });
   return { recipes, unanswered: recipes.flatMap((r) => r.lines.filter((l) => !l.answered)) };
 }
