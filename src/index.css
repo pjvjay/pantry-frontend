@@ -32,6 +32,8 @@
   --radius: 10px;
   --radius-lg: 14px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  /* the shopper's own point on the stores map */
+  --map-you: #2563eb;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -59,6 +61,7 @@
     --accent-ring: rgb(52 211 153 / 0.28);
     --shadow-1: 0 1px 2px rgb(0 0 0 / 0.35);
     --shadow-2: 0 8px 24px rgb(0 0 0 / 0.45);
+    --map-you: #60a5fa;
   }
 }
 
@@ -1509,15 +1512,96 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
   .sum { position: sticky; top: 16px; }
 }
 
-/* --- Ingredients: your stores ----------------------------------------------------------------- */
+/* --- Ingredients: your stores, and the map beside them --------------------------------------- */
 .fc-stores { margin-bottom: 14px; }
+.stores-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 900px) {
+  .stores-body-map { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: start; }
+}
+.stores-side > .fc-sub:first-child { margin-top: 0; }
+/* with no map beside it, the list keeps a readable width */
+.stores-body:not(.stores-body-map) .stores-side { max-width: 640px; }
 .stores-head { display: flex; align-items: center; gap: 6px; margin: 12px 0 4px; font-weight: 600; }
-.stores-list { list-style: none; margin: 0; padding: 0; }
+.stores-list { list-style: none; margin: 0 -8px; padding: 0; }
 .stores-list li + li { border-top: 1px solid var(--border); }
-.store-off .switch-label { color: var(--muted); text-decoration: line-through; }
+.store { padding: 0 8px; border-radius: var(--radius); transition: background 0.15s var(--ease); }
+.store-hot { background: var(--accent-soft); }
+.store-name { margin-right: 6px; }
+.store-demo { vertical-align: 1px; font-size: 11px; padding: 1px 8px; }
+.store-addr { display: block; color: var(--text); opacity: 0.85; overflow-wrap: anywhere; }
+.store-off .store-name { color: var(--muted); text-decoration: line-through; }
 .stores-far { margin-top: 8px; font-size: 13px; }
 .stores-far summary { cursor: pointer; color: var(--muted); }
 .stores-far ul { margin: 6px 0 0; padding-left: 18px; }
+.stores-far li { padding: 2px 4px; border-radius: 6px; }
+.stores-far li:focus { outline: none; }
+.stores-far li:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* the map: tiles laid out as images, the marks over them; markers repeat the list for the eye */
+.smap { min-width: 0; }
+.smap-view {
+  position: relative; height: 300px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2); isolation: isolate;
+}
+.smap-tiles img {
+  position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; pointer-events: none;
+}
+.smap-tile-lost { visibility: hidden; }
+.smap-lost { position: absolute; inset: auto 12px 40px; margin: 0; font-size: 12.5px; color: var(--muted); text-align: center; }
+.smap-marks { position: absolute; inset: 0; }
+.smap-circle {
+  position: absolute; border-radius: 50%; border: 2px dashed var(--accent); pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.smap-you {
+  position: absolute; z-index: 2; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; pointer-events: none;
+  background: var(--map-you); border: 3px solid #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--map-you) 30%, transparent), 0 1px 4px rgb(0 0 0 / 0.35);
+}
+.smap-pin {
+  position: absolute; display: grid; place-items: center; width: 30px; height: 30px; margin: -15px 0 0 -15px; padding: 0;
+  border: 2px solid #fff; border-radius: 50%; background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3); cursor: pointer; z-index: 1;
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.smap-pin-off { background: #9ca3af; color: #fff; }
+.smap-pin-far { background: var(--panel); color: var(--accent); border: 2px dashed var(--accent); }
+.smap-pin-far.smap-pin-off { color: #6b7280; border-color: #9ca3af; }
+.smap-pin:hover, .smap-pin-hot { transform: scale(1.2); z-index: 3; box-shadow: 0 0 0 5px var(--accent-ring), 0 4px 12px rgb(0 0 0 / 0.35); }
+.smap-pin-name {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) scale(0.84);
+  padding: 3px 9px; border-radius: 999px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-2);
+  font-size: 12.5px; font-weight: 650; white-space: nowrap; pointer-events: none;
+}
+.smap-zoom {
+  position: absolute; top: 10px; right: 10px; z-index: 3; display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-1); overflow: hidden;
+}
+.smap-zoom button {
+  display: grid; place-items: center; width: 34px; height: 34px; margin: 0; padding: 0; border-radius: 0;
+  background: var(--panel); color: var(--text); font-size: 18px; font-weight: 600; line-height: 1;
+}
+.smap-zoom button + button { border-top: 1px solid var(--border); }
+.smap-zoom button:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+.smap-zoom button:focus-visible { outline-offset: -3px; }
+.smap-attr {
+  position: absolute; right: 0; bottom: 0; z-index: 3; margin: 0; padding: 2px 8px; border-top-left-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent); font-size: 11px; color: var(--muted);
+}
+.smap-attr a { color: inherit; }
+.smap-key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+.smap-key li { display: inline-flex; align-items: center; gap: 6px; }
+.smap-key-you, .smap-key-pin { width: 11px; height: 11px; border-radius: 50%; }
+.smap-key-you { background: var(--map-you); }
+.smap-key-pin { background: var(--accent); }
+.smap-key-off { background: #9ca3af; }
+.smap-key-circle { width: 14px; height: 11px; border: 2px dashed var(--accent); border-radius: 50%; }
+@media (prefers-color-scheme: dark) {
+  /* OpenStreetMap's tiles are drawn light: dimmed a little, so the map does not glare */
+  .smap-tiles img { filter: brightness(0.82) contrast(1.05) saturate(0.85); }
+}
+@media (max-width: 640px) {
+  .smap-view { height: 240px; }
+}
 
 @media (prefers-reduced-motion: no-preference) {
   .tile:active .tile-face, .tchip:active span, .qpick:active { transform: scale(0.98); }

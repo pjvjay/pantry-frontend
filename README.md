@@ -84,6 +84,8 @@ nothing. The logic is in pure modules under `src/mealplan/`:
 | `basket.ts` | the Ingredients stage: each recipe's ingredients from `/mealplan/basket`, and which ones no store nearby sells still need an answer |
 | `basics.ts` | Basics: where the shopper is (areas, the device's location, the address search's words), the budget's picks and the "Your plan" summary |
 | `stores.ts` | Ingredients' "Your stores": the distances, the stores near the shopper, and the warning when none is in range |
+| `images.ts` | the pictures: which source a recipe's comes from (the shopper's own import first, then the one pantry-api names) and its credit, and the names a product's picture is asked by |
+| `tiles.ts` | Web Mercator tile math for the stores map: points to tiles and pixels, the tiles a view needs, the zoom that fits the stores and the distance circle |
 
 **From the Assistant.** Each chat message carries the plan in brief
 (`chatDraft.contextOf`: window, meals, recipes, the dates of approved trips, the
@@ -125,7 +127,11 @@ to its heading. `views/MealPlanView.tsx` puts them together:
    plan, in this browser only. Every plan is for one person for now: a plan read
    back is set to one.
 2. **Meals** (`components/mealcards.tsx`): recipe cards in Breakfast, Lunch and
-   Dinner (Snack collapsed) from `/mealplan/catalog`, each with its diet, what
+   Dinner (Snack collapsed) from `/mealplan/catalog`, each with its picture
+   (`components/pictures.tsx`: a Wikipedia article's through `/hub/images/wiki`,
+   a page's through `/hub/images/remote`, an imported recipe's own
+   `source.image_url`; decorative, lazy, 16:9, its credit on hover or focus, and
+   the meal's icon on a soft tint when there is none or it fails), its diet, what
    one more meal adds to the plan's cost, what cannot be bought nearby (and
    whether only the origin rule stops it), and Add or a count. The selection is
    priced in whole packs, as trips buy it (`catalog.packCost`). A budget bar
@@ -137,13 +143,21 @@ to its heading. `views/MealPlanView.tsx` puts them together:
    recipes are below. Next needs a meal.
 3. **Ingredients** (`components/ingredients.tsx`): first "Your stores"
    (`components/stores.tsx`): how far the shopper goes, and the stores near them
-   from `/mealplan/stores`, each with its distance, what it sells of the plan's
-   products and a switch (a store turned off is skipped, kept in
-   `settings.stores_off`, and never checks the products again). Then each
-   recipe's ingredients from `/mealplan/basket`, with product, store and
-   distance, price, origin and labels, and the basket's total against the
-   budget. An ingredient opens its Options
-   across the whole plan (no trip); a choice pins every line that buys it. One no
+   from `/mealplan/stores`, each with its address ("demo store" when they are the
+   demo's own), distance, what it sells of the plan's products and a switch (a
+   store turned off is skipped, kept in `settings.stores_off`, and never checks
+   the products again). Beside them, while the hub serves tiles
+   (`/hub/status` `tiles`), a map drawn with no library
+   (`components/storemap.tsx`): OpenStreetMap's tiles from `/hub/tiles`, the
+   shopper, each store (greyed when off), the distance as a circle, + and −;
+   hovering or focusing a store's row lights its marker, and clicking a marker
+   focuses its row. Then each recipe as a card with its picture, and its
+   ingredients from `/mealplan/basket`, each a row with its product's picture
+   (`/hub/images/ingredient`), product, store and distance, price, origin and
+   labels, and the basket's total against the budget. The whole row is a button
+   that opens the ingredient's Options across the whole plan (no trip); a choice
+   pins every line that buys it. A row with no match is tinted, edged and
+   labelled with what is wrong (`basket.lineIssue`), and one no
    store nearby sells needs an answer before Schedule: Back to meals, another
    product, Skip this ingredient (kept with the plan as `skipped`), or, when only
    stores turned off sell it, turning one back on.

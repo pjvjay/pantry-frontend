@@ -647,6 +647,8 @@ export interface HubStatus {
   video_import?: VideoTranscribe;
   // whether /hub/geocode answers (an older hub does not say: off)
   geocoder?: boolean;
+  // whether /hub/tiles/{z}/{x}/{y}.png serves OpenStreetMap's tiles (absent: off)
+  tiles?: boolean;
 }
 
 export interface McpTarget {
@@ -1111,12 +1113,21 @@ export interface StoreChoice {
   in_range: boolean;
   off: boolean;
   sells: number | null;
+  // where it is, for the map (absent from an older API)
+  lat?: number | null;
+  lon?: number | null;
 }
 
+// synthetic: the stores are the demo's own, not real shops. origin: the point the distances are
+// measured from (the shopper's, or the demo's default); max_km: the distance in force (null: any).
+// All three are absent from an older API.
 export interface MealStores {
   v: 1;
   stores: StoreChoice[];
   products_total: number;
+  synthetic?: boolean;
+  origin?: { lat: number; lon: number } | null;
+  max_km?: number | null;
 }
 
 // The demo hub's address search (GET /hub/geocode?q=…, OpenStreetMap's Nominatim): at most a

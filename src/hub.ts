@@ -263,6 +263,10 @@ export const ingredientImage = (name: string) =>
 export const remoteImage = (url: string) => `${HUB}/images/remote?url=${encodeURIComponent(url)}`;
 export const wikiImage = (title: string) => `${HUB}/images/wiki?title=${encodeURIComponent(title)}`;
 
+// OpenStreetMap's map tiles through the hub (its cache, and the attribution and fair use the
+// tile policy asks for); 503 while the hub has them off (HubStatus.tiles).
+export const tileImage = (z: number, x: number, y: number) => `${HUB}/tiles/${z}/${x}/${y}.png`;
+
 export const simPresets = () =>
   json<{ presets: Record<string, { label: string; models: Record<string, string> }>;
          runner_url: string }>(`${HUB}/sims/presets`);
