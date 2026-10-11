@@ -14,11 +14,18 @@
 // `load` (pantry-api's ranking for the line, over REST, no hub), the trip's words, and a
 // description naming the recipe lines the purchase covers. The wizard's Ingredients stage opens
 // it on an ingredient across the whole plan, in the plan's words.
-import { useEffect, useId, useRef, useState } from 'react';
+//
+// pantry matches products by meaning: the rows are under its groups (Same item, Works instead,
+// Looser match), each with its reasons on one line; what a hard rule keeps out (it adds an
+// allergen, breaks the diet) is listed, closed, as "Not offered"; and a note under the heading
+// says whether the line was matched by meaning or, with the meaning model off, by words. An older
+// pantry's rows are under "Same ingredient" and "Not the same ingredient", as before
+// (alternatives.rowGroups).
+import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import {
-  chipReasons, coversText, footText, movedText, needText, priceLine, reasonOf, rowsOf, sizeInName, storeText,
-  unitPriceText,
+  coversText, footText, matchingNote, movedText, needText, notOffered, priceLine, reasonOf, reasonsLine, rowGroups,
+  sizeInName, storeText, unitPriceText,
 } from '../alternatives';
 import { agentAlternatives } from '../hub';
 import type { AlternativeRanking, CartLine, RankedAlternative } from '../types';
@@ -40,7 +47,7 @@ function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; act
   ingredient: string }) {
   const price = priceLine(item, buyer);
   const trip = reasonOf(item, 'trip');
-  const chips = chipReasons(item);
+  const { summary, chips } = reasonsLine(item);
   const brandSize = [item.brand, sizeInName(item.product, item.size) ? '' : item.size].filter(Boolean).join(' · ');
   return (
     <li className={`alt-row${item.current ? ' alt-row-current' : ''}`}>
@@ -59,6 +66,7 @@ function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; act
           {trip && <span className={`alt-tone-${trip.tone}`}>{trip.text}</span>}
         </div>
         {movedText(item).map((t) => <div key={t} className="alt-note">{t}</div>)}
+        {summary && <p className="alt-summary">{summary}</p>}
         {chips.length > 0 && (
           <ul className="alt-chips" aria-label="Reasons">
             {chips.map((r) => <li key={r.code} className={`alt-chip alt-tone-${r.tone}`}>{r.text}</li>)}
@@ -162,10 +170,13 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
     'aria-describedby': blocked ? blockedId : undefined,
   } as const;
 
-  const rows = ranking ? rowsOf(ranking) : null;
+  const rows = ranking ? rowGroups(ranking) : null;
   const current = rows?.current ?? null;
   const covers = ranking ? coversText(ranking) : '';
-  const others = rows ? rows.same.length + rows.other.length : 0;
+  const others = rows ? rows.groups.reduce((t, g) => t + g.items.length, 0) : 0;
+  const note = ranking ? matchingNote(ranking) : null;
+  const kept = ranking ? notOffered(ranking) : [];
+  const said = description ?? (ranking ? [needText(ranking), covers].filter(Boolean).join(' ') : undefined);
 
   const useThis = (item: RankedAlternative) => (
     <button type="button" className="alt-use" {...actionProps}
@@ -190,8 +201,12 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
       className="alt-sheet"
       returnFocus={returnFocus}
       title={title ?? `Options for ${ingredient}`}
-      description={description
-        ?? (ranking ? [needText(ranking), covers].filter(Boolean).join(' ') : undefined)}
+      description={said || note ? (
+        <>
+          {said}
+          {note && <span className={`alt-matching alt-matching-${note.mode}`}>{note.text}</span>}
+        </>
+      ) : undefined}
       footer={ranking?.data_note ? <p className="alt-data-note">{ranking.data_note}</p> : undefined}
     >
       {blocked && <p id={blockedId} className="alt-blocked">{blocked}</p>}
@@ -223,8 +238,7 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
               </ul>
             </section>
           )}
-          {list('Same ingredient', rows.same, 'same')}
-          {list('Not the same ingredient', rows.other, 'other')}
+          {rows.groups.map((g) => <Fragment key={g.key}>{list(g.label, g.items, g.tone)}</Fragment>)}
           {others === 0 && !current && empty}
           {others === 0 && !(empty && !current) && (
             <p className="muted">No other product sold in range fills this line.</p>
@@ -246,6 +260,20 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
                       {h.verbatim && <> — <span className="verbatim">“{h.verbatim}”</span></>}
                       {h.demo && ' (demo label photo)'}
                     </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          {kept.length > 0 && (
+            <details className="alt-held alt-kept">
+              <summary>Not offered ({kept.length})</summary>
+              <ul className="alt-held-list">
+                {kept.map(({ item, text }) => (
+                  <li key={item.product_id}>
+                    <ProductPicture product={item.product} ingredient={ingredient} />
+                    <span><strong>{item.product}</strong>: {text}</span>
                   </li>
                 ))}
               </ul>

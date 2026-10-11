@@ -5,7 +5,7 @@
 // return. Nothing here works a fact out: a price, store, trip total or reason is shown as the
 // ranking states it, and what the ranking does not know is said to be unknown, never zero.
 import type {
-  AlternativeRanking, AltReason, CartLine, CartSummary, PlanCardData, RankedAlternative,
+  AlternativeRanking, AltReason, CartLine, CartSummary, FilteredProduct, MatchGroup, PlanCardData, RankedAlternative,
 } from './types.ts';
 
 // A product's name with its size, unless the name already says it: "Jasmine Rice 2kg", never
@@ -78,17 +78,67 @@ export function optionsLabel(line: CartLine, pinned: boolean, originAsked = fals
 // drawn the card anew under its new ref.
 export const cartLineKey = (ref: number, lineNo: number) => `${ref}:${lineNo}`;
 
-// The ranking as the dialog lays it out: the cart's pick on its own at the top, then the other
-// rows in rank order under "Same ingredient" and "Not the same ingredient".
-export function rowsOf(r: AlternativeRanking): {
-  current: RankedAlternative | null; same: RankedAlternative[]; other: RankedAlternative[];
-} {
+// ─── Matching by meaning ─────────────────────────────────────
+// pantry matches a line's products by meaning and puts each row in a group, as Amazon's ESCI
+// labels do: the same item, one that works instead, or a looser match by meaning alone. The
+// dialog shows the rows under those groups; an older pantry gives only `tier`, and then the rows
+// are under "Same ingredient" and "Not the same ingredient", as before.
+
+export const GROUP_ORDER: readonly MatchGroup[] = ['same_item', 'works_instead', 'looser_match', 'outside'];
+export const GROUP_LABELS: Record<MatchGroup, string> = {
+  same_item: 'Same item', works_instead: 'Works instead', looser_match: 'Looser match', outside: 'Not a candidate',
+};
+
+// tone: how a group's heading is drawn; 'other' is in --warn, as "Not the same ingredient" was.
+export interface RowGroup {
+  key: string;
+  label: string;
+  tone: 'same' | 'instead' | 'other';
+  items: RankedAlternative[];
+}
+
+const TONES: Record<MatchGroup, RowGroup['tone']> = {
+  same_item: 'same', works_instead: 'instead', looser_match: 'other', outside: 'other',
+};
+
+// The cart's pick on its own, and the other rows in rank order under their groups: pantry's
+// (named by its group_label when it gives one) when the rows have them, else the old tiers.
+// Groups with no rows are left out.
+export function rowGroups(r: AlternativeRanking): { current: RankedAlternative | null; groups: RowGroup[];
+  byMeaning: boolean } {
+  const current = r.items.find((it) => it.current) ?? null;
   const rest = r.items.filter((it) => !it.current).sort((a, b) => a.rank - b.rank);
-  return {
-    current: r.items.find((it) => it.current) ?? null,
-    same: rest.filter((it) => it.tier === 'same'),
-    other: rest.filter((it) => it.tier !== 'same'),
-  };
+  const byMeaning = r.items.some((it) => it.group != null);
+  const groups: RowGroup[] = byMeaning
+    ? GROUP_ORDER.map((g) => {
+      const items = rest.filter((it) => (it.group ?? 'outside') === g);
+      const label = items.find((it) => it.group_label?.trim())?.group_label?.trim() ?? GROUP_LABELS[g];
+      return { key: g, label, tone: TONES[g], items };
+    })
+    : [{ key: 'same', label: 'Same ingredient', tone: 'same', items: rest.filter((it) => it.tier === 'same') },
+      { key: 'other', label: 'Not the same ingredient', tone: 'other', items: rest.filter((it) => it.tier !== 'same') }];
+  return { current, groups: groups.filter((g) => g.items.length > 0), byMeaning };
+}
+
+// The note under the dialog's heading: matched by meaning, or by words while the meaning model
+// is off, with pantry's own why (its note's "Matched by words:" is not said twice). null from an
+// older pantry, which does not say.
+export function matchingNote(r: AlternativeRanking): { mode: 'meaning' | 'words'; text: string } | null {
+  if (r.matching === 'meaning') return { mode: 'meaning', text: 'Matched by meaning' };
+  if (r.matching !== 'words') return null;
+  const why = (r.matching_note ?? '').trim().replace(/^matched by words[:.]?\s*/i, '');
+  const more = why ? ` ${why.charAt(0).toUpperCase()}${why.slice(1)}` : '';
+  return { mode: 'words', text: `Matched by words: the meaning model is off.${more}` };
+}
+
+// What a hard rule keeps out, each with why in words: pantry's text, else from its reason.
+export function notOffered(r: AlternativeRanking): { item: FilteredProduct; text: string }[] {
+  return (r.filtered ?? []).map((item) => {
+    const tags = item.tags.length ? item.tags.join(', ') : '';
+    const fallback = item.why === 'adds_tags' ? `adds ${tags || 'something your product does not have'}`
+      : item.why === 'diet' ? `breaks your diet${tags ? ` (${tags})` : ''}` : 'outside your plan’s rules';
+    return { item, text: item.text.trim() || fallback };
+  });
 }
 
 export const reasonOf = (item: RankedAlternative, code: string): AltReason | undefined =>
@@ -98,6 +148,13 @@ export const reasonOf = (item: RankedAlternative, code: string): AltReason | und
 // shoppers say (rating). Price and trip have their own lines; every reason is under "All reasons".
 export const chipReasons = (item: RankedAlternative): AltReason[] =>
   ['match', 'origin', 'rating'].flatMap((code) => reasonOf(item, code) ?? []);
+
+// A row's reasons line: pantry's one-line summary when it gives one (then no chips), else the
+// chips.
+export function reasonsLine(item: RankedAlternative): { summary: string | null; chips: AltReason[] } {
+  const summary = item.summary?.trim() || null;
+  return { summary, chips: summary ? [] : chipReasons(item) };
+}
 
 // What a pack costs the cart if the shopper chooses the row: the price where the row's trip buys
 // it (pantry's buys_at), which is what the re-priced cart charges, or the offer's when the trip
