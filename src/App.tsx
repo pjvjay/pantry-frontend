@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getHealth } from './api';
 import { getRuntime } from './hub';
 import type { Health, RuntimeSettings } from './types';
+import { CONSOLE_BUILT_AT, CONSOLE_REVISION, CONSOLE_VERSION, UNKNOWN, type BuildVersion } from './version';
 import AssistantView from './views/AssistantView';
 import CatalogView from './views/CatalogView';
 import McpView from './views/McpView';
@@ -35,8 +36,29 @@ function readHash(): { tab: Tab; product: number | null } {
   return { tab, product: product ? Number(product) : null };
 }
 
+// Which releases are running: this console's (baked in at build time) and the API's (/health).
+// A side that cannot say reads 'unknown'; when neither can, one muted chip says so.
+function VersionChip({ health }: { health: Health | null }) {
+  const api = health ? (health.version ?? UNKNOWN) : null;   // null while connecting
+  const detail = (version: string, revision?: string | null, builtAt?: string | null) =>
+    `${version}${revision ? ` @ ${revision.slice(0, 7)}` : ''}${builtAt ? `, built ${builtAt}` : ''}`;
+  const title = `console ${detail(CONSOLE_VERSION, CONSOLE_REVISION, CONSOLE_BUILT_AT)} · ` +
+    (api === null ? 'api: connecting' : `api ${detail(api, health?.revision, health?.build?.built_at)}`);
+  if (CONSOLE_VERSION === UNKNOWN && (api === null || api === UNKNOWN)) {
+    return <span className="chip chip-muted" title={title}>version unknown</span>;
+  }
+  return <span className="chip" title={title}>console {CONSOLE_VERSION} · api {api ?? '…'}</span>;
+}
+
 function HealthChips({ health, runtime }: { health: Health | null; runtime: RuntimeSettings | null }) {
-  if (!health) return <span className="chip chip-muted">api: connecting…</span>;
+  if (!health) {
+    return (
+      <span className="health-chips">
+        <span className="chip chip-muted">api: connecting…</span>
+        <VersionChip health={null} />
+      </span>
+    );
+  }
   const demo = runtime ? runtime.demo_mode : health.demo_mode;
   return (
     <span className="health-chips">
@@ -52,18 +74,21 @@ function HealthChips({ health, runtime }: { health: Health | null; runtime: Runt
           planner: {runtime?.models.selector_default ?? health.default_model}
         </span>
       )}
+      <VersionChip health={health} />
     </span>
   );
 }
 
 // The bundle this page runs. After a rebuild, an open tab keeps running the old code until it is
-// reloaded, so the page compares this with the bundle the hub now serves and offers a reload.
+// reloaded, so the page compares this with the bundle the hub now serves and offers a reload,
+// naming the served build's version when its dist/version.json says one.
 const BUNDLE_RE = /\/assets\/index-[\w-]+\.js/;
 const BUNDLE = BUNDLE_RE.exec(
   document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/"]')?.src ?? '')?.[0] ?? '';
 
 function useNewBuild() {
-  const [stale, setStale] = useState(false);
+  // null while this tab runs the served build; else the served build's version, if it says one.
+  const [stale, setStale] = useState<{ served: string | null } | null>(null);
   useEffect(() => {
     if (!BUNDLE) return;   // the Vite dev server reloads by itself
     const check = () => {
@@ -71,7 +96,14 @@ function useNewBuild() {
         .then((r) => r.text())
         .then((page) => {
           const served = BUNDLE_RE.exec(page)?.[0];
-          if (served && served !== BUNDLE) setStale(true);
+          if (!served || served === BUNDLE) return;
+          return fetch(`${import.meta.env.BASE_URL}version.json`, { cache: 'no-store' })
+            .then((r) => (r.ok ? (r.json() as Promise<BuildVersion>) : null))
+            .catch(() => null)
+            .then((build) => {
+              const version = build && build.version !== UNKNOWN ? build.version : null;
+              setStale((prev) => (prev && prev.served === version ? prev : { served: version }));
+            });
         })
         .catch(() => undefined);
     };
@@ -125,7 +157,8 @@ export default function App() {
       </nav>
       {stale && (
         <div className="banner banner-update">
-          A newer build of this console is being served; this tab is still running the old one.{' '}
+          A newer build of this console{stale.served ? ` (${stale.served})` : ''} is being served; this
+          tab is still running {CONSOLE_VERSION === UNKNOWN ? 'the old one' : CONSOLE_VERSION}.{' '}
           <button className="mini" onClick={() => window.location.reload()}>Reload</button>
         </div>
       )}
