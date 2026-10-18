@@ -15,6 +15,8 @@ export default defineConfig({
         target: 'http://localhost:8000',
         rewrite: (path) => path.replace(/^\/pantry\/api/, ''),
       },
+      // The demo hub (pantry-platform/demo-hub): MCP explorer, Assistant, simulations, status.
+      '/hub': { target: 'http://localhost:8090' },
     },
   },
 });
