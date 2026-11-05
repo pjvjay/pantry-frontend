@@ -1,0 +1,296 @@
+// A plan as a shopping cart: what to pick up at each store, what it costs, and what could not go
+// in the cart with the swaps the planner found. The tool's JSON stays in its step above.
+import { createContext, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
+import { cartLineKey, isPinned, lineNotes, optionsLabel } from '../alternatives';
+import type { CartLine, CartSummary, LeftOut } from '../types';
+import { IngredientImage } from './flow';
+
+// What a swap button does: put a request in the message box, for the shopper to send or edit.
+export const AskContext = createContext<(text: string) => void>(() => {});
+
+// What a cart line can open: its Options (components/alternatives.tsx). Provided by the
+// Assistant for carts whose plan the hub holds; a line is a button only when the card has a ref
+// and this exists, so a cart from an older hub, or anywhere else, is drawn as before. `busy`
+// while a swap is being made, when a second one would be refused.
+export const CartActions = createContext<{
+  open: (ref: number, line: CartLine, pinned: boolean) => void;
+  busy: boolean;
+} | null>(null);
+
+// Copy a list; false when the browser would not. With no clipboard API (a plain-http host, or
+// a browser that refuses it) the older copy command still works from a selected text box in
+// most browsers. The box goes inside an open dialog when there is one: a modal dialog makes
+// the rest of the page inert, and an inert box cannot be selected.
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.setAttribute('readonly', '');
+    box.className = 'sr-only';
+    (document.querySelector('dialog[open]') ?? document.body).appendChild(box);
+    box.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {
+      ok = false;
+    }
+    box.remove();
+    return ok;
+  }
+}
+
+const money = (v: number | null | undefined) => (typeof v === 'number' ? `$${v.toFixed(2)}` : '–');
+const stem = (w: string) => w.replace(/(es|s)$/, '');
+const words = (s: string) => (s.toLowerCase().match(/[a-z]+/g) ?? []).map(stem);
+
+// The ingredient is worth a line only when the product's name does not already say it
+// ("Penne" for Penne Rigate 500g says nothing; "Mozzarella" for Pizza Cheese would).
+const namesIngredient = (l: CartLine) => {
+  const product = new Set(words(l.product));
+  return words(l.ingredient).every((w) => product.has(w));
+};
+const storeOf = (l: CartLine) => l.trip_store || l.store || 'Store not chosen';
+const priceOf = (l: CartLine) => (l.trip_store ? l.trip_price ?? l.price : l.price);
+
+// floor: some line's price is unknown, so the subtotal is only what is known. known: some
+// line's price is known; with none, the subtotal is not a price at all.
+type Group = { store: string; lines: CartLine[]; subtotal: number; floor: boolean; known: boolean };
+
+const priced = (l: CartLine) => typeof priceOf(l) === 'number';
+
+// "$12.40", "at least $12.40", or "price unknown" when no price in it is known: a sum of
+// nothing is not $0.00.
+const costText = (v: number | null | undefined, floor: boolean, known: boolean) =>
+  (floor && !known ? 'price unknown' : `${floor ? 'at least ' : ''}${money(v)}`);
+
+// Lines by the store the trip buys them at, in the trip's order.
+function byStore(lines: CartLine[], order: string[]): Group[] {
+  const groups = new Map<string, CartLine[]>();
+  for (const l of lines) groups.set(storeOf(l), [...(groups.get(storeOf(l)) ?? []), l]);
+  const rank = (s: string) => (order.includes(s) ? order.indexOf(s) : order.length);
+  return [...groups.entries()]
+    .sort(([a], [b]) => rank(a) - rank(b))
+    .map(([store, ls]) => ({ store, lines: ls, subtotal: ls.reduce((t, l) => t + (priceOf(l) ?? 0), 0),
+      floor: ls.some((l) => !priced(l)), known: ls.some(priced) }));
+}
+
+const SWAP = 'still available, not a direct match: ';
+const EXCLUDED = /^(.*) \((\$[\d.]+)\) — (.+?) via \S+$/;
+type Swap = { name: string; price: string; origin?: string };
+
+// pantry's suggestions for a left-out ingredient: swaps the plan still allows, and the excluded
+// products the shopper could allow back.
+function optionsOf(d: LeftOut): { swaps: Swap[]; back: string[] } {
+  const swaps: Swap[] = [];
+  const back: string[] = [];
+  for (const s of d.suggestions ?? []) {
+    if (s.startsWith(SWAP)) {
+      const rest = s.slice(SWAP.length);
+      const m = /^(.*) \((\$[\d.]+)(?:, (.+))?\)$/.exec(rest);
+      swaps.push(m ? { name: m[1], price: m[2], origin: m[3] } : { name: rest, price: '' });
+    } else {
+      const m = EXCLUDED.exec(s);
+      if (m) back.push(`${m[1]} (${m[2]}, ${m[3]})`);
+    }
+  }
+  return { swaps, back };
+}
+
+type LeftKind = 'not_stocked' | 'out_of_range' | 'skipped';
+
+function why(d: LeftOut, kind: LeftKind): string {
+  const excluded = /coming from (.+), which this plan excludes/.exec(d.reason ?? '');
+  if (excluded) return `only from ${excluded[1]} at these stores, which you left out`;
+  if (kind === 'not_stocked') return 'not sold at these stores';
+  return d.reason || kind.replace('_', ' ');
+}
+
+function listText(summary: CartSummary, groups: Group[], totalText: string): string {
+  const out = [`${summary.recipe_name ?? 'Shopping list'} — ${totalText}`];
+  for (const g of groups) {
+    out.push('', g.store);
+    for (const l of g.lines) {
+      const packs = (l.packs ?? 1) > 1 ? ` ×${l.packs}` : '';
+      out.push(`- ${l.product}${packs} — ${money(priceOf(l))}`);
+    }
+  }
+  return out.join('\n');
+}
+
+// copyButton: false when the caller offers Copy list itself (a meal-plan trip sheet, whose
+// footer copies the list pantry-api builds, beside Print list), so one dialog has one Copy.
+export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
+  summary: CartSummary;
+  // the hub's ref for the plan behind the card, and the lines the shopper chose the product for
+  cardRef?: number;
+  pinned?: number[];
+  copyButton?: boolean;
+}) {
+  const ask = useContext(AskContext);
+  const actions = useContext(CartActions);
+  const [got, setGot] = useState<Set<string>>(() => new Set());
+  const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const lines = summary.lines ?? [];
+  const trip = summary.trip ?? null;
+  const groups = byStore(lines, trip?.stores ?? []);
+  const items = groups.reduce((t, g) => t + g.subtotal, 0);
+  const total = trip ? trip.total_cost : summary.total_cost;
+  const floor = Boolean(summary.total_is_floor) || groups.some((g) => g.floor);
+  const known = groups.some((g) => g.known);
+  const left: [LeftOut, LeftKind][] = [
+    ...(summary.not_stocked ?? []).map((d) => [d, 'not_stocked'] as [LeftOut, LeftKind]),
+    ...(summary.out_of_range ?? []).map((d) => [d, 'out_of_range'] as [LeftOut, LeftKind]),
+    ...(summary.skipped ?? []).map((d) => [d, 'skipped'] as [LeftOut, LeftKind]),
+  ];
+  const originAsked = !!summary.origin_status && summary.origin_status !== 'not_requested';
+  const share = summary.coverage?.spend_fraction;
+  const toggle = (key: string) => setGot((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+  // A line the shopper can open Options for is one button (name, notes and "Options"); the
+  // basket checkbox and the price stay outside it. Its aria-label repeats the notes, since a
+  // screen reader reads a button's name and not what is drawn inside it.
+  const wrap = (l: CartLine, mine: boolean, body: ReactNode) => {
+    if (!actions || cardRef == null || l.line_no == null) return body;
+    const lineNo = l.line_no;
+    return (
+      <button type="button" className="cart-item-open" aria-haspopup="dialog"
+              aria-label={optionsLabel(l, mine, originAsked)}
+              data-cart-line={cartLineKey(cardRef, lineNo)}
+              aria-disabled={actions.busy || undefined}
+              onClick={() => { if (!actions.busy) actions.open(cardRef, l, mine); }}>
+        {body}
+        <span className="cart-item-more" aria-hidden="true">Options ›</span>
+      </button>
+    );
+  };
+  const copy = async () => {
+    const ok = await copyText(listText(summary, groups, costText(total, floor, known)));
+    setCopied(ok ? 'copied' : 'failed');
+    window.setTimeout(() => setCopied('idle'), 2000);
+  };
+
+  return (
+    <section className="cart" aria-label={`Shopping cart: ${summary.recipe_name ?? 'plan'}`}>
+      <div className="cart-head">
+        <div>
+          <div className="cart-title">{summary.recipe_name ?? 'Your cart'}</div>
+          <div className="muted">
+            {lines.length} item{lines.length === 1 ? '' : 's'} · {groups.length} store{groups.length === 1 ? '' : 's'}
+            {got.size > 0 && ` · ${got.size} in the basket`}
+          </div>
+        </div>
+        <div className={`cart-total${floor && !known ? ' cart-total-unknown' : ''}`}>{costText(total, floor, known)}</div>
+      </div>
+      {originAsked && share != null && (
+        <div className={`cart-origin ${summary.origin_status === 'verified' ? 'cart-origin-ok' : 'cart-origin-warn'}`}>
+          {summary.origin_status === 'verified' ? '✓ ' : ''}Origin checked for {Math.round(share * 100)}% of what you spend
+        </div>
+      )}
+
+      {groups.map((g) => (
+        <div className="cart-store" key={g.store}>
+          <div className="cart-store-head">
+            <span>{g.store}</span><span>{costText(g.subtotal, g.floor, g.known)}</span>
+          </div>
+          <ul className="cart-items">
+            {g.lines.map((l) => {
+              // A meal-plan trip can list one product twice, for the fridge and the freezer.
+              const key = `${l.product_id ?? l.product}${l.storage ? `:${l.storage}` : ''}`;
+              const done = got.has(key);
+              const mine = isPinned(l, pinned);
+              return (
+                <li key={key} className={`cart-item${done ? ' cart-item-done' : ''}`}>
+                  <input type="checkbox" checked={done} onChange={() => toggle(key)}
+                         aria-label={`${l.product}${l.storage ? ` (${l.storage})` : ''}: in the basket`} />
+                  <IngredientImage name={l.ingredient} size={36} />
+                  {wrap(l, mine, <span className="cart-item-body">
+                    <span className="cart-item-name">
+                      {l.product}{(l.packs ?? 1) > 1 && <span className="muted"> ×{l.packs}</span>}
+                    </span>
+                    <span className="cart-item-meta">
+                      {mine && <span className="cart-mine">Changed by you</span>}
+                      {!namesIngredient(l) && <span>for {l.ingredient}</span>}
+                      {lineNotes(l, originAsked).map((n) => (
+                        <span key={n.text} className={n.flag ? 'cart-flag' : undefined} title={n.title}>
+                          {n.text}
+                        </span>
+                      ))}
+                    </span>
+                  </span>)}
+                  <div className="cart-item-price">{money(priceOf(l))}</div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+
+      {left.length > 0 && (
+        <div className="cart-left">
+          <div className="cart-store-head"><span>Not in your cart</span></div>
+          {left.map(([d, kind]) => {
+            const { swaps, back } = optionsOf(d);
+            return (
+              <div className="cart-left-item" key={d.ingredient}>
+                <div><strong>{d.ingredient}</strong> <span className="muted">— {why(d, kind)}</span></div>
+                {(swaps.length > 0 || back.length > 0) && (
+                  <div className="cart-swaps">
+                    {swaps.map((s) => (
+                      <button key={s.name} type="button" className="cart-swap"
+                              title="Puts this request in the message box"
+                              onClick={() => ask(`Use ${s.name} instead of ${d.ingredient} and update the plan.`)}>
+                        Swap for {s.name}{s.price && ` · ${s.price}`}{s.origin && ` · ${s.origin}`}
+                      </button>
+                    ))}
+                    {back.length > 0 && <span className="muted">or allow {back.join(', ')}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="cart-foot">
+        <div className="cart-sums">
+          {trip ? (
+            <>
+              <span>Items {costText(trip.basket_cost ?? items, floor, known)}</span>
+              {trip.travel_cost != null && <span>Travel {money(trip.travel_cost)}</span>}
+            </>
+          ) : <span className="muted">each item at its cheapest store nearby; no trip chosen</span>}
+          <strong>Total {costText(total, floor, known)}</strong>
+        </div>
+        {copyButton && (
+          <button type="button" className="secondary" onClick={() => void copy()}>
+            {copied === 'copied' ? 'Copied' : copied === 'failed' ? 'Copy failed' : 'Copy list'}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// A plan tool's result in its step: one line, since the cart is drawn under the answer.
+export function PlanStrip({ summary }: { summary: CartSummary }) {
+  const n = summary.lines?.length ?? 0;
+  const left = (summary.not_stocked?.length ?? 0) + (summary.out_of_range?.length ?? 0)
+    + (summary.skipped?.length ?? 0);
+  const trip = summary.trip;
+  return (
+    <div className="plan-strip muted">
+      planned {summary.recipe_name ?? 'a recipe'}: {n} item{n === 1 ? '' : 's'},{' '}
+      {money(trip ? trip.total_cost : summary.total_cost)}
+      {trip && ` at ${trip.stores.join(' and ')}`}
+      {left > 0 && `, ${left} left out`}
+    </div>
+  );
+}
