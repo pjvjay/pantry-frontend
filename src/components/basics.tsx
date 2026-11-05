@@ -21,7 +21,7 @@ import {
 } from '../mealplan/basics';
 import { addDays, dayLabel } from '../mealplan/dates';
 import {
-  AVOID_TAGS, DEFAULT_ALLIES, DIETS, DIET_LABELS, SETTING_RULES, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf,
+  AVOID_CHOICES, AVOID_LABELS, AVOID_TAGS, DEFAULT_ALLIES, DIETS, DIET_LABELS, SETTING_RULES, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf,
   readNumber,
 } from '../mealplan/model';
 import type { NumberRule, Slot } from '../mealplan/model';
@@ -214,12 +214,14 @@ function AvoidCard() {
   const head = useId();
   const avoid = avoidOf(mp.state.draft.prefs);
   return (
-    <FormCard icon="ban" title="Leave out" help="Recipes with any of these are hidden too." headId={head}>
+    <FormCard icon="ban" title="Leave out"
+              help="Health Canada's priority allergens, with gluten and sulphites. Recipes with any of these are hidden, and Options never offers a product that has one."
+              headId={head}>
       <div className="chips" role="group" aria-labelledby={head}>
-        {AVOID_TAGS.map((t) => (
+        {AVOID_TAGS.filter((t) => AVOID_CHOICES.includes(t) || avoid.includes(t)).map((t) => (
           <ToggleChip key={t} checked={avoid.includes(t)}
                       onChange={() => mp.dispatch({ type: 'setPrefs', prefs: { avoid: toggle(avoid, t) } })}>
-            {t}
+            {AVOID_LABELS[t]}
           </ToggleChip>
         ))}
       </div>
