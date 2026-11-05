@@ -55,6 +55,8 @@ export interface RecipeSource {
   extractor?: string | null;
   model?: string | null;
   label?: string | null;           // e.g. "demo recipe"
+  // the page's preview image or the video's thumbnail, as the import read it (absent before)
+  image_url?: string | null;
 }
 
 export interface RecipeDoc {
@@ -443,6 +445,17 @@ export interface HeldBack {
   demo: boolean;
 }
 
+// A product for a meal plan line that cannot be chosen as the plan stands: sold only at stores
+// the shopper turned off, only beyond the plan's distance, or at no store at all. stores: where
+// it is sold; nearest: the closest of those offers (null when none).
+export interface OutOfReachRow {
+  product_id: number;
+  product: string;
+  why: 'stores_off' | 'out_of_range' | 'not_stocked';
+  stores: string[];
+  nearest: { store: string; price: number; distance_km: number | null } | null;
+}
+
 export interface AlternativeRanking {
   line_no: number;
   lines: number[];                 // every recipe line the purchase covers
@@ -457,6 +470,7 @@ export interface AlternativeRanking {
   ranking_text: string;
   items: RankedAlternative[];      // the first `limit` rows, plus the cart's pick wherever it ranks
   held_back: HeldBack[];
+  out_of_reach?: OutOfReachRow[];  // a meal plan line's (line mode); absent otherwise
   total: number;                   // every ranked row
   unavailable: number;             // matching products with no offer in range
   counts: { exact: number; no_new_stop: number; preferred_origin: number; says_organic: number;
@@ -643,6 +657,10 @@ export interface HubStatus {
   // descriptions (it has a YouTube key), and whether Gemini may watch a video
   recipe_import?: { links: boolean; youtube_description: boolean; reason?: string };
   video_import?: VideoTranscribe;
+  // whether /hub/geocode answers (an older hub does not say: off)
+  geocoder?: boolean;
+  // whether /hub/tiles/{z}/{x}/{y}.png serves OpenStreetMap's tiles (absent: off)
+  tiles?: boolean;
 }
 
 export interface McpTarget {
@@ -1044,6 +1062,12 @@ export interface Meal {
   pinned: boolean;
 }
 
+// A diet the plan's recipes keep to, and the contains-tags the shopper avoids (the products'
+// own tags). A plan saved before the wizard has neither, nor a budget: read them as 'any', none
+// and no budget.
+export type Diet = 'any' | 'pescatarian' | 'vegetarian' | 'vegan';
+export type AvoidTag = 'dairy' | 'gluten' | 'nuts' | 'soy' | 'egg';
+
 export interface MealPrefs {
   household_servings: number;      // 1..20
   slots_on: MealSlot[];
@@ -1053,6 +1077,10 @@ export interface MealPrefs {
   thaw_reminder: 'evening_before' | 'morning_of';
   allow_freezer: boolean;
   strategy: TripStrategy;
+  // groceries for the whole period, 0 < budget <= 10000; null or absent: no budget
+  budget?: number | null;
+  diet?: Diet;
+  avoid?: AvoidTag[];
 }
 
 // One line of a trip as the shopper approved it; price is kept for the delta only.
@@ -1078,6 +1106,55 @@ export interface PlanSettings {
   // against them (absent: none)
   exclude_origin?: string[];
   preference?: string[];
+  // the shopper's own words for lat/lon (an address searched, "Your current location", an
+  // area's name), at most 200; only lat, lon and max_km decide what is in range
+  address?: string | null;
+  // stores the shopper turned off in Ingredients: catalog, basket, schedule and Options skip
+  // them; resolve does not, so turning one off or on never checks the products again
+  stores_off?: number[];
+}
+
+// A store near the shopper (POST /mealplan/stores): how far, whether the plan's distance takes
+// it in, whether the shopper turned it off, and how many of the plan's products it sells (null:
+// not known yet).
+export interface StoreChoice {
+  id: number;
+  name: string;
+  address: string;
+  distance_km: number | null;
+  in_range: boolean;
+  off: boolean;
+  sells: number | null;
+  // where it is, for the map (absent from an older API)
+  lat?: number | null;
+  lon?: number | null;
+}
+
+// synthetic: the stores are the demo's own, not real shops. origin: the point the distances are
+// measured from (the shopper's, or the demo's default); max_km: the distance in force (null: any).
+// All three are absent from an older API.
+export interface MealStores {
+  v: 1;
+  stores: StoreChoice[];
+  products_total: number;
+  synthetic?: boolean;
+  origin?: { lat: number; lon: number } | null;
+  max_km?: number | null;
+}
+
+// The demo hub's address search (GET /hub/geocode?q=…, OpenStreetMap's Nominatim): at most a
+// few places, and the attribution the source asks for. Refusals: 400 bad_query, 429
+// rate_limited, 502 geocoder_unavailable, 503 geocoder_off.
+export interface GeocodeResult {
+  label: string;
+  lat: number;
+  lon: number;
+}
+
+export interface GeocodeAnswer {
+  results: GeocodeResult[];
+  attribution: string;
+  source: string;
 }
 
 // The browser's plan, sent whole to /mealplan/schedule and /mealplan/suggest-cook-days.
@@ -1229,11 +1306,13 @@ export type RemedyOp =
   | { op: 'approve_trip'; date: string; strategy: TripStrategy }
   | { op: 'remove_meal'; meal_id: string };
 
-export type WarningLevel = 'must_fix' | 'decide' | 'note';
+export type WarningLevel = 'must_fix' | 'should_fix' | 'decide' | 'note';
 
 // must_fix: unplaced, fridge_window_exceeded, meal_before_trip, needs_servings,
-// no_longer_stocked. decide: needs_review, not_stocked, buy_ahead_exceeded, trip_cap_exceeded,
-// unresolved_recipe. note: amount_unknown, shelf_life_unknown, price_changed.
+// no_longer_stocked. should_fix: over_budget, a strategy's known total above prefs.budget
+// (remedies: the other strategy when it fits, or a budget that covers the total). decide:
+// needs_review, not_stocked, buy_ahead_exceeded, trip_cap_exceeded, unresolved_recipe. note:
+// amount_unknown, shelf_life_unknown, price_changed.
 export interface PlanWarning {
   level: WarningLevel;
   code: string;
@@ -1246,7 +1325,8 @@ export interface PlanWarning {
   recipe_key: string | null;
 }
 
-export type WarningCounts = Record<WarningLevel, number>;
+// should_fix is absent from an API before the wizard.
+export type WarningCounts = Record<Exclude<WarningLevel, 'should_fix'>, number> & { should_fix?: number };
 
 export interface StrategyResult {
   name: TripStrategy;
@@ -1394,19 +1474,44 @@ export interface ExportBlocked {
 export type CalendarInclude = 'trips' | 'cooks' | 'reminders';
 export type CalendarEventKind = 'trip' | 'cook' | 'freeze' | 'thaw';
 
+// When trips and cooks happen and the reminders on each kind of event, in minutes before the
+// event (0..40320, at most 3 a kind); an all-day event counts them from its midnight, as Google
+// does. trips or cooks null: all-day, as without timing. Absent, the export is all-day events
+// with no reminders, exactly as before.
+export interface CalendarEventTime {
+  start: string;                   // 'HH:MM', in `timezone`
+  minutes: number;
+  // cooks: a start for each meal slot planned (start is the dinner's); absent for trips
+  by_slot?: Partial<Record<MealSlot, string>>;
+}
+
+export interface CalendarTiming {
+  timezone: string;                // IANA, the browser's own
+  trips: CalendarEventTime | null;
+  cooks: CalendarEventTime | null;
+  reminders: Record<CalendarInclude, number[]>;
+}
+
 export interface CalendarExportRequest {
   schedule: ApprovedSchedule;
   include: CalendarInclude[];      // at least one
+  timing?: CalendarTiming;
 }
 
-// One all-day event; `end` is the day after (exclusive), as the .ics and Google both read it.
+// One event; `end` is the day after (exclusive) for an all-day one, as the .ics and Google both
+// read it. A timed one has its start and end times in `timezone`. The times and reminders are
+// absent from an API before the wizard.
 export interface CalendarEvent {
   uid: string;
   item_id: string;
   kind: CalendarEventKind;
   date: string;
   end: string;
-  all_day: true;
+  all_day: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+  timezone?: string | null;
+  reminders_min?: number[];
   title: string;
   location: string | null;
   description: string;
@@ -1418,7 +1523,7 @@ export interface CalendarEvent {
 
 export interface CalendarPreview {
   calendar_name: string;
-  all_day: true;
+  all_day: boolean;
   events: CalendarEvent[];
   counts: Record<CalendarEventKind, number>;
   filename: string;
@@ -1547,10 +1652,18 @@ export interface CoveredLine {
   pinned_product_id: number | null;
 }
 
+// Without trip_date (the wizard's Ingredients stage): the ranking for every line in the plan
+// that buys product_id, with no trip cost (each row's trip null, plan_total null).
+// A recipe line the plan buys nothing for (no product matches, or none can be bought) is asked
+// by `line` instead of product_id (exactly one): the answer then has product_id null, product ''
+// and stocked false, `lines` that line and the plan's other productless lines for the same
+// ingredient, the rows that can be chosen in ranking.items (never `current`), the ones the
+// origin rule holds back in ranking.held_back, and the ones out of reach in ranking.out_of_reach.
 export interface TripLineOptionsRequest {
   draft: MealPlanDraft;
-  trip_date: string;
-  product_id: number;
+  trip_date?: string;
+  product_id?: number;
+  line?: { recipe_key: string; line_no: number };
   strategy?: TripStrategy;
   limit?: number;                  // 1..25
 }
@@ -1559,9 +1672,9 @@ export interface TripLineOptions {
   v: 1;
   rev: number;
   strategy: TripStrategy;
-  trip_date: string;
-  product_id: number;
-  product: string;
+  trip_date?: string | null;       // null or absent: asked across the whole plan
+  product_id: number | null;       // null: asked by line, for a line with no product
+  product: string;                 // '' with no product
   stocked: boolean;
   pinned: boolean;
   lines: CoveredLine[];
@@ -1572,6 +1685,128 @@ export interface TripLineOptions {
 export interface ResolveResponse {
   resolved: ResolvedRecipe[];
   llm_cost_usd: number;
+  latency_ms: number;
+}
+
+// ─── the meal plan wizard (/mealplan/catalog, /mealplan/basket) ──
+// Deterministic, no model call, in demo mode and live alike.
+
+// Recipes to choose from, classified for the household's diet and avoid-tags. recipes: the
+// shopper's own docs, classified the same way when their lines allow it.
+export interface CatalogRequest {
+  household_servings: number;
+  diet: Diet;
+  avoid: AvoidTag[];
+  settings: PlanSettings;
+  slots?: MealSlot[];
+  recipes?: RecipeRef[];
+  pins?: Record<string, Record<string, number>>;   // the draft's: recipe_key -> {line_no: product_id}
+}
+
+// One ingredient of a catalog recipe, for pricing a selection in whole packs: the product the
+// plan would buy, one pack's price and size, and how much one meal for the household needs (in
+// the pack's unit). held_back: the only products nearby come from a country the plan leaves out.
+export interface CatalogLine {
+  ingredient: string;
+  product_id: number | null;
+  pack_price: number | null;
+  pack_qty: number | null;
+  pack_uom: string | null;
+  need_per_meal: number | null;
+  held_back: boolean;
+}
+
+// A recipe's picture as pantry-api names it: a Wikipedia article's lead image, or an image on
+// the web (a recipe page's own); null when it has none. The hub fetches either.
+export type RecipeImage = { kind: 'wiki'; title: string } | { kind: 'url'; url: string };
+
+// One recipe. fits false: hidden behind "n hidden by your diet", why_not saying why ("contains
+// meat", "contains dairy"). est_cost_per_meal: one meal for the household, each line's share of
+// its pack price (trips buy whole packs), null when nothing is priced. unavailable: ingredients
+// with no offer in range; held_back, those of them left out only by the origin rule. An excluded
+// product is never priced. lines and held_back are absent from an older API.
+export interface CatalogRecipe {
+  key: string;
+  ref: RecipeRef;
+  title: string;
+  slot: MealSlot;
+  diets: string[];                 // which of vegan, vegetarian, pescatarian it satisfies
+  contains: string[];
+  servings: number | null;
+  fits: boolean;
+  why_not: string | null;
+  est_cost_per_meal: number | null;
+  lines_total: number;
+  lines_priced: number;
+  unavailable: string[];
+  held_back?: string[];
+  lines?: CatalogLine[];
+  image?: RecipeImage | null;      // absent from an older API
+}
+
+export interface MealCatalog {
+  v: 1;
+  recipes: CatalogRecipe[];
+  est_basis: string;               // how the estimate is made, and that trips buy whole packs
+  latency_ms: number;
+}
+
+export interface BasketProduct {
+  id: number;
+  name: string;
+  size: string;
+  labels: string[];
+  says_organic: boolean;
+  demo_product: boolean;
+}
+
+export interface BasketOrigin {
+  country: string | null;
+  claim: string;                   // as the evidence says it: "From Thailand", "Made in Canada, …"
+
+  status: 'evidenced' | 'unknown' | 'conflicting';
+  preferred_rank: number | null;   // its place in the plan's preference order
+}
+
+// Why an ingredient cannot be bought: only products from an excluded country nearby, none
+// stocked, none within the distance, or only at stores the shopper turned off. Absent from an
+// older API.
+export type UnavailableKind = 'origin_excluded' | 'not_stocked' | 'out_of_range' | 'stores_off';
+
+// One ingredient of a recipe as the plan would buy it. price: one pack; cost_for_need: this
+// recipe's share over all its meals. shared_with: the other recipe keys buying the same product.
+export interface BasketLine {
+  line_no: number;
+  ingredient: string;
+  need: string;
+  product: BasketProduct | null;
+  store: { name: string; distance_km: number | null } | null;
+  price: number | null;
+  cost_for_need: number | null;
+  origin: BasketOrigin;
+  pinned: boolean;
+  shared_with: string[];
+  available: boolean;
+  why_unavailable: string | null;
+  unavailable_kind?: UnavailableKind | null;
+}
+
+export interface BasketRecipe {
+  key: string;
+  title: string;
+  status: string;                  // the recipe's resolve status
+  meals: number;
+  lines: BasketLine[];
+  image?: RecipeImage | null;      // absent from an older API
+}
+
+export interface MealBasket {
+  v: 1;
+  rev: number;
+  recipes: BasketRecipe[];
+  unavailable_count: number;
+  est_total: number | null;
+  budget: number | null;
   latency_ms: number;
 }
 

@@ -10,21 +10,29 @@
 //   - the keyboard: Enter or Space picks it up, Tab or the arrow keys reach a slot, Enter
 //     places, Escape cancels, Delete sends it back to the tray.
 // The decisions are in mealplan/dnd.ts and consequences.ts; this file draws them.
+//
+// The Shopping plan stage shows the trips alone as a week strip (WeekStrip): each day's Shop row
+// and how many meals are cooked that day. Its trips move the same ways, and a Move button picks
+// one up from the keyboard.
 import { useMemo } from 'react';
 import type { KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
 import { dayLabel } from '../mealplan/dates';
-import { costText, mealsByCell, shownSlots, tripChipText, tripLook, tripPriced, tripsByDate } from '../mealplan/board';
+import {
+  costText, mealCountText, mealsByCell, mealsByDay, shownSlots, tripChipText, tripLook, tripPriced, tripsByDate,
+} from '../mealplan/board';
 import { moveChoices } from '../mealplan/consequences';
 import type { MoveChoice } from '../mealplan/consequences';
 import { canDrop, keyIntent, keyMove, shopKey, slotLabel } from '../mealplan/dnd';
 import type { DragPayload } from '../mealplan/dnd';
+import type { PictureSource } from '../mealplan/images';
 import {
-  MAX_SERVINGS, SLOT_LABELS, approvedElsewhere, cellKey, parseCellKey, recipeTitle, weeksOf, windowOf,
+  SLOT_LABELS, approvedElsewhere, cellKey, parseCellKey, recipeTitle, weeksOf, windowOf,
 } from '../mealplan/model';
 import type { MealPlanState, PlanEdit, Slot } from '../mealplan/model';
 import type { Meal, MealSchedule, Trip, TripStrategy } from '../types';
 import { DayNutritionLine, MealEnergy, RecipeNutrition } from './nutrition';
+import { RecipePicture } from './pictures';
 import { Sheet } from './Sheet';
 import type { DragView } from './usePointerDrag';
 
@@ -43,6 +51,7 @@ export interface BoardCtl {
   openTrip: (trip: Trip) => void;
   atRisk: Set<string>;             // meals a must-fix warning names, under this strategy
   hideEmpty: boolean;
+  pictures?: Map<string, PictureSource | null>;   // each recipe's, for its cards (mealplan/images.ts)
 }
 
 const title = (ctl: BoardCtl, m: Meal) => recipeTitle(ctl.state, m.recipe_key);
@@ -127,7 +136,9 @@ export function DayCard({ ctl, date, slots, cells, trip, footer }: {
 
 // ─── Shop row and trip chips ─────────────────────────────────
 
-export function ShopRow({ ctl, date, trip }: { ctl: BoardCtl; date: string; trip: Trip | null }) {
+// keyMove: the trip chip has a Move button (the week strip), for picking it up from the keyboard.
+export function ShopRow({ ctl, date, trip, keyMove = false }: { ctl: BoardCtl; date: string; trip: Trip | null;
+  keyMove?: boolean }) {
   const d = ctl.state.draft;
   const key = shopKey(date);
   const p = moving(ctl);
@@ -137,7 +148,7 @@ export function ShopRow({ ctl, date, trip }: { ctl: BoardCtl; date: string; trip
     <div className="mp-shop" data-drop={key} data-target={target || undefined}
          data-over={ctl.drag?.over === key || undefined}>
       <span className="mp-row-k">Shop</span>
-      {trip && <TripChip ctl={ctl} trip={trip} />}
+      {trip && <TripChip ctl={ctl} trip={trip} keyMove={keyMove} />}
       {!trip && dismissed && <span className="muted mp-shop-none">no trip (you dismissed it)</span>}
       {target && ctl.held && (
         <button type="button" className="mp-slot-target" data-cell-shop={date} onClick={() => ctl.dropOn(key)}>
@@ -148,7 +159,7 @@ export function ShopRow({ ctl, date, trip }: { ctl: BoardCtl; date: string; trip
   );
 }
 
-export function TripChip({ ctl, trip }: { ctl: BoardCtl; trip: Trip }) {
+export function TripChip({ ctl, trip, keyMove = false }: { ctl: BoardCtl; trip: Trip; keyMove?: boolean }) {
   const elsewhere = approvedElsewhere(ctl.state.draft, trip.date, ctl.strategy);
   const look = tripLook(trip, elsewhere);
   const payload: DragPayload = { kind: 'trip', tripId: trip.id, date: trip.date };
@@ -166,6 +177,39 @@ export function TripChip({ ctl, trip }: { ctl: BoardCtl; trip: Trip }) {
           {trip.lines.length === 1 ? ' item' : ' items'}
         </span>
       </button>
+      {keyMove && movable && (
+        <button type="button" className="secondary mini mp-trip-move" aria-pressed={held}
+                aria-label={held ? `Put the trip on ${dayLabel(trip.date)} down` : `Move the trip on ${dayLabel(trip.date)}`}
+                onClick={() => ctl.pick(payload)}>
+          {held ? 'Moving…' : 'Move'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── The week strip ──────────────────────────────────────────
+
+// The plan's days in weeks, each with its Shop row (the trip, a drop target for another one) and
+// how many meals are cooked that day. One column a day on a wide screen, a row a day on a phone.
+export function WeekStrip({ ctl }: { ctl: BoardCtl }) {
+  const d = ctl.state.draft;
+  const trips = useMemo(() => tripsByDate(ctl.schedule?.strategies.find((s) => s.name === ctl.strategy)),
+    [ctl.schedule, ctl.strategy]);
+  const meals = useMemo(() => mealsByDay(d), [d]);
+  return (
+    <div className="mp-strip" role="group" aria-label="Trips by day">
+      {weeksOf(windowOf(d)).map((week, i) => (
+        <ol key={week[0]} className="mp-strip-week" aria-label={`Week ${i + 1}, from ${dayLabel(week[0])}`}>
+          {week.map((date) => (
+            <li key={date} className="mp-strip-day">
+              <span className="mp-strip-date">{dayLabel(date)}</span>
+              <ShopRow ctl={ctl} date={date} trip={trips.get(date) ?? null} keyMove />
+              <span className="muted mp-strip-meals">{mealCountText(meals.get(date) ?? 0)}</span>
+            </li>
+          ))}
+        </ol>
+      ))}
     </div>
   );
 }
@@ -206,9 +250,11 @@ export function MealChip({ ctl, meal, inTray = false }: { ctl: BoardCtl; meal: M
     }
   };
   const servings = meal.servings ? ` · serves ${meal.servings}` : '';
+  const slot = meal.slot ?? ctl.state.draft.recipes[meal.recipe_key]?.slot ?? 'dinner';
   return (
     <div className="mp-chip" data-meal={meal.id} data-held={held || undefined} data-risk={risk || undefined}>
       <span className="mp-grip" aria-hidden="true" title="Drag to move" {...ctl.grip({ kind: 'meal', mealId: meal.id })} />
+      <RecipePicture pic={ctl.pictures?.get(meal.recipe_key) ?? null} slot={slot} size="thumb" />
       <button type="button" className="mp-chip-main" aria-pressed={held} onKeyDown={onKeyDown}
               onClick={() => ctl.pick({ kind: 'meal', mealId: meal.id })}
               aria-label={`${t}${meal.date && meal.slot ? `, ${SLOT_LABELS[meal.slot]} ${dayLabel(meal.date)}` : ', in the tray'}`
@@ -291,8 +337,6 @@ export function MoveSheet({ ctl, mealId, onClose }: {
   }, [choices]);
   if (!meal) return null;
   const t = title(ctl, meal);
-  const household = ctl.state.draft.prefs.household_servings;
-  const servings = meal.servings ?? null;
   const go = (e: PlanEdit) => {
     dispatch(e);
     onClose();
@@ -305,24 +349,6 @@ export function MoveSheet({ ctl, mealId, onClose }: {
              <button type="button" className="danger" onClick={() => go({ type: 'remove', mealId: meal.id })}>Remove this meal</button>
            </>}>
       <div className="mp-move-opts">
-        {/* A group, not a label: a label hands its clicks to its first button, so pressing the
-            word or the number would take a person off the meal. */}
-        <div className="mp-stepper" role="group" aria-labelledby="mp-move-serves">
-          <span id="mp-move-serves">Serves</span>
-          <button type="button" className="secondary mini" aria-label="One person fewer"
-                  disabled={(servings ?? household) <= 1}
-                  onClick={() => dispatch({ type: 'setMealServings', mealId: meal.id, servings: Math.max(1, (servings ?? household) - 1) })}>−</button>
-          <output aria-live="polite">{servings ?? household}</output>
-          <button type="button" className="secondary mini" aria-label="One person more"
-                  disabled={(servings ?? household) >= MAX_SERVINGS}
-                  onClick={() => dispatch({ type: 'setMealServings', mealId: meal.id, servings: Math.min(MAX_SERVINGS, (servings ?? household) + 1) })}>+</button>
-          <span className="muted">{servings === null ? '(your household)' : '(this meal only)'}</span>
-          {servings !== null && (
-            <button type="button" className="linkish" onClick={() => dispatch({ type: 'setMealServings', mealId: meal.id, servings: null })}>
-              back to the household
-            </button>
-          )}
-        </div>
         {meal.date && (
           <label className="check">
             <input type="checkbox" checked={meal.pinned}

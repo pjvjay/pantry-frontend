@@ -8,8 +8,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  buyBy, moveChoices, moveConsequence, productNames, remedyLabel, remedyStep, tripMoveConsequence,
-  warningsFor,
+  buyBy, moveChoices, moveConsequence, productNames, productsText, remedyLabel, remedyStep, tripMoveConsequence,
+  warningRows, warningsFor,
 } from '../src/mealplan/consequences.ts';
 import type { MealSchedule, PlanWarning, RemedyOp } from '../src/types.ts';
 import { D, add, planWith, run } from './helpers/mealplan.ts';
@@ -105,9 +105,9 @@ const warning = (level: PlanWarning['level'], code: string, strategy: PlanWarnin
 test('warnings for a strategy include the plan-wide ones, most urgent first', () => {
   const sc = { ...real, warnings: [warning('note', 'shelf_life_unknown', null),
     warning('must_fix', 'fridge_window_exceeded', 'fewest_trips'), warning('decide', 'not_stocked', 'fresh'),
-    warning('must_fix', 'needs_servings', null)] };
+    warning('should_fix', 'over_budget', 'fresh'), warning('must_fix', 'needs_servings', null)] };
   assert.deepEqual(warningsFor(sc, 'fresh').map((w) => w.code),
-    ['needs_servings', 'not_stocked', 'shelf_life_unknown']);
+    ['needs_servings', 'over_budget', 'not_stocked', 'shelf_life_unknown']);
   assert.deepEqual(warningsFor(sc, 'fewest_trips').map((w) => w.code),
     ['fridge_window_exceeded', 'needs_servings', 'shelf_life_unknown']);
 });
@@ -168,6 +168,16 @@ test('"Make the plan two weeks" lengthens the plan from the same start', () => {
   assert.equal(remedyLabel({ op: 'set_pref', field: 'max_trips', value: 3 }, s, new Map()), 'Allow 3 trips');
 });
 
+test('over the budget: the remedies switch strategy, or make the budget cover the total', () => {
+  const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 2)), { type: 'setPrefs', prefs: { budget: 150 } });
+  const raise: RemedyOp = { op: 'set_pref', field: 'budget', value: 220 };
+  assert.equal(remedyLabel(raise, s, new Map()), 'Make the budget $220.00');
+  const r = remedyStep(raise, s);
+  assert.ok('edit' in r);
+  assert.equal(run(s, r.edit).draft.prefs.budget, 220);
+  assert.equal(remedyLabel({ op: 'set_strategy', strategy: 'fewest_trips' }, s, new Map()), 'Shop in fewest trips');
+});
+
 test('remedies read as buttons, with product and recipe names from the plan', () => {
   const s = planWith(7, add('chicken_biryani', 'Chicken Biryani', 1));
   const names = productNames(real);
@@ -180,4 +190,36 @@ test('remedies read as buttons, with product and recipe names from the plan', ()
     'Say how many Chicken Biryani serves');
   assert.equal(remedyLabel({ op: 'set_packs', date: D(1), product_id: 999, packs: 0 }, s, names),
     'Leave product 999 off this trip');
+});
+
+test('warnings that say the same thing one product at a time are one row listing the products', () => {
+  const names = new Map([[1, 'Fresh Ginger'], [2, 'Soy Sauce'], [3, 'Rice'], [4, 'Scallions'], [5, 'Eggs'],
+    [6, 'Sesame Oil']]);
+  const move: RemedyOp = { op: 'move_meal', meal_id: 'starter:congee#1', date: D(3), slot: 'breakfast' };
+  const before = (pid: number): PlanWarning => ({ level: 'must_fix', code: 'meal_before_trip',
+    message: `Ginger Congee on Mon 12 Oct needs ${names.get(pid)}, and no shopping day comes before it.`,
+    strategy: 'fresh', remedies: [move], meal_ids: ['starter:congee#1'], product_id: pid, trip_date: null,
+    recipe_key: null });
+  const other = { ...before(1), meal_ids: ['starter:pizza#1'], message: 'Pizza on Tue needs Fresh Ginger, and no shopping day comes before it.' };
+  const rows = warningRows([1, 2, 3, 4, 5, 6].map(before).concat([other]), names);
+  assert.equal(rows.length, 2, 'another meal is its own row');
+  assert.equal(rows[0].count, 6);
+  assert.deepEqual(rows[0].products, ['Fresh Ginger', 'Soy Sauce', 'Rice', 'Scallions', 'Eggs', 'Sesame Oil']);
+  assert.equal(rows[0].text,
+    'Ginger Congee on Mon 12 Oct needs Fresh Ginger, Soy Sauce and 4 more, and no shopping day comes before it.');
+  assert.deepEqual(rows[0].warning.remedies, [move], 'one set of buttons');
+  assert.equal(rows[1].text, other.message);
+  // different remedies are different rows
+  const twoWays = warningRows([before(1), { ...before(2), remedies: [] }], names);
+  assert.equal(twoWays.length, 2);
+  // sentences that differ in more than the product keep the first, and name the rest
+  const fridge = (pid: number, days: string): PlanWarning => ({ ...before(pid), code: 'fridge_window_exceeded',
+    message: `Ginger Congee on Mon 12 Oct: ${names.get(pid)} bought Fri is past its cited fridge time, ${days}.` });
+  assert.equal(warningRows([fridge(1, '1 to 2 days'), fridge(2, '3 to 5 days')], names)[0].text,
+    'Ginger Congee on Mon 12 Oct: Fresh Ginger bought Fri is past its cited fridge time, 1 to 2 days. The same for Soy Sauce.');
+  // plan-wide warnings, with no meal or product, are never merged
+  const wide = { ...before(1), meal_ids: [], product_id: null, message: 'x' };
+  assert.equal(warningRows([wide, wide], names).length, 2);
+  assert.equal(productsText(['A', 'B', 'C']), 'A, B and C');
+  assert.equal(productsText(['A']), 'A');
 });

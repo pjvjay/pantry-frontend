@@ -1,11 +1,12 @@
 // "Open in Meal plan" for the Planner's week of dinners: each dinner on its own day from the
-// plan's first day, as one undo step. A plan that already has meals is never replaced without
+// plan's first day, as one undo step, opened on the plan's Schedule stage. A plan that already has meals is never replaced without
 // asking: the shopper chooses a new plan or adding to the current one.
 import { useState } from 'react';
 
 import { weekEdit } from '../mealplan/board';
 import { todayIn } from '../mealplan/dates';
 import { useMealPlan } from '../mealplan/store';
+import { stepHash } from '../mealplan/wizard';
 import type { WeekPlan } from '../types';
 
 const newId = () => (typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
@@ -30,7 +31,7 @@ export function OpenInMealPlan({ week }: { week: WeekPlan }) {
       return;
     }
     mp.announce(out.said);
-    window.location.hash = '#/mealplan';
+    window.location.hash = stepHash(4);
   };
 
   if (asking) {

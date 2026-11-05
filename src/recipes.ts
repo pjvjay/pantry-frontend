@@ -236,10 +236,12 @@ export function docFromParsed(parsed: ParsedLines, o: { title?: string; yield_te
   };
 }
 
-// The source of a list the shopper pasted from a video: still their paste, linked to the video.
-export const pastedFromVideo = (video: Pick<ImportVideo, 'url' | 'title' | 'channel'>): RecipeSource => ({
+// The source of a list the shopper pasted from a video: still their paste, linked to the video,
+// with its thumbnail as the recipe's picture when the import had one.
+export const pastedFromVideo = (video: Pick<ImportVideo, 'url' | 'title' | 'channel' | 'thumbnail_url'>): RecipeSource => ({
   kind: 'pasted', method: 'paste', url: video.url, site: 'youtube.com',
   page_title: video.title.slice(0, 300) || null, channel: video.channel.slice(0, 200) || null,
+  ...(video.thumbnail_url ? { image_url: video.thumbnail_url } : {}),
 });
 
 // ─── what this deployment can import ─────────────────────────

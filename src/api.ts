@@ -2,8 +2,11 @@ import type {
   CalendarExportRequest,
   CalendarFile,
   CalendarPreview,
+  CatalogRequest,
   CookDaysProposal,
   Health,
+  MealBasket,
+  MealCatalog,
   MealPlanDraft,
   MealSchedule,
   MealStarter,
@@ -17,6 +20,7 @@ import type {
   SelectionParseRequest,
   SelectionParseResult,
   ShelfLife,
+  MealStores,
   ShoppingPlan,
   TripLineOptions,
   TripLineOptionsRequest,
@@ -136,7 +140,22 @@ export const parseSelection = (body: SelectionParseRequest, signal?: AbortSignal
 export const suggestCookDays = (draft: MealPlanDraft, signal?: AbortSignal) =>
   post<CookDaysProposal>('/mealplan/suggest-cook-days', draft, signal);
 
-// Options for one trip line: no LLM; one re-schedule per candidate, so slower than schedule.
+// The wizard's Meals and Ingredients stages: no LLM, deterministic, fast. The catalog classifies
+// every starter and library recipe (and the shopper's own) for a diet and estimates a meal's
+// cost; the basket shows each chosen recipe's ingredients as the plan would buy them.
+export const mealCatalog = (body: CatalogRequest, signal?: AbortSignal) =>
+  post<MealCatalog>('/mealplan/catalog', body, signal);
+
+export const mealBasket = (draft: MealPlanDraft, signal?: AbortSignal) =>
+  post<MealBasket>('/mealplan/basket', { draft }, signal);
+
+// The stores near the shopper for the Ingredients stage: distance, in range, turned off, and how
+// many of the plan's products each sells.
+export const mealStores = (draft: MealPlanDraft, signal?: AbortSignal) =>
+  post<MealStores>('/mealplan/stores', { draft }, signal);
+
+// Options for one trip line, or without trip_date for a product across the whole plan: no LLM;
+// one re-schedule per candidate, so slower than schedule.
 export const tripLineOptions = (body: TripLineOptionsRequest, signal?: AbortSignal) =>
   post<TripLineOptions>('/mealplan/alternatives', body, signal);
 

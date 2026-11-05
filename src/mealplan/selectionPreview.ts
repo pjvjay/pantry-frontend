@@ -44,19 +44,22 @@ const AUTO = new Set(['exact', 'plural']);
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-// "3 meals × 2 people": what a count means, said wherever a count is shown.
+// "3 meals", or "3 meals × 2 people" for a household of more than one: what a count means,
+// said wherever a count is shown. Every plan is for one person for now.
 export const countLine = (count: number, household: number): string =>
-  `${plural(count, 'meal', 'meals')} × ${plural(household, 'person', 'people')}`;
+  `${plural(count, 'meal', 'meals')}${household > 1 ? ` × ${plural(household, 'person', 'people')}` : ''}`;
 
 const SLOT_PLURAL: Record<Slot, [string, string]> = {
   breakfast: ['breakfast', 'breakfasts'], lunch: ['lunch', 'lunches'],
   dinner: ['dinner', 'dinners'], snack: ['snack', 'snacks'],
 };
 
-// "3 × Pepperoni Pizza = 3 dinners for 2 people", as the server words it.
+// "3 × Pepperoni Pizza = 3 dinners" ("… for 2 people" for a larger household), as the server
+// words it.
 export function meaningOf(count: number, title: string, slot: Slot | null, household: number): string {
   const [one, many] = SLOT_PLURAL[slot ?? 'dinner'];
-  return `${count} × ${title} = ${plural(count, one, many)} for ${plural(household, 'person', 'people')}`;
+  return `${count} × ${title} = ${plural(count, one, many)}`
+    + `${household > 1 ? ` for ${plural(household, 'person', 'people')}` : ''}`;
 }
 
 export function buildPreview(result: SelectionParseResult, household: number): Preview {

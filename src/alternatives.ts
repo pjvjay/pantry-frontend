@@ -8,6 +8,14 @@ import type {
   AlternativeRanking, AltReason, CartLine, CartSummary, PlanCardData, RankedAlternative,
 } from './types.ts';
 
+// A product's name with its size, unless the name already says it: "Jasmine Rice 2kg", never
+// "Jasmine Rice 2kg 2kg". Case and spaces are ignored ("500 ml" is in "Soy Sauce 500ml").
+const squash = (t: string) => t.toLowerCase().replace(/\s+/g, '');
+export const sizeInName = (name: string, size: string | null | undefined): boolean =>
+  !size || squash(name).includes(squash(size));
+export const nameWithSize = (name: string, size: string | null | undefined): string =>
+  (sizeInName(name, size) ? name : `${name} ${size}`);
+
 export const money = (v: number | null | undefined) =>
   (typeof v === 'number' && Number.isFinite(v) ? `$${v.toFixed(2)}` : 'price unknown');
 

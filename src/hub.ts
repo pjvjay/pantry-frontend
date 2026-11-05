@@ -10,6 +10,7 @@ import type {
   CalendarDisconnectResult,
   CalendarSyncRequest,
   CalendarSyncStatus,
+  GeocodeAnswer,
   HubStatus,
   ImportResult,
   McpCatalog,
@@ -120,6 +121,11 @@ export const setRuntime = (patch: Partial<Pick<RuntimeSettings, 'demo_mode' | 'm
 // ─── hub ──────────────────────────────────────────────────────
 
 export const getStatus = () => json<HubStatus>(`${HUB}/status`);
+
+// An address to places (OpenStreetMap through the hub). Only ever on the shopper's search, never
+// as they type: Nominatim's policy forbids autocomplete.
+export const geocode = (q: string, signal?: AbortSignal) =>
+  json<GeocodeAnswer>(`${HUB}/geocode?q=${encodeURIComponent(q)}`, { signal });
 export const resetDemo = () => json<{ ok: boolean; output: string }>(`${HUB}/demo/reset`,
   { method: 'POST' });
 
@@ -250,10 +256,16 @@ export const getMetrics = () => json<Metrics>(`${HUB}/metrics`);
 export const runDetail = (id: string) => json<RunDetail>(`${HUB}/runs/${encodeURIComponent(id)}`);
 
 // Pictures, fetched once by the hub and served from its cache: an ingredient's Wikipedia
-// thumbnail, and an image from a recipe page.
+// thumbnail, an image from a recipe page, and a Wikipedia article's lead image (404 when it has
+// none).
 export const ingredientImage = (name: string) =>
   `${HUB}/images/ingredient?name=${encodeURIComponent(name)}`;
 export const remoteImage = (url: string) => `${HUB}/images/remote?url=${encodeURIComponent(url)}`;
+export const wikiImage = (title: string) => `${HUB}/images/wiki?title=${encodeURIComponent(title)}`;
+
+// OpenStreetMap's map tiles through the hub (its cache, and the attribution and fair use the
+// tile policy asks for); 503 while the hub has them off (HubStatus.tiles).
+export const tileImage = (z: number, x: number, y: number) => `${HUB}/tiles/${z}/${x}/${y}.png`;
 
 export const simPresets = () =>
   json<{ presets: Record<string, { label: string; models: Record<string, string> }>;

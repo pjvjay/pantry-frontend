@@ -1,6 +1,6 @@
-// The meal plan's Shop band and what hangs off it: each trip as a sheet with its cart per store
-// and its list to copy or print, the warnings with their fixes, what the data covers, the
-// day-by-day actions, and the Suggest cook days proposal as a diff to apply or dismiss.
+// The meal plan's Shopping plan stage and what hangs off it: each trip as a sheet with its cart
+// per store and its list to copy or print, the warnings with their fixes, what the data covers,
+// the day-by-day actions, and the Suggest cook days proposal as a diff to apply or dismiss.
 //
 // Code suggests trips; only the shopper approves, moves or dismisses them. An approved trip is
 // never rewritten: when edits change what it should carry it reads "Changed since approved"
@@ -8,17 +8,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { sizeInName } from '../alternatives';
 import {
   costText, forMealsText, needText, packsText, priceDeltaText, shelfText, strategyOf, tripChipText, tripLook,
-  tripPriced, tripToCartSummary,
+  tripMoveDays, tripPriced, tripToCartSummary,
 } from '../mealplan/board';
-import { productNames, remedyLabel, remedyStep, tripMoveConsequence, warningsFor } from '../mealplan/consequences';
+import {
+  productNames, remedyLabel, remedyStep, tripMoveConsequence, warningRows, warningsFor,
+} from '../mealplan/consequences';
 import { dayLabel } from '../mealplan/dates';
 import { MAX_PACKS, STRATEGY_NAMES, approvedElsewhere, inWindow, windowDates, windowOf } from '../mealplan/model';
 import { tripLineKey, tripOptionsLabel } from '../mealplan/options';
 import { useMealPlan } from '../mealplan/store';
 import type {
-  MealSchedule, PlanAction, PlanCoverage, PlanWarning, RemedyOp, Trip, TripLine, WarningCounts,
+  MealSchedule, PlanAction, PlanCoverage, RemedyOp, Trip, TripLine, WarningCounts,
 } from '../types';
 import { CartCard, copyText } from './cart';
 import { SourceCredits } from './nutrition';
@@ -26,7 +29,7 @@ import { Sheet } from './Sheet';
 import { TripLineOptionsDialog } from './tripoptions';
 
 const counts = (c: WarningCounts) =>
-  [c.must_fix && `${c.must_fix} must fix`, c.decide && `${c.decide} to decide`,
+  [c.must_fix && `${c.must_fix} must fix`, c.should_fix && `${c.should_fix} should fix`, c.decide && `${c.decide} to decide`,
     c.note && `${c.note} ${c.note === 1 ? 'note' : 'notes'}`].filter(Boolean).join(', ') || 'no warnings';
 
 // ─── Trip sheet ──────────────────────────────────────────────
@@ -67,7 +70,7 @@ function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Tr
       <div className="mp-line-head">
         <strong>{ln.product.name}</strong>
         {ln.product.demo_product && <span className="chip chip-warn" title="A synthetic product added for the demo starters">demo</span>}
-        <span className="muted">{ln.product.unit_size}</span>
+        {!sizeInName(ln.product.name, ln.product.unit_size) && <span className="muted">{ln.product.unit_size}</span>}
         <span className="mp-line-price">
           {ln.price === null ? <span className="cart-flag">price unknown</span> : `$${ln.price.toFixed(2)}`}
           {ln.store && <span className="muted"> at {ln.store}</span>}
@@ -142,8 +145,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
     <TripLineOptionsDialog date={date} productId={options?.productId ?? null} productName={optionsName}
                            onClose={() => setOptions(null)} />
   );
-  const others = useMemo(() => windowDates(windowOf(d)).filter((x) => x !== date
-    && !d.trips.some((t) => t.date === x)), [d, date]);
+  const others = useMemo(() => (date ? tripMoveDays(d, date) : []), [d, date]);
   if (!date) return null;
   if (!trip) {
     return (
@@ -269,7 +271,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
 
 // ─── Warnings ────────────────────────────────────────────────
 
-const LEVEL_NAMES = { must_fix: 'Must fix', decide: 'To decide', note: 'Notes' } as const;
+const LEVEL_NAMES = { must_fix: 'Must fix', should_fix: 'Should fix', decide: 'To decide', note: 'Notes' } as const;
 
 export function WarningsPanel({ schedule, onAsk }: {
   schedule: MealSchedule;
@@ -281,9 +283,10 @@ export function WarningsPanel({ schedule, onAsk }: {
   const list = warningsFor(schedule, strategy);
   const names = productNames(schedule);
   if (!list.length) return <p className="muted">No warnings for this plan.</p>;
-  const groups = (['must_fix', 'decide', 'note'] as const)
-    .map((level) => [level, list.filter((w) => w.level === level)] as const)
-    .filter(([, ws]) => ws.length);
+  // one row for warnings that say the same thing, one product at a time
+  const groups = (['must_fix', 'should_fix', 'decide', 'note'] as const)
+    .map((level) => [level, warningRows(list.filter((w) => w.level === level), names)] as const)
+    .filter(([, rows]) => rows.length);
   const run = (op: RemedyOp) => {
     const r = remedyStep(op, mp.state);
     if ('edit' in r) mp.dispatch(r.edit);
@@ -291,13 +294,19 @@ export function WarningsPanel({ schedule, onAsk }: {
   };
   return (
     <div className="mp-warnings">
-      {groups.map(([level, ws]) => (
+      {groups.map(([level, rows]) => (
         <details key={level} open={level !== 'note'} className={`mp-warn-group mp-warn-${level}`}>
-          <summary>{level === 'must_fix' ? '⚠ ' : ''}{LEVEL_NAMES[level]} ({ws.length})</summary>
+          <summary>{level === 'must_fix' ? '⚠ ' : ''}{LEVEL_NAMES[level]} ({rows.length})</summary>
           <ul>
-            {ws.map((w: PlanWarning, i) => (
+            {rows.map(({ warning: w, text, products, count }, i) => (
               <li key={`${w.code}-${i}`}>
-                <span>{w.message}</span>
+                <span>{text}</span>
+                {count > 1 && products.length > 3 && (
+                  <details className="mp-warn-all">
+                    <summary>All {products.length} products</summary>
+                    {products.join(', ')}
+                  </details>
+                )}
                 {w.remedies.length > 0 && (
                   <span className="mp-remedies">
                     {w.remedies.map((op, j) => (
@@ -345,7 +354,28 @@ export function CoverageChips({ coverage }: { coverage: PlanCoverage }) {
   );
 }
 
-// ─── The Shop band ───────────────────────────────────────────
+// ─── The Shopping plan ───────────────────────────────────────
+
+// "Move to…" on a suggested trip's card: another day, then Move (moveTrip, as a drag makes it).
+function MoveTo({ date }: { date: string }) {
+  const mp = useMealPlan();
+  const [to, setTo] = useState('');
+  const days = tripMoveDays(mp.state.draft, date);
+  if (!days.length) return null;
+  return (
+    <span className="mp-move-to">
+      <label className="fc-field fc-inline">
+        <span className="fc-label">Move to</span>
+        <select className="fc-input fc-input-sm" value={to} onChange={(e) => setTo(e.target.value)}>
+          <option value="">a day…</option>
+          {days.map((x) => <option key={x} value={x}>{dayLabel(x)}</option>)}
+        </select>
+      </label>
+      <button type="button" className="secondary mini" disabled={!to} aria-label={`Move the trip on ${dayLabel(date)}`}
+              onClick={() => { mp.dispatch({ type: 'moveTrip', from: date, to }); setTo(''); }}>Move</button>
+    </span>
+  );
+}
 
 const KIND_MARK: Record<PlanAction['kind'], string> = { shop: '🛒', freeze: '❄', thaw: '↘', cook: '🍳' };
 
@@ -406,6 +436,7 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
                     </button>
                     <button type="button" className="secondary mini"
                             onClick={() => mp.dispatch({ type: 'dismissTrip', date: t.date })}>Dismiss</button>
+                    <MoveTo date={t.date} />
                   </>
                 ) : (
                   <>
@@ -445,15 +476,15 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
           ))}
         </p>
       )}
-      <div className="form-row">
-        <label>
-          Add a trip on
-          <select value={addOn} onChange={(e) => setAddOn(e.target.value)}>
+      <div className="fc-row mp-addtrip">
+        <label className="fc-field fc-inline">
+          <span className="fc-label">Add a trip on</span>
+          <select className="fc-input" value={addOn} onChange={(e) => setAddOn(e.target.value)}>
             <option value="">choose a day</option>
             {free.map((x) => <option key={x} value={x}>{dayLabel(x)}</option>)}
           </select>
         </label>
-        <button type="button" className="secondary" disabled={!addOn}
+        <button type="button" className="secondary mini" disabled={!addOn}
                 onClick={() => { mp.dispatch({ type: 'addTrip', date: addOn }); setAddOn(''); }}>Add trip</button>
       </div>
       {actionsByDate.length > 0 && (

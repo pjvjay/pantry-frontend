@@ -14,7 +14,7 @@ import {
 } from './model.ts';
 import type { MealPlanState, PlanEdit, Slot } from './model.ts';
 import type {
-  CartLine, CartSummary, Meal, MealSchedule, StrategyResult, Trip, TripLine, TripStrategy,
+  CartLine, CartSummary, Meal, MealPlanDraft, MealSchedule, StrategyResult, Trip, TripLine, TripStrategy,
 } from '../types.ts';
 
 export const money = (v: number): string => `$${v.toFixed(2)}`;
@@ -80,6 +80,20 @@ export const strategyOf = (sc: MealSchedule | null, name: TripStrategy): Strateg
 export function tripsByDate(st: StrategyResult | undefined): Map<CivilDate, Trip> {
   return new Map((st?.trips ?? []).map((t) => [t.date, t]));
 }
+
+// How many meals are cooked each day of the plan (the Shopping plan's week strip).
+export function mealsByDay(d: MealPlanDraft): Map<CivilDate, number> {
+  const out = new Map(windowDates(windowOf(d)).map((x) => [x, 0]));
+  for (const m of d.meals) if (m.date !== null && out.has(m.date)) out.set(m.date, (out.get(m.date) ?? 0) + 1);
+  return out;
+}
+
+// The days a suggested trip can move to: any other day of the plan with no approved trip on it
+// (the reducer refuses those), as moveTrip takes them.
+export const tripMoveDays = (d: MealPlanDraft, from: CivilDate): CivilDate[] =>
+  windowDates(windowOf(d)).filter((x) => x !== from && !d.trips.some((t) => t.date === x));
+
+export const mealCountText = (n: number): string => (n ? plural(n, 'meal', 'meals') : 'no meals');
 
 // elsewhere: the day is approved under the other strategy (model.approvedElsewhere), so this
 // strategy's list for it is not, and it neither moves nor is dismissed until that is settled.

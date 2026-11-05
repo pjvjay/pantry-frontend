@@ -58,6 +58,49 @@ test('a plan round-trips through the saved text under pantry.mealplan.v1', () =>
   assert.equal(back.available, true);
 });
 
+test('a plan saved before the wizard (no budget, diet, avoid-tags or skipped lines) still loads', () => {
+  const s = samplePlan();
+  const saved = JSON.parse(serialize(s, SAVED_AT));
+  delete saved.draft.prefs.budget;
+  delete saved.draft.prefs.diet;
+  delete saved.draft.prefs.avoid;
+  saved.draft.settings = {};
+  assert.equal('skipped' in saved, false, 'nothing skipped, nothing written');
+  const back = parsePlan(JSON.stringify(saved));
+  assert.equal(back.problem, null);
+  assert.equal(back.state?.draft.prefs.budget, undefined);
+  assert.deepEqual(back.state?.draft.settings, {});
+});
+
+test('skipped lines are saved, and lines of recipes no longer in the plan are forgotten', () => {
+  const s = run(samplePlan(),
+    { type: 'skipLine', recipeKey: 'starter:pepperoni_pizza', lineNo: 4, ingredient: 'Basil', skip: true });
+  const saved = JSON.parse(serialize(s, SAVED_AT));
+  assert.deepEqual(saved.skipped, ['starter:pepperoni_pizza|4']);
+  assert.deepEqual(parsePlan(JSON.stringify(saved)).state, s);
+  saved.skipped.push('starter:gone|2');
+  assert.deepEqual(parsePlan(JSON.stringify(saved)).state?.skipped, ['starter:pepperoni_pizza|4']);
+  saved.skipped = 'basil';
+  assert.match(parsePlan(JSON.stringify(saved)).problem ?? '', /skipped ingredients/);
+});
+
+test('a plan read back is for one person, and no meal keeps a head count of its own', () => {
+  const s = run(samplePlan(), { type: 'setPrefs', prefs: { household_servings: 4 } },
+    { type: 'setMealServings', mealId: 'starter:pepperoni_pizza#1', servings: 3 });
+  assert.equal(s.draft.prefs.household_servings, 4);
+  const back = parsePlan(serialize(s, SAVED_AT)).state;
+  assert.equal(back?.draft.prefs.household_servings, 1);
+  assert.ok(back?.draft.meals.every((m) => m.servings === undefined));
+  assert.deepEqual(back?.draft.meals.map((m) => m.id), s.draft.meals.map((m) => m.id));
+  // an import is read the same way
+  const store = memory({ [PLAN_KEY]: serialize(s, SAVED_AT) });
+  assert.equal(readPlan(store).state?.draft.prefs.household_servings, 1);
+  // a plan already for one person comes back as it was
+  const solo = samplePlan();
+  assert.equal(parsePlan(serialize(solo, SAVED_AT)).state?.draft.prefs.household_servings, 1);
+  assert.deepEqual(parsePlan(serialize(solo, SAVED_AT)).state, solo);
+});
+
 test('nothing saved yet is an empty start, not a problem', () => {
   assert.deepEqual(readPlan(memory()), { state: null, savedAt: null, problem: null, available: true,
     backedUp: false });
