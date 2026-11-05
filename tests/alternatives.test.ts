@@ -5,7 +5,7 @@ import {
   cartChangeText, cartLineKey, cartTotal, chipReasons, coversText, footText, isPinned, lineNotes,
   linesOf, money, movedText, nameWithSize, needText, optionsLabel, packPrice, priceLine, purchaseLineNo,
   replaceCard, routedLinks,
-  replyBeforeChange, rowsOf, sizeInName, storeText,
+  matchingNote, notOffered, reasonsLine, replyBeforeChange, rowGroups, sizeInName, storeText,
   swapAnnouncement, swapBlocked, swapNotice, unitPriceText,
 } from '../src/alternatives.ts';
 import type {
@@ -107,18 +107,72 @@ test("the button's name keeps every note drawn inside it, so a screen reader hea
   assert.equal(optionsLabel(line, false, false), optionsLabel(line, false));
 });
 
-test("the cart's pick sits on top and the rest split by tier, in rank order", () => {
+test("an older pantry: the cart's pick on top and the rest split by tier, in rank order", () => {
   const current = row({ rank: 1, current: true, product_id: 36 });
   const other = row({ rank: 3, tier: 'other', match: 'substitute', product_id: 51 });
   const same = row({ rank: 2 });
-  const { current: top, same: s, other: o } = rowsOf(ranking([other, current, same]));
-  assert.equal(top?.product_id, 36);
-  assert.deepEqual(s.map((x) => x.rank), [2]);
-  assert.deepEqual(o.map((x) => x.rank), [3]);
+  const g = rowGroups(ranking([other, current, same]));
+  assert.equal(g.current?.product_id, 36);
+  assert.equal(g.byMeaning, false);
+  assert.deepEqual(g.groups.map((x) => [x.label, x.tone, x.items.map((it) => it.rank)]),
+    [['Same ingredient', 'same', [2]], ['Not the same ingredient', 'other', [3]]]);
   // a pick that matches none of the line's words is not the same ingredient either
   const outside = row({ rank: 4, current: false, tier: 'outside', product_id: 9 });
-  assert.deepEqual(rowsOf(ranking([outside])).other.map((x) => x.product_id), [9]);
-  assert.equal(rowsOf(ranking([])).current, null);
+  assert.deepEqual(rowGroups(ranking([outside])).groups.map((x) => [x.key, x.items.map((it) => it.product_id)]),
+    [['other', [9]]], 'an empty group is left out');
+  assert.equal(rowGroups(ranking([])).current, null);
+  assert.deepEqual(rowGroups(ranking([])).groups, []);
+});
+
+test('matched by meaning: Same item, Works instead, Looser match, in that order, by pantry’s names', () => {
+  const butter = row({ rank: 1, current: true, product_id: 1, group: 'same_item', group_label: 'Same item' });
+  const salted = row({ rank: 3, product_id: 2, group: 'same_item', group_label: 'Same item' });
+  const margarine = row({ rank: 2, product_id: 3, tier: 'other', group: 'works_instead', group_label: 'Works instead' });
+  const ghee = row({ rank: 4, product_id: 4, group: 'works_instead', group_label: '' });
+  const oil = row({ rank: 5, product_id: 5, tier: 'other', group: 'looser_match', group_label: 'Looser match' });
+  const g = rowGroups(ranking([oil, ghee, salted, butter, margarine]));
+  assert.equal(g.byMeaning, true);
+  assert.equal(g.current?.product_id, 1);
+  assert.deepEqual(g.groups.map((x) => [x.key, x.label, x.tone, x.items.map((it) => it.product_id)]), [
+    ['same_item', 'Same item', 'same', [2]],
+    ['works_instead', 'Works instead', 'instead', [3, 4]],
+    ['looser_match', 'Looser match', 'other', [5]],
+  ], 'the group, not the tier, decides; in rank order within each');
+  // pantry's own name for a group wins; a group it does not name has the console's
+  const named = rowGroups(ranking([row({ product_id: 6, group: 'works_instead', group_label: 'Swap in' }),
+    row({ product_id: 7, rank: 9, group: 'outside' })]));
+  assert.deepEqual(named.groups.map((x) => x.label), ['Swap in', 'Not a candidate']);
+});
+
+test('the note under the heading: matched by meaning, or by words with pantry’s why', () => {
+  assert.deepEqual(matchingNote(ranking([], { matching: 'meaning', matching_note: 'Matched by meaning.' })),
+    { mode: 'meaning', text: 'Matched by meaning' });
+  assert.deepEqual(matchingNote(ranking([], { matching: 'words',
+    matching_note: 'Matched by words: the embedding model is not reachable. Products are found by the recipe’s words '
+      + 'until it can be matched by meaning again.' })),
+  { mode: 'words', text: 'Matched by words: the meaning model is off. The embedding model is not reachable. '
+    + 'Products are found by the recipe’s words until it can be matched by meaning again.' });
+  assert.deepEqual(matchingNote(ranking([], { matching: 'words' })),
+    { mode: 'words', text: 'Matched by words: the meaning model is off.' });
+  assert.equal(matchingNote(ranking([])), null, 'an older pantry says nothing');
+});
+
+test('what a hard rule keeps out, with why in words', () => {
+  const r = ranking([], { filtered: [
+    { product_id: 8, product: 'Peanut Butter Cream', group: 'looser_match', why: 'adds_tags', tags: ['nuts'],
+      text: 'adds nuts' },
+    { product_id: 9, product: 'Bacon Bits', group: 'works_instead', why: 'diet', tags: ['meat'], text: '' },
+    { product_id: 10, product: 'Rye Flour', group: 'works_instead', why: 'constraints', tags: [], text: ' ' },
+  ] });
+  assert.deepEqual(notOffered(r).map((x) => x.text), ['adds nuts', 'breaks your diet (meat)', 'outside your plan’s rules']);
+  assert.deepEqual(notOffered(ranking([])), [], 'an older pantry filters nothing it says');
+});
+
+test('a row’s reasons line is pantry’s summary, else the chips', () => {
+  assert.deepEqual(reasonsLine(row({ summary: 'butter · 454 g covers 80 g · no new allergens' })),
+    { summary: 'butter · 454 g covers 80 g · no new allergens', chips: [] });
+  assert.deepEqual(reasonsLine(row({ summary: '' })).chips.map((r) => r.code), ['match', 'origin', 'rating']);
+  assert.equal(reasonsLine(row()).summary, null);
 });
 
 test('chips are the match, origin and rating reasons, in that order', () => {

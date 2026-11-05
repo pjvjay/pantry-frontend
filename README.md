@@ -231,6 +231,18 @@ the trip sheet with that line's Options. A pin the schedule later refuses (its
 product since held back by the plan's origin rules, or no longer sold in range)
 gets "Use the planner's product for that line" beside the error.
 
+**Matched by meaning.** pantry-api matches a line's products by meaning, and
+Options (the chat cart's, a trip line's and an ingredient's alike) shows its rows
+under its groups: Same item, Works instead and Looser match (its own
+`group_label` when it gives one), each row with its reasons on one line
+(`summary`: "butter · 454 g covers 80 g · no new allergens"). What a hard rule
+keeps out (`filtered`: it adds an allergen, breaks the diet, or is outside the
+plan's rules) is a closed "Not offered (n)" list, each with its picture and why.
+A note under the heading says "Matched by meaning", or "Matched by words: the
+meaning model is off" with pantry's reason. An older pantry's rows, which have no
+group, are under "Same ingredient" and "Not the same ingredient" as before
+(`alternatives.rowGroups`).
+
 **Calendar** (the last stage, `components/CalendarExport.tsx`) posts the
 answer's `approved_schedule` back to pantry-api's `/calendar/preview` and
 `/calendar/ics`, which build every event: shopping trips with their lists, cook
