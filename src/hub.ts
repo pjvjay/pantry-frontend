@@ -5,6 +5,12 @@ import type {
   AgentEvent,
   AgentOptions,
   AlternativeRanking,
+  CalendarApplyResult,
+  CalendarDiff,
+  CalendarDisconnectResult,
+  CalendarSyncRequest,
+  CalendarSyncStatus,
+  GeocodeAnswer,
   HubStatus,
   ImportResult,
   McpCatalog,
@@ -23,6 +29,7 @@ import type {
   WeekPlan,
 } from './types';
 import { PlanAbortError } from './api';
+import type { MealPlanContext } from './mealplan/chatDraft';
 import { fromConsole } from './consoleRequest';
 
 const API = `${import.meta.env.BASE_URL}api`;
@@ -114,6 +121,11 @@ export const setRuntime = (patch: Partial<Pick<RuntimeSettings, 'demo_mode' | 'm
 // ─── hub ──────────────────────────────────────────────────────
 
 export const getStatus = () => json<HubStatus>(`${HUB}/status`);
+
+// An address to places (OpenStreetMap through the hub). Only ever on the shopper's search, never
+// as they type: Nominatim's policy forbids autocomplete.
+export const geocode = (q: string, signal?: AbortSignal) =>
+  json<GeocodeAnswer>(`${HUB}/geocode?q=${encodeURIComponent(q)}`, { signal });
 export const resetDemo = () => json<{ ok: boolean; output: string }>(`${HUB}/demo/reset`,
   { method: 'POST' });
 
@@ -148,9 +160,11 @@ export const agentWarm = (body: { model: string; target: string; disclosure?: st
 // One Assistant turn, streamed: the hub answers with server-sent events (one JSON per event).
 // `recipe_doc`: a recipe the shopper reviewed in the import sheet, every line confirmed; the hub
 // keeps it as the conversation's next imp:N and the model plans exactly those lines.
+// `meal_plan`: the shopper's Meal plan in brief (mealplan/chatDraft.contextOf), which a meal-plan
+// draft is made against; the hub keeps it in memory only.
 export async function agentChat(
   body: { message: string; conversation_id?: string | null; model: string; target: string;
-          disclosure?: string; recipe_doc?: RecipeDoc },
+          disclosure?: string; recipe_doc?: RecipeDoc; meal_plan?: MealPlanContext },
   onEvent: (e: AgentEvent) => void,
   signal?: AbortSignal,
   onOpen?: () => void,
@@ -220,6 +234,21 @@ export const importVideo = (body: { video_id: string; duration_s?: number | null
     ...(body.duration_s != null ? { duration_s: body.duration_s } : {}),
   }));
 
+// Google Calendar sync (opt-in, local hub only; demo-hub docs/google-calendar.md). The hub holds
+// the OAuth client and token; the console only ever sees booleans and labels. connect answers
+// Google's consent URL, which the console opens; preview writes nothing; apply writes exactly
+// the reviewed diff (409 preview_stale when anything changed since). A refusal is a HubError
+// whose detail is {code, message}.
+export const calendarSyncStatus = () => json<CalendarSyncStatus>(`${HUB}/calendar/status`);
+export const calendarConnect = (return_to: string) =>
+  json<{ auth_url: string }>(`${HUB}/calendar/connect`, post({ return_to }));
+export const calendarSyncPreview = (body: CalendarSyncRequest) =>
+  json<CalendarDiff>(`${HUB}/calendar/sync/preview`, post(body));
+export const calendarSyncApply = (body: CalendarSyncRequest) =>
+  json<CalendarApplyResult>(`${HUB}/calendar/sync/apply`, post(body));
+export const calendarDisconnect = (delete_calendar: boolean) =>
+  json<CalendarDisconnectResult>(`${HUB}/calendar/disconnect`, post({ delete_calendar }));
+
 // Traces of Assistant turns and the metrics rolled up from them (every layer, the browser's too).
 export const traceList = (limit = 50) => json<TraceSummary[]>(`${HUB}/traces?limit=${limit}`);
 export const traceDetail = (id: string) => json<Trace>(`${HUB}/traces/${encodeURIComponent(id)}`);
@@ -227,10 +256,16 @@ export const getMetrics = () => json<Metrics>(`${HUB}/metrics`);
 export const runDetail = (id: string) => json<RunDetail>(`${HUB}/runs/${encodeURIComponent(id)}`);
 
 // Pictures, fetched once by the hub and served from its cache: an ingredient's Wikipedia
-// thumbnail, and an image from a recipe page.
+// thumbnail, an image from a recipe page, and a Wikipedia article's lead image (404 when it has
+// none).
 export const ingredientImage = (name: string) =>
   `${HUB}/images/ingredient?name=${encodeURIComponent(name)}`;
 export const remoteImage = (url: string) => `${HUB}/images/remote?url=${encodeURIComponent(url)}`;
+export const wikiImage = (title: string) => `${HUB}/images/wiki?title=${encodeURIComponent(title)}`;
+
+// OpenStreetMap's map tiles through the hub (its cache, and the attribution and fair use the
+// tile policy asks for); 503 while the hub has them off (HubStatus.tiles).
+export const tileImage = (z: number, x: number, y: number) => `${HUB}/tiles/${z}/${x}/${y}.png`;
 
 export const simPresets = () =>
   json<{ presets: Record<string, { label: string; models: Record<string, string> }>;

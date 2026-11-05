@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { getHealth } from './api';
 import { getRuntime } from './hub';
+import { MealPlanProvider } from './mealplan/store';
 import type { Health, RuntimeSettings } from './types';
 import AssistantView from './views/AssistantView';
 import CatalogView from './views/CatalogView';
@@ -12,12 +13,16 @@ import ProvenanceView from './views/ProvenanceView';
 import SimulationsView from './views/SimulationsView';
 import SystemView from './views/SystemView';
 
-export type Tab = 'overview' | 'planner' | 'assistant' | 'catalog' | 'provenance' | 'mcp'
+// The meal plan's views load when the tab is first opened; its plan and store are above the tabs.
+const MealPlanView = lazy(() => import('./views/MealPlanView'));
+
+export type Tab = 'overview' | 'planner' | 'mealplan' | 'assistant' | 'catalog' | 'provenance' | 'mcp'
   | 'simulations' | 'metrics' | 'system';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'planner', label: 'Planner' },
+  { id: 'mealplan', label: 'Meal plan' },
   { id: 'assistant', label: 'Assistant' },
   { id: 'catalog', label: 'Catalog' },
   { id: 'provenance', label: 'Provenance' },
@@ -90,6 +95,11 @@ export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
   const [runtime, setRuntime] = useState<RuntimeSettings | null>(null);
   const stale = useNewBuild();
+  // The Assistant stays mounted once opened: its conversation survives a trip to another tab
+  // (a meal-plan card's "Open in Meal plan", say) and back. Never opened, it is not mounted, so
+  // a local model is not asked to warm up for a tab nobody used.
+  const [assistantOpened, setAssistantOpened] = useState(tab === 'assistant');
+  useEffect(() => { if (tab === 'assistant') setAssistantOpened(true); }, [tab]);
 
   useEffect(() => {
     const onHash = () => setRoute(readHash());
@@ -132,15 +142,28 @@ export default function App() {
           <button className="mini" onClick={() => window.location.reload()}>Reload</button>
         </div>
       )}
+      {/* The meal plan's provider sits above the tabs, so the plan (and its undo) survives
+          switching tabs, and the Planner can open a week in it. */}
+      <MealPlanProvider>
       {tab === 'overview' && <OverviewView go={(t) => go(t)} />}
       {tab === 'planner' && <PlannerView />}
-      {tab === 'assistant' && <AssistantView routes={ROUTES} />}
+      {tab === 'mealplan' && (
+        <Suspense fallback={<div className="view"><p className="muted">Loading the meal plan…</p></div>}>
+          <MealPlanView />
+        </Suspense>
+      )}
+      {assistantOpened && (
+        <div hidden={tab !== 'assistant'}>
+          <AssistantView routes={ROUTES} />
+        </div>
+      )}
       {tab === 'catalog' && <CatalogView onLabel={(id) => go('provenance', `?product=${id}`)} />}
       {tab === 'provenance' && <ProvenanceView initialProduct={product} />}
       {tab === 'mcp' && <McpView />}
       {tab === 'simulations' && <SimulationsView />}
       {tab === 'metrics' && <MetricsView />}
       {tab === 'system' && <SystemView />}
+      </MealPlanProvider>
       <footer>
         pantry-platform · React → demo hub → pantry API, ContextForge, mcp-sim ·{' '}
         <a href="https://github.com/pjvjay/pantry-gitops" target="_blank" rel="noreferrer">pantry-gitops</a>

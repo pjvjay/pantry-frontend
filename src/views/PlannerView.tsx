@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { PlanAbortError, getRecipes } from '../api';
 import { ErrorBanner, parseList } from '../components/common';
 import { ImportSheet } from '../components/ImportSheet';
+import { OpenInMealPlan } from '../components/OpenInMealPlan';
 import { AbortAlert, PlanView, WeekView } from '../components/plan';
 import { planNLWith, planRecipeWith, planWeekWith } from '../hub';
 import type { PlanExecution, Recipe, ShoppingPlan, WeekPlan } from '../types';
@@ -177,7 +178,8 @@ export default function PlannerView() {
         <h2>Plan a week of dinners</h2>
         <p className="card-sub">
           Picks dinners from the recipe library, merges the basket so shared ingredients are
-          bought once, and keeps the total under the budget when one is given.
+          bought once, and keeps the total under the budget when one is given. Want to choose the
+          recipes and days yourself? <a href="#/mealplan">Open the Meal plan</a>.
         </p>
         <form className="form-row" onSubmit={(e) => { e.preventDefault(); void onPlanWeek(); }}>
           <label>
@@ -220,7 +222,7 @@ export default function PlannerView() {
                    hint="Planning calls the server's LLM. Switch to demo mode on the System tab if the model is unavailable or over quota." />
       {planAbort && <AbortAlert execution={planAbort} />}
       {plan && <PlanView plan={plan} />}
-      {week && <WeekView week={week} />}
+      {week && <WeekView week={week} actions={<OpenInMealPlan week={week} />} />}
 
       <ImportSheet open={importing} onClose={() => setImporting(false)} onPlanned={onImported}
                    planOptions={specOptions} />

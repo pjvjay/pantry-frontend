@@ -9,14 +9,20 @@
 // stays inside, Escape closes, and focus returns to the cart line (or, after a swap, to the same
 // line of the redrawn card). A choice that cannot be made now keeps its button focusable, marked
 // aria-disabled and described by the visible reason.
+//
+// The meal plan opens the same dialog on a trip line (components/tripoptions.tsx): it passes
+// `load` (pantry-api's ranking for the line, over REST, no hub), the trip's words, and a
+// description naming the recipe lines the purchase covers. The wizard's Ingredients stage opens
+// it on an ingredient across the whole plan, in the plan's words.
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import {
-  chipReasons, coversText, footText, movedText, needText, priceLine, reasonOf, rowsOf, storeText,
+  chipReasons, coversText, footText, movedText, needText, priceLine, reasonOf, rowsOf, sizeInName, storeText,
   unitPriceText,
 } from '../alternatives';
 import { agentAlternatives } from '../hub';
 import type { AlternativeRanking, CartLine, RankedAlternative } from '../types';
+import { ProductPicture } from './pictures';
 import { Sheet } from './Sheet';
 
 // The line the dialog is open for: the card's plan (ref) and the cart line.
@@ -29,13 +35,16 @@ export interface OptionsTarget {
 // How many rows the hub asks pantry for (pantry allows 1..25).
 const LIMIT = 12;
 
-function Row({ item, action }: { item: RankedAlternative; action: ReactNode }) {
-  const price = priceLine(item);
+// ingredient: what the row's picture falls back to when the product has none.
+function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; action: ReactNode; buyer?: string;
+  ingredient: string }) {
+  const price = priceLine(item, buyer);
   const trip = reasonOf(item, 'trip');
   const chips = chipReasons(item);
-  const brandSize = [item.brand, item.size].filter(Boolean).join(' · ');
+  const brandSize = [item.brand, sizeInName(item.product, item.size) ? '' : item.size].filter(Boolean).join(' · ');
   return (
     <li className={`alt-row${item.current ? ' alt-row-current' : ''}`}>
+      <ProductPicture product={item.product} ingredient={ingredient} />
       <div className="alt-main">
         <div className="alt-name">
           <span className="alt-rank">#{item.rank}</span> <strong>{item.product}</strong>
@@ -69,7 +78,7 @@ function Row({ item, action }: { item: RankedAlternative; action: ReactNode }) {
 }
 
 export function AlternativesDialog({ conversationId, target, blocked, returnFocus, onChoose,
-  onClose }: {
+  onClose, load, loadKey, place = 'cart', description, notice, title, empty, extra }: {
   conversationId: string | null;
   // null: closed
   target: OptionsTarget | null;
@@ -80,6 +89,23 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
   // redrawn and the dialog closed; rejects with the hub's reason, shown in the dialog.
   onChoose: (productId: number | null) => Promise<void>;
   onClose: () => void;
+  // The ranking from somewhere other than the hub (a meal-plan trip line), fetched again
+  // whenever loadKey changes.
+  load?: (limit: number) => Promise<AlternativeRanking>;
+  loadKey?: string;
+  // 'trip': the line is on a meal-plan trip, and the dialog says so; 'plan': an ingredient
+  // across a meal plan, with no trip
+  place?: 'cart' | 'trip' | 'plan';
+  // in place of the need and the lines covered, under the title
+  description?: string;
+  // said above the rows (the line's own product can no longer be bought)
+  notice?: string;
+  // the heading, in place of "Options for <ingredient>" (a meal plan line with no product)
+  title?: string;
+  // in place of "No other product …" when no row can be chosen, and the held-back products
+  // then listed open; and what follows the rows (a meal plan line's rows out of reach)
+  empty?: ReactNode;
+  extra?: ReactNode;
 }) {
   const [ranking, setRanking] = useState<AlternativeRanking | null>(null);
   const [error, setError] = useState('');
@@ -98,17 +124,24 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
     setChoosing(null);
     setSwapError('');
     if (ref == null || lineNo == null) return;
-    if (!conversationId) {
+    const answer = load ? load(LIMIT)
+      : conversationId ? agentAlternatives(conversationId, { ref, line_no: lineNo, limit: LIMIT })
+        : null;
+    if (!answer) {
       setError('This conversation is gone (the hub restarted or forgot it): ask again to re-plan.');
       return;
     }
-    agentAlternatives(conversationId, { ref, line_no: lineNo, limit: LIMIT })
+    answer
       .then((r) => { if (asked.current === n) setRanking(r); })
       .catch((e: Error) => { if (asked.current === n) setError(e.message); });
-  }, [conversationId, ref, lineNo]);
+    // `load` is a new function each render; loadKey says when it asks something else.
+  }, [conversationId, ref, lineNo, loadKey]);
 
   const ingredient = ranking?.ingredient || target?.line.ingredient || '';
-  const why = blocked || (choosing !== null ? 'Updating your cart…' : '');
+  const updating = place === 'cart' ? 'Updating your cart…' : 'Updating your plan…';
+  const buyer = place === 'trip' ? 'the trip' : place === 'plan' ? 'the plan' : 'the cart';
+  const holds = place === 'trip' ? 'On this trip' : place === 'plan' ? 'In your plan' : 'In your cart';
+  const why = blocked || (choosing !== null ? updating : '');
 
   const choose = async (productId: number | null) => {
     if (why) return;
@@ -137,7 +170,7 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
   const useThis = (item: RankedAlternative) => (
     <button type="button" className="alt-use" {...actionProps}
             aria-label={`Use this: ${item.product}`} onClick={() => void choose(item.product_id)}>
-      {choosing === item.product_id ? 'Updating your cart…' : 'Use this'}
+      {choosing === item.product_id ? updating : 'Use this'}
     </button>
   );
 
@@ -145,7 +178,7 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
     <section className={`alt-section alt-section-${tone}`} aria-label={heading}>
       <h3>{heading}</h3>
       <ul className="alt-list">
-        {items.map((it) => <Row key={it.product_id} item={it} action={useThis(it)} />)}
+        {items.map((it) => <Row key={it.product_id} item={it} action={useThis(it)} buyer={buyer} ingredient={ingredient} />)}
       </ul>
     </section>
   );
@@ -156,11 +189,13 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
       onClose={onClose}
       className="alt-sheet"
       returnFocus={returnFocus}
-      title={`Options for ${ingredient}`}
-      description={ranking ? [needText(ranking), covers].filter(Boolean).join(' ') : undefined}
+      title={title ?? `Options for ${ingredient}`}
+      description={description
+        ?? (ranking ? [needText(ranking), covers].filter(Boolean).join(' ') : undefined)}
       footer={ranking?.data_note ? <p className="alt-data-note">{ranking.data_note}</p> : undefined}
     >
       {blocked && <p id={blockedId} className="alt-blocked">{blocked}</p>}
+      {notice && <p className="alt-blocked" role="note">{notice}</p>}
       {swapError && <div className="banner banner-error alt-error" role="alert">{swapError}</div>}
       {error && <div className="banner banner-error alt-error" role="alert">{error}</div>}
 
@@ -176,13 +211,13 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
       {ranking && rows && (
         <>
           {current && (
-            <section className="alt-section" aria-label="In your cart">
-              <h3>In your cart ({target?.pinned ? 'chosen by you' : 'chosen by the planner'})</h3>
+            <section className="alt-section" aria-label={holds}>
+              <h3>{holds} ({target?.pinned ? 'chosen by you' : 'chosen by the planner'})</h3>
               <ul className="alt-list">
-                <Row item={current} action={target?.pinned ? (
+                <Row item={current} buyer={buyer} ingredient={ingredient} action={target?.pinned ? (
                   <button type="button" className="secondary alt-use" {...actionProps}
                           onClick={() => void choose(null)}>
-                    {choosing === 'back' ? 'Updating your cart…' : 'Back to the planner’s pick'}
+                    {choosing === 'back' ? updating : 'Back to the planner’s pick'}
                   </button>
                 ) : null} />
               </ul>
@@ -190,22 +225,27 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
           )}
           {list('Same ingredient', rows.same, 'same')}
           {list('Not the same ingredient', rows.other, 'other')}
-          {others === 0 && (
+          {others === 0 && !current && empty}
+          {others === 0 && !(empty && !current) && (
             <p className="muted">No other product sold in range fills this line.</p>
           )}
+          {extra}
 
           {ranking.held_back.length > 0 && (
-            <details className="alt-held">
+            <details className="alt-held" open={(empty && others === 0 && !current) || undefined}>
               <summary>
                 {ranking.held_back.length} held back by your origin rule (cannot be chosen here)
               </summary>
-              <ul>
+              <ul className="alt-held-list">
                 {ranking.held_back.map((h) => (
                   <li key={h.product_id}>
-                    {h.product}: {h.country}
-                    {h.field === 'conflicting_evidence' ? ' (sources disagree)' : ''}
-                    {h.verbatim && <> — <span className="verbatim">“{h.verbatim}”</span></>}
-                    {h.demo && ' (demo label photo)'}
+                    <ProductPicture product={h.product} ingredient={ingredient} />
+                    <span>
+                      <strong>{h.product}</strong>: {h.country}
+                      {h.field === 'conflicting_evidence' ? ' (sources disagree)' : ''}
+                      {h.verbatim && <> — <span className="verbatim">“{h.verbatim}”</span></>}
+                      {h.demo && ' (demo label photo)'}
+                    </span>
                   </li>
                 ))}
               </ul>

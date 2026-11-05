@@ -18,6 +18,32 @@ export const CartActions = createContext<{
   busy: boolean;
 } | null>(null);
 
+// Copy a list; false when the browser would not. With no clipboard API (a plain-http host, or
+// a browser that refuses it) the older copy command still works from a selected text box in
+// most browsers. The box goes inside an open dialog when there is one: a modal dialog makes
+// the rest of the page inert, and an inert box cannot be selected.
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.setAttribute('readonly', '');
+    box.className = 'sr-only';
+    (document.querySelector('dialog[open]') ?? document.body).appendChild(box);
+    box.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {
+      ok = false;
+    }
+    box.remove();
+    return ok;
+  }
+}
+
 const money = (v: number | null | undefined) => (typeof v === 'number' ? `$${v.toFixed(2)}` : '–');
 const stem = (w: string) => w.replace(/(es|s)$/, '');
 const words = (s: string) => (s.toLowerCase().match(/[a-z]+/g) ?? []).map(stem);
@@ -31,7 +57,16 @@ const namesIngredient = (l: CartLine) => {
 const storeOf = (l: CartLine) => l.trip_store || l.store || 'Store not chosen';
 const priceOf = (l: CartLine) => (l.trip_store ? l.trip_price ?? l.price : l.price);
 
-type Group = { store: string; lines: CartLine[]; subtotal: number };
+// floor: some line's price is unknown, so the subtotal is only what is known. known: some
+// line's price is known; with none, the subtotal is not a price at all.
+type Group = { store: string; lines: CartLine[]; subtotal: number; floor: boolean; known: boolean };
+
+const priced = (l: CartLine) => typeof priceOf(l) === 'number';
+
+// "$12.40", "at least $12.40", or "price unknown" when no price in it is known: a sum of
+// nothing is not $0.00.
+const costText = (v: number | null | undefined, floor: boolean, known: boolean) =>
+  (floor && !known ? 'price unknown' : `${floor ? 'at least ' : ''}${money(v)}`);
 
 // Lines by the store the trip buys them at, in the trip's order.
 function byStore(lines: CartLine[], order: string[]): Group[] {
@@ -40,7 +75,8 @@ function byStore(lines: CartLine[], order: string[]): Group[] {
   const rank = (s: string) => (order.includes(s) ? order.indexOf(s) : order.length);
   return [...groups.entries()]
     .sort(([a], [b]) => rank(a) - rank(b))
-    .map(([store, ls]) => ({ store, lines: ls, subtotal: ls.reduce((t, l) => t + (priceOf(l) ?? 0), 0) }));
+    .map(([store, ls]) => ({ store, lines: ls, subtotal: ls.reduce((t, l) => t + (priceOf(l) ?? 0), 0),
+      floor: ls.some((l) => !priced(l)), known: ls.some(priced) }));
 }
 
 const SWAP = 'still available, not a direct match: ';
@@ -74,8 +110,8 @@ function why(d: LeftOut, kind: LeftKind): string {
   return d.reason || kind.replace('_', ' ');
 }
 
-function listText(summary: CartSummary, groups: Group[], total: number | undefined): string {
-  const out = [`${summary.recipe_name ?? 'Shopping list'} — ${money(total)}`];
+function listText(summary: CartSummary, groups: Group[], totalText: string): string {
+  const out = [`${summary.recipe_name ?? 'Shopping list'} — ${totalText}`];
   for (const g of groups) {
     out.push('', g.store);
     for (const l of g.lines) {
@@ -86,21 +122,26 @@ function listText(summary: CartSummary, groups: Group[], total: number | undefin
   return out.join('\n');
 }
 
-export function CartCard({ summary, cardRef, pinned }: {
+// copyButton: false when the caller offers Copy list itself (a meal-plan trip sheet, whose
+// footer copies the list pantry-api builds, beside Print list), so one dialog has one Copy.
+export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
   summary: CartSummary;
   // the hub's ref for the plan behind the card, and the lines the shopper chose the product for
   cardRef?: number;
   pinned?: number[];
+  copyButton?: boolean;
 }) {
   const ask = useContext(AskContext);
   const actions = useContext(CartActions);
   const [got, setGot] = useState<Set<string>>(() => new Set());
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
   const lines = summary.lines ?? [];
   const trip = summary.trip ?? null;
   const groups = byStore(lines, trip?.stores ?? []);
   const items = groups.reduce((t, g) => t + g.subtotal, 0);
   const total = trip ? trip.total_cost : summary.total_cost;
+  const floor = Boolean(summary.total_is_floor) || groups.some((g) => g.floor);
+  const known = groups.some((g) => g.known);
   const left: [LeftOut, LeftKind][] = [
     ...(summary.not_stocked ?? []).map((d) => [d, 'not_stocked'] as [LeftOut, LeftKind]),
     ...(summary.out_of_range ?? []).map((d) => [d, 'out_of_range'] as [LeftOut, LeftKind]),
@@ -131,13 +172,9 @@ export function CartCard({ summary, cardRef, pinned }: {
     );
   };
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(listText(summary, groups, total));
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setCopied(false);
-    }
+    const ok = await copyText(listText(summary, groups, costText(total, floor, known)));
+    setCopied(ok ? 'copied' : 'failed');
+    window.setTimeout(() => setCopied('idle'), 2000);
   };
 
   return (
@@ -150,7 +187,7 @@ export function CartCard({ summary, cardRef, pinned }: {
             {got.size > 0 && ` · ${got.size} in the basket`}
           </div>
         </div>
-        <div className="cart-total">{money(total)}</div>
+        <div className={`cart-total${floor && !known ? ' cart-total-unknown' : ''}`}>{costText(total, floor, known)}</div>
       </div>
       {originAsked && share != null && (
         <div className={`cart-origin ${summary.origin_status === 'verified' ? 'cart-origin-ok' : 'cart-origin-warn'}`}>
@@ -160,16 +197,19 @@ export function CartCard({ summary, cardRef, pinned }: {
 
       {groups.map((g) => (
         <div className="cart-store" key={g.store}>
-          <div className="cart-store-head"><span>{g.store}</span><span>{money(g.subtotal)}</span></div>
+          <div className="cart-store-head">
+            <span>{g.store}</span><span>{costText(g.subtotal, g.floor, g.known)}</span>
+          </div>
           <ul className="cart-items">
             {g.lines.map((l) => {
-              const key = `${l.product_id ?? l.product}`;
+              // A meal-plan trip can list one product twice, for the fridge and the freezer.
+              const key = `${l.product_id ?? l.product}${l.storage ? `:${l.storage}` : ''}`;
               const done = got.has(key);
               const mine = isPinned(l, pinned);
               return (
                 <li key={key} className={`cart-item${done ? ' cart-item-done' : ''}`}>
                   <input type="checkbox" checked={done} onChange={() => toggle(key)}
-                         aria-label={`${l.product}: in the basket`} />
+                         aria-label={`${l.product}${l.storage ? ` (${l.storage})` : ''}: in the basket`} />
                   <IngredientImage name={l.ingredient} size={36} />
                   {wrap(l, mine, <span className="cart-item-body">
                     <span className="cart-item-name">
@@ -223,15 +263,17 @@ export function CartCard({ summary, cardRef, pinned }: {
         <div className="cart-sums">
           {trip ? (
             <>
-              <span>Items {money(trip.basket_cost ?? items)}</span>
+              <span>Items {costText(trip.basket_cost ?? items, floor, known)}</span>
               {trip.travel_cost != null && <span>Travel {money(trip.travel_cost)}</span>}
             </>
           ) : <span className="muted">each item at its cheapest store nearby; no trip chosen</span>}
-          <strong>Total {money(total)}</strong>
+          <strong>Total {costText(total, floor, known)}</strong>
         </div>
-        <button type="button" className="secondary" onClick={() => void copy()}>
-          {copied ? 'Copied' : 'Copy list'}
-        </button>
+        {copyButton && (
+          <button type="button" className="secondary" onClick={() => void copy()}>
+            {copied === 'copied' ? 'Copied' : copied === 'failed' ? 'Copy failed' : 'Copy list'}
+          </button>
+        )}
       </div>
     </section>
   );

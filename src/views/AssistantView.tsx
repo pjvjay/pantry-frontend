@@ -11,6 +11,9 @@ import Markdown from '../components/Markdown';
 import { AskContext, CartActions, CartCard, PlanStrip } from '../components/cart';
 import { EvalCard, Reasoning, RecipeImages, imagesIn } from '../components/flow';
 import { ImportActions, ImportCard, ImportSheet } from '../components/ImportSheet';
+import { MealPlanCard } from '../components/MealPlanCard';
+import { contextOf } from '../mealplan/chatDraft';
+import { useMealPlan } from '../mealplan/store';
 import type { ImportStart } from '../components/ImportSheet';
 import { BurrLink, LlmCalls } from '../components/plan';
 import { agentChat, agentOptions, agentSwap, agentWarm } from '../hub';
@@ -25,6 +28,7 @@ const SUGGESTIONS = [
   'I want to make https://omnivorescookbook.com/mala-chicken/ this week. What should I buy at stores within 5 km of downtown, what does it cost, and what won’t I find?',
   'What is the cheapest penne, and where can I buy it?',
   'Plan 3 dinners for under $60 with no dairy.',
+  '3 Pepperoni Pizza + 2 Chicken Fried Rice + 3 chicken briyani + 7 mango milkshakes in 2 weeks',
   'Plan tomato penne with nothing from the United States, and tell me how much of the basket’s origin is verified.',
   'Which products in the catalog have a verified Canadian origin?',
 ];
@@ -141,7 +145,7 @@ type Item =
   // `notice`: the shopper changed one of those carts since, which the model has yet to hear
   | { kind: 'assistant'; text: string; reply?: string; plans?: PlanCardData[]; notice?: string }
   | { kind: 'tool'; id: string; name: string; arguments: Record<string, unknown>;
-      result?: Extract<AgentEvent, { type: 'tool_result' }> }
+      result?: Extract<AgentEvent, { type: 'tool_result' }>; byHub?: boolean }
   | { kind: 'error'; text: string }
   | { kind: 'notice'; text: string }
   | { kind: 'meta'; text: string }
@@ -178,6 +182,7 @@ function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
       <summary>
         <span className="toolcard-icon">{state === 'running' ? '⋯' : state === 'error' ? '✗' : '✓'}</span>
         <code className="toolcard-name">{item.name}</code>
+        {item.byHub && <span className="chip chip-muted">called by the hub</span>}
         <span className="toolcard-args">{JSON.stringify(item.arguments).slice(0, 140)}</span>
         {r && <span className="step-meta">{r.ms} ms</span>}
       </summary>
@@ -211,6 +216,16 @@ const ChatItem = memo(function ChatItem({ it, routes }: { it: Item; routes: read
   if (it.kind === 'assistant') {
     // every plan drawn as a cart; a week plan keeps the hub's Markdown tables
     const plans = it.plans ?? [];
+    // a meal-plan draft is its own card under the model's sentences
+    const meals = plans.filter((c) => c.kind === 'mealplan');
+    if (meals.length > 0) {
+      return (
+        <div className="bubble bubble-agent bubble-cart">
+          {it.reply && <Markdown text={it.reply} />}
+          {meals.map((c, i) => <MealPlanCard key={i} card={c} />)}
+        </div>
+      );
+    }
     if (plans.length > 0 && plans.every((c) => c.kind === 'plan')) {
       const before = it.reply ? replyBeforeChange(plans) : '';
       return (
@@ -257,6 +272,7 @@ const NO_ROUTES: readonly string[] = [];
 
 // `routes`: the console's tabs, so a card's link is drawn only when it leads to one of them.
 export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonly string[] }) {
+  const mealPlan = useMealPlan();
   const [options, setOptions] = useState<AgentOptions | null>(null);
   const [model, setModel] = useState('');
   const [target, setTarget] = useState('');
@@ -391,7 +407,10 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
     // what this browser measures about the turn's stream, joined to its trace in the hub
     const meter = new ChatMeter(model);
     try {
+      // the Meal plan as it is now, which a meal-plan draft is made against
+      const { context } = contextOf(mealPlan.state);
       await agentChat({ message, conversation_id: conversation, model, target, disclosure,
+                        meal_plan: context,
                         ...(recipeDoc ? { recipe_doc: recipeDoc } : {}) }, (e) => {
         meter.event(e as { at?: number; trace_id?: string });
         if (e.type === 'start') {
@@ -441,7 +460,13 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
             case 'recipe_import':
               return [...prev, { kind: 'import', event: e }];
             case 'tool_call':
-              return [...prev, { kind: 'tool', id: e.id, name: e.name, arguments: e.arguments }];
+              return [...prev, { kind: 'tool', id: e.id, name: e.name, arguments: e.arguments,
+                byHub: e.by_hub }];
+            case 'meal_selection':
+              return [...prev, { kind: 'meta', text: e.status === 'failed'
+                ? `the hub could not read the dishes in your message (${e.error ?? 'error'}); the model reads it alone`
+                : e.note ? `read in code before the model (${Math.round(e.ms)} ms): ${e.note}`
+                  : 'no dish in your message matched a recipe' }];
             case 'tool_result':
               return prev.map((it) => (it.kind === 'tool' && it.id === e.id && !it.result
                 ? { ...it, result: e } : it));

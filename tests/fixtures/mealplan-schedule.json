@@ -1,0 +1,601 @@
+{
+ "v": 1,
+ "rev": 3,
+ "start_date": "2026-10-09",
+ "meals": [
+  {
+   "id": "starter:mango_milkshake#1",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-10",
+   "slot": "snack",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:chicken_biryani#1",
+   "recipe_key": "starter:chicken_biryani",
+   "title": "Chicken Biryani",
+   "date": "2026-10-11",
+   "slot": "dinner",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:pepperoni_pizza#1",
+   "recipe_key": "starter:pepperoni_pizza",
+   "title": "Pepperoni Pizza",
+   "date": "2026-10-12",
+   "slot": "dinner",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:mango_milkshake#2",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-12",
+   "slot": "snack",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:chicken_fried_rice#1",
+   "recipe_key": "starter:chicken_fried_rice",
+   "title": "Chicken Fried Rice",
+   "date": "2026-10-13",
+   "slot": "dinner",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:mango_milkshake#3",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-14",
+   "slot": "snack",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:chicken_biryani#2",
+   "recipe_key": "starter:chicken_biryani",
+   "title": "Chicken Biryani",
+   "date": "2026-10-16",
+   "slot": "dinner",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:mango_milkshake#4",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-16",
+   "slot": "snack",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:pepperoni_pizza#2",
+   "recipe_key": "starter:pepperoni_pizza",
+   "title": "Pepperoni Pizza",
+   "date": "2026-10-17",
+   "slot": "dinner",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:mango_milkshake#5",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-18",
+   "slot": "snack",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:chicken_fried_rice#2",
+   "recipe_key": "starter:chicken_fried_rice",
+   "title": "Chicken Fried Rice",
+   "date": "2026-10-19",
+   "slot": "dinner",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:chicken_biryani#3",
+   "recipe_key": "starter:chicken_biryani",
+   "title": "Chicken Biryani",
+   "date": "2026-10-20",
+   "slot": "dinner",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:mango_milkshake#6",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-20",
+   "slot": "snack",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:pepperoni_pizza#3",
+   "recipe_key": "starter:pepperoni_pizza",
+   "title": "Pepperoni Pizza",
+   "date": "2026-10-21",
+   "slot": "dinner",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  },
+  {
+   "id": "starter:mango_milkshake#7",
+   "recipe_key": "starter:mango_milkshake",
+   "title": "Mango Milkshake",
+   "date": "2026-10-22",
+   "slot": "snack",
+   "servings": 2,
+   "pinned": false,
+   "placed_by": "spread"
+  }
+ ],
+ "unplaced": [],
+ "strategies": [
+  {
+   "name": "fresh",
+   "recommended": true,
+   "trips": [
+    {
+     "id": "fresh-2026-10-10",
+     "date": "2026-10-10",
+     "status": "suggested",
+     "reason": "Mango Milkshake on Sat 10 Oct needs Whole Milk 1L, which has no cited storage time; your setting buys it at most 7 day(s) ahead.",
+     "lines": [
+      {
+       "product": {
+        "id": 61,
+        "name": "All-Purpose Flour 2.5kg",
+        "unit_size": "2.5kg",
+        "category": "pantry",
+        "demo_product": false
+       },
+       "category": "pantry",
+       "packs": 1,
+       "packs_basis": "computed",
+       "need_qty": 750.0,
+       "need_uom": "g",
+       "leftover_qty": 1750.0,
+       "leftover_until": null,
+       "storage": "pantry",
+       "freeze_on_arrival": false,
+       "shelf_life": {
+        "status": "unknown",
+        "verbatim": [],
+        "rule_ids": [],
+        "source": null,
+        "url": null,
+        "page_date": null,
+        "days_planned": null,
+        "note": "Shelf-stable; neither cited source states a pantry time for it, so it is unknown. shelf_life.json classes it as shelf-stable, so the plan sets no limit on when it is bought; no time is claimed."
+       },
+       "for_meals": [
+        {
+         "meal_id": "starter:pepperoni_pizza#1",
+         "recipe_key": "starter:pepperoni_pizza",
+         "title": "Pepperoni Pizza",
+         "date": "2026-10-12",
+         "slot": "dinner"
+        },
+        {
+         "meal_id": "starter:pepperoni_pizza#2",
+         "recipe_key": "starter:pepperoni_pizza",
+         "title": "Pepperoni Pizza",
+         "date": "2026-10-17",
+         "slot": "dinner"
+        },
+        {
+         "meal_id": "starter:pepperoni_pizza#3",
+         "recipe_key": "starter:pepperoni_pizza",
+         "title": "Pepperoni Pizza",
+         "date": "2026-10-21",
+         "slot": "dinner"
+        }
+       ],
+       "store": "Pantry Mart Downtown",
+       "price": 5.62,
+       "price_at_approval": null,
+       "price_delta": null,
+       "stocked": true
+      },
+      {
+       "product": {
+        "id": 11,
+        "name": "Chicken Thighs Bone-In",
+        "unit_size": "700g",
+        "category": "meat",
+        "demo_product": false
+       },
+       "category": "meat",
+       "packs": 1,
+       "packs_basis": "computed",
+       "need_qty": 400.0,
+       "need_uom": "g",
+       "leftover_qty": 300.0,
+       "leftover_until": "2026-10-11",
+       "storage": "fridge",
+       "freeze_on_arrival": false,
+       "shelf_life": {
+        "status": "cited",
+        "verbatim": [
+         "1 to 2 days"
+        ],
+        "rule_ids": [
+         "fs-poultry-pieces-fridge"
+        ],
+        "source": "FoodSafety.gov, Cold Food Storage Chart",
+        "url": "https://www.foodsafety.gov/food-safety-charts/cold-food-storage-charts",
+        "page_date": "2023-09-19",
+        "days_planned": 1,
+        "note": "Planned with the lower bound, 1 day(s)."
+       },
+       "for_meals": [
+        {
+         "meal_id": "starter:chicken_biryani#1",
+         "recipe_key": "starter:chicken_biryani",
+         "title": "Chicken Biryani",
+         "date": "2026-10-11",
+         "slot": "dinner"
+        }
+       ],
+       "store": "GreenLeaf Grocers Kitsilano",
+       "price": 5.76,
+       "price_at_approval": null,
+       "price_delta": null,
+       "stocked": true
+      },
+      {
+       "product": {
+        "id": 19,
+        "name": "Whole Milk 1L",
+        "unit_size": "1L",
+        "category": "dairy",
+        "demo_product": false
+       },
+       "category": "dairy",
+       "packs": 2,
+       "packs_basis": "computed",
+       "need_qty": 2000.0,
+       "need_uom": "ml",
+       "leftover_qty": 0.0,
+       "leftover_until": null,
+       "storage": "fridge",
+       "freeze_on_arrival": false,
+       "shelf_life": {
+        "status": "your_setting",
+        "verbatim": [],
+        "rule_ids": [],
+        "source": null,
+        "url": null,
+        "page_date": null,
+        "days_planned": 7,
+        "note": "Neither cited source has a row for this food, so its storage time is unknown. Your setting buys it at most 7 day(s) before it is eaten."
+       },
+       "for_meals": [
+        {
+         "meal_id": "starter:mango_milkshake#1",
+         "recipe_key": "starter:mango_milkshake",
+         "title": "Mango Milkshake",
+         "date": "2026-10-10",
+         "slot": "snack"
+        },
+        {
+         "meal_id": "starter:mango_milkshake#2",
+         "recipe_key": "starter:mango_milkshake",
+         "title": "Mango Milkshake",
+         "date": "2026-10-12",
+         "slot": "snack"
+        },
+        {
+         "meal_id": "starter:mango_milkshake#3",
+         "recipe_key": "starter:mango_milkshake",
+         "title": "Mango Milkshake",
+         "date": "2026-10-14",
+         "slot": "snack"
+        },
+        {
+         "meal_id": "starter:mango_milkshake#4",
+         "recipe_key": "starter:mango_milkshake",
+         "title": "Mango Milkshake",
+         "date": "2026-10-16",
+         "slot": "snack"
+        }
+       ],
+       "store": "Pantry Mart Downtown",
+       "price": 5.86,
+       "price_at_approval": null,
+       "price_delta": null,
+       "stocked": true
+      }
+     ],
+     "dismissed": [],
+     "stores": [
+      "Pantry Mart Downtown",
+      "GreenLeaf Grocers Kitsilano"
+     ],
+     "recommended": null,
+     "frontier": [],
+     "not_stocked": [],
+     "total_cost": 118.83,
+     "total_is_floor": false,
+     "price_delta": null,
+     "fingerprint": "d9817b22fe3ac2869a8f299700971445f04d23e34d16b574d79a0a6e83dd3b66",
+     "diff": null,
+     "list_text": "Shopping trip Sat 10 Oct 2026 (fresh)\n..."
+    },
+    {
+     "id": "fresh-2026-10-13",
+     "date": "2026-10-13",
+     "status": "suggested",
+     "reason": "Chicken Fried Rice on Tue 13 Oct needs Boneless Skinless Chicken Breast, which keeps 1 to 2 days in the fridge (FoodSafety.gov, Cold Food Storage Chart, fs-poultry-pieces-fridge).",
+     "lines": [
+      {
+       "product": {
+        "id": 10,
+        "name": "Boneless Skinless Chicken Breast",
+        "unit_size": "500g",
+        "category": "meat",
+        "demo_product": false
+       },
+       "category": "meat",
+       "packs": 1,
+       "packs_basis": "computed",
+       "need_qty": 200.0,
+       "need_uom": "g",
+       "leftover_qty": 300.0,
+       "leftover_until": "2026-10-14",
+       "storage": "fridge",
+       "freeze_on_arrival": false,
+       "shelf_life": {
+        "status": "cited",
+        "verbatim": [
+         "1 to 2 days"
+        ],
+        "rule_ids": [
+         "fs-poultry-pieces-fridge"
+        ],
+        "source": "FoodSafety.gov, Cold Food Storage Chart",
+        "url": "https://www.foodsafety.gov/food-safety-charts/cold-food-storage-charts",
+        "page_date": "2023-09-19",
+        "days_planned": 1,
+        "note": "Planned with the lower bound, 1 day(s)."
+       },
+       "for_meals": [
+        {
+         "meal_id": "starter:chicken_fried_rice#1",
+         "recipe_key": "starter:chicken_fried_rice",
+         "title": "Chicken Fried Rice",
+         "date": "2026-10-13",
+         "slot": "dinner"
+        }
+       ],
+       "store": "Pantry Mart Downtown",
+       "price": 9.36,
+       "price_at_approval": null,
+       "price_delta": null,
+       "stocked": true
+      }
+     ],
+     "dismissed": [],
+     "stores": [
+      "Pantry Mart Downtown"
+     ],
+     "recommended": null,
+     "frontier": [],
+     "not_stocked": [],
+     "total_cost": 40.6,
+     "total_is_floor": false,
+     "price_delta": null,
+     "fingerprint": "7cf5feeaa4f0cec0f999049e432c1844482793e83999290bdcdc35eeee7bfdaf",
+     "diff": null,
+     "list_text": "Shopping trip Tue 13 Oct 2026 (fresh)\n..."
+    }
+   ],
+   "actions": [],
+   "total_cost": 219.4,
+   "total_is_floor": false,
+   "warning_counts": {
+    "must_fix": 0,
+    "decide": 0,
+    "note": 1
+   }
+  },
+  {
+   "name": "fewest_trips",
+   "recommended": false,
+   "trips": [
+    {
+     "id": "fewest_trips-2026-10-10",
+     "date": "2026-10-10",
+     "status": "suggested",
+     "reason": "Mango Milkshake on Sat 10 Oct needs Whole Milk 1L, which has no cited storage time; your setting buys it at most 7 day(s) ahead.",
+     "lines": [
+      {
+       "product": {
+        "id": 10,
+        "name": "Boneless Skinless Chicken Breast",
+        "unit_size": "500g",
+        "category": "meat",
+        "demo_product": false
+       },
+       "category": "meat",
+       "packs": 1,
+       "packs_basis": "computed",
+       "need_qty": 200.0,
+       "need_uom": "g",
+       "leftover_qty": 300.0,
+       "leftover_until": null,
+       "storage": "freezer",
+       "freeze_on_arrival": true,
+       "shelf_life": {
+        "status": "cited",
+        "verbatim": [
+         "9 months",
+         "After thawing in the refrigerator, items such as ground meat, stew meat, poultry, seafood, should remain safe and good quality for an additional day or two before cooking",
+         "Even small amounts of frozen food — such as a pound of ground meat or boneless chicken breasts — require a full day to thaw."
+        ],
+        "rule_ids": [
+         "fs-poultry-pieces-freezer",
+         "fsis-thawed-ground-poultry-seafood-fridge",
+         "fsis-thaw-fridge-small"
+        ],
+        "source": "FoodSafety.gov, Cold Food Storage Chart",
+        "url": "https://www.foodsafety.gov/food-safety-charts/cold-food-storage-charts",
+        "page_date": "2023-09-19",
+        "days_planned": null,
+        "note": "Frozen on arrival and thawed in the fridge for the meal; freezer times are for quality, fridge times for safety."
+       },
+       "for_meals": [
+        {
+         "meal_id": "starter:chicken_fried_rice#1",
+         "recipe_key": "starter:chicken_fried_rice",
+         "title": "Chicken Fried Rice",
+         "date": "2026-10-13",
+         "slot": "dinner"
+        }
+       ],
+       "store": "Pantry Mart Downtown",
+       "price": 9.36,
+       "price_at_approval": null,
+       "price_delta": null,
+       "stocked": true
+      }
+     ],
+     "dismissed": [],
+     "stores": [
+      "Pantry Mart Downtown",
+      "GreenLeaf Grocers Kitsilano"
+     ],
+     "recommended": null,
+     "frontier": [],
+     "not_stocked": [],
+     "total_cost": 164.3,
+     "total_is_floor": false,
+     "price_delta": null,
+     "fingerprint": "9044951ff69061f855facef3794fc00565751de48a4c1cb0387be019ff3a6047",
+     "diff": null,
+     "list_text": "Shopping trip Sat 10 Oct 2026 (fewest trips)\n..."
+    }
+   ],
+   "actions": [
+    {
+     "kind": "freeze",
+     "date": "2026-10-10",
+     "text": "Freeze 1 x Boneless Skinless Chicken Breast on arrival",
+     "trip_id": "fewest_trips-2026-10-10",
+     "meal_id": null,
+     "product_id": 10,
+     "rule_ids": [
+      "fs-poultry-pieces-freezer"
+     ],
+     "basis": "cited"
+    },
+    {
+     "kind": "freeze",
+     "date": "2026-10-10",
+     "text": "Freeze 1 x Chicken Thighs Bone-In on arrival",
+     "trip_id": "fewest_trips-2026-10-10",
+     "meal_id": null,
+     "product_id": 11,
+     "rule_ids": [
+      "fs-poultry-pieces-freezer"
+     ],
+     "basis": "cited"
+    }
+   ],
+   "total_cost": 221.28,
+   "total_is_floor": false,
+   "warning_counts": {
+    "must_fix": 0,
+    "decide": 0,
+    "note": 1
+   }
+  }
+ ],
+ "recommended_strategy": "fresh",
+ "warnings": [
+  {
+   "level": "note",
+   "code": "shelf_life_unknown",
+   "message": "28 product(s) have no cited storage time: 11 chilled or fresh ones follow your buy-ahead setting (7 days), and shelf-stable or frozen ones are not limited.",
+   "strategy": null,
+   "remedies": [],
+   "meal_ids": [],
+   "product_id": null,
+   "trip_date": null,
+   "recipe_key": null
+  }
+ ],
+ "days": [
+  {
+   "date": "2026-10-09",
+   "weekday": "Fri",
+   "meal_ids": [],
+   "nutrition": null
+  },
+  {
+   "date": "2026-10-10",
+   "weekday": "Sat",
+   "meal_ids": [
+    "starter:mango_milkshake#1"
+   ],
+   "nutrition": null
+  }
+ ],
+ "period_nutrition": null,
+ "coverage": {
+  "products": 31,
+  "freshness_cited": 3,
+  "freshness_your_setting": 11,
+  "freshness_unknown": 17,
+  "needs": 108,
+  "amounts_known": 108,
+  "nutrition": "unknown"
+ },
+ "approved_schedule": null,
+ "sources": [
+  {
+   "id": "fsgov-cold-storage",
+   "title": "Cold Food Storage Chart",
+   "publisher": "FoodSafety.gov, U.S. Department of Health and Human Services",
+   "url": "https://www.foodsafety.gov/food-safety-charts/cold-food-storage-charts",
+   "page_date": "2023-09-19",
+   "retrieved": "2026-10-08",
+   "credit": "Source: FoodSafety.gov (U.S. Department of Health and Human Services), Cold Food Storage Chart, reviewed 2023-09-19."
+  },
+  {
+   "id": "demo-data",
+   "title": "Demo data",
+   "publisher": "this demo",
+   "url": null,
+   "page_date": null,
+   "retrieved": null,
+   "credit": "Store prices and stock, the demo starter recipes, the library's house amounts and products 166-169 are synthetic demo data."
+  }
+ ],
+ "synthetic_notice": "Stores, prices and stock are synthetic demo data; a trip date does not change a price or what is stocked."
+}
