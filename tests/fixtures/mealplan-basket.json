@@ -1,0 +1,178 @@
+{
+ "v": 1,
+ "rev": 4,
+ "recipes": [
+  {
+   "key": "starter:pepperoni_pizza",
+   "title": "Pepperoni Pizza",
+   "status": "ok",
+   "meals": 2,
+   "lines": [
+    {
+     "line_no": 1,
+     "ingredient": "pizza dough",
+     "need": "500 g for 2 meals",
+     "product": {
+      "id": 41,
+      "name": "Pizza Dough Ball 500g",
+      "size": "500g",
+      "labels": [
+       "fresh"
+      ],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "Pantry Mart Downtown",
+      "distance_km": 1.24
+     },
+     "price": 3.49,
+     "cost_for_need": 3.49,
+     "origin": {
+      "country": "Canada",
+      "claim": "Made in Canada, ingredients may be imported",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [],
+     "available": true,
+     "why_unavailable": null,
+     "unavailable_kind": null
+    },
+    {
+     "line_no": 3,
+     "ingredient": "salt",
+     "need": "4 g for 2 meals",
+     "product": {
+      "id": 122,
+      "name": "Table Salt",
+      "size": "1kg",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "GreenLeaf Grocers Kitsilano",
+      "distance_km": null
+     },
+     "price": 1.54,
+     "cost_for_need": 0.01,
+     "origin": {
+      "country": null,
+      "claim": "",
+      "status": "unknown",
+      "preferred_rank": null
+     },
+     "pinned": true,
+     "shared_with": [
+      "starter:chicken_fried_rice"
+     ],
+     "available": true,
+     "why_unavailable": null,
+     "unavailable_kind": null
+    },
+    {
+     "line_no": 5,
+     "ingredient": "fresh basil",
+     "need": "10 g for 2 meals",
+     "product": {
+      "id": 77,
+      "name": "Fresh Basil",
+      "size": "30g",
+      "labels": [
+       "organic"
+      ],
+      "says_organic": true,
+      "demo_product": true
+     },
+     "store": null,
+     "price": null,
+     "cost_for_need": null,
+     "origin": {
+      "country": "Mexico",
+      "claim": "From Mexico",
+      "status": "evidenced",
+      "preferred_rank": 16
+     },
+     "pinned": false,
+     "shared_with": [],
+     "available": false,
+     "why_unavailable": "no store within 5 km sells it",
+     "unavailable_kind": "out_of_range"
+    }
+   ]
+  },
+  {
+   "key": "starter:chicken_fried_rice",
+   "title": "Chicken Fried Rice",
+   "status": "ok",
+   "meals": 1,
+   "lines": [
+    {
+     "line_no": 2,
+     "ingredient": "salt",
+     "need": "2 g",
+     "product": {
+      "id": 122,
+      "name": "Table Salt",
+      "size": "1kg",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "GreenLeaf Grocers Kitsilano",
+      "distance_km": 2.0
+     },
+     "price": 1.54,
+     "cost_for_need": null,
+     "origin": {
+      "country": null,
+      "claim": "",
+      "status": "conflicting",
+      "preferred_rank": null
+     },
+     "pinned": true,
+     "shared_with": [
+      "starter:pepperoni_pizza"
+     ],
+     "available": true,
+     "why_unavailable": null,
+     "unavailable_kind": null
+    },
+    {
+     "line_no": 6,
+     "ingredient": "shaoxing wine",
+     "need": "15 ml",
+     "product": null,
+     "store": null,
+     "price": null,
+     "cost_for_need": null,
+     "origin": {
+      "country": null,
+      "claim": "",
+      "status": "unknown",
+      "preferred_rank": null
+     },
+     "pinned": false,
+     "shared_with": [],
+     "available": false,
+     "why_unavailable": null,
+     "unavailable_kind": "origin_excluded"
+    }
+   ]
+  },
+  {
+   "key": "starter:gone",
+   "title": "Gone",
+   "status": "ok",
+   "meals": 1,
+   "lines": []
+  }
+ ],
+ "unavailable_count": 2,
+ "est_total": 6.57,
+ "budget": 50,
+ "latency_ms": 7
+}

@@ -1,5 +1,6 @@
 // The plan renderers shared by the Planner and the Assistant: query-plan timeline, trip
 // options, gate alerts, coverage, a shopping plan and a week plan.
+import type { ReactNode } from 'react';
 import type {
   DroppedIngredient,
   LlmCallTrace,
@@ -11,6 +12,7 @@ import type {
   TripOption,
   WeekPlan,
 } from '../types';
+import { IngredientImage } from './flow';
 
 export const modelShort = (model: string) =>
   model.includes('haiku') ? 'haiku'
@@ -323,6 +325,7 @@ export function PlanView({ plan }: { plan: ShoppingPlan }) {
         <table>
           <thead>
             <tr>
+              <th aria-label="photo" />
               <th>Ingredient</th>
               <th>Matched product</th>
               <th className="num">Price</th>
@@ -333,6 +336,7 @@ export function PlanView({ plan }: { plan: ShoppingPlan }) {
           <tbody>
             {plan.line_items.map((li) => (
               <tr key={li.line_no}>
+                <td><IngredientImage name={li.ingredient_name.split(' + ')[0]} size={40} /></td>
                 <td>
                   {li.ingredient_name}
                   {li.also_lines && li.also_lines.length > 0 && (
@@ -387,11 +391,13 @@ export function PlanView({ plan }: { plan: ShoppingPlan }) {
   );
 }
 
-export function WeekView({ week }: { week: WeekPlan }) {
+// actions: controls for the header, such as the Planner's "Open in Meal plan".
+export function WeekView({ week, actions }: { week: WeekPlan; actions?: ReactNode }) {
   return (
     <section className="panel">
       <div className="plan-header">
         <h2>Week plan · {week.days.length} dinners</h2>
+        {actions}
         <div className="plan-meta">
           <span className="chip chip-ok">
             merged basket ${week.total_cost.toFixed(2)}

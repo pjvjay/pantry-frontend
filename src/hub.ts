@@ -4,23 +4,54 @@
 import type {
   AgentEvent,
   AgentOptions,
+  AlternativeRanking,
+  CalendarApplyResult,
+  CalendarDiff,
+  CalendarDisconnectResult,
+  CalendarSyncRequest,
+  CalendarSyncStatus,
+  GeocodeAnswer,
   HubStatus,
+  ImportResult,
   McpCatalog,
   McpTarget,
+  Metrics,
   PlanExecution,
   Product,
+  RecipeDoc,
+  RunDetail,
   RuntimeSettings,
   ShoppingPlan,
+  SwapResult,
   ToolResult,
+  Trace,
+  TraceSummary,
   WeekPlan,
 } from './types';
 import { PlanAbortError } from './api';
+import type { MealPlanContext } from './mealplan/chatDraft';
+import { fromConsole } from './consoleRequest';
 
 const API = `${import.meta.env.BASE_URL}api`;
 const HUB = '/hub';
 
+// A refusal from the hub, with the status and the detail as sent: routes that name a reason
+// send {code, message, ...}, which the caller can switch on (recipe import does). The message
+// is the same text as before, so callers that only show it are unchanged.
+export class HubError extends Error {
+  status: number;
+  detail: unknown;
+
+  constructor(message: string, status: number, detail: unknown) {
+    super(message);
+    this.name = 'HubError';
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const res = await fetch(url, fromConsole(init));
   if (!res.ok) {
     let detail: unknown = null;
     try {
@@ -33,7 +64,7 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
     }
     const text = typeof detail === 'string' ? detail
       : detail ? JSON.stringify(detail) : `${res.status} ${res.statusText}`;
-    throw new Error(text);
+    throw new HubError(text, res.status, detail);
   }
   return res.json() as Promise<T>;
 }
@@ -90,6 +121,11 @@ export const setRuntime = (patch: Partial<Pick<RuntimeSettings, 'demo_mode' | 'm
 // ─── hub ──────────────────────────────────────────────────────
 
 export const getStatus = () => json<HubStatus>(`${HUB}/status`);
+
+// An address to places (OpenStreetMap through the hub). Only ever on the shopper's search, never
+// as they type: Nominatim's policy forbids autocomplete.
+export const geocode = (q: string, signal?: AbortSignal) =>
+  json<GeocodeAnswer>(`${HUB}/geocode?q=${encodeURIComponent(q)}`, { signal });
 export const resetDemo = () => json<{ ok: boolean; output: string }>(`${HUB}/demo/reset`,
   { method: 'POST' });
 
@@ -113,22 +149,41 @@ export async function pantryTool<T>(tool: string, args: Record<string, unknown> 
 
 export const agentOptions = () => json<AgentOptions>(`${HUB}/agent/options`);
 
+// A local model reads the Assistant's instructions and first tools now, while the shopper types,
+// so the first step reads only the question. Resolves when it has (minutes on a CPU).
+export interface WarmResult { model?: string; wall_s?: number; prompt_tokens?: number;
+  prompt_s?: number; load_s?: number; skipped?: string }
+export const agentWarm = (body: { model: string; target: string; disclosure?: string }) =>
+  json<WarmResult>(`${HUB}/agent/warm`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) });
+
 // One Assistant turn, streamed: the hub answers with server-sent events (one JSON per event).
+// `recipe_doc`: a recipe the shopper reviewed in the import sheet, every line confirmed; the hub
+// keeps it as the conversation's next imp:N and the model plans exactly those lines.
+// `meal_plan`: the shopper's Meal plan in brief (mealplan/chatDraft.contextOf), which a meal-plan
+// draft is made against; the hub keeps it in memory only.
 export async function agentChat(
   body: { message: string; conversation_id?: string | null; model: string; target: string;
-          disclosure?: string },
+          disclosure?: string; recipe_doc?: RecipeDoc; meal_plan?: MealPlanContext },
   onEvent: (e: AgentEvent) => void,
   signal?: AbortSignal,
+  onOpen?: () => void,
 ): Promise<void> {
-  const res = await fetch(`${HUB}/agent/chat`, { ...post(body), signal });
+  const res = await fetch(`${HUB}/agent/chat`, fromConsole({ ...post(body), signal }));
+  onOpen?.();
   if (!res.ok || !res.body) {
-    let detail = `${res.status} ${res.statusText}`;
+    let detail: unknown = null;
     try {
-      detail = (await res.json()).detail ?? detail;
+      detail = (await res.json()).detail;
     } catch {
       /* keep the status */
     }
-    throw new Error(detail);
+    // a refusal of a reviewed recipe is {code, message}: say the message, not "[object Object]"
+    const said = detail && typeof detail === 'object' && 'message' in detail
+      ? String((detail as { message: unknown }).message) : detail;
+    const text = typeof said === 'string' ? said
+      : said ? JSON.stringify(said) : `${res.status} ${res.statusText}`;
+    throw new HubError(text, res.status, detail);
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -146,6 +201,71 @@ export async function agentChat(
     }
   }
 }
+
+// A chat cart's line: the other products that could fill it, ranked by pantry from the plan the
+// hub holds (the browser never sends the plan). `ref` names the card's plan. Read-only: no model
+// call, and it works while the assistant is answering.
+export const agentAlternatives = (conversationId: string,
+                                  body: { ref: number; line_no: number; limit?: number }) =>
+  json<AlternativeRanking>(
+    `${HUB}/agent/conversations/${encodeURIComponent(conversationId)}/alternatives`, post(body));
+
+// The shopper's choice for a line: the hub re-prices the plan with it (no model call) and the
+// model hears about it with the next message. product_id null puts the planner's pick back.
+export const agentSwap = (conversationId: string,
+                          body: { ref: number; line_no: number; product_id: number | null }) =>
+  json<SwapResult>(
+    `${HUB}/agent/conversations/${encodeURIComponent(conversationId)}/swap`, post(body));
+
+// Recipe import: the hub reads a recipe page or a YouTube link (a guarded fetch on the shopper's
+// own machine; pantry-api never fetches) into a RecipeDoc for the shopper to review. No model is
+// called. A refusal is a HubError whose detail is {code, message, ...}.
+export const importRecipe = (url: string) =>
+  json<ImportResult>(`${HUB}/recipes/import`, post({ url }));
+
+// Gemini watches a public video for its ingredient lines: only on the shopper's click, which is
+// the consent the hub requires. Every line comes back unconfirmed until the shopper ticks it.
+// duration_s is the length the sheet shows: the YouTube Data API's, or the shopper's estimate.
+// The hub reads the length itself when it can, and needs this when it cannot (422
+// needs_duration), as when its key is refused between the link import and the click.
+export const importVideo = (body: { video_id: string; duration_s?: number | null }) =>
+  json<ImportResult>(`${HUB}/recipes/import/video`, post({
+    video_id: body.video_id, consent: true,
+    ...(body.duration_s != null ? { duration_s: body.duration_s } : {}),
+  }));
+
+// Google Calendar sync (opt-in, local hub only; demo-hub docs/google-calendar.md). The hub holds
+// the OAuth client and token; the console only ever sees booleans and labels. connect answers
+// Google's consent URL, which the console opens; preview writes nothing; apply writes exactly
+// the reviewed diff (409 preview_stale when anything changed since). A refusal is a HubError
+// whose detail is {code, message}.
+export const calendarSyncStatus = () => json<CalendarSyncStatus>(`${HUB}/calendar/status`);
+export const calendarConnect = (return_to: string) =>
+  json<{ auth_url: string }>(`${HUB}/calendar/connect`, post({ return_to }));
+export const calendarSyncPreview = (body: CalendarSyncRequest) =>
+  json<CalendarDiff>(`${HUB}/calendar/sync/preview`, post(body));
+export const calendarSyncApply = (body: CalendarSyncRequest) =>
+  json<CalendarApplyResult>(`${HUB}/calendar/sync/apply`, post(body));
+export const calendarDisconnect = (delete_calendar: boolean) =>
+  json<CalendarDisconnectResult>(`${HUB}/calendar/disconnect`, post({ delete_calendar }));
+
+// Traces of Assistant turns and the metrics rolled up from them (every layer, the browser's too).
+export const traceList = (limit = 50) => json<TraceSummary[]>(`${HUB}/traces?limit=${limit}`);
+export const traceDetail = (id: string) => json<Trace>(`${HUB}/traces/${encodeURIComponent(id)}`);
+export const getMetrics = () => json<Metrics>(`${HUB}/metrics`);
+export const runDetail = (id: string) => json<RunDetail>(`${HUB}/runs/${encodeURIComponent(id)}`);
+
+// Pictures, fetched once by the hub and served from its cache: an ingredient's Wikipedia
+// thumbnail, an image from a recipe page, and a Wikipedia article's lead image (404 when it has
+// none).
+export const ingredientImage = (name: string) =>
+  `${HUB}/images/ingredient?name=${encodeURIComponent(name)}`;
+export const remoteImage = (url: string) => `${HUB}/images/remote?url=${encodeURIComponent(url)}`;
+export const wikiImage = (title: string) => `${HUB}/images/wiki?title=${encodeURIComponent(title)}`;
+
+// OpenStreetMap's map tiles through the hub (its cache, and the attribution and fair use the
+// tile policy asks for); 503 while the hub has them off (HubStatus.tiles).
+export const tileImage = (z: number, x: number, y: number) => `${HUB}/tiles/${z}/${x}/${y}.png`;
 
 export const simPresets = () =>
   json<{ presets: Record<string, { label: string; models: Record<string, string> }>;
