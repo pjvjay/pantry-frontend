@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
+  originCoverage, originCoverageText,
   basketAtLeast, basketKey, basketView, lineIssue, originText, unansweredCount, unansweredGroups, unavailableHeading,
 } from '../src/mealplan/basket.ts';
 import type { MealBasket } from '../src/types.ts';
@@ -161,4 +162,27 @@ test('each recipe heading has its meal and its picture', () => {
     ['dinner', { via: 'wiki', title: 'Pepperoni pizza', credit: 'Wikipedia' }],
     ['dinner', null],
   ]);
+});
+
+test('origin coverage counts each product once, and only evidenced origins as known', () => {
+  const ids = new Map<number, boolean>();
+  for (const r of BASKET.recipes) for (const l of r.lines) {
+    if (l.product) ids.set(l.product.id, (ids.get(l.product.id) ?? false) || l.origin.status === 'evidenced');
+  }
+  const c = originCoverage(BASKET);
+  assert.equal(c.total, ids.size);
+  assert.equal(c.known, [...ids.values()].filter(Boolean).length);
+  assert.ok(c.known > 0 && c.known < c.total, 'the fixture has both, so both branches are read');
+
+  const none: MealBasket = { ...BASKET, recipes: BASKET.recipes.map((r) => ({
+    ...r, lines: r.lines.map((l) => ({ ...l, origin: { ...l.origin, status: 'unknown' as const } })) })) };
+  assert.equal(originCoverage(none).known, 0);
+  const conflicting: MealBasket = { ...BASKET, recipes: BASKET.recipes.map((r) => ({
+    ...r, lines: r.lines.map((l) => ({ ...l, origin: { ...l.origin, status: 'conflicting' as const } })) })) };
+  assert.equal(originCoverage(conflicting).known, 0, 'a conflicting record is not a known origin');
+
+  assert.equal(originCoverageText({ known: 0, total: 0 }), null);
+  assert.equal(originCoverageText({ known: 3, total: 3 }), 'Origin is known for 3 of 3 products: your origin rules apply to all of them.');
+  assert.equal(originCoverageText({ known: 0, total: 1 }),
+    'Origin is known for 0 of 1 product: your origin rules (leave out, prefer) can only act on products whose origin is known.');
 });

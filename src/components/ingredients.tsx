@@ -12,12 +12,13 @@
 import { useId, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
-import { basketAtLeast, basketView, unansweredGroups } from '../mealplan/basket';
+import { basketAtLeast, basketView, originCoverage, originCoverageText, unansweredGroups } from '../mealplan/basket';
 import type { LineView, RecipeView } from '../mealplan/basket';
 import { againstBudget } from '../mealplan/catalog';
 import { USABLE_RESOLVE, budgetOf, recipeTitle } from '../mealplan/model';
 import { useMealPlan, useStores } from '../mealplan/store';
 import type { KeyedCall } from '../mealplan/store';
+import { originRules } from '../mealplan/wizard';
 import type { MealBasket } from '../types';
 import { Icon } from './icons';
 import { ServingsPrompt } from './mealtray';
@@ -148,6 +149,12 @@ export function IngredientsStage({ basket, onMeals }: { basket: KeyedCall<MealBa
   const shown = new Set(view?.recipes.map((r) => r.key) ?? []);
   const keys = Object.keys(d.recipes);
   const total = b ? againstBudget(b.est_total, basketAtLeast(b), budgetOf(d.prefs)) : null;
+  // Origin coverage, said only when the plan has origin rules: they act on known origins only.
+  const rules = originRules(d.settings);
+  const hasRules = rules.excludeUS || rules.preferCanada || rules.allies.length > 0;
+  const covered = b && hasRules ? originCoverage(b) : null;
+  const coverageText = covered ? originCoverageText(covered) : null;
+  const coverage = coverageText && covered ? { text: coverageText, flag: covered.known === 0 } : null;
   const open = optionsFor ? view?.recipes.flatMap((r) => r.lines).find((l) => l.key === optionsFor) ?? null : null;
   // recipes whose products are not checked yet, or could not be
   const waiting = keys.filter((k) => !d.resolved[k] || !USABLE_RESOLVE.includes(d.resolved[k].status));
@@ -182,6 +189,7 @@ export function IngredientsStage({ basket, onMeals }: { basket: KeyedCall<MealBa
           <span className="muted"> · whole packs, each product bought once; trips on different days can cost more</span>
         </p>
       )}
+      {coverage && <p className={coverage.flag ? 'cart-flag' : 'muted'}>{coverage.text}</p>}
       {basket.status === 'checking' && <p className="muted" role="status">Checking the ingredients…</p>}
       {basket.status === 'error' && (
         <div className="banner banner-error" role="alert">
