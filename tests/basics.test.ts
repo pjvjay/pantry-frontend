@@ -86,7 +86,7 @@ test('"Your plan" sums Basics up in a few words', () => {
   assert.deepEqual([rows.budget.value, rows.budget.note], ['$75.00', 'about $5.36 a day']);
   assert.equal(rows.when.note, '2 weeks');
   assert.equal(rows.diet.value, 'Vegan');
-  assert.equal(rows.avoid.value, 'nuts, soy');
+  assert.equal(rows.avoid.value, 'soy, nuts (peanuts and tree nuts)', 'an older plan\'s nuts reads as both');
   assert.equal(rows.origin.value, 'US products allowed');
   assert.equal(rows.where.value, 'Kitsilano', 'the location only: stores are chosen in Ingredients');
   assert.equal(rows.days.value, 'Weekends');
