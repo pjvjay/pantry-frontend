@@ -180,6 +180,26 @@ export const unansweredCount = (b: MealBasket | null, s: MealPlanState): number 
   (b ? basketView(b, s).unanswered.length : 0);
 
 // Whether the basket's total leaves out a price: some ingredient it buys has none.
+// How many of the basket's products have origin evidence: the origin rules (leave out a country,
+// prefer one) act only on those, so the stage says so. Each product counts once, however many
+// lines buy it; a conflicting record is not counted as known.
+export function originCoverage(b: MealBasket): { known: number; total: number } {
+  const seen = new Map<number, boolean>();
+  for (const r of b.recipes) {
+    for (const l of r.lines) {
+      if (l.product) seen.set(l.product.id, (seen.get(l.product.id) ?? false) || l.origin.status === 'evidenced');
+    }
+  }
+  return { known: [...seen.values()].filter(Boolean).length, total: seen.size };
+}
+
+export function originCoverageText(c: { known: number; total: number }): string | null {
+  if (!c.total) return null;
+  const of = `Origin is known for ${c.known} of ${c.total} product${c.total === 1 ? '' : 's'}`;
+  if (c.known === c.total) return `${of}: your origin rules apply to all of them.`;
+  return `${of}: your origin rules (leave out, prefer) can only act on products whose origin is known.`;
+}
+
 export const basketAtLeast = (b: MealBasket): boolean =>
   b.recipes.some((r) => r.lines.some((ln) => ln.available && ln.product !== null && ln.price === null));
 
