@@ -550,6 +550,11 @@ export interface Health {
   escalation_model: string;
   confidence_threshold: number;
   demo_mode?: boolean;
+  // The running release (pantry_planner/version.py): X.Y.Z, a git describe
+  // string, or 'unknown'. Absent from APIs older than versioning.
+  version?: string;
+  revision?: string | null;
+  build?: { release: string | null; built_at: string | null };
   // the product matcher: "meaning" with its seeds; `unknown_names` how a name no seed knows is
   // matched right now ("words" while the embedding model is down). Absent from an older pantry.
   matching?: {
