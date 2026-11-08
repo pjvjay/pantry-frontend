@@ -39,7 +39,17 @@ export const DIETS: readonly Diet[] = ['any', 'pescatarian', 'vegetarian', 'vega
 export const DIET_LABELS: Record<Diet, string> = {
   any: 'Anything', pescatarian: 'Pescatarian', vegetarian: 'Vegetarian', vegan: 'Vegan',
 };
-export const AVOID_TAGS: readonly AvoidTag[] = ['dairy', 'gluten', 'nuts', 'soy', 'egg'];
+// The allergens Basics offers to leave out: Health Canada's priority allergens, with gluten
+// sources and sulphites. AVOID_TAGS adds 'nuts', which a plan saved before peanuts and tree nuts
+// were split may hold; Basics shows it only while it is chosen.
+export const AVOID_CHOICES: readonly AvoidTag[] = ['peanuts', 'tree_nuts', 'sesame', 'dairy', 'egg', 'fish',
+  'shellfish', 'soy', 'gluten', 'mustard', 'sulphites'];
+export const AVOID_TAGS: readonly AvoidTag[] = [...AVOID_CHOICES, 'nuts'];
+export const AVOID_LABELS: Record<AvoidTag, string> = {
+  peanuts: 'peanuts', tree_nuts: 'tree nuts', sesame: 'sesame', dairy: 'milk', egg: 'eggs', fish: 'fish',
+  shellfish: 'shellfish', soy: 'soy', gluten: 'gluten', mustard: 'mustard', sulphites: 'sulphites',
+  nuts: 'nuts (peanuts and tree nuts)',
+};
 
 // A budget is groceries for the whole period, as pantry-api takes it (0 < budget <= 10000).
 export const MAX_BUDGET = 10000;

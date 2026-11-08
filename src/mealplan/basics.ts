@@ -8,7 +8,7 @@
 // the server's own reference point, downtown Vancouver, is used. Also here: the budget's quick
 // picks and daily figure, and the "Your plan" summary beside the form.
 import { addDays, dayLabel } from './dates.ts';
-import { DIET_LABELS, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf } from './model.ts';
+import { AVOID_LABELS, DIET_LABELS, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf } from './model.ts';
 import { originRules } from './wizard.ts';
 import type { MealPlanDraft, PlanSettings } from '../types.ts';
 
@@ -140,7 +140,7 @@ export function planSummary(d: MealPlanDraft): SummaryRow[] {
     { key: 'budget', label: 'Budget', value: budget === null ? 'No budget' : money(budget),
       ...(budget === null ? {} : { note: perDayText(budget, d.days) }) },
     { key: 'diet', label: 'Diet', value: DIET_LABELS[dietOf(d.prefs)] },
-    { key: 'avoid', label: 'Leave out', value: avoid.length ? avoid.join(', ') : 'Nothing' },
+    { key: 'avoid', label: 'Leave out', value: avoid.length ? avoid.map((t) => AVOID_LABELS[t]).join(', ') : 'Nothing' },
     { key: 'origin', label: 'Origin', value: origin.join(' · ') },
     { key: 'where', label: 'Where you are', value: placeText(st) },
     { key: 'days', label: 'Shop on', value: weekdaysText(d.prefs.shop_weekdays) },

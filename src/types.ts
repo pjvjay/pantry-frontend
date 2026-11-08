@@ -1112,7 +1112,10 @@ export interface Meal {
 // own tags). A plan saved before the wizard has neither, nor a budget: read them as 'any', none
 // and no budget.
 export type Diet = 'any' | 'pescatarian' | 'vegetarian' | 'vegan';
-export type AvoidTag = 'dairy' | 'gluten' | 'nuts' | 'soy' | 'egg';
+// Health Canada's priority allergens with gluten sources and sulphites (pantry-api's diets.ALLERGENS);
+// 'nuts' is peanuts and tree nuts together, as plans saved before they were split ask for them.
+export type AvoidTag = 'dairy' | 'gluten' | 'nuts' | 'soy' | 'egg' | 'peanuts' | 'tree_nuts' | 'sesame'
+  | 'fish' | 'shellfish' | 'mustard' | 'sulphites';
 
 export interface MealPrefs {
   household_servings: number;      // 1..20

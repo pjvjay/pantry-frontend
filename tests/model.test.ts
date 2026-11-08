@@ -253,6 +253,9 @@ test('a budget, a diet and avoid-tags are settings, checked as pantry-api checks
   assert.equal(budgetOf(s.draft.prefs), 120.5);
   assert.equal(dietOf(s.draft.prefs), 'vegetarian');
   assert.deepEqual(avoidOf(s.draft.prefs), ['dairy', 'soy'], 'kept in a fixed order');
+  s = run(s, { type: 'setPrefs', prefs: { avoid: ['mustard', 'sesame', 'shellfish', 'peanuts', 'sulphites'] } });
+  assert.deepEqual(avoidOf(s.draft.prefs), ['peanuts', 'sesame', 'shellfish', 'mustard', 'sulphites'],
+    'Health Canada\'s priority allergens, in the order Basics shows them');
   assert.match(refusal(s, { type: 'setPrefs', prefs: { budget: 0 } }), /budget/);
   assert.match(refusal(s, { type: 'setPrefs', prefs: { budget: 10000.01 } }), /budget/);
   assert.match(refusal(s, { type: 'setPrefs', prefs: { diet: 'keto' as never } }), /diet/);
