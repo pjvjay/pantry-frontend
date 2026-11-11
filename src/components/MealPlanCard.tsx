@@ -186,7 +186,7 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
             Apply to my Meal plan
           </button>
         )}
-        {/* the plan's Schedule stage: the draft's meals on their days */}
+        {/* the plan's Place on days stage: the draft's meals on their days */}
         <a className="btn btn-secondary" href={stepHash(4)}>Open in Meal plan</a>
         {problem && <p className="cart-flag" role="alert">Not applied: {problem}.</p>}
       </div>

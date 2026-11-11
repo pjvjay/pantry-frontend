@@ -35,7 +35,3 @@ export const arriving = (hash: string, arrival: Arrival = {}) =>
   (e: { button: number; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }) => {
     if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) arriveAt(hash, arrival);
   };
-
-// Home's Ask box hands its words to the Assistant (#/ask) in this tab's session storage; the
-// Assistant reads them once as it opens, puts them in its message box unsent, and removes them.
-export const ASK_PREFILL_KEY = 'pantry.ask.prefill';

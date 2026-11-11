@@ -14,7 +14,7 @@
 import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { ASK_PREFILL_KEY, arriveAt, arriving } from '../components/arrival';
+import { arriveAt, arriving } from '../components/arrival';
 import type { Arrival } from '../components/arrival';
 import { Icon } from '../components/icons';
 import { RecipePicture } from '../components/pictures';
@@ -31,6 +31,8 @@ import { useBasket, useMealPlan, usePlanFacts } from '../mealplan/store';
 import { clockText, stepHash, stepName } from '../mealplan/wizard';
 import type { StepNo } from '../mealplan/wizard';
 import { hrefFor } from '../routes';
+// the key Home's Ask box and the Ask page agree on, kept in one place
+import { ASK_PREFILL_KEY } from '../transcript';
 
 // A stage of the plan, opened with a request for it (components/arrival.ts): the example in Quick
 // add, focus on an answer, or only that the shopper has chosen already (no first-run sheet, and the
