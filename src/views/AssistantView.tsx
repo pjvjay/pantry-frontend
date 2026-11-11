@@ -1,291 +1,72 @@
-import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { RefObject } from 'react';
-import {
-  cartChangeText, cartLineKey, purchaseLineNo, replaceCard, replyBeforeChange, routedLinks,
-  swapAnnouncement, swapBlocked, swapNotice,
-} from '../alternatives';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { MouseEvent, RefObject } from 'react';
+
+import { cartLineKey, purchaseLineNo, swapAnnouncement, swapBlocked, swapNotice } from '../alternatives';
 import { AlternativesDialog } from '../components/alternatives';
 import type { OptionsTarget } from '../components/alternatives';
-import { JsonView } from '../components/common';
+import { SettingsButton, SettingsPanel } from '../components/assistant/AskSettings';
+import { Composer } from '../components/assistant/Composer';
+import { TurnView } from '../components/assistant/TurnView';
+import { useFollow } from '../components/assistant/useFollow';
+import { AskContext, CartActions } from '../components/cart';
+import { Icon } from '../components/icons';
+import { ImportActions, ImportSheet } from '../components/ImportSheet';
+import type { ImportStart } from '../components/ImportSheet';
 import { HubErrorBanner, OfflinePanel } from '../components/ui';
+import { useKeepClear } from '../components/useKeepClear';
+import { agentChat, agentOptions, agentSwap, agentWarm } from '../hub';
 import { useHubStatus } from '../hubStatus';
-import Markdown from '../components/Markdown';
-import { AskContext, CartActions, CartCard, PlanStrip } from '../components/cart';
-import { EvalCard, Reasoning, RecipeImages, imagesIn } from '../components/flow';
-import { ImportActions, ImportCard, ImportSheet } from '../components/ImportSheet';
-import { MealPlanCard } from '../components/MealPlanCard';
 import { contextOf } from '../mealplan/chatDraft';
 import { useMealPlan } from '../mealplan/store';
-import type { ImportStart } from '../components/ImportSheet';
-import { BurrLink, LlmCalls } from '../components/plan';
-import { agentChat, agentOptions, agentSwap, agentWarm } from '../hub';
 import { chatMessageFor } from '../recipes';
 import { ChatMeter } from '../telemetry';
-import type {
-  AgentEvent, AgentOptions, CartLine, CartSummary, Evals, LlmCallTrace, PlanCardData, RecipeDoc,
-  RecipeImportEvent, SwapResult,
-} from '../types';
-import { Icon } from '../components/icons';
-import { useKeepClear } from '../components/useKeepClear';
-
-const SUGGESTIONS = [
-  'I want to make https://omnivorescookbook.com/mala-chicken/ this week. What should I buy at stores within 5 km of downtown, what does it cost, and what won’t I find?',
-  'What is the cheapest penne, and where can I buy it?',
-  'Plan 3 dinners for under $60 with no dairy.',
-  '3 Pepperoni Pizza + 2 Chicken Fried Rice + 3 chicken briyani + 7 mango milkshakes in 2 weeks',
-  'Plan tomato penne with nothing from the United States, and tell me how much of the basket’s origin is verified.',
-  'Which products in the catalog have a verified Canadian origin?',
-];
-
-// One model call's timing: Ollama reports how long reading the prompt and generating took.
-function callTiming(e: Extract<AgentEvent, { type: 'llm_call' }>): string {
-  const secs = (s?: number) => (s == null ? '' : s >= 90 ? `${Math.floor(s / 60)}m${Math.round(s % 60)}s` : `${s.toFixed(1)}s`);
-  const parts = [`step ${e.step} · ${secs(e.wall_s)}`];
-  if (e.prompt_tokens != null && e.prompt_s) {
-    // Ollama counts a cached prefix in prompt_tokens without re-reading it.
-    const cachedMost = e.new_tokens_est != null && e.new_tokens_est < 0.9 * e.prompt_tokens;
-    parts.push(cachedMost
-      ? `read ~${e.new_tokens_est!.toLocaleString()} new of ${e.prompt_tokens.toLocaleString()} prompt tokens in ${secs(e.prompt_s)} (~${Math.round(e.new_tokens_est! / e.prompt_s)} tok/s; the rest was cached)`
-      : `read ${e.prompt_tokens.toLocaleString()} prompt tokens in ${secs(e.prompt_s)} (${Math.round(e.prompt_tokens / e.prompt_s)} tok/s)`);
-  }
-  if (e.output_tokens != null && e.gen_s) {
-    parts.push(`wrote ${e.output_tokens.toLocaleString()} tokens in ${secs(e.gen_s)} (${(e.output_tokens / e.gen_s).toFixed(1)} tok/s)`);
-  }
-  if (e.load_s && e.load_s > 1) parts.push(`model load ${secs(e.load_s)}`);
-  parts.push(e.tool_calls ? `${e.tool_calls} tool call(s)` : 'no tool calls');
-  return parts.join(' · ');
-}
-
-// The model call in flight. The hub sends its estimate when the call starts (learned from earlier
-// calls: the prompt tokens to read and the reading speed, the usual reply length and the writing
-// speed) and, while Ollama streams the reply, the tokens written so far.
-interface Waiting {
-  step: number; model: string; since: number; phase?: string; estimateS?: number;
-  promptTokens?: number; newTokens?: number; readS?: number; readRate?: number;
-  outTokens?: number; genRate?: number; samples?: number; basis?: string;
-  tokens?: number; tokensAt?: number; writingAt?: number;
-}
-
-const clock = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, '0')}s` : `${Math.max(0, Math.round(s))}s`);
-const n = (v: number) => Math.round(v).toLocaleString();
-
-// Percent done = elapsed / (elapsed + seconds left). The seconds left come from token counts and
-// rates: tokens still to read over the reading speed, then tokens still to write over the writing
-// speed (the live one once tokens stream in). Past the expected length, a floor keeps the seconds
-// left above zero, so the bar keeps closing in on 100% without claiming it before the reply.
-function callProgress(w: Waiting, now: number) {
-  const elapsed = Math.max(0, (now - w.since) / 1000);
-  const R = w.readS ?? 0;
-  const G = w.outTokens ?? 0;
-  const g = w.genRate || 0;
-  if (!g || !G) {                       // a cloud call: one phase, its usual reply time
-    const est = w.estimateS ?? 0;
-    const left = Math.max(est - elapsed, 0.05 * elapsed, 0.5);
-    return { elapsed, left, over: elapsed > est, detail: `waiting for the reply (usually ~${clock(est)})` };
-  }
-  if (w.writingAt == null) {
-    if (elapsed <= R || !R) {
-      const read = Math.min(elapsed * (w.readRate ?? 0), w.newTokens ?? 0);
-      return {
-        elapsed, left: Math.max(R - elapsed, 0) + G / g, over: false,
-        detail: `reading the prompt: ~${n(read)} of ~${n(w.newTokens ?? 0)} tokens to read`
-          + `${w.promptTokens && w.newTokens != null && w.newTokens < w.promptTokens ? ` (${n(w.promptTokens - w.newTokens)} cached)` : ''}`
-          + ` at ~${(w.readRate ?? 0).toFixed(0)} tok/s`,
-      };
-    }
-    // Past the reading estimate with no tokens: Ollama sends a tool call whole, so it is most
-    // likely writing one now (or reading is slower than usual).
-    const written = (elapsed - R) * g;
-    return {
-      elapsed, left: Math.max(G - written, 0.1 * G) / g, over: written > G,
-      detail: `probably writing a tool call: ~${n(written)} of ~${n(G)} usual tokens (Ollama sends a tool call whole)`,
-    };
-  }
-  const writingFor = Math.max((now - w.writingAt) / 1000, 0.001);
-  const tokens = w.tokens ?? 0;
-  const live = tokens >= 5 ? tokens / Math.max((w.tokensAt ?? now) - w.writingAt, 1) * 1000 : g;
-  const nowTokens = tokens + live * Math.max(0, (now - (w.tokensAt ?? now)) / 1000);
-  const shown = Math.min(nowTokens, tokens + live * 2);   // do not run ahead of the stream
-  return {
-    elapsed, left: Math.max(G - shown, 0.1 * Math.max(G, shown)) / live, over: shown > G,
-    detail: `writing: ${n(shown)} of ~${n(G)} usual tokens at ${live.toFixed(1)} tok/s (${clock(writingFor)} so far)`,
-  };
-}
-
-// The bar keeps its own one-second clock, so only it re-renders while a call runs: the chat
-// above it (Markdown answers, tool cards with their JSON) is not redrawn every second.
-function CallProgress({ w }: { w: Waiting }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  const { elapsed, left, over, detail } = callProgress(w, now);
-  const best = useRef({ since: 0, pct: 0 });
-  if (best.current.since !== w.since) best.current = { since: w.since, pct: 0 };
-  const pct = Math.max(best.current.pct, Math.min(99, (100 * elapsed) / (elapsed + left)));
-  best.current.pct = pct;
-  return (
-    <div className="call-progress">
-      <div className="call-progress-head">
-        <span>step {w.step} · <code>{w.model}</code></span>
-        <strong>{Math.floor(pct)}%</strong>
-      </div>
-      <div className={`progress ${over ? 'progress-over' : ''}`} role="progressbar"
-           aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(pct)}>
-        <div className="progress-fill" style={{ width: `${pct}%` }} />
-      </div>
-      <div>
-        {detail} · {clock(elapsed)} elapsed · {over ? `longer than usual, ~${clock(left)} more` : `~${clock(left)} left`}
-      </div>
-      <div className="muted">estimate from {w.basis || 'defaults'}</div>
-    </div>
-  );
-}
-
-type Item =
-  | { kind: 'user'; text: string }
-  // `plans`: the turn's plans, drawn as carts under the model's own sentences (`reply`);
-  // `notice`: the shopper changed one of those carts since, which the model has yet to hear
-  | { kind: 'assistant'; text: string; reply?: string; plans?: PlanCardData[]; notice?: string }
-  | { kind: 'tool'; id: string; name: string; arguments: Record<string, unknown>;
-      result?: Extract<AgentEvent, { type: 'tool_result' }>; byHub?: boolean }
-  | { kind: 'error'; text: string }
-  | { kind: 'notice'; text: string }
-  | { kind: 'meta'; text: string }
-  // The model's own reasoning before a step's answer or tool call (a thinking model shows it).
-  | { kind: 'reasoning'; text: string; step: number }
-  // The answer's online evals and confidence, and the turn's trace.
-  | { kind: 'evals'; evals: Evals; traceId: string }
-  // Progressive disclosure: an observer saw something and changed the toolset or the goals.
-  | { kind: 'observe'; label: string; detail: string; tone: 'code' | 'llm' | 'goal' | 'tools' }
-  // A recipe the hub read from a link in the message, or the one the shopper reviewed.
-  | { kind: 'import'; event: RecipeImportEvent };
-
-// Tool names as the policy writes them (the gateway's pantry- prefix dropped).
-const short = (names: string[]) => names.map((n) => n.replace(/^pantry-/, '').replace(/-/g, '_')).join(', ');
-
-// What a pantry plan tool reports about its own run: its LLM calls phase by phase
-// (summary.llm_calls) and the Burr run that traced it (summary.burr_run).
-type PlanTrace = { llm_calls?: LlmCallTrace[]; burr_run?: string };
-const planTraceOf = (structured: unknown): PlanTrace =>
-  (structured as { summary?: PlanTrace } | null)?.summary ?? {};
-
-function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
-  const r = item.result;
-  const state = !r ? 'running' : r.is_error ? 'error' : 'ok';
-  const trace = r ? planTraceOf(r.structured) : {};
-  const calls = Array.isArray(trace.llm_calls) ? trace.llm_calls : [];
-  const summary = (r?.structured as { summary?: Record<string, unknown> } | null)?.summary;
-  const isPlan = !!summary && Array.isArray(summary.lines) && /plan.(recipe|from.text)$/.test(item.name);
-  // a fetched recipe page: show the photos it holds
-  const photos = r && !r.is_error && /fetch/.test(item.name) ? imagesIn(r.text || JSON.stringify(r.structured ?? '')) : [];
-  return (
-    <>
-    <details className={`toolcard toolcard-${state}`}>
-      <summary>
-        <span className="toolcard-icon">
-          <Icon name={state === 'running' ? 'circle-dashed' : state === 'error' ? 'circle-x' : 'circle-check'} size={16} />
-          <span className="sr-only">{state === 'running' ? 'running: ' : state === 'error' ? 'failed: ' : 'done: '}</span>
-        </span>
-        <code className="toolcard-name">{item.name}</code>
-        {item.byHub && <span className="chip chip-muted">called by the hub</span>}
-        <span className="toolcard-args">{JSON.stringify(item.arguments).slice(0, 140)}</span>
-        {r && <span className="step-meta">{r.ms} ms</span>}
-      </summary>
-      <div className="toolcard-body">
-        <JsonView value={item.arguments} label="arguments" />
-        {r && (r.structured != null
-          ? <JsonView value={r.structured} label="structured result" />
-          : <JsonView value={r.text} label={r.is_error ? 'error' : 'text result'} open={r.is_error} />)}
-      </div>
-    </details>
-    {isPlan && <PlanStrip summary={summary as CartSummary} />}
-    {photos.length > 0 && <RecipeImages urls={photos} />}
-    {calls.length > 0 && <LlmCalls calls={calls} heading="inside pantry:" />}
-    {trace.burr_run && (
-      <div className="llm-calls"><span className="muted">inside pantry:</span> <BurrLink run={trace.burr_run} /></div>
-    )}
-    </>
-  );
-}
-
-// An import's card, which opens the import sheet on what it shows.
-function ImportItem({ event }: { event: RecipeImportEvent }) {
-  const open = useContext(ImportActions);
-  return <ImportCard event={event} onOpen={open} />;
-}
-
-// One chat item. Memoised: a new event appends an item (or completes one tool card) without
-// redrawing the others, which matters once a conversation holds long answers and tool results.
-const ChatItem = memo(function ChatItem({ it, routes }: { it: Item; routes: readonly string[] }) {
-  if (it.kind === 'user') return <div className="bubble bubble-user">{it.text}</div>;
-  if (it.kind === 'assistant') {
-    // every plan drawn as a cart; a week plan keeps the hub's Markdown tables
-    const plans = it.plans ?? [];
-    // a meal-plan draft is its own card under the model's sentences
-    const meals = plans.filter((c) => c.kind === 'mealplan');
-    if (meals.length > 0) {
-      return (
-        <div className="bubble bubble-agent bubble-cart">
-          {it.reply && <Markdown text={it.reply} />}
-          {meals.map((c, i) => <MealPlanCard key={i} card={c} />)}
-        </div>
-      );
-    }
-    if (plans.length > 0 && plans.every((c) => c.kind === 'plan')) {
-      const before = it.reply ? replyBeforeChange(plans) : '';
-      return (
-        <div className="bubble bubble-agent bubble-cart">
-          {it.reply && <Markdown text={it.reply} />}
-          {plans.map((c, i) => (
-            <CartCard key={i} summary={c.summary} cardRef={c.ref} pinned={c.pinned_lines} />
-          ))}
-          {before && <p className="cart-notice">{before}</p>}
-          {it.notice && <p className="cart-notice">{it.notice}</p>}
-        </div>
-      );
-    }
-    // a week card offers to open the week in the Meal plan, drawn only where the console has it
-    const links = routedLinks(plans.flatMap((c) => c.links ?? []), routes);
-    return (
-      <div className="bubble bubble-agent">
-        <Markdown text={it.text} />
-        {links.length > 0 && (
-          <p className="card-links">
-            {links.map((l) => <a key={l.href} className="card-link" href={l.href}>{l.label}</a>)}
-          </p>
-        )}
-      </div>
-    );
-  }
-  if (it.kind === 'tool') return <ToolCard item={it} />;
-  if (it.kind === 'import') return <ImportItem event={it.event} />;
-  if (it.kind === 'reasoning') return <Reasoning text={it.text} label={`step ${it.step} reasoning`} />;
-  if (it.kind === 'evals') return <EvalCard evals={it.evals} traceId={it.traceId} />;
-  if (it.kind === 'error') return <div className="banner banner-error">{it.text}</div>;
-  if (it.kind === 'notice') return <div className="chat-notice">{it.text}</div>;
-  if (it.kind === 'observe') {
-    return (
-      <div className={`chat-observe chat-observe-${it.tone}`}>
-        <code>{it.label}</code>{it.detail && <div className="muted">{it.detail}</div>}
-      </div>
-    );
-  }
-  return <div className="chat-meta">{it.text}</div>;
-});
+import {
+  ASK_PREFILL_KEY, STARTERS, appendEvent, cardIn, foldRun, followUps, swapInTurns,
+} from '../transcript';
+import type { Turn, TurnEvent } from '../transcript';
+import type { AgentOptions, CartLine, RecipeDoc, SwapResult } from '../types';
 
 const NO_ROUTES: readonly string[] = [];
 
+// Home's Ask box leaves its text here for the Ask page: read once, then gone, so a reload or a
+// later visit does not bring it back. Storage a browser refuses is no text.
+function takePrefill(): string {
+  try {
+    const text = window.sessionStorage.getItem(ASK_PREFILL_KEY);
+    if (text !== null) window.sessionStorage.removeItem(ASK_PREFILL_KEY);
+    return text?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+// After a starter or a follow-up is pressed it is gone, so focus goes to the message box, ready for
+// what comes next; not on a touch screen pressed by a finger, where it would bring up the keyboard
+// over the answer arriving.
+function focusBoxAfter(e: MouseEvent, box: RefObject<HTMLTextAreaElement>) {
+  const touch = window.matchMedia?.('(pointer: coarse)').matches;
+  if (e.detail === 0 || !touch) box.current?.focus({ preventScroll: true });
+}
+
+// The Ask page: the household's assistant, on the demo hub.
+//
 // `routes`: the first path segments of the console's addresses (routes.ts ROUTE_IDS, today's and
 // the old ones the shell rewrites), so a card's link is drawn only when it leads somewhere here.
+// `active`: the page is the one showing. The Assistant stays mounted once opened (App.tsx), so its
+// conversation survives a trip to another page; hidden, it scrolls nothing, and coming back to it
+// is when Home's Ask box text is picked up.
 //
-// The Assistant runs on the demo hub. While the hub is refusing or not there, one panel says so at
-// the top (what is off, what still works, Retry) instead of a red banner; the suggestions and Send
-// wait. Its options are asked for once the hub answers, and again if it comes back.
-export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonly string[] }) {
+// Each question is a turn (src/transcript.ts folds a turn's events into its run of steps). While
+// the hub is refusing or not there, one panel says so at the top (what is off, what still works,
+// Retry) instead of a red banner; the starters and Send wait. The hub's options are asked for
+// once it answers, and again if it comes back.
+export default function AssistantView({ routes = NO_ROUTES, active = true }: {
+  routes?: readonly string[];
+  active?: boolean;
+}) {
   const mealPlan = useMealPlan();
   const hub = useHubStatus();
+  const outage = hub.state === 'refused' || hub.state === 'unreachable';
   const [options, setOptions] = useState<AgentOptions | null>(null);
   const [optionsError, setOptionsError] = useState('');
   const [model, setModel] = useState('');
@@ -294,32 +75,42 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
   const [conversation, setConversation] = useState<string | null>(null);
   // the conversation's MCP server, from its 'start' event: the sim gateway cannot re-price
   const [convTarget, setConvTarget] = useState('');
-  const [items, setItems] = useState<Item[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  // The message box sticks above the bottom bar: the suggestions and replies the keyboard reaches
-  // come to rest above it, not under it.
-  const keepClear = useKeepClear('bottom');
-  // The model call in flight (from the hub's `thinking` events).
-  const [waiting, setWaiting] = useState<Waiting | null>(null);
+  // what a screen reader hears when a run ends, and after a swap
+  const [ended, setEnded] = useState('');
+  const [announce, setAnnounce] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsId = useId();
+  const settingsButton = useRef<HTMLButtonElement>(null);
   const abort = useRef<AbortController | null>(null);
-  const bottom = useRef<HTMLDivElement | null>(null);
-  const box = useRef<HTMLTextAreaElement | null>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+  const end = useRef<HTMLDivElement>(null);
+  const latest = useRef<HTMLLIElement>(null);
+  const nextId = useRef(1);
+  const turnsNow = useRef(turns);
+  turnsNow.current = turns;
+
+  // The message box sticks above the bottom bar: the starters and replies the keyboard reaches
+  // come to rest above it, not under it (useKeepClear), and the transcript follows the newest line
+  // only while the reader is at it (useFollow).
+  const keepClear = useKeepClear('bottom');
+  const composer = useRef<HTMLFormElement | null>(null);
+  const composerRef = useCallback((el: HTMLFormElement | null) => {
+    keepClear(el);
+    composer.current = el;
+  }, [keepClear]);
+  const follow = useFollow({ active, end, composer, content: turns });
+
   // a cart's swap button: the request goes in the message box, for the shopper to send or edit
   const ask = useCallback((text: string) => { setInput(text); box.current?.focus(); }, []);
 
-  // The cart line whose Options are open, a swap in flight, and what a screen reader hears
-  // after one.
+  // The cart line whose Options are open, a swap in flight, and the line focus returns to when
+  // the dialog closes: the one it was opened from, or the same line of the card a swap drew in its
+  // place (a new element, found by its data-cart-line).
   const [optionsFor, setOptionsFor] = useState<OptionsTarget | null>(null);
   const [swapping, setSwapping] = useState(false);
-  const [announce, setAnnounce] = useState('');
-  const itemsNow = useRef(items);
-  itemsNow.current = items;
-  // A swap redraws its card in place; the chat must not scroll away from it.
-  const keepScroll = useRef(false);
-  // The line focus returns to when the dialog closes: the one it was opened from, or the same
-  // line of the card a swap drew in its place (a new element, found by its data-cart-line).
   const focusLine = useRef('');
   const returnFocus = useMemo<RefObject<HTMLElement | null>>(() => ({
     get current() {
@@ -333,10 +124,9 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
     focusLine.current = cartLineKey(ref, line.line_no);
     setOptionsFor({ ref, line, pinned });
   }, []);
-  const cartActions = useMemo(() => ({ open: openOptions, busy: swapping }),
-    [openOptions, swapping]);
+  const cartActions = useMemo(() => ({ open: openOptions, busy: swapping }), [openOptions, swapping]);
 
-  // The import sheet: from the composer, or from a chat import's card with what it read.
+  // The import sheet: from the message box, or from a chat import's card with what it read.
   const [importOpen, setImportOpen] = useState(false);
   const [importStart, setImportStart] = useState<ImportStart | null>(null);
   const openImport = useCallback((start: ImportStart) => {
@@ -346,7 +136,7 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
 
   // "Use this" (or back to the planner's pick): the hub re-prices with no model call, and the
   // card it returns replaces the one the choice was made in. A refusal is thrown back to the
-  // dialog, which shows it.
+  // dialog, which shows it. The redrawn card is the shopper's own doing: the page does not scroll.
   const choose = async (productId: number | null) => {
     const t = optionsFor;
     if (!t || !conversation || t.line.line_no == null) return;
@@ -360,15 +150,10 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
       throw e;
     }
     const { card, note } = result;
-    const before = itemsNow.current.flatMap((it) => (it.kind === 'assistant' ? it.plans ?? [] : []))
-      .find((c) => c.ref === t.ref);
+    const before = cardIn(turnsNow.current, t.ref);
     focusLine.current = cartLineKey(card.ref ?? t.ref, purchaseLineNo(card.summary, lineNo));
-    keepScroll.current = true;
-    setItems((prev) => prev.map((it) => {
-      if (it.kind !== 'assistant' || !it.plans) return it;
-      const plans = replaceCard(it.plans, t.ref, card);
-      return plans ? { ...it, plans, notice: swapNotice(note) } : it;
-    }));
+    follow.hold();
+    setTurns((prev) => swapInTurns(prev, t.ref, card, swapNotice(note)));
     if (before) setAnnounce(swapAnnouncement(before.summary, card.summary, lineNo));
     setOptionsFor(null);
     setSwapping(false);
@@ -388,15 +173,14 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
     return () => { live = false; };
   }, [hub.ok, options]);
 
+  // Home's Ask box: its text, in the message box, not sent; the shopper reads it over and sends.
   useEffect(() => {
-    if (keepScroll.current) { keepScroll.current = false; return; }
-    // An empty conversation has no newest line to follow: the page stays at its top, where the
-    // suggestions are (and, with the hub off, the panel that says so).
-    if (items.length === 0) return;
-    // With reduced motion the transcript jumps to the newest line instead of gliding to it.
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    bottom.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'end' });
-  }, [items]);
+    if (!active) return;
+    const text = takePrefill();
+    if (!text) return;
+    setInput(text);
+    box.current?.focus({ preventScroll: true });
+  }, [active]);
 
   // A local model starts reading its instructions as soon as it is chosen: by the time the
   // question is typed, the first step has only the question left to read.
@@ -405,32 +189,38 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
     if (!model.startsWith('ollama:') || !target) { setWarm(''); return; }
     let live = true;
     const started = Date.now();
-    setWarm('reading its instructions and tools ahead of your question…');
+    setWarm('Reading its instructions and tools ahead of your question…');
     agentWarm({ model, target, disclosure })
       .then((r) => {
         if (!live) return;
         const secs = Math.round((Date.now() - started) / 1000);
         setWarm(r.prompt_tokens && r.prompt_tokens > 50
-          ? `ready: read its instructions and tools (${r.prompt_tokens.toLocaleString()} tokens) in ${secs} s`
-          : 'ready: its instructions and tools were already read');
+          ? `Ready: read its instructions and tools (${r.prompt_tokens.toLocaleString()} tokens) in ${secs} s`
+          : 'Ready: its instructions and tools were already read');
       })
       .catch(() => { if (live) setWarm(''); });
     return () => { live = false; };
   }, [model, target, disclosure]);
 
   // `recipeDoc`: the recipe the shopper reviewed in the import sheet, which the hub keeps as the
-  // conversation's next imp:N; the model plans exactly its lines.
-  const send = async (message: string, recipeDoc?: RecipeDoc) => {
+  // conversation's next imp:N; the model plans exactly its lines. `fromBox`: the message box's own
+  // words, which it gives up; a starter or a follow-up leaves whatever is being typed there.
+  const send = async (message: string, opts: { recipeDoc?: RecipeDoc; fromBox?: boolean } = {}) => {
     if (!message.trim() || busy || swapping) return;
     setBusy(true);
-    setError('');
-    setInput('');
+    setEnded('');
+    if (opts.fromBox) setInput('');
+    const id = nextId.current;
+    nextId.current += 1;
     // a swap's "the assistant sees this with your next message" is answered by this message
-    setItems((prev) => [...prev.map((it) => (it.kind === 'assistant' && it.notice
-      ? { ...it, notice: undefined } : it)), { kind: 'user', text: message }]);
+    setTurns((prev) => [...prev.map((t) => (t.notice ? { ...t, notice: undefined } : t)),
+      { id, question: message, sentAt: Date.now(), events: [], ...(opts.recipeDoc ? { recipeDoc: opts.recipeDoc } : {}) }]);
+    follow.stick();
+    const patch = (f: (t: Turn) => Turn) => setTurns((prev) => prev.map((t) => (t.id === id ? f(t) : t)));
     const controller = new AbortController();
     abort.current = controller;
     let finished = false;
+    let outcome: Pick<Turn, 'end' | 'failure'> = { end: 'done' };
     // what this browser measures about the turn's stream, joined to its trace in the hub
     const meter = new ChatMeter(model);
     try {
@@ -438,174 +228,157 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
       const { context } = contextOf(mealPlan.state);
       await agentChat({ message, conversation_id: conversation, model, target, disclosure,
                         meal_plan: context,
-                        ...(recipeDoc ? { recipe_doc: recipeDoc } : {}) }, (e) => {
+                        ...(opts.recipeDoc ? { recipe_doc: opts.recipeDoc } : {}) }, (e) => {
         meter.event(e as { at?: number; trace_id?: string });
         if (e.type === 'start') {
           setConversation(e.conversation_id);
           setConvTarget(e.target);
         }
         if (e.type === 'done') finished = true;
-        if (e.type === 'thinking') setWaiting({ step: e.step, model: e.model, since: Date.now() });
-        else if (e.type === 'progress') {
-          const at = Date.now();
-          setWaiting((w) => {
-            const base: Waiting = w ?? { step: e.step, model: e.model, since: at };
-            return e.phase === 'writing'
-              ? { ...base, phase: 'writing', tokens: e.tokens ?? 0, tokensAt: at,
-                  writingAt: base.writingAt ?? at }
-              : { ...base, phase: e.phase, estimateS: e.estimate_s, promptTokens: e.prompt_tokens_est,
-                  newTokens: e.new_tokens_est, readS: e.read_s, readRate: e.read_tok_s,
-                  outTokens: e.output_tokens_est, genRate: e.gen_tok_s, samples: e.samples, basis: e.basis };
-          });
-        } else setWaiting(null);
-        setItems((prev) => {
-          switch (e.type) {
-            case 'start':
-              return [...prev, { kind: 'meta', text: `${e.model} · ${e.target} · `
-                + (e.disclosure === 'progressive'
-                  ? `${e.tools.length} of ${e.available ?? e.tools.length} tools offered (+ discover_tools): ${short(e.tools)}; observers enable the rest`
-                  : `all ${e.tools.length} tools offered`) }];
-            case 'observing':
-              return [...prev, { kind: 'meta', text: `observers reading (${e.model.replace(/^gemini:/, '')}): ${e.observers.join(', ')}` }];
-            case 'observation':
-              return [...prev, {
-                kind: 'observe', tone: e.kind,
-                label: `${e.observer}.when("${e.when}") → ${e.value ? 'true' : 'false'}`,
-                detail: [e.evidence && `evidence: ${e.evidence}`,
-                  e.added.length ? `+ ${short(e.added)}` : '',
-                  e.removed.length ? `− ${short(e.removed)}` : ''].filter(Boolean).join(' · '),
-              }];
-            case 'goal_enabled':
-              return [...prev, { kind: 'observe', tone: 'goal', label: `goal enabled (${e.reason.replace(/^observer:/, '')})`, detail: e.text }];
-            case 'tools_offered':
-              return [...prev, { kind: 'observe', tone: 'tools', label: `discover_tools → + ${short(e.added)}`, detail: e.reason.replace(/^discover_tools:/, 'asked for: ') }];
-            case 'assistant':
-              return [...prev, { kind: 'assistant', text: e.text, reply: e.reply, plans: e.plans }];
-            case 'cart_change':
-              // the shopper's change, told to the model ahead of this message
-              return [...prev, { kind: 'meta', text: cartChangeText(e) }];
-            case 'recipe_import':
-              return [...prev, { kind: 'import', event: e }];
-            case 'tool_call':
-              return [...prev, { kind: 'tool', id: e.id, name: e.name, arguments: e.arguments,
-                byHub: e.by_hub }];
-            case 'meal_selection':
-              return [...prev, { kind: 'meta', text: e.status === 'failed'
-                ? `the hub could not read the dishes in your message (${e.error ?? 'error'}); the model reads it alone`
-                : e.note ? `read in code before the model (${Math.round(e.ms)} ms): ${e.note}`
-                  : 'no dish in your message matched a recipe' }];
-            case 'tool_result':
-              return prev.map((it) => (it.kind === 'tool' && it.id === e.id && !it.result
-                ? { ...it, result: e } : it));
-            case 'error':
-              return [...prev, { kind: 'error', text: e.message }];
-            case 'notice':
-              return [...prev, { kind: 'notice', text: e.text }];
-            case 'llm_call':
-              return [...prev, { kind: 'meta', text: callTiming(e) },
-                ...(e.reasoning ? [{ kind: 'reasoning' as const, text: e.reasoning, step: e.step }] : [])];
-            case 'evals':
-              return [...prev, { kind: 'evals', evals: e, traceId: e.trace_id }];
-            case 'done':
-              return [...prev, { kind: 'meta', text: `${e.stop} · ${e.steps} step(s) · ${e.seconds}s · `
-                + `${e.input_tokens.toLocaleString()} in / ${e.output_tokens.toLocaleString()} out tokens (conversation)` }];
-            default:
-              return prev;
-          }
-        });
+        const got: TurnEvent = { ...e, rx: Date.now() };
+        patch((t) => ({ ...t, events: appendEvent(t.events, got) }));
       }, controller.signal, () => meter.opened());
-      if (!finished) setError('The hub closed the answer stream before the agent finished (was the hub restarted?).');
+      if (!finished) {
+        outcome = { end: 'failed',
+          failure: 'The hub closed the answer stream before the agent finished (was the hub restarted?).' };
+      }
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') setError((e as Error).message);
+      outcome = (e as Error).name === 'AbortError' ? { end: 'stopped' } : { end: 'failed', failure: (e as Error).message };
     } finally {
       meter.finish(finished ? 'done' : 'interrupted');
+      patch((t) => ({ ...t, ...outcome, endedAt: Date.now() }));
       setBusy(false);
-      setWaiting(null);
-      abort.current = null;
+      if (abort.current === controller) abort.current = null;
     }
   };
+
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  // Try again: the same question (and the same reviewed recipe), as a new turn.
+  const retry = useCallback((t: Turn) => {
+    void sendRef.current(t.question, t.recipeDoc ? { recipeDoc: t.recipeDoc } : {});
+  }, []);
 
   const reset = () => {
     abort.current?.abort();
     setOptionsFor(null);
     setConversation(null);
     setConvTarget('');
-    setItems([]);
-    setError('');
+    setTurns([]);
+    setEnded('');
+    box.current?.focus({ preventScroll: true });
+  };
+
+  // When a run ends, a screen reader hears it once: answered, or stopped. (A run that could not
+  // finish says so itself, as an alert.)
+  const last = turns[turns.length - 1];
+  const lastRun = useMemo(() => (last ? foldRun(last) : null), [last]);
+  useEffect(() => {
+    if (!lastRun || lastRun.status === 'running') return;
+    if (lastRun.status === 'answered') setEnded(`Answered. ${lastRun.headline}.`);
+    else if (lastRun.status === 'stopped') setEnded('Stopped.');
+    // the turn and how it ended are what this answers to, not each redraw of it
+  }, [last?.id, lastRun?.status]);
+
+  const modelLabel = useCallback((id: string) => options?.models.find((m) => m.id === id)?.label
+    ?? id.replace(/^(gemini|ollama):/, ''), [options]);
+
+  const canAsk = !!options && !busy && !swapping && !outage;
+  const asked = useMemo(() => turns.map((t) => t.question), [turns]);
+  const next = lastRun && !busy ? followUps(lastRun, asked) : [];
+  const pick = (q: string, e: MouseEvent) => {
+    void send(q);
+    focusBoxAfter(e, box);
+  };
+  const closeSettings = () => {
+    setSettingsOpen(false);
+    settingsButton.current?.focus();
   };
 
   return (
-    <div className="view assistant">
+    <div className="view ask">
       <OfflinePanel off="The Assistant runs on the demo hub, so it is off here."
                     works="planning meals, the shopping plan and the calendar file, which need only the pantry API." />
-      <section className="panel">
-        <div className="plan-header">
-          <h2>Assistant</h2>
-          <div className="form-row compact">
-            <label>
-              model
-              <select value={model} onChange={(e) => setModel(e.target.value)} disabled={busy}>
-                {options?.models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-              </select>
-            </label>
-            <label>
-              MCP server
-              <select value={target} onChange={(e) => setTarget(e.target.value)} disabled={busy}>
-                {options?.targets.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
-            </label>
-            <label>
-              toolset
-              <select value={disclosure} onChange={(e) => setDisclosure(e.target.value)} disabled={busy}>
-                <option value="progressive">progressive (observers enable tools)</option>
-                <option value="all">all tools from the start</option>
-              </select>
-            </label>
-            <button type="button" className="secondary" onClick={reset}>New conversation</button>
-          </div>
+
+      <header className="ask-head">
+        <h2 className="ask-title"><Icon name="chat" size={24} />Ask</h2>
+        <div className="ask-head-actions">
+          {(turns.length > 0 || busy) && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={reset}>
+              <Icon name="plus" size={16} />New<span className="ask-narrow-hide"> conversation</span>
+            </button>
+          )}
+          <SettingsButton open={settingsOpen} onToggle={() => setSettingsOpen((o) => !o)} options={options}
+                          model={model} target={target} controls={settingsId} buttonRef={settingsButton} />
         </div>
-        <p className="card-sub">
-          A grocery agent that plans by calling the pantry MCP tools: every tool call and its
-          result appears below as it happens. Its instructions are pantry-api's recipe-shopper
-          skill{options && !options.skill_loaded && ' (not found: running with the short preamble only)'}.
-          A recipe link in your message is read by the demo hub before the model starts, and the
-          assistant plans exactly the lines it read; <strong>Import a recipe</strong> lets you
-          review them first, or paste a list. A page the hub cannot read goes to the gateway's
-          fetch tool (<strong>pantry-recipes</strong>); the direct <strong>pantry</strong> server
-          has no fetch.
-        </p>
-        {/* always rendered, so the line appearing never moves the chat below it */}
-        <p className="muted warm-line">{warm || '\u00a0'}</p>
-      </section>
+        {settingsOpen && (
+          <SettingsPanel id={settingsId} options={options} model={model} setModel={setModel} target={target}
+                         setTarget={setTarget} disclosure={disclosure} setDisclosure={setDisclosure}
+                         busy={busy} warm={warm} onClose={closeSettings} />
+        )}
+      </header>
 
       <HubErrorBanner error={optionsError} />
-      <HubErrorBanner error={error} />
 
-      <div className="chat">
-        {items.length === 0 && (
-          <div className="suggestions">
-            {SUGGESTIONS.map((s) => (
-              <button key={s} className="suggestion" onClick={() => void send(s)} disabled={busy || !options}>
-                {s}
+      {turns.length === 0 && (
+        <section className="ask-start" aria-labelledby={`${settingsId}-start`}>
+          <p className="ask-lede">
+            I can plan meals, build shopping lists and swap ingredients, using the same pantry tools as
+            the Plan and Shop pages. Every step I take shows under your question.
+          </p>
+          <h3 id={`${settingsId}-start`} className="label ask-start-label">Try one of these</h3>
+          <ul className="ask-starters">
+            {STARTERS.map((s) => (
+              <li key={s.prompt}>
+                <button type="button" className="ask-starter" disabled={!canAsk} onClick={(e) => pick(s.prompt, e)}>
+                  <span className="ask-starter-title">{s.title}</span>
+                  <span className="ask-starter-text">{s.prompt}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* a press in here is the reader's own change (opening a step): the page measures again
+          where the reader is, and does not follow it */}
+      <div className="ask-transcript" onClick={follow.recheck}>
+        <AskContext.Provider value={ask}>
+          <CartActions.Provider value={cartActions}>
+            <ImportActions.Provider value={openImport}>
+              {turns.length > 0 && (
+                <ol className="ask-turns">
+                  {turns.map((t, i) => (
+                    <TurnView key={t.id} turn={t} routes={routes} modelLabel={modelLabel} onRetry={retry}
+                              outage={outage} latestRef={i === turns.length - 1 ? latest : undefined} />
+                  ))}
+                </ol>
+              )}
+            </ImportActions.Provider>
+          </CartActions.Provider>
+        </AskContext.Provider>
+        {next.length > 0 && (
+          <div className="ask-next" role="group" aria-labelledby={`${settingsId}-next`}>
+            <span id={`${settingsId}-next`} className="label">Ask next</span>
+            {next.map((q) => (
+              <button key={q} type="button" className="ask-chip" disabled={!canAsk} onClick={(e) => pick(q, e)}>
+                {q}
               </button>
             ))}
           </div>
         )}
-        <AskContext.Provider value={ask}>
-          <CartActions.Provider value={cartActions}>
-            <ImportActions.Provider value={openImport}>
-              {items.map((it, i) => <ChatItem key={i} it={it} routes={routes} />)}
-            </ImportActions.Provider>
-          </CartActions.Provider>
-        </AskContext.Provider>
-        <div className="sr-only" role="status">{announce}</div>
-        {busy && (
-          <div className="chat-meta">
-            {waiting ? <CallProgress w={waiting} /> : 'working…'}
-          </div>
-        )}
-        <div ref={bottom} />
+        <div ref={end} className="ask-end" />
       </div>
+
+      <p className="sr-only" role="status">{ended}</p>
+      <p className="sr-only" role="status">{announce}</p>
+
+      {follow.pill && (
+        <button type="button" className="btn btn-secondary btn-sm ask-pill"
+                onClick={() => { follow.jump(); latest.current?.focus({ preventScroll: true }); }}>
+          <Icon name="arrow-down" size={16} />New reply
+        </button>
+      )}
 
       <AlternativesDialog
         conversationId={conversation}
@@ -620,24 +393,14 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
         open={importOpen}
         onClose={() => setImportOpen(false)}
         start={importStart}
-        planInChat={options ? (doc) => void send(chatMessageFor(doc), doc) : null}
+        planInChat={options ? (doc) => void send(chatMessageFor(doc), { recipeDoc: doc }) : null}
         chatBlocked={busy ? 'The assistant is answering; wait for it, or press Stop, first.'
           : swapping ? 'A cart change is being priced; try again in a moment.' : null}
       />
 
-      <form ref={keepClear} className="chat-input" onSubmit={(e) => { e.preventDefault(); void send(input); }}>
-        <button type="button" className="secondary" onClick={() => openImport({})}>
-          Import a recipe
-        </button>
-        <textarea ref={box} rows={2} value={input} placeholder="Ask about a recipe link, a product, a week of dinners…"
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input); }
-                  }} />
-        {busy
-          ? <button type="button" className="secondary" onClick={() => abort.current?.abort()}>Stop</button>
-          : <button disabled={!input.trim() || !options || swapping}>Send</button>}
-      </form>
+      <Composer value={input} onChange={setInput} onSend={() => void send(input, { fromBox: true })}
+                onStop={() => abort.current?.abort()} onImport={() => openImport({})} busy={busy}
+                canSend={canAsk && !!input.trim()} offline={outage} boxRef={box} formRef={composerRef} />
     </div>
   );
 }

@@ -1,6 +1,12 @@
 // A deliberately small Markdown renderer for the Assistant's answers: headings, bullet and
 // numbered lists, pipe tables, fenced code, **bold**, `code` and links. No HTML is ever
 // injected: everything is built as React elements, so model output cannot run script.
+//
+// `headings`: the level an answer's top heading takes on the page it sits in (Ask's answers sit
+// under each question's h3, so their headings start at h4), drawn as real headings a screen reader
+// can move between. The answer's shallowest heading is its top, whatever number of #s the model
+// wrote (it often starts at ###); deeper ones follow, never past h6. Without it, headings are
+// drawn as styled lines, as before, for the pages that have not placed them.
 import type { ReactNode } from 'react';
 
 function inline(text: string, key: string): ReactNode[] {
@@ -28,9 +34,10 @@ function inline(text: string, key: string): ReactNode[] {
 
 const cells = (row: string) => row.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
 
-export default function Markdown({ text }: { text: string }) {
+export default function Markdown({ text, headings }: { text: string; headings?: 2 | 3 | 4 | 5 }) {
   const lines = text.split('\n');
   const blocks: ReactNode[] = [];
+  const top = Math.min(4, ...lines.map((l) => /^(#{1,4})\s/.exec(l)?.[1].length ?? 4));
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
@@ -64,7 +71,14 @@ export default function Markdown({ text }: { text: string }) {
     }
     const heading = /^(#{1,4})\s+(.*)$/.exec(line);
     if (heading) {
-      blocks.push(<div key={key} className={`md-h md-h${heading[1].length}`}>{inline(heading[2], key)}</div>);
+      const depth = heading[1].length;
+      const cls = `md-h md-h${depth}`;
+      if (headings) {
+        const Tag = `h${Math.min(6, headings + depth - top)}` as 'h4';
+        blocks.push(<Tag key={key} className={cls}>{inline(heading[2], key)}</Tag>);
+      } else {
+        blocks.push(<div key={key} className={cls}>{inline(heading[2], key)}</div>);
+      }
       i += 1;
       continue;
     }

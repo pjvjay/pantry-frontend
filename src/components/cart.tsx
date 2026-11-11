@@ -168,7 +168,7 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
               aria-disabled={actions.busy || undefined}
               onClick={() => { if (!actions.busy) actions.open(cardRef, l, mine); }}>
         {body}
-        <span className="cart-item-more" aria-hidden="true">Options<Icon name="chevron-right" size={14} /></span>
+        <span className="cart-item-more" aria-hidden="true"><span className="cart-item-more-word">Options</span><Icon name="chevron-right" size={14} /></span>
       </button>
     );
   };
@@ -271,27 +271,11 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
           <strong>Total {costText(total, floor, known)}</strong>
         </div>
         {copyButton && (
-          <button type="button" className="secondary" onClick={() => void copy()}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copy()}>
             {copied === 'copied' ? 'Copied' : copied === 'failed' ? 'Copy failed' : 'Copy list'}
           </button>
         )}
       </div>
     </section>
-  );
-}
-
-// A plan tool's result in its step: one line, since the cart is drawn under the answer.
-export function PlanStrip({ summary }: { summary: CartSummary }) {
-  const n = summary.lines?.length ?? 0;
-  const left = (summary.not_stocked?.length ?? 0) + (summary.out_of_range?.length ?? 0)
-    + (summary.skipped?.length ?? 0);
-  const trip = summary.trip;
-  return (
-    <div className="plan-strip muted">
-      planned {summary.recipe_name ?? 'a recipe'}: {n} item{n === 1 ? '' : 's'},{' '}
-      {money(trip ? trip.total_cost : summary.total_cost)}
-      {trip && ` at ${trip.stores.join(' and ')}`}
-      {left > 0 && `, ${left} left out`}
-    </div>
   );
 }

@@ -334,6 +334,35 @@ and empties the inbox. `src/mealplan/store.tsx` (`MealPlanProvider`, `useMealPla
 the reducer with saving, the schedule call and the other `/mealplan/*`
 requests in `api.ts`.
 
+## Ask (`#/ask`)
+
+The Assistant runs on the demo hub: each question is one `POST /hub/agent/chat`
+whose answer streams back as events (`hub.ts` `agentChat`). `src/transcript.ts`
+(pure; `tests/transcript.test.ts`, with two recorded runs in
+`tests/fixtures/ask-run-*.json`) folds a question's events into one run: its
+steps (observers choosing tools, model calls, tool calls with their results, a
+recipe read from a link, dishes read in code), what it is doing now, how long it
+took, a thinking model's reasoning, the answer, and what stopped it when
+something did. It also holds the words: each step's name and one-line summary,
+the run's line, the starters and the follow-ups.
+
+The page (`views/AssistantView.tsx`, `components/assistant/*`, `styles/ask.css`)
+draws each run as one line between the question and the answer: "Planned in 6
+steps · 19 s", or while it works "Planning the shopping · 12 s" beside a slowly
+turning ring (still under reduced motion). It opens into the steps
+(`RunTimeline.tsx`, `StepRow.tsx`: each with its arguments and result as JSON),
+the model and server, the answer's checks and Run details (Workshop › Metrics).
+Reasoning is open while it comes and closes as "Thought for 4 s" when the answer
+starts. Two or three questions to ask next follow the newest answer; six
+starters come before the first. The message box sticks above the bottom bar,
+grows with what is typed (Enter sends, Shift+Enter is a new line) and turns
+Send into Stop while an answer comes; the model, MCP server and toolset are
+under Settings. The page follows a reply only while the reader is within 80px
+of its end, and otherwise offers "New reply". Home's Ask box hands its text over
+in sessionStorage `pantry.ask.prefill`: the page puts it in the box (never
+sends it), focuses the box and removes the key. While the hub is refusing or not
+there, one `OfflinePanel` says so and the starters and Send wait.
+
 ## Build the image
 
 ```bash

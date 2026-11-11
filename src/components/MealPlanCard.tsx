@@ -5,7 +5,7 @@
 import { useState } from 'react';
 
 import {
-  applyDraft, asMealPlan, current, draftDiff, endOf, initials, stripDays, tripText,
+  applyDraft, asMealPlan, current, draftDiff, endOf, stripDays, tripText,
 } from '../mealplan/chatDraft';
 import type { ChatMealPlan, Decisions } from '../mealplan/chatDraft';
 import { dayLabel } from '../mealplan/dates';
@@ -14,8 +14,13 @@ import { stepHash } from '../mealplan/wizard';
 import type { PlanCardData } from '../types';
 import { Icon } from './icons';
 
-const SLOT_SHORT: Record<string, string> = { breakfast: 'B', lunch: 'L', dinner: 'D', snack: 'S' };
+const SLOT_WORD: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
 
+// The draft by day: each day's meals by name under their slot, a meal the draft adds drawn solid
+// and one already in the plan dashed (a shape, not only a colour), and the suggested trips. Seven
+// days to a row on a wide screen; on a phone, one row per day that has something on it, since
+// seven columns there would leave a meal's name no room. Each day says itself in one sentence to a
+// screen reader.
 function Strip({ plan }: { plan: ChatMealPlan }) {
   const days = stripDays(plan);
   return (
@@ -23,21 +28,26 @@ function Strip({ plan }: { plan: ChatMealPlan }) {
       {days.map((d) => {
         const said = d.meals.map((m) => `${m.title} (${m.slot}${m.new ? ', new' : ''})`);
         if (d.trip) said.push(`suggested trip ${tripText(d.trip)}`);
+        const empty = d.meals.length === 0 && !d.trip;
         return (
-          <li key={d.date} className={`mpc-day${d.meals.some((m) => m.new) ? ' mpc-day-new' : ''}`}
+          <li key={d.date} className={`mpc-day${empty ? ' mpc-day-empty' : ''}`}
               aria-label={`${d.label}: ${said.join(', ') || 'nothing planned'}`}>
-            <span className="mpc-day-head" aria-hidden="true">
-              <span className="mpc-wd-long">{d.label.slice(0, 3)}</span>
-              <span className="mpc-wd-short">{d.label.slice(0, 2)}</span> {d.label.split(' ')[1]}
-            </span>
-            <span className="mpc-day-meals" aria-hidden="true">
-              {d.meals.map((m, i) => (
-                <span key={i} className={`mpc-meal${m.new ? ' mpc-meal-new' : ''}`} title={`${m.title} (${m.slot})`}>
-                  <span className="mpc-meal-slot">{SLOT_SHORT[m.slot] ?? '?'}</span>{initials(m.title)}
-                </span>
-              ))}
-            </span>
-            {d.trip && <span className="mpc-trip" aria-hidden="true" title={`Suggested trip: ${tripText(d.trip)}`}><Icon name="cart" size={14} /></span>}
+            <span className="mpc-day-head" aria-hidden="true">{d.label}</span>
+            {d.meals.length > 0 && (
+              <span className="mpc-day-meals" aria-hidden="true">
+                {d.meals.map((m, i) => (
+                  <span key={i} className={`mpc-meal${m.new ? ' mpc-meal-new' : ''}`} title={`${m.title} (${m.slot})`}>
+                    <span className="mpc-meal-slot">{SLOT_WORD[m.slot] ?? m.slot}</span>
+                    <span className="mpc-meal-title">{m.title}</span>
+                  </span>
+                ))}
+              </span>
+            )}
+            {d.trip && (
+              <span className="mpc-trip" aria-hidden="true" title={`Suggested trip: ${tripText(d.trip)}`}>
+                <Icon name="cart" size={14} />Trip
+              </span>
+            )}
           </li>
         );
       })}
@@ -121,12 +131,12 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
                 <li key={p.recipe_key}>
                   <span>{p.question} <span className="muted">{p.count} {p.slot === 'dinner' ? 'dinners' : `${p.slot}s`}</span></span>
                   <span className="row-gap" role="group" aria-label={`${p.title}: use it?`}>
-                    <button type="button" className={`mini${d === 'use' ? '' : ' secondary'}`} aria-pressed={d === 'use'}
-                            aria-label={`Use ${p.title} for "${p.input}"`} disabled={result !== null}
-                            onClick={() => decide(p.recipe_key, 'use')}>Use</button>
-                    <button type="button" className={`mini${d === 'reject' ? '' : ' secondary'}`} aria-pressed={d === 'reject'}
-                            aria-label={`Not this: ${p.title} is not "${p.input}"`} disabled={result !== null}
-                            onClick={() => decide(p.recipe_key, 'reject')}>Not this</button>
+                    <button type="button" className={`btn btn-sm ${d === 'use' ? 'btn-primary' : 'btn-secondary'}`}
+                            aria-pressed={d === 'use'} aria-label={`Use ${p.title} for "${p.input}"`}
+                            disabled={result !== null} onClick={() => decide(p.recipe_key, 'use')}>Use</button>
+                    <button type="button" className={`btn btn-sm ${d === 'reject' ? 'btn-primary' : 'btn-secondary'}`}
+                            aria-pressed={d === 'reject'} aria-label={`Not this: ${p.title} is not "${p.input}"`}
+                            disabled={result !== null} onClick={() => decide(p.recipe_key, 'reject')}>Not this</button>
                   </span>
                 </li>
               );
@@ -171,13 +181,13 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
             Applied: {result.said}{result.skipped.length > 0 && ` Not applied: ${result.skipped.join('; ')}.`} Undo is in the Meal plan.
           </p>
         ) : (
-          <button type="button" onClick={apply}
+          <button type="button" className="btn btn-primary" onClick={apply}
                   title={waiting ? `${waiting} dish(es) wait for your Use or Not this; Apply leaves them out` : undefined}>
             Apply to my Meal plan
           </button>
         )}
         {/* the plan's Schedule stage: the draft's meals on their days */}
-        <a className="card-link" href={stepHash(4)}>Open in Meal plan</a>
+        <a className="btn btn-secondary" href={stepHash(4)}>Open in Meal plan</a>
         {problem && <p className="cart-flag" role="alert">Not applied: {problem}.</p>}
       </div>
     </section>

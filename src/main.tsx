@@ -9,6 +9,7 @@ import './styles/theme-menu.css';
 import './styles/ui.css';
 import './styles/shell.css';
 import './styles/workshop.css';
+import './styles/ask.css';
 import './styles/home.css';
 import './styles/shop.css';
 import { installTelemetry } from './telemetry';
