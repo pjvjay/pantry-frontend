@@ -24,12 +24,13 @@ import { ROUTE_IDS, arrivalFor, hrefFor, parseHash, sectionOf, titleFor } from '
 import type { Route } from './routes';
 import AssistantView from './views/AssistantView';
 import HomeView from './views/HomeView';
-import WorkshopView from './views/WorkshopView';
 
-// The meal plan's views load when Plan or Shop is first opened, in-store mode when a trip is; the
-// plan and its store are above every page.
+// The meal plan's views load when Plan or Shop is first opened, in-store mode when a trip is, and
+// the Workshop's developer views when the Workshop is: a household opening Home or a trip on a
+// phone does not download them first. The plan and its store are above every page.
 const MealPlanView = lazy(() => import('./views/MealPlanView'));
 const InStoreView = lazy(() => import('./views/InStoreView'));
+const WorkshopView = lazy(() => import('./views/WorkshopView'));
 
 // The page the address names. An old or unknown address becomes the page's own in place
 // (replaceState: no history entry, and no hashchange, so what reads the hash after this reads
@@ -150,7 +151,11 @@ export default function App() {
                   <AssistantView routes={ROUTE_IDS} active={route.name === 'ask'} />
                 </div>
               )}
-              {route.name === 'workshop' && <WorkshopView tab={route.tab} query={route.query ?? ''} />}
+              {route.name === 'workshop' && (
+                <Suspense fallback={<Loading what="the Workshop" />}>
+                  <WorkshopView tab={route.tab} query={route.query ?? ''} />
+                </Suspense>
+              )}
             </main>
             <ShellFooter build={BUILD} />
           </div>
