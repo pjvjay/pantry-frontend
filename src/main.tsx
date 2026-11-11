@@ -12,6 +12,8 @@ import './styles/plan.css';
 import './styles/workshop.css';
 import './styles/home.css';
 import './styles/shop.css';
+import './styles/check.css';
+import './styles/calendar.css';
 import { installTelemetry } from './telemetry';
 
 // Before the first render, so the page's own load and every API call are measured.

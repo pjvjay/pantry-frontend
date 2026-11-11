@@ -125,6 +125,15 @@ test('the progress indicator: done, current and ahead, and a done stage an edit 
   const undone = stepViews(4, { ...READY, unanswered: 1 });
   assert.equal(undone[2].attention, 'Answer 1 ingredient the plan cannot buy nearby: another product, skip it, or other meals');
   assert.deepEqual(undone.map((v) => v.reachable), [true, true, true, false, false, false]);
+  assert.ok(views.every((v) => !v.finished));
+});
+
+test('the last stage is finished once its events have gone to a calendar, and only while it can be reached', () => {
+  const finished = stepViews(6, READY, true);
+  assert.deepEqual(finished.map((v) => v.finished), [false, false, false, false, false, true]);
+  assert.equal(finished[5].state, 'current', 'still the stage shown');
+  assert.deepEqual(stepViews(6, READY).map((v) => v.finished), [false, false, false, false, false, false]);
+  assert.equal(stepViews(2, { ...READY, approved: 0 }, true)[5].finished, false, 'no approved trip: not reachable');
 });
 
 test('the facts come from the plan, the last resolve call and the basket', () => {

@@ -1,0 +1,121 @@
+/* The Calendar stage (components/CalendarExport.tsx, CalendarSyncPanel.tsx). Its older rules (the
+   sync's review, the event text) are in index.css; these come after them and win where both speak.
+
+   It leads with one card: how many events there are, which kinds go in, and the two ways to add
+   them, named for what they do (the file; Google Calendar), with how it went under them and, once
+   done, that it is done. Then the sync's review when connected, the timing folded into one card,
+   and the events by day, each beside its picture. */
+
+/* ─── The progress indicator: the last stage done while it is the one shown ──────────────── */
+.mp-step-finished .mp-step-mark { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* ─── The card the stage leads with ──────────────────────────────────────────────────────── */
+.cal-card {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--panel); box-shadow: var(--shadow-1);
+}
+.cal-card-top { display: flex; align-items: flex-start; gap: var(--space-3); }
+.cal-card-top .tag { flex: none; margin-top: 4px; }
+.cal-card-what { flex: 1; min-width: 0; }
+.view .cal-card-title { margin: 0; font: var(--type-section); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cal-card-help { margin: var(--space-1) 0 0; color: var(--muted); font-size: 13.5px; }
+.cal-card .fc-sub { margin-top: var(--space-4); }
+.cal-card .cal-status { margin: var(--space-2) 0 0; }
+.cal-card .cal-actions { margin-top: var(--space-4); gap: var(--space-3); }
+.cal-saved { display: block; margin: var(--space-2) 0 0; font-size: 13.5px; }
+.cal-saved:empty { margin: 0; }
+.cal-done, .cal-changed {
+  display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-2) 0 0; font-size: 13.5px;
+}
+.cal-done .ico, .cal-changed .ico { flex: none; margin-top: 2px; }
+.cal-done { color: var(--accent-soft-fg); font-weight: 600; }
+.cal-changed { color: var(--info); }
+
+/* the sync's line under the actions: what it does, how it went, or why it is not offered */
+.cal-sync-line {
+  display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-3) 0 0; color: var(--muted); font-size: 13.5px;
+}
+.cal-sync-line .ico { flex: none; margin-top: 2px; }
+.cal-sync-note { margin-top: var(--space-3); font-size: 13.5px; }
+.cal-sync-note p { margin: var(--space-1) 0 0; }
+.cal-sync-what { color: var(--muted); max-width: 72ch; }
+.cal-sync-note-test { font-size: 12px; }
+/* the apply button says exactly what it writes ("Create the Pantry plan calendar and add 19
+   events"), so on a narrow screen its words wrap rather than run out of the card */
+.cal-sync-actions .btn { max-width: 100%; white-space: normal; text-align: left; }
+/* focused by script once the write is done (the button pressed is gone): words, not a control */
+.cal-sync-result:focus { outline: none; }
+.cal-export > .cal-sync { margin: var(--space-4) 0 0; padding: var(--space-4) var(--space-5); border-radius: var(--radius-3); background: var(--panel); }
+
+@media (max-width: 640px) {
+  .cal-card { padding: var(--space-4); }
+  .cal-card-top { flex-wrap: wrap; }
+  .cal-card-top .fc-icon { display: none; }
+  .view .cal-card-title { font-size: 20px; line-height: 26px; }
+  /* the two ways to add the events, one under the other, each the width of the card */
+  .cal-card .cal-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+  .cal-card .cal-actions .btn { width: 100%; }
+}
+
+/* ─── Timing: one card, closed, its heading saying what the times are ────────────────────── */
+.cal-timing {
+  margin-top: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--panel);
+  box-shadow: var(--shadow-1);
+}
+.cal-timing > summary {
+  display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: var(--space-3) var(--space-5);
+  cursor: pointer; list-style: none; border-radius: var(--radius-3);
+}
+.cal-timing > summary::-webkit-details-marker { display: none; }
+.cal-timing > summary:hover { background: var(--surface-2); }
+.cal-timing > summary > .ico:first-child { flex: none; color: var(--accent); }
+.cal-timing-what { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.cal-timing-title { font: var(--type-title); }
+.cal-timing-now { color: var(--muted); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.cal-timing-chev { flex: none; color: var(--muted); transition: transform var(--dur-2) var(--ease-standard); }
+.cal-timing[open] .cal-timing-chev { transform: rotate(180deg); }
+.cal-timing-body { padding: 0 var(--space-5) var(--space-5); }
+.cal-timing-body .fc { box-shadow: none; }
+@media (max-width: 640px) {
+  .cal-timing > summary { padding: var(--space-3) var(--space-4); }
+  .cal-timing-body { padding: 0 var(--space-3) var(--space-4); }
+}
+
+/* ─── The events, by day, each beside its picture ────────────────────────────────────────── */
+.cal-preview { margin-top: var(--space-5); }
+.cal-preview > .cal-head:first-child { margin-top: 0; font: var(--type-title); }
+.cal-day { margin-bottom: var(--space-4); }
+.cal-day-head {
+  margin: 0 0 var(--space-2); font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase;
+  color: var(--muted);
+}
+.cal-events { gap: var(--space-2); }
+.cal-event {
+  grid-template-columns: 48px minmax(0, 1fr); align-items: start; gap: var(--space-3);
+  padding: var(--space-3); border-radius: var(--radius-2); background: var(--panel);
+}
+.cal-event .ppic { width: 48px; height: 48px; }
+.cal-pic {
+  display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--radius);
+  background: var(--surface-2); color: var(--muted);
+}
+.cal-pic-trip { background: var(--accent-soft); color: var(--accent-soft-fg); }
+.cal-pic-freeze, .cal-pic-thaw { background: var(--info-soft); color: var(--info); }
+.cal-event-main { display: grid; gap: 2px; min-width: 0; }
+.cal-event-head { gap: var(--space-2); }
+.cal-kind {
+  font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--accent-soft-fg);
+}
+.cal-freeze .cal-kind, .cal-thaw .cal-kind { color: var(--info); }
+.cal-event-line { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.cal-event-more { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-4); }
+.cal-google { display: inline-flex; align-items: center; gap: var(--space-1); }
+.cal-notes { margin-top: var(--space-1); }
+
+/* ─── A fingertip's 44px ─────────────────────────────────────────────────────────────────── */
+/* The buttons are .btn (44px under a coarse pointer, styles/buttons.css); the rest are here. */
+@media (pointer: coarse) {
+  /* padding rather than flex, so the summary keeps its disclosure triangle */
+  .cal-details summary { padding-block: 12px; line-height: 20px; }
+  .cal-disconnect-confirm label.check, .cal-choice label.check { display: flex; align-items: center; min-height: 44px; }
+}

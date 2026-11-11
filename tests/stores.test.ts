@@ -3,12 +3,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { readFileSync } from 'node:fs';
+
 import { basketKey, unavailableHeading } from '../src/mealplan/basket.ts';
 import { sameArea, step } from '../src/mealplan/model.ts';
 import {
-  DISTANCES, distanceChoices, distanceLabel, kmText, sellsText, storesLine, storesView, widerDistance,
+  DISTANCES, distanceChoices, distanceLabel, kmText, sellsText, storeLine, storeSpend, storesLine, storesView, widerDistance,
 } from '../src/mealplan/stores.ts';
-import type { MealStores, StoreChoice } from '../src/types.ts';
+import type { MealBasket, MealStores, StoreChoice } from '../src/types.ts';
 import { add, planWith, run } from './helpers/mealplan.ts';
 
 const store = (id: number, name: string, km: number | null, over: Partial<StoreChoice> = {}): StoreChoice =>
@@ -92,4 +94,24 @@ test('a wider distance takes in a store that far, or the next one up, or any dis
   assert.equal(widerDistance(25, 40), null, 'past the last choice: any distance');
   assert.equal(widerDistance(3, 4), 5, 'a plan’s own distance between the usual ones');
   assert.equal(widerDistance(null, 50), undefined, 'already any distance');
+});
+
+test('what the basket buys at each store: its products there and about what they cost', () => {
+  const basket: MealBasket = JSON.parse(readFileSync(new URL('./fixtures/mealplan-basket.json', import.meta.url), 'utf8'));
+  const spend = storeSpend(basket);
+  // the dough at Pantry Mart; the salt (one product, two lines) at GreenLeaf; the basil is not
+  // sold nearby and the wine has no product, so neither counts
+  assert.deepEqual(Object.fromEntries(spend), {
+    'Pantry Mart Downtown': { products: 1, cost: 3.49 },
+    'GreenLeaf Grocers Kitsilano': { products: 1, cost: 0.01 },
+  });
+  assert.equal(storeSpend(null).size, 0);
+  const pantry = store(1, 'Pantry Mart Downtown', 0.3, { sells: 15 });
+  assert.deepEqual(storeLine(pantry, 15, spend),
+    { head: '0.3 km · sells 15 of your 15 products', share: 'about $3.49 of your basket' });
+  assert.deepEqual(storeLine(store(3, 'ValuFresh East Van', 4.1), 15, spend),
+    { head: '4.1 km · sells 10 of your 15 products', share: 'none of your basket' }, 'in use, but nothing is cheapest there');
+  assert.equal(storeLine({ ...pantry, off: true }, 15, spend).share, 'turned off: nothing bought here');
+  assert.equal(storeLine(pantry, 15, null).share, '', 'no basket yet: no amount');
+  assert.deepEqual(storeLine({ ...pantry, sells: null }, 15, spend), { head: '0.3 km · not checked yet', share: '' });
 });

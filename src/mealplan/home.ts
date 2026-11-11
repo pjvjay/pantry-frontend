@@ -15,11 +15,14 @@
 //   Needs attention   something there stops the plan going on (an ingredient nobody nearby sells,
 //                     a check that failed, a trip changed since it was approved)
 //   Cannot start yet  it waits on an earlier step
+//   Changed           done once, and the plan has moved on since (the events handed to a calendar
+//                     are no longer the plan's)
 // "Next" is the first step that is not done; Continue opens it. Set up is optional and every
-// answer in it has a default, so it is always done. Calendar is never done: the console cannot
-// tell whether its file was downloaded, so it stays the last step to continue to.
+// answer in it has a default, so it is always done. Calendar is done once its events have gone to
+// a calendar (the file downloaded, or a Google sync written: mealplan/exported.ts) and until they
+// change; the console cannot look into the calendar app itself, so that is all it can say.
 import { includeCounts } from '../calendar.ts';
-import { basketView } from './basket.ts';
+import type { BasketCounts } from './basket.ts';
 import { costText, money, strategyOf, tripLook, tripPriced } from './board.ts';
 import type { TripLook } from './board.ts';
 import { addDays, dayLabel, daysBetween } from './dates.ts';
@@ -27,9 +30,11 @@ import type { CivilDate } from './dates.ts';
 import { DIET_LABELS, SLOTS, approvedElsewhere, budgetOf, dietOf } from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
 import { listOf, shopRows } from './shoplist.ts';
+import { changedSinceText, exportState, exportedText } from './exported.ts';
+import type { ExportMark } from './exported.ts';
 import { STEPS, furthest } from './wizard.ts';
 import type { StepNo, WizardFacts } from './wizard.ts';
-import type { MealBasket, MealPlanDraft, MealSchedule } from '../types.ts';
+import type { MealPlanDraft, MealSchedule } from '../types.ts';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -71,29 +76,18 @@ export function pickedText(d: MealPlanDraft): string {
   return `${listOf(by.map(([sl, c]) => plural(c, SLOT_WORDS[sl][0], SLOT_WORDS[sl][1])))} picked`;
 }
 
-// The ingredients of the recipes that have meals: how many lines, how many a store nearby sells,
-// how many still need an answer, and how many the shopper chose to do without.
-export interface BasketCounts {
-  lines: number;
-  found: number;
-  unanswered: number;
-  skipped: number;
-}
-
-export function basketCounts(b: MealBasket, s: MealPlanState): BasketCounts {
-  const v = basketView(b, s);
-  const lines = v.recipes.filter((r) => r.meals > 0).flatMap((r) => r.lines);
-  return { lines: lines.length, found: lines.filter((l) => l.issue === null).length,
-    unanswered: v.unanswered.length, skipped: lines.filter((l) => l.skipped).length };
-}
+// The ingredients counted (mealplan/basket.ts): found nearby, still to answer, skipped.
+export { basketCounts } from './basket.ts';
+export type { BasketCounts } from './basket.ts';
 
 // A budget as people say it: "$90", "$92.50".
 const budgetText = (b: number) => (Number.isInteger(b) ? `$${b}` : money(b));
 
 // ─── The task list ───────────────────────────────────────────
 
-// The words of a Tag (components/ui.tsx): Done, In progress, Next, Cannot start yet, Needs attention.
-export type HomeTag = 'done' | 'progress' | 'next' | 'blocked' | 'attention';
+// The words of a Tag (components/ui.tsx): Done, In progress, Next, Cannot start yet, Needs attention,
+// Changed.
+export type HomeTag = 'done' | 'progress' | 'next' | 'blocked' | 'attention' | 'changed';
 
 export interface HomeTask {
   n: StepNo;
@@ -106,11 +100,13 @@ export interface HomeTask {
 export interface HomeTasks {
   tasks: HomeTask[];
   next: StepNo;                    // the step Continue opens
+  done: boolean;                   // every step is done: the week is planned
 }
 
 // complete: nothing more to do. partial: begun. pending: a check is under way. problem: something
-// stops the plan. ready: there is something to act on, not touched yet. empty: nothing there yet.
-type Progress = 'complete' | 'partial' | 'pending' | 'problem' | 'ready' | 'empty';
+// stops the plan. ready: there is something to act on, not touched yet. stale: done once, and
+// changed since. empty: nothing there yet.
+type Progress = 'complete' | 'partial' | 'pending' | 'problem' | 'ready' | 'stale' | 'empty';
 
 interface StepState {
   state: Progress;
@@ -178,7 +174,8 @@ function shopStep(s: MealPlanState, sc: ScheduleFacts): StepState {
   return { state: 'ready', produces: `${count} · ${cost}` };
 }
 
-function calendarStep(s: MealPlanState, sc: ScheduleFacts): StepState {
+// mark: when this plan's events last went to a calendar (mealplan/exported.ts), if they have.
+function calendarStep(s: MealPlanState, sc: ScheduleFacts, mark: ExportMark | null): StepState {
   if (!s.draft.trips.length) return { state: 'empty', produces: 'Once a trip is approved' };
   const a = sc.answer?.approved_schedule ?? null;
   if (!sc.answer) return sc.failed ? { state: 'problem', produces: 'The events could not be worked out' }
@@ -187,12 +184,18 @@ function calendarStep(s: MealPlanState, sc: ScheduleFacts): StepState {
   if (a.blocked?.length) return { state: 'problem', produces: a.blocked[0].message };
   if (!a.exportable) return { state: 'problem', produces: 'A trip needs your review first' };
   const n = Object.values(includeCounts(a)).reduce((t, x) => t + x, 0);
-  return n ? { state: 'ready', produces: `${plural(n, 'event', 'events')} ready` }
-    : { state: 'empty', produces: 'Nothing to add yet' };
+  if (!n) return { state: 'empty', produces: 'Nothing to add yet' };
+  const ready = `${plural(n, 'event', 'events')} ready`;
+  const sent = exportState(mark, a);
+  if (sent === 'current' && mark) return { state: 'complete', produces: exportedText(mark) };
+  if (sent === 'changed' && mark) return { state: 'stale', produces: `${ready} · ${changedSinceText(mark.how)}` };
+  return { state: 'ready', produces: ready };
 }
 
 // The six steps with their state and what they have produced, and the one to continue with.
-export function homeTasks(s: MealPlanState, f: WizardFacts, basket: BasketCounts | null, sc: ScheduleFacts): HomeTasks {
+// exported: this plan's mark from mealplan/exported.ts, null when its events never went to a calendar.
+export function homeTasks(s: MealPlanState, f: WizardFacts, basket: BasketCounts | null, sc: ScheduleFacts,
+  exported: ExportMark | null = null): HomeTasks {
   const d = s.draft;
   const states: Record<StepNo, StepState> = {
     1: setupStep(d),
@@ -200,7 +203,7 @@ export function homeTasks(s: MealPlanState, f: WizardFacts, basket: BasketCounts
     3: ingredientsStep(f, basket),
     4: placeStep(d),
     5: shopStep(s, sc),
-    6: calendarStep(s, sc),
+    6: calendarStep(s, sc, exported),
   };
   const reach = furthest(f);
   const next = STEPS.find(({ n }) => n > 1 && states[n].state !== 'complete')?.n ?? 6;
@@ -210,12 +213,13 @@ export function homeTasks(s: MealPlanState, f: WizardFacts, basket: BasketCounts
     let tag: HomeTag;
     if (state === 'complete') tag = 'done';
     else if (state === 'problem') tag = 'attention';
+    else if (state === 'stale') tag = 'changed';
     else if (n === next) tag = state === 'partial' || state === 'pending' ? 'progress' : 'next';
     else if (!open || state === 'empty') tag = 'blocked';
     else tag = 'progress';
     return { n, name, tag, produces, open };
   });
-  return { tasks, next };
+  return { tasks, next, done: STEPS.every(({ n }) => states[n].state === 'complete') };
 }
 
 // ─── The next trip ───────────────────────────────────────────

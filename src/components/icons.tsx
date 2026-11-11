@@ -23,7 +23,9 @@ export type IconName =
   // what a day's plan does: freeze, thaw, cook
   | 'snowflake' | 'droplet' | 'pan'
   // the meal plan's ways in and its board (phase 2)
-  | 'redo' | 'link' | 'clipboard';
+  | 'redo' | 'link' | 'clipboard'
+  // how sure a match is (works instead, a looser match, not known) and the calendar file (phase 6)
+  | 'swap' | 'approx' | 'help' | 'download';
 
 const PATHS: Record<IconName, ReactNode> = {
   calendar: <><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></>,
@@ -112,6 +114,11 @@ const PATHS: Record<IconName, ReactNode> = {
   link: <><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2" /></>,
   clipboard: <><rect x="5" y="4.5" width="14" height="16.5" rx="2.5" /><rect x="9" y="3" width="6" height="3.5" rx="1" />
     <path d="M8.5 11h7M8.5 14.5h7M8.5 18h4" /></>,
+
+  swap: <><path d="M4.5 8.5h14M15 5l3.5 3.5L15 12" /><path d="M19.5 15.5h-14M9 12l-3.5 3.5L9 19" /></>,
+  approx: <><path d="M5 9.5c2.3-2.2 4.6-2.2 7 0s4.7 2.2 7 0" /><path d="M5 15c2.3-2.2 4.6-2.2 7 0s4.7 2.2 7 0" /></>,
+  help: <><circle cx="12" cy="12" r="8.5" /><path d="M9.6 9.6a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6M12 17h.01" /></>,
+  download: <><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 16.5v2a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2" /></>,
 };
 
 // className adds to "ico": "ico-inline" sits the icon in a line of text, sized to the text.

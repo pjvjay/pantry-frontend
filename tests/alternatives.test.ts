@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  cartChangeText, cartLineKey, cartTotal, chipReasons, coversText, footText, isPinned, lineNotes,
-  linesOf, money, movedText, nameWithSize, needText, optionsLabel, packPrice, priceLine, purchaseLineNo,
-  replaceCard, routedLinks,
+  altOrigin, cartChangeText, cartLineKey, cartTotal, chipReasons, compareColumns, coversText, footText, isPinned,
+  lineNotes, linesOf, money, movedText, nameWithSize, needText, optionsLabel, packPrice, priceLine, purchaseLineNo,
+  replaceCard, routedLinks, rowGrade,
   matchingNote, notOffered, reasonsLine, replyBeforeChange, rowGroups, sizeInName, storeText,
   swapAnnouncement, swapBlocked, swapNotice, unitPriceText,
 } from '../src/alternatives.ts';
@@ -343,4 +343,52 @@ test('a product name is not followed by the size it already says', () => {
   assert.equal(nameWithSize('Fresh Garlic', ''), 'Fresh Garlic');
   assert.equal(sizeInName('Chicken Thighs Bone-In (700g)', '700g'), true);
   assert.equal(sizeInName('Chicken Thighs', null), true, 'no size: nothing to add');
+});
+
+test('each row wears its match grade in words: pantry\'s group, or the older tiers', () => {
+  assert.deepEqual(rowGrade(row({ group: 'same_item' })), { kind: 'same', label: 'Same item' });
+  assert.deepEqual(rowGrade(row({ group: 'works_instead', group_label: ' Works instead ' })),
+    { kind: 'instead', label: 'Works instead' });
+  assert.deepEqual(rowGrade(row({ group: 'looser_match', group_label: 'Close in meaning' })),
+    { kind: 'looser', label: 'Close in meaning' }, 'pantry\'s own name for the group');
+  assert.deepEqual(rowGrade(row({ group: 'outside' })), { kind: 'outside', label: 'Not a candidate' });
+  assert.deepEqual(rowGrade(row()), { kind: 'same', label: 'Same ingredient' }, 'an older pantry: tier only');
+  assert.deepEqual(rowGrade(row({ tier: 'other' })), { kind: 'looser', label: 'Not the same ingredient' });
+});
+
+test('a row\'s origin in a few words, and how it is known', () => {
+  assert.deepEqual(altOrigin(row().origin), { text: 'Origin not checked', kind: 'none', word: '' });
+  assert.deepEqual(altOrigin({ ...row().origin, label: 'Origin not published' }),
+    { text: 'Origin not published', kind: 'none', word: '' }, 'evidence that names no country');
+  const canada = { status: 'resolved', country: 'Canada', claim: 'full' as const, label: 'Canada: origin',
+    verbatim: 'Product of Canada', source: 'label-photo', demo: false };
+  assert.deepEqual(altOrigin(canada), { text: 'From Canada', kind: 'checked', word: 'source on file' });
+  assert.deepEqual(altOrigin({ ...canada, claim: 'processing', demo: true }),
+    { text: 'Made in Canada', kind: 'checked', word: 'demo label photo' });
+  assert.deepEqual(altOrigin({ ...canada, status: 'conflicting', country: '' }),
+    { text: 'Sources disagree', kind: 'disputed', word: 'check the label' });
+});
+
+test('compare with your pick: the plan\'s pick, then the two best others; nothing left blank', () => {
+  const pick = row({ rank: 1, current: true, product_id: 13, product: 'Fresh Garlic', size: '~50g', brand: '',
+    offer: { store: 'Pantry Mart Downtown', price: 0.68, distance_km: 0.3, on_trip: false }, trip: null,
+    unit_price: 1.36, group: 'same_item' });
+  const shallots = row({ rank: 2, product_id: 30, product: 'Shallots 227g', size: '227g', trip: null,
+    offer: { store: 'GreenLeaf Grocers Kitsilano', price: 2.56, distance_km: 2.9, on_trip: false }, unit_price: 1.13,
+    group: 'works_instead', packs: 2 });
+  const celery = row({ rank: 3, product_id: 31, product: 'Celery', size: '', trip: null, unit_price: null,
+    offer: { store: '', price: 2.23, distance_km: null, on_trip: false }, group: 'looser_match' });
+  const basil = row({ rank: 4, product_id: 32, product: 'Basil', group: 'looser_match' });
+  const cols = compareColumns(ranking([celery, basil, shallots, pick]));
+  assert.deepEqual(cols.map((c) => [c.name, c.yours, c.grade.label]),
+    [['Fresh Garlic ~50g', true, 'Same item'], ['Shallots 227g', false, 'Works instead'], ['Celery', false, 'Looser match']]);
+  assert.deepEqual(cols.map((c) => c.price), ['$0.68 a pack', '$2.56 a pack · 2 packs', '$2.23 a pack']);
+  assert.deepEqual(cols.map((c) => c.unit), ['$1.36 / 100 g', '$1.13 / 100 g', 'unknown']);
+  assert.deepEqual(cols.map((c) => c.size), ['~50g', '227g', 'unknown']);
+  assert.deepEqual(cols.map((c) => c.store),
+    ['Pantry Mart Downtown, 0.3 km', 'GreenLeaf Grocers Kitsilano, 2.9 km', 'catalog price']);
+  assert.deepEqual(cols.map((c) => c.origin), ['Origin not checked', 'Origin not checked', 'Origin not checked']);
+  // nothing chosen yet: the best rows alone; one row compares nothing
+  assert.deepEqual(compareColumns(ranking([shallots, celery])).map((c) => c.yours), [false, false]);
+  assert.deepEqual(compareColumns(ranking([pick])), []);
 });

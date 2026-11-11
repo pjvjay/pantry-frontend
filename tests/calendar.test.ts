@@ -7,10 +7,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  COOK_TIMES, DEFAULT_TIMING, INCLUDE_ALL, TIMING_KEY, cookProblem, countsText, eventWhen, eventsByDay, exportErrorText,
-  exportProblem, exportRequest, googleLabel, googleLink, icsFileName, includeCounts, includeProblem, kindProblem,
-  readTimingForm,
-  reminderChoices, reminderLabel, reminderMinutes, remindersText, timingFrom,
+  COOK_TIMES, DEFAULT_TIMING, INCLUDE_ALL, TIMING_KEY, cookProblem, countsText, eventSubject, eventWhen, eventsByDay,
+  eventsHead, exportErrorText, exportProblem, exportRequest, googleLabel, googleLink, icsFileName, includeCounts,
+  includeProblem, kindProblem, lengthText, readTimingForm,
+  reminderChoices, reminderLabel, reminderMinutes, remindersText, timingFrom, timingSummary,
 } from '../src/calendar.ts';
 import type { ReminderChoice } from '../src/calendar.ts';
 import type { ApprovedSchedule, CalendarPreview } from '../src/types.ts';
@@ -243,4 +243,35 @@ test('the preview says when an event is and its reminders, from what the server 
   assert.equal(remindersText({ all_day: true }), '', 'an API before the wizard sends none');
   // the fixture is an older API's all-day preview: it still reads
   assert.ok(preview.events.every((e) => eventWhen(e) === 'all day' && remindersText(e) === ''));
+});
+
+test('the stage leads with how many events, and of which kinds', () => {
+  assert.equal(eventsHead(preview), '6 events: 1 shopping trip, 3 cook days and 2 reminders');
+  assert.equal(eventsHead({ ...preview, events: [] }), 'No events of the kinds chosen');
+});
+
+test('each event\'s picture is its recipe\'s, its product\'s, or none for a trip', () => {
+  const subjects = preview.events.map((e) => eventSubject(e, schedule));
+  assert.deepEqual(subjects.slice(0, 5), [
+    { kind: 'recipe', key: 'starter:chicken_biryani', slot: 'dinner' },
+    { kind: 'trip' },
+    { kind: 'product', name: 'Chicken Thighs Bone-In' },
+    { kind: 'recipe', key: 'starter:mango_milkshake', slot: 'snack' },
+    { kind: 'product', name: 'Chicken Thighs Bone-In' },
+  ]);
+  assert.equal(eventSubject({ kind: 'cook', item_id: 'cook-nothing#1' }, schedule), null, 'not in the schedule');
+  assert.equal(eventSubject({ kind: 'thaw', item_id: 'x' }, null), null);
+});
+
+test('the Timing card says what it holds in its heading, so it can stay closed', () => {
+  const all = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+  assert.equal(timingSummary(DEFAULT_TIMING, all), 'Trips at 10:00 for 1 h, cooking at meal times for 1 h, with reminders');
+  assert.equal(timingSummary(DEFAULT_TIMING, ['dinner']), 'Trips at 10:00 for 1 h, cooking at 17:30 for 1 h, with reminders');
+  const quiet = { ...DEFAULT_TIMING, trips: { ...DEFAULT_TIMING.trips, timed: false, remind: [] },
+    cooks: { ...DEFAULT_TIMING.cooks, timed: false, remind: [] }, reminders: { remind: [] } };
+  assert.equal(timingSummary(quiet, all), 'Trips all day, cooking all day, no reminders');
+  // a time that cannot be used is sent all day, and said so
+  const bad = { ...DEFAULT_TIMING, trips: { ...DEFAULT_TIMING.trips, start: '25:00' } };
+  assert.equal(timingSummary(bad, ['dinner']).split(',')[0], 'Trips all day');
+  assert.deepEqual([15, 45, 60, 90, 180].map(lengthText), ['15 min', '45 min', '1 h', '1.5 h', '3 h']);
 });

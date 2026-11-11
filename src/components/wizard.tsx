@@ -21,16 +21,18 @@ import { Spinner } from './ui';
 import { useElapsed } from './useElapsed';
 import { useKeepClear } from './useKeepClear';
 
-export function Stepper({ step, facts }: { step: StepNo; facts: WizardFacts }) {
-  const views = stepViews(step, facts);
+// finished: the last stage's work is done (the plan's events have gone to a calendar), which it
+// shows with a tick like the stages before it, even while it is the one shown.
+export function Stepper({ step, facts, finished = false }: { step: StepNo; facts: WizardFacts; finished?: boolean }) {
+  const views = stepViews(step, facts, finished);
   return (
     <nav className="mp-steps" aria-label="Meal plan stages">
       <ol>
         {views.map((v) => {
           const waits = v.reachable ? null : nextBlock((v.n - 1) as StepNo, facts)?.text ?? null;
           const said = v.attention ? `, needs attention: ${v.attention}`
-            : v.state === 'done' ? ', done' : waits ? `, not yet: ${waits}` : '';
-          const mark = v.state === 'done'
+            : v.state === 'done' || v.finished ? ', done' : waits ? `, not yet: ${waits}` : '';
+          const mark = v.state === 'done' || v.finished
             ? <Icon name={v.attention ? 'exclaim' : 'check'} size={16} strokeWidth={2.6} />
             : String(v.n);
           const body = (
@@ -44,7 +46,7 @@ export function Stepper({ step, facts }: { step: StepNo; facts: WizardFacts }) {
             </>
           );
           const cls = `mp-step mp-step-${v.state}${v.attention ? ' mp-step-attention' : ''}`
-            + `${v.reachable ? '' : ' mp-step-closed'}`;
+            + `${v.reachable ? '' : ' mp-step-closed'}${v.finished ? ' mp-step-finished' : ''}`;
           return (
             <li key={v.n} className={cls}>
               {v.reachable ? (

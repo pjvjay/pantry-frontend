@@ -1,7 +1,16 @@
-// The wizard's Calendar stage: the meal plan in a calendar, with no account and no sign-in. The
-// times and reminders the shopper chooses, a preview of the events pantry-api builds from the
-// approved trips and placed meals, the .ics file to import, one Google add-event link per
-// event, and (with the local demo hub) Google Calendar sync.
+// The wizard's Calendar stage: the meal plan in a calendar, with no account and no sign-in. It
+// leads with what there is to add and the two ways to add it, each named for what it does:
+// "Download calendar file" (an .ics for any calendar app) and, with the local demo hub, Google
+// Calendar sync ("Connect Google Calendar", then "Sync with Google Calendar", which shows every
+// change before writing it; components/CalendarSyncPanel.tsx). Without the hub a line says the
+// sync needs it, rather than nothing. Then the times and reminders, folded into one Timing card
+// whose heading says what they are now; then a preview of every event by day, each with its
+// recipe's or product's picture (a quiet placeholder where the hub has none) and one Google
+// add-event link; then pantry-api's notes on importing.
+//
+// Once the events have gone to a calendar (the file downloaded, or a sync written with nothing
+// failed) the stage says so and its last step is done, here, in the progress indicator and on
+// Home, until the events change (mealplan/exported.ts keeps that beside the plan, not in it).
 //
 // Everything shown comes from /calendar/preview, the same builder that writes the file, so the
 // preview is exactly what gets imported. The console only chooses which kinds of event to send
@@ -11,16 +20,25 @@ import { useEffect, useId, useMemo, useState } from 'react';
 
 import { ApiError, downloadCalendar, previewCalendar } from '../api';
 import {
-  INCLUDE_ALL, INCLUDE_LABELS, KIND_LABELS, LENGTHS, MAX_REMINDERS, TIMING_KEY, cookProblem, countsText, eventWhen,
-  eventsByDay, exportErrorText, exportProblem, exportRequest, googleLabel, googleLink, includeCounts, includeProblem,
-  kindProblem, readTimingForm, reminderChoices, reminderLabel, remindersText, timingFrom,
+  INCLUDE_ALL, INCLUDE_LABELS, KIND_LABELS, LENGTHS, MAX_REMINDERS, TIMING_KEY, cookProblem, eventSubject, eventWhen,
+  eventsByDay, eventsHead, exportErrorText, exportProblem, exportRequest, googleLabel, googleLink, includeCounts,
+  includeProblem, kindProblem, lengthText, readTimingForm, reminderChoices, reminderLabel, remindersText, timingFrom,
+  timingSummary,
 } from '../calendar';
 import type { CookTiming, KindTiming, ReminderChoice, TimingForm } from '../calendar';
+import { eventsSignature, exportState } from '../mealplan/exported';
+import type { ExportMark } from '../mealplan/exported';
+import type { PictureSource } from '../mealplan/images';
 import { SLOTS, SLOT_LABELS } from '../mealplan/model';
-import type { ApprovedSchedule, CalendarInclude, CalendarPreview, CalendarTiming, MealSlot } from '../types';
-import { CalendarSyncPanel } from './CalendarSyncPanel';
+import type {
+  ApprovedSchedule, CalendarEvent, CalendarInclude, CalendarPreview, CalendarTiming, MealSlot,
+} from '../types';
+import { GoogleSyncButton, GoogleSyncNote, GoogleSyncPanel, useGoogleSync } from './CalendarSyncPanel';
 import { FormCard, Switch, ToggleChip } from './fields';
 import { Icon } from './icons';
+import type { IconName } from './icons';
+import { ProductPicture, RecipePicture } from './pictures';
+import { Tag } from './ui';
 
 type Preview =
   | { status: 'idle' | 'loading'; data: CalendarPreview | null; error: null }
@@ -58,9 +76,15 @@ function browserZone(): string {
   }
 }
 
+export interface TimingState {
+  form: TimingForm;
+  setForm: (f: TimingForm) => void;
+  timing: CalendarTiming;
+  zone: string;
+}
+
 // slots: the meal slots the plan has, the ones cooking gets a time for.
-export function useTiming(slots: readonly MealSlot[]): { form: TimingForm; setForm: (f: TimingForm) => void;
-  timing: CalendarTiming; zone: string } {
+export function useTiming(slots: readonly MealSlot[]): TimingState {
   const [form, setFormState] = useState(readSaved);
   const [zone] = useState(browserZone);
   const slotKey = slots.join('|');
@@ -98,14 +122,12 @@ function Reminders({ labelledBy, choices, remind, onChange }: {
   );
 }
 
-const lengthLabel = (n: number) => (n < 60 ? `${n} min` : `${n / 60} h`);
-
 function LengthField({ minutes, onChange }: { minutes: number; onChange: (n: number) => void }) {
   return (
     <label className="fc-field">
       <span className="fc-label">For</span>
       <select className="fc-input" value={minutes} onChange={(e) => onChange(Number(e.target.value))}>
-        {LENGTHS.map((n) => <option key={n} value={n}>{lengthLabel(n)}</option>)}
+        {LENGTHS.map((n) => <option key={n} value={n}>{lengthText(n)}</option>)}
       </select>
     </label>
   );
@@ -188,36 +210,105 @@ function ThawSettings({ form, onChange }: { form: TimingForm; onChange: (f: Timi
   );
 }
 
+// The three kinds of timing as one card that stays closed until wanted: its heading says what the
+// times and reminders are now.
 export function TimingSettings({ form, onChange, zone, slots }: { form: TimingForm; onChange: (f: TimingForm) => void;
   zone: string; slots: readonly MealSlot[] }) {
   return (
-    <>
-      <div className="fc-grid">
-        <KindSettings k={form.trips} onChange={(trips) => onChange({ ...form, trips })} />
-        <CookSettings c={form.cooks} slots={slots} onChange={(cooks) => onChange({ ...form, cooks })} />
-        <ThawSettings form={form} onChange={onChange} />
+    <details className="cal-timing">
+      <summary>
+        <Icon name="clock" size={20} />
+        <span className="cal-timing-what">
+          <span className="cal-timing-title">Timing</span>
+          <span className="cal-timing-now">{timingSummary(form, slots)}</span>
+        </span>
+        <Icon name="chevron-down" size={18} className="cal-timing-chev" />
+      </summary>
+      <div className="cal-timing-body">
+        <div className="fc-grid">
+          <KindSettings k={form.trips} onChange={(trips) => onChange({ ...form, trips })} />
+          <CookSettings c={form.cooks} slots={slots} onChange={(cooks) => onChange({ ...form, cooks })} />
+          <ThawSettings form={form} onChange={onChange} />
+        </div>
+        <p className="muted mp-timing-zone"><Icon name="clock" size={14} /> Times are in your time zone, {zone}.</p>
       </div>
-      <p className="muted mp-timing-zone"><Icon name="clock" size={14} /> Times are in your time zone, {zone}.</p>
-    </>
+    </details>
   );
 }
 
-// ─── The export ──────────────────────────────────────────────
+// ─── The events ──────────────────────────────────────────────
 
-export function CalendarExport({ schedule, current, timing }: {
+const KIND_ICON: Record<CalendarEvent['kind'], IconName> = { trip: 'store', cook: 'pan', freeze: 'snowflake', thaw: 'droplet' };
+
+// An event's picture: its recipe's or its product's, by way of the hub, with the meal's icon or a
+// placeholder where there is none; a trip's is its kind's icon on a soft tile.
+function EventPicture({ e, schedule, pictures }: { e: CalendarEvent; schedule: ApprovedSchedule | null;
+  pictures: ReadonlyMap<string, PictureSource | null> }) {
+  const s = eventSubject(e, schedule);
+  if (s?.kind === 'recipe') return <RecipePicture pic={pictures.get(s.key) ?? null} slot={s.slot} size="head" />;
+  if (s?.kind === 'product') return <ProductPicture product={s.name} ingredient={s.name} />;
+  return <span className={`cal-pic cal-pic-${e.kind}`}><Icon name={KIND_ICON[e.kind]} size={22} /></span>;
+}
+
+function EventRow({ e, schedule, pictures }: { e: CalendarEvent; schedule: ApprovedSchedule | null;
+  pictures: ReadonlyMap<string, PictureSource | null> }) {
+  const href = googleLink(e);
+  const reminders = remindersText(e);
+  return (
+    <li className={`cal-event cal-${e.kind}`}>
+      <EventPicture e={e} schedule={schedule} pictures={pictures} />
+      <div className="cal-event-main">
+        <div className="cal-event-head">
+          <span className="cal-kind">{KIND_LABELS[e.kind]}</span>
+          <span className="cal-when">{eventWhen(e)}</span>
+        </div>
+        <strong className="cal-title">{e.title}</strong>
+        {e.location && <div className="cal-event-line">{e.location}</div>}
+        {reminders && <div className="cal-event-line">{reminders}</div>}
+        {e.labels.length > 0 && (
+          <div className="cal-labels">
+            {e.labels.map((l) => <span key={l} className="chip chip-warn">{l}</span>)}
+          </div>
+        )}
+        <div className="cal-event-more">
+          <details className="cal-details">
+            <summary>What the event says</summary>
+            <pre className="cal-desc">{e.description}</pre>
+          </details>
+          {href && (
+            <a className="cal-google" href={href} target="_blank" rel="noopener noreferrer" aria-label={googleLabel(e)}>
+              Add to Google Calendar<Icon name="external" size={14} />
+            </a>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+// ─── The stage ───────────────────────────────────────────────
+
+export function CalendarExport({ schedule, current, timing, slots, pictures, exported, onExported }: {
   // the latest answer's approved_schedule, posted back unchanged
   schedule: ApprovedSchedule | null;
   // false while the plan is being checked again: the schedule may be about to change
   current: boolean;
-  timing: CalendarTiming;
+  timing: TimingState;
+  // the meal slots the plan has (cooking gets a time for each)
+  slots: readonly MealSlot[];
+  // each recipe's picture, for its cook events
+  pictures: ReadonlyMap<string, PictureSource | null>;
+  // when this plan's events last went to a calendar, if they have (mealplan/exported.ts)
+  exported: ExportMark | null;
+  onExported: (m: Omit<ExportMark, 'id' | 'at'>) => void;
 }) {
   const [include, setInclude] = useState<CalendarInclude[]>([...INCLUDE_ALL]);
   const [preview, setPreview] = useState<Preview>({ status: 'idle', data: null, error: null });
   const [saved, setSaved] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const statusId = useId();
-  const includeHead = useId();
+  const headId = useId();
+  const kindsHead = useId();
   const problem = exportProblem(schedule) ?? includeProblem(include);
 
   // Preview again whenever the schedule, the kinds or the timing change; a newer request cancels
@@ -229,32 +320,43 @@ export function CalendarExport({ schedule, current, timing }: {
     }
     const ctl = new AbortController();
     setPreview((p) => ({ status: 'loading', data: p.data, error: null }));
-    previewCalendar(exportRequest(schedule, include, timing), ctl.signal)
+    previewCalendar(exportRequest(schedule, include, timing.timing), ctl.signal)
       .then((data) => setPreview({ status: 'ok', data, error: null }))
       .catch((err: unknown) => {
         if (ctl.signal.aborted) return;
         setPreview({ status: 'error', data: null, error: errorText(err) });
       });
     return () => ctl.abort();
-  }, [schedule, include, problem, current, timing]);
+  }, [schedule, include, problem, current, timing.timing]);
+
+  const data = preview.data;
+  const ready = preview.status === 'ok' && current && !problem;
+  // what this plan's events are now, for marking them as gone to a calendar
+  const mark = (how: ExportMark['how']) => {
+    if (schedule && data) onExported({ sig: eventsSignature(schedule), events: data.events.length, how });
+  };
+  const sync = useGoogleSync({ open: true, schedule, include, timing: timing.timing, ready, onSynced: () => mark('google') });
+  const googleFirst = sync.state === 'connected';
+  const sent = exportState(exported, schedule);
 
   const toggle = (k: CalendarInclude) =>
     setInclude((now) => (now.includes(k) ? now.filter((x) => x !== k) : [...now, k]));
 
   const download = async () => {
-    if (!schedule) return;
+    if (!schedule || !ready || downloading) return;
     setDownloading(true);
     setSaved(null);
     setDownloadError(null);
     try {
-      const file = await downloadCalendar(exportRequest(schedule, include, timing));
+      const file = await downloadCalendar(exportRequest(schedule, include, timing.timing));
       const url = URL.createObjectURL(file.blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = file.filename;
       a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setSaved(`Saved ${file.filename}.`);
+      setSaved(`Saved ${file.filename}. Open it with your calendar app to add the events.`);
+      mark('file');
     } catch (err) {
       setDownloadError(`Not downloaded: ${errorText(err)}`);
     } finally {
@@ -263,80 +365,71 @@ export function CalendarExport({ schedule, current, timing }: {
   };
 
   const counts = schedule ? includeCounts(schedule) : null;
-  const data = preview.data;
-  const ready = preview.status === 'ok' && current && !problem;
-  const status = problem ?? (!current ? 'Checking the plan…'
-    : preview.status === 'loading' ? 'Building the events…'
-      : preview.status === 'error' ? preview.error
-        : data ? `${countsText(data)}${data.all_day ? ', all-day' : ''}.` : '');
+  const head = problem ?? (!current ? 'Checking the plan…'
+    : preview.status === 'error' ? 'The events could not be built'
+      : data ? eventsHead(data) : 'Building the events…');
+  const how = exported?.how === 'google' ? 'synced them to Google Calendar' : 'downloaded them';
 
   return (
     <div className="cal-export">
-      <FormCard icon="calendar" title="Your calendar" headId={includeHead}
-                help="A file for any calendar app, or one link per event; no account needed.">
-        <p id={statusId} className={`cal-status ${problem || preview.status === 'error' ? 'cart-flag' : 'muted'}`}
-           role={preview.status === 'error' ? 'alert' : 'status'}>
-          {status}
-        </p>
-        <div className="chips" role="group" aria-labelledby={includeHead} aria-describedby={statusId}>
+      <section className="cal-card" aria-labelledby={headId}>
+        <div className="cal-card-top">
+          <span className="fc-icon" aria-hidden="true"><Icon name="calendar" /></span>
+          <div className="cal-card-what">
+            {/* its words are a live region: the count of events, or why there are none, as it changes */}
+            <h3 id={headId} className="cal-card-title"><span role="status">{head}</span></h3>
+            <p className="cal-card-help">
+              {data?.all_day && 'All day, as Timing has them. '}A file for any calendar app, or one link per event: no
+              account needed.
+            </p>
+          </div>
+          {sent === 'current' && <Tag kind="done">{exported?.how === 'google' ? 'In Google Calendar' : 'Downloaded'}</Tag>}
+          {sent === 'changed' && <Tag kind="changed" />}
+        </div>
+        {preview.status === 'error' && <p className="cart-flag cal-status" role="alert">{preview.error}</p>}
+
+        <p id={kindsHead} className="fc-sub">Add to the calendar</p>
+        <div className="chips" role="group" aria-labelledby={kindsHead}>
           {INCLUDE_ALL.map((k) => (
             <ToggleChip key={k} checked={include.includes(k)} onChange={() => toggle(k)}>
               {INCLUDE_LABELS[k]}{counts && <span className="tchip-n">{counts[k]}</span>}
             </ToggleChip>
           ))}
         </div>
-        <div className="cal-actions">
-          <button type="button" className="btn-ico" disabled={!ready || downloading} onClick={() => void download()}>
-            <Icon name="calendar" size={16} />{downloading ? 'Downloading…' : 'Download .ics'}
-          </button>
-          <span className={downloadError ? 'cart-flag cal-saved' : 'cal-saved'} role="status">
-            {downloadError ?? saved}
-          </span>
-        </div>
-      </FormCard>
 
-      {/* Google Calendar sync: only with the local demo hub and an OAuth client */}
-      <CalendarSyncPanel open schedule={schedule} include={include} timing={timing} ready={ready} />
+        <div className="cal-actions">
+          <button type="button" className={`btn ${googleFirst ? 'btn-secondary' : 'btn-primary'}`}
+                  aria-disabled={!ready || downloading || undefined} aria-describedby={headId} onClick={() => void download()}>
+            <Icon name="download" size={18} />{downloading ? 'Downloading…' : 'Download calendar file'}
+          </button>
+          <GoogleSyncButton sync={sync} primary={googleFirst} />
+        </div>
+        <p className={downloadError ? 'cart-flag cal-saved' : 'cal-saved'} role="status">{downloadError ?? saved}</p>
+        {sent === 'current' && !saved && (
+          <p className="cal-done"><Icon name="circle-check" size={16} />Done: you {how}. Do it again after the plan changes.</p>
+        )}
+        {sent === 'changed' && (
+          <p className="cal-changed">
+            <Icon name="refresh" size={16} />The events have changed since you {how}: add them again to bring your calendar up to date.
+          </p>
+        )}
+        <GoogleSyncNote sync={sync} />
+      </section>
+
+      <GoogleSyncPanel sync={sync} />
+
+      <TimingSettings form={timing.form} onChange={timing.setForm} zone={timing.zone} slots={slots} />
 
       {data && (
-        <>
-          <h3 className="cal-head">Events</h3>
+        <section className="cal-preview" aria-labelledby={`${headId}-events`} aria-busy={preview.status === 'loading'}>
+          <h3 id={`${headId}-events`} className="cal-head">The events</h3>
           {data.events.length === 0 && <p className="muted">No events of the kinds chosen.</p>}
-          <ol className="cal-days" aria-busy={preview.status === 'loading'}>
+          <ol className="cal-days">
             {eventsByDay(data).map((d) => (
               <li key={d.date} className="cal-day">
                 <h4 className="cal-day-head">{d.label}</h4>
                 <ul className="cal-events">
-                  {d.events.map((e) => {
-                    const href = googleLink(e);
-                    const reminders = remindersText(e);
-                    return (
-                      <li key={e.uid} className={`cal-event cal-${e.kind}`}>
-                        <div className="cal-event-head">
-                          <span className="chip">{KIND_LABELS[e.kind]}</span>
-                          <span className="cal-when">{eventWhen(e)}</span>
-                          <strong className="cal-title">{e.title}</strong>
-                        </div>
-                        {e.location && <div className="muted">{e.location}</div>}
-                        {reminders && <div className="muted">{reminders}</div>}
-                        {e.labels.length > 0 && (
-                          <div className="cal-labels">
-                            {e.labels.map((l) => <span key={l} className="chip chip-warn">{l}</span>)}
-                          </div>
-                        )}
-                        <details className="cal-details">
-                          <summary>What the event says</summary>
-                          <pre className="cal-desc">{e.description}</pre>
-                        </details>
-                        {href && (
-                          <a className="cal-google" href={href} target="_blank" rel="noopener noreferrer"
-                             aria-label={googleLabel(e)}>
-                            Add to Google Calendar
-                          </a>
-                        )}
-                      </li>
-                    );
-                  })}
+                  {d.events.map((e) => <EventRow key={e.uid} e={e} schedule={schedule} pictures={pictures} />)}
                 </ul>
               </li>
             ))}
@@ -345,7 +438,7 @@ export function CalendarExport({ schedule, current, timing }: {
           <ul className="cal-notes">
             {data.notes.map((n) => <li key={n}>{n}</li>)}
           </ul>
-        </>
+        </section>
       )}
     </div>
   );

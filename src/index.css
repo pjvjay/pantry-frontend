@@ -1150,7 +1150,6 @@ a.mp-step-link:hover .mp-step-name { color: var(--text); }
 .mp-stage { margin-top: 16px; }
 /* the stage's heading, Back and Next: styles/plan.css */
 .mp-behind { margin: 4px 0 10px; }
-.mp-total { margin: 6px 0; font-size: 14px; font-variant-numeric: tabular-nums; }
 
 /* Meals: the budget bar stays at the top of the page while the cards scroll under it */
 .mp-budget {
@@ -1227,8 +1226,8 @@ details.mp-section > summary .mp-section-head { display: inline; }
 /* Ingredients: each recipe a card, as Basics' are, with its picture beside its name; each
    ingredient a row that is one button (its Options), lifting on hover and ringed on focus. A row
    the plan cannot buy is tinted with --warn, has a --warn edge, a sign and what is wrong in bold;
-   its answers sit under it, outside the button. */
-.mp-unanswered { margin: 8px 0; font-size: 13.5px; }
+   skipped, "Need it after all" sits under it, outside the button. One still to answer is in the
+   stage's task list instead (styles/check.css). */
 .mp-ing-recipe {
   margin-top: 14px; padding: 14px 16px 10px; border: 1px solid var(--border); border-radius: var(--radius-lg);
   background: var(--panel); box-shadow: var(--shadow-1);
@@ -1719,7 +1718,6 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
 .cal-choice { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 2px 0 0; padding: 0; border: 0; }
 .cal-disconnect { margin-top: 10px; }
 .cal-disconnect-confirm { display: grid; gap: 4px; }
-.cal-sync-note { font-size: 12px; }
 @media (max-width: 480px) {
   .cal-sync { padding: 8px; }
   .cal-sync-actions button:not(.mini) { flex: 1 1 100%; }

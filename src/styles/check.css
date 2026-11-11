@@ -1,0 +1,212 @@
+/* Check ingredients (components/ingredients.tsx, stores.tsx) and the marks of how sure a row is
+   (components/matchmarks.tsx), which its rows and the Options sheet (components/alternatives.tsx)
+   both wear. The stage's older rules (its rows, the stores list, the map) are in index.css; these
+   come after them and win where both speak.
+
+   The stage reads top down as a task: the header (how far the check has got, a bar, the basket's
+   total), the ingredients still to answer, then the recipes. "Your stores" is a card of its own:
+   before the recipes on a phone; on a wide screen a column beside them that stays in view while
+   they scroll. It sits in its own column and covers nothing, so it needs no keep-clear
+   (components/useKeepClear.ts): no control can come to rest under it. */
+
+/* ─── The layout ─────────────────────────────────────────────────────────────────────────── */
+/* No row gap: an empty row (no task list) would leave a double gap; each part keeps its own. */
+.mp-check {
+  display: grid; grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "lead" "tasks" "side" "recipes";
+}
+.mp-check-lead { grid-area: lead; min-width: 0; }
+.mp-check-tasks { grid-area: tasks; min-width: 0; margin-top: var(--space-4); }
+.mp-check-side { grid-area: side; min-width: 0; margin-top: var(--space-4); }
+.mp-check-recipes { grid-area: recipes; min-width: 0; }
+.mp-check-side .fc { margin: 0; }
+.mp-check-lead .notice { margin-top: var(--space-3); }
+.mp-check-empty { grid-template-areas: "lead" "side"; }
+.mp-check-none { grid-area: lead; height: auto; }
+
+@media (min-width: 960px) {
+  .mp-check {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); grid-template-rows: auto auto 1fr;
+    grid-template-areas: "lead side" "tasks side" "recipes side"; column-gap: var(--space-5); align-items: start;
+  }
+  .mp-check-empty { grid-template-rows: auto; grid-template-areas: "lead side"; }
+  /* stays in view beside the recipes, as tall as the screen allows above the Back and Next bar,
+     scrolling inside itself when it is taller */
+  .mp-check-side {
+    position: sticky; top: var(--space-4); margin-top: 0;
+    max-height: calc(100dvh - var(--bottom-cover, 0px) - 2 * var(--space-4));
+    overflow-y: auto; overscroll-behavior: contain; border-radius: var(--radius-3);
+  }
+  /* a column: the map under the list, not beside it */
+  .mp-check-side .stores-body-map { grid-template-columns: minmax(0, 1fr); }
+  .mp-check-side .smap-view { height: 220px; }
+  .mp-check-side .fc { box-shadow: none; }
+}
+
+/* A store's lines: where and what it sells, then what the basket buys there, each on its own line. */
+.store-line, .store-share { display: block; font-variant-numeric: tabular-nums; }
+.store-share { color: var(--text); }
+.store-off .store-share { color: var(--muted); }
+
+/* ─── The header: how far the check has got ──────────────────────────────────────────────── */
+.mp-check-head {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--panel); box-shadow: var(--shadow-1);
+}
+.mp-check-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.view .mp-check-title { margin: 0; font: var(--type-section); font-variant-numeric: tabular-nums; }
+/* focused by script once the last answer is given; it is not a control and draws no ring */
+.mp-check-title:focus { outline: none; }
+.mp-check-note { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.mp-check-clock { margin-left: auto; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+/* The bar: found, skipped (striped) and still to answer, side by side, as the words say; a sweep
+   along it while a check is under way, still under reduced motion. */
+.mp-check-bar {
+  position: relative; display: flex; height: 10px; margin-top: var(--space-3); overflow: hidden;
+  border-radius: var(--radius-pill); background: var(--surface-2);
+}
+.mp-check-bar > span { flex: none; display: block; height: 100%; transition: width var(--dur-3) var(--ease-standard); }
+.mp-check-bar-found, .mp-check-key-found { background: var(--accent); }
+.mp-check-bar-skipped, .mp-check-key-skipped {
+  background: repeating-linear-gradient(135deg, var(--line-strong) 0 2px, var(--surface-2) 2px 5px);
+}
+.mp-check-bar-open, .mp-check-key-open { background: var(--warn); }
+.mp-check-bar-sweep::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 35%; border-radius: inherit;
+  background: var(--accent); animation: mp-check-sweep 1.6s var(--ease-standard) infinite;
+}
+@keyframes mp-check-sweep { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) {
+  .mp-check-bar-sweep::after { animation: none; width: 100%; opacity: 0.35; }
+}
+.mp-check-key {
+  display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0 0; padding: 0;
+  list-style: none; color: var(--muted); font-size: 12.5px;
+}
+.mp-check-key li { display: inline-flex; align-items: center; gap: var(--space-1); }
+.mp-check-key span { width: 14px; height: 8px; border-radius: 2px; }
+
+.mp-check-total {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-3); font-size: 14px; font-variant-numeric: tabular-nums;
+}
+.mp-check-total > p { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); margin: 0; }
+.mp-check-over { color: var(--warn); font-weight: 600; }
+.mp-check-about { font-size: 13px; color: var(--muted); }
+.mp-check-about summary { width: fit-content; cursor: pointer; }
+.mp-check-about p { margin: var(--space-1) 0 0; max-width: 62ch; }
+.mp-check-coverage { margin: var(--space-2) 0 0; color: var(--muted); font-size: 13px; }
+
+/* ─── The ingredients still to answer ────────────────────────────────────────────────────── */
+/* A card with the warning's edge, its sign beside the count; each task a row: the product's
+   picture, what and for which recipe, what is wrong and why, what was planned, and the answers. */
+.mp-tasks {
+  padding: var(--space-4) var(--space-5) var(--space-2);
+  border: 1px solid var(--border); border-left: 4px solid var(--warn); border-radius: var(--radius-3);
+  background: var(--panel); box-shadow: var(--shadow-1);
+}
+.view .mp-tasks-title { display: flex; align-items: center; gap: var(--space-2); margin: 0; font: var(--type-title); }
+.mp-tasks-title .ico { flex: none; color: var(--warn); }
+.mp-tasks-lede { margin: var(--space-1) 0 0; color: var(--muted); font-size: 14px; }
+.mp-tasks-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; }
+.mp-task {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: start; gap: var(--space-3);
+  padding: var(--space-3) 0; border-top: 1px solid var(--border);
+}
+.mp-task-main { min-width: 0; }
+.mp-task-what { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); margin: 0; }
+.mp-task-name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.mp-task-for { color: var(--muted); font-size: 13.5px; }
+.mp-task-issue { margin: 2px 0 0; color: var(--warn); font-size: 13.5px; overflow-wrap: anywhere; }
+.mp-task-why { color: var(--muted); font-weight: 400; }
+.mp-task-had { margin: 2px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.mp-task-answers { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+@media (max-width: 520px) {
+  .mp-tasks { padding: var(--space-4) var(--space-4) var(--space-2); }
+  .mp-task { grid-template-columns: 36px minmax(0, 1fr); gap: var(--space-2) var(--space-3); }
+  .mp-task .ppic { width: 36px; height: 36px; }
+  /* two answers to a row, each as wide as its half, so a thumb finds each one */
+  .mp-task-answers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mp-task-answers .btn { justify-content: flex-start; padding: 0 var(--space-2); white-space: normal; text-align: left; }
+}
+
+/* ─── The recipes' rows ──────────────────────────────────────────────────────────────────── */
+.mp-check-recipes .mp-ing-recipe:first-child { margin-top: var(--space-4); }
+.mp-ing-origin { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); }
+.mp-ing-shell .mp-ing-recipe-sub { font-style: normal; }
+.mp-ing-shell .skel-group { margin: var(--space-1) 0 var(--space-2); }
+.mp-ing-shell .notice { margin: var(--space-1) 0 var(--space-2); }
+.mp-ing-out { margin: 0 0 var(--space-2); }
+.mp-ing-recipe .mp-servings { margin: 0 0 var(--space-2); }
+
+/* ─── How sure a row is: the match grade, and how its origin is known ────────────────────── */
+/* Words beside a glyph; the colour only repeats them. A same item is calm (the accent's text, a
+   thin edge); one that works instead or is the shopper's own in the info colour; a looser or
+   closest match in the warning's. */
+.mtag {
+  display: inline-flex; align-items: center; gap: 3px; padding: 0 6px;
+  border: 1px solid var(--border-ui); border-radius: var(--radius-1);
+  font: 600 12px/18px var(--font-body); white-space: nowrap; color: var(--muted);
+}
+.mtag .ico { flex: none; }
+.mtag-same, .mtag-form { color: var(--accent-soft-fg); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.mtag-yours, .mtag-instead { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, transparent); }
+.mtag-closest, .mtag-looser { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+.evid { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.evid .ico { flex: none; }
+.evid-checked { color: var(--accent-soft-fg); }
+.evid-disputed { color: var(--warn); font-weight: 600; }
+@media (forced-colors: active) {
+  .mtag { border-color: CanvasText; }
+}
+
+/* ─── The Options sheet: each row's marks, and the pick compared with the best others ────── */
+.alt-marks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: 3px; }
+.alt-origin { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); color: var(--muted); font-size: 12.5px; }
+
+.alt-compare { margin: var(--space-1) 0 var(--space-4); }
+.alt-compare h3 { margin: 4px 0 6px; }
+/* The products are the columns, each attribute a row named on its left; the pick's column is
+   tinted, its badge says what it is. Fixed columns, so three products share the width evenly and
+   long names wrap inside theirs; nothing scrolls sideways, even on a phone. */
+.alt-compare-table {
+  width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-2); font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.alt-compare-table th, .alt-compare-table td {
+  padding: var(--space-2); vertical-align: top; text-align: left; overflow-wrap: anywhere;
+  border-top: 1px solid var(--border);
+}
+.alt-compare-table thead th, .alt-compare-table thead td { border-top: none; }
+.alt-compare-table thead td { width: 6.5rem; }
+/* the products' names as they are written (a th is a label elsewhere, index.css) */
+.alt-compare-table thead th {
+  font: 600 13px/1.35 var(--font-body); letter-spacing: normal; text-transform: none; color: var(--text);
+}
+.alt-compare-table tbody th {
+  color: var(--muted); font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase;
+}
+.alt-compare-name { display: block; margin-bottom: var(--space-1); }
+.alt-compare-yours { background: var(--accent-soft); }
+.alt-compare-table thead .alt-compare-yours { border-top-left-radius: 0; }
+.alt-compare-badge {
+  display: block; margin-bottom: 2px; color: var(--accent-soft-fg); font: var(--type-label);
+  letter-spacing: var(--label-tracking); text-transform: uppercase;
+}
+.alt-compare-unknown { color: var(--muted); font-style: italic; }
+.alt-compare .mtag { white-space: normal; }
+@media (max-width: 520px) {
+  .alt-compare-table { font-size: 12px; }
+  .alt-compare-table thead td { width: 4.5rem; }
+  .alt-compare-table th, .alt-compare-table td { padding: var(--space-1) 6px; }
+}
+
+/* ─── A fingertip's 44px on the stage and in its sheet ───────────────────────────────────── */
+/* The buttons are .btn (44px under a coarse pointer, styles/buttons.css); these are the rest:
+   the disclosures, the farther stores, the map's zoom. */
+@media (pointer: coarse) {
+  .mp-check-about summary, .stores-far summary,
+  .alt-all summary, .alt-held summary, .alt-how summary { padding-block: 12px; line-height: 20px; }
+  .smap-zoom button { width: 44px; height: 44px; }
+}

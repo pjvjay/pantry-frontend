@@ -7,9 +7,9 @@ import { readFileSync } from 'node:fs';
 
 import {
   originCoverage, originCoverageText,
-  basketAtLeast, basketKey, basketView, lineIssue, originText, unansweredCount, unansweredGroups, unavailableHeading,
+  basketAtLeast, basketKey, basketView, lineGrade, lineIssue, originEvidence, originText, unansweredCount, unavailableHeading,
 } from '../src/mealplan/basket.ts';
-import type { MealBasket } from '../src/types.ts';
+import type { MealBasket, ResolvedLine, ResolvedRecipe } from '../src/types.ts';
 import { D, add, planWith, run } from './helpers/mealplan.ts';
 
 const BASKET: MealBasket = JSON.parse(readFileSync(new URL('./fixtures/mealplan-basket.json', import.meta.url), 'utf8'));
@@ -58,8 +58,6 @@ test('what no store nearby sells needs an answer: skipping it, other meals, or a
     [PIZZA, 'fresh basil', 'Sold only beyond your distance'],
     [RICE, 'shaoxing wine', 'Only US-origin nearby, left out by your rule'],
   ]);
-  assert.deepEqual(unansweredGroups(view.unanswered).map((g) => [g.heading, g.lines.length]),
-    [['Sold only beyond your distance', 1], ['Only US-origin nearby, left out by your rule', 1]]);
   assert.equal(view.recipes[0].unanswered, 1);
   assert.equal(unansweredCount(BASKET, s), 2);
   // skip the basil
@@ -185,4 +183,45 @@ test('origin coverage counts each product once, and only evidenced origins as kn
   assert.equal(originCoverageText({ known: 3, total: 3 }), 'Origin is known for 3 of 3 products: your origin rules apply to all of them.');
   assert.equal(originCoverageText({ known: 0, total: 1 }),
     'Origin is known for 0 of 1 product: your origin rules (leave out, prefer) can only act on products whose origin is known.');
+});
+
+// A recipe's products as the check chose them: line_no → [product id, match].
+const checked = (key: string, title: string, lines: Record<number, [number | null, ResolvedLine['match']]>): ResolvedRecipe => ({
+  key, title, status: 'ok', message: '', servings: 2, servings_basis: 'source', label: null,
+  lines: Object.entries(lines).map(([n, [pid, match]]) => ({ line_no: Number(n), name: '', quantity: null, unit: '',
+    need_qty: null, need_uom: null, product_id: pid, product_name: null, match, amount_basis: null })),
+  not_stocked: [], out_of_range: [], skipped: [], llm_cost_usd: 0, model_used: 'demo', burr_run: '', cached: false,
+});
+
+test('how sure each match is: the check\'s grade for its own pick, the shopper\'s for theirs, else none', () => {
+  const s = run(plan(), { type: 'setResolved', resolved: [
+    checked(PIZZA, 'Pepperoni Pizza', { 1: [41, 'exact'], 3: [122, 'exact'], 5: [77, 'generic'] }),
+    checked(RICE, 'Chicken Fried Rice', { 2: [122, 'form'], 6: [null, null] }),
+  ] });
+  const [dough, salt, basil] = basketView(BASKET, s).recipes[0].lines;
+  assert.deepEqual(dough.grade, { kind: 'same', label: 'Same item' });
+  assert.deepEqual(salt.grade, { kind: 'yours', label: 'Your choice' }, 'pinned: the shopper chose it');
+  assert.deepEqual(basil.grade, { kind: 'closest', label: 'Closest match' }, 'describing words dropped');
+  const [riceSalt, wine] = basketView(BASKET, s).recipes[1].lines;
+  assert.deepEqual(riceSalt.grade, { kind: 'yours', label: 'Your choice' });
+  assert.equal(wine.grade, null, 'no product, no grade');
+  assert.deepEqual(lineGrade({ product: BASKET.recipes[1].lines[0].product, pinned: false },
+    { line_no: 2, name: '', quantity: null, unit: '', need_qty: null, need_uom: null, product_id: 122,
+      product_name: null, match: 'form', amount_basis: null }), { kind: 'form', label: 'Same item, another form' });
+  // the basket buys another product than the check picked (a newer answer): no guess
+  const other = run(plan(), { type: 'setResolved', resolved: [checked(PIZZA, 'Pepperoni Pizza', { 1: [99, 'exact'] })] });
+  assert.equal(basketView(BASKET, other).recipes[0].lines[0].grade, null);
+  assert.equal(basketView(BASKET, plan()).recipes[0].lines[0].grade, null, 'not checked yet');
+});
+
+test('how each origin is known follows it: a source on file, sources that disagree, or none yet', () => {
+  const [dough, salt] = basketView(BASKET, plan()).recipes[0].lines;
+  assert.deepEqual(dough.evidence, { kind: 'checked', word: 'source on file' });
+  assert.deepEqual(salt.evidence, { kind: 'none', word: 'not checked' });
+  assert.deepEqual(basketView(BASKET, plan()).recipes[1].lines[0].evidence, { kind: 'disputed', word: 'check the label' });
+  assert.deepEqual(originEvidence({ country: null, claim: '', status: 'unknown', preferred_rank: null }),
+    { kind: 'none', word: 'not checked' });
+  // where each is bought, by the store's own name, for the map
+  assert.deepEqual(basketView(BASKET, plan()).recipes[0].lines.map((l) => l.storeName),
+    ['Pantry Mart Downtown', 'GreenLeaf Grocers Kitsilano', null]);
 });

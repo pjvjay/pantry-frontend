@@ -9,8 +9,10 @@
 //   2 Pick meals:        the setup restated with a Change for each answer, "Build a week for me",
 //                        then recipe cards by meal under a budget bar; Quick add, import and the
 //                        shopper's own recipes (components/mealcards.tsx).
-//   3 Check ingredients: each recipe's ingredients as the plan would buy them, and an answer for
-//                        each one no store nearby sells (components/ingredients.tsx).
+//   3 Check ingredients: how far the check has got, over a bar; the ingredients no store nearby
+//                        sells, pinned as a task list with their answers; then each recipe's
+//                        ingredients as the plan would buy them, how sure each match is, and
+//                        "Your stores" beside them (components/ingredients.tsx).
 //   4 Place on days:     the 7 or 14 day calendar beside the recipes to place (the tray, as a
 //                        sprint board's backlog), only the rows the meals use unless "Show all
 //                        slots", drag and drop, Fill empty slots (done once by itself when every
@@ -22,8 +24,10 @@
 //                        the two ways to shop as tiles, the warnings and their fixes, the week
 //                        strip to move a trip on, and each trip to approve, dismiss or move, or,
 //                        approved, to shop in the store (components/shoplist.tsx, mealtrips.tsx).
-//   6 Calendar:          times and reminders, the events, the .ics and Google Calendar
-//                        (components/CalendarExport.tsx).
+//   6 Calendar:          the events and the two ways to add them (the file, Google Calendar), the
+//                        timing in one folded card, the events by day with their pictures; done
+//                        once they have gone to a calendar, which the progress indicator and Home
+//                        show (components/CalendarExport.tsx, useExported.ts).
 // Where a stage opens and what stops Next are decided in mealplan/wizard.ts. The plan lives in
 // MealPlanProvider (above every page, so it survives moving between them) and is saved in this
 // browser only. Every change re-runs /mealplan/schedule, which is pure: no model call, and the
@@ -33,7 +37,7 @@ import type { KeyboardEvent } from 'react';
 
 import { arrivalFor, arriveAt, arriving, clearArrival } from '../components/arrival';
 import { BasicsStage, PlanFile, ShoppingSettings } from '../components/basics';
-import { CalendarExport, TimingSettings, useTiming } from '../components/CalendarExport';
+import { CalendarExport, useTiming } from '../components/CalendarExport';
 import { IngredientsStage } from '../components/ingredients';
 import { ActionBar, DragGhost, MoveSheet, PlanBoard, WeekStrip } from '../components/mealcal';
 import type { BoardCtl } from '../components/mealcal';
@@ -47,12 +51,14 @@ import { STORES_HEAD } from '../components/stores';
 import { EmptyState, Skeleton, useToast } from '../components/ui';
 import { usePointerDrag } from '../components/usePointerDrag';
 import { StageNav, Stepper } from '../components/wizard';
+import { useExported } from '../components/useExported';
 import { autofillCount, readAutofilled, rememberAutofilled, spreadText } from '../mealplan/autofill';
 import type { SetupItem } from '../mealplan/basics';
 import { summaryLine } from '../mealplan/board';
 import { moveConsequence, tripMoveConsequence, warningsFor } from '../mealplan/consequences';
 import { addDays, dayLabel } from '../mealplan/dates';
 import { dropEdit, keyIntent, parseTarget } from '../mealplan/dnd';
+import { exportState } from '../mealplan/exported';
 import type { DragEffect, DragPayload } from '../mealplan/dnd';
 import { planPictures } from '../mealplan/images';
 import { recipeTitle } from '../mealplan/model';
@@ -245,6 +251,10 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   // would pull focus out of whatever the shopper is typing in next.
   const [focusTo, setFocusTo] = useState<{ selectors: string[] } | null>(null);
   const timing = useTiming(d.prefs.slots_on);
+  // Whether the plan's events have gone to a calendar, and are still the plan's: the last stage's
+  // work done, which the progress indicator shows (mealplan/exported.ts).
+  const exported = useExported(d.id);
+  const finished = exportState(exported.mark, answer?.approved_schedule) === 'current';
 
   // Nothing stays held on another stage.
   useEffect(() => setHeld(null), [step]);
@@ -500,7 +510,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
         </div>
       )}
 
-      {!shop && <Stepper step={step} facts={facts} />}
+      {!shop && <Stepper step={step} facts={facts} finished={finished} />}
 
       {/* every stage is cards, drawn on the page itself */}
       <section className="panel mp-stage mp-stage-flat" aria-labelledby="mp-stage-head">
@@ -535,7 +545,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
 
         {step === 2 && <MealsStage quickText={quickText} setQuickText={setQuickText} onChange={changeSetup} />}
 
-        {step === 3 && <IngredientsStage basket={basket} onMeals={() => go(2)} />}
+        {step === 3 && <IngredientsStage basket={basket} facts={facts} onMeals={() => go(2)} />}
 
         {step === 4 && (
           <>
@@ -622,14 +632,9 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
 
         {step === 6 && (
           <>
-            <p className="muted">
-              Your approved trips and placed meals as calendar events, with the times and reminders
-              below. No account or sign-in is needed for the file or the links.
-            </p>
-            <TimingSettings form={timing.form} onChange={timing.setForm} zone={timing.zone}
-                            slots={d.prefs.slots_on} />
             <CalendarExport schedule={answer?.approved_schedule ?? null} current={schedule.current}
-                            timing={timing.timing} />
+                            timing={timing} slots={d.prefs.slots_on} pictures={pictures}
+                            exported={exported.mark} onExported={exported.done} />
             <PlanFile />
           </>
         )}

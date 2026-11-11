@@ -85,6 +85,14 @@ a.home-step-name:hover { text-decoration-thickness: 2px; }
 .home-step-produces { color: var(--muted); font-size: 13.5px; line-height: 1.4; font-variant-numeric: tabular-nums; }
 .home-step .tag { justify-self: end; }
 .home-continue { margin-top: var(--space-4); }
+/* every step done: said with a tick, in the done tag's colours, and the way on to the shopping */
+.home-done { margin-top: var(--space-4); }
+.home-done-text {
+  display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-2); background: var(--accent-soft); color: var(--accent-soft-fg); font-weight: 600;
+}
+.home-done-text .ico { flex: none; }
+.home-done .home-continue { margin-top: var(--space-3); }
 
 .home-trip-when { margin: 0; font: var(--type-title); }
 .home-trip-day { color: var(--muted); font-weight: 400; }

@@ -8,6 +8,8 @@ import {
   basketCounts, firstRecipe, greeting, homeTasks, nextTrip, periodText, pickedText,
 } from '../src/mealplan/home.ts';
 import type { BasketCounts, HomeTasks } from '../src/mealplan/home.ts';
+import { eventsSignature } from '../src/mealplan/exported.ts';
+import type { ExportMark } from '../src/mealplan/exported.ts';
 import type { MealPlanState } from '../src/mealplan/model.ts';
 import { wizardFacts } from '../src/mealplan/wizard.ts';
 import type { ApprovedSchedule, MealBasket, MealSchedule, ResolvedRecipe, Trip } from '../src/types.ts';
@@ -127,6 +129,33 @@ test('one trip approved of two: Shop is in progress, and the Calendar has its ev
   assert.equal(all.tasks[4].produces, '2 trips, all approved · $17.91 of $90');
   assert.equal(all.tasks[5].produces, '5 events ready');
   assert.equal(all.next, 6);
+});
+
+test('the Calendar is done once its events went to a calendar, and says when the plan moved on since', () => {
+  const trips = twoTrips();
+  let s = placedPlan(90);
+  s = run(s, { type: 'approveTrip', trip: trips[0], strategy: 'fresh', rev: s.draft.rev },
+    { type: 'approveTrip', trip: trips[1], strategy: 'fresh', rev: s.draft.rev + 1 });
+  const both = twoTrips([{ status: 'approved' }, { status: 'approved' }]);
+  const events = calendar(2, 3);
+  const sent: ExportMark = { id: s.draft.id, sig: eventsSignature(events), events: 5, how: 'file',
+    at: '2026-10-09T18:00:00.000Z' };
+  const done = homeTasks(s, ok(s), ALL_FOUND, { answer: withTrips(both, events), failed: false }, sent);
+  assert.deepEqual(tags(done), ['done', 'done', 'done', 'done', 'done', 'done']);
+  assert.equal(done.tasks[5].produces, '5 events downloaded');
+  assert.equal(done.done, true, 'the week is planned');
+  const google = homeTasks(s, ok(s), ALL_FOUND, { answer: withTrips(both, events), failed: false },
+    { ...sent, how: 'google' });
+  assert.equal(google.tasks[5].produces, '5 events in Google Calendar');
+  // another cook day since: the events handed over are not the plan's any more
+  const moved = homeTasks(s, ok(s), ALL_FOUND, { answer: withTrips(both, calendar(2, 4)), failed: false }, sent);
+  assert.equal(moved.tasks[5].tag, 'changed');
+  assert.equal(moved.tasks[5].produces, '6 events ready · changed since you downloaded them');
+  assert.equal(moved.next, 6);
+  assert.equal(moved.done, false);
+  // never handed over: ready, and Continue goes there
+  const never = homeTasks(s, ok(s), ALL_FOUND, { answer: withTrips(both, events), failed: false });
+  assert.deepEqual([never.tasks[5].tag, never.tasks[5].produces, never.next, never.done], ['next', '5 events ready', 6, false]);
 });
 
 test('a trip changed since it was approved needs attention, in Shop and in the Calendar', () => {

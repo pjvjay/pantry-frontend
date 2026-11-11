@@ -5,7 +5,8 @@
 // return. Nothing here works a fact out: a price, store, trip total or reason is shown as the
 // ranking states it, and what the ranking does not know is said to be unknown, never zero.
 import type {
-  AlternativeRanking, AltReason, CartLine, CartSummary, FilteredProduct, MatchGroup, PlanCardData, RankedAlternative,
+  AlternativeRanking, AltOrigin, AltReason, CartLine, CartSummary, FilteredProduct, MatchGroup, PlanCardData,
+  RankedAlternative,
 } from './types.ts';
 
 // A product's name with its size, unless the name already says it: "Jasmine Rice 2kg", never
@@ -118,6 +119,78 @@ export function rowGroups(r: AlternativeRanking): { current: RankedAlternative |
     : [{ key: 'same', label: 'Same ingredient', tone: 'same', items: rest.filter((it) => it.tier === 'same') },
       { key: 'other', label: 'Not the same ingredient', tone: 'other', items: rest.filter((it) => it.tier !== 'same') }];
   return { current, groups: groups.filter((g) => g.items.length > 0), byMeaning };
+}
+
+// A row's match grade, worn on the row as a tag with a glyph, so how sure the match is reads in
+// words wherever the row is: its group (pantry's own name for it when it gives one), or with an
+// older pantry its tier. kind picks the glyph: a tick for the same item, two arrows for one that
+// works instead, ≈ for a looser match, and a bar for the cart's pick that is no candidate at all.
+export type GradeKind = 'same' | 'instead' | 'looser' | 'outside';
+
+const GRADE_OF: Record<MatchGroup, GradeKind> = {
+  same_item: 'same', works_instead: 'instead', looser_match: 'looser', outside: 'outside',
+};
+
+export function rowGrade(item: Pick<RankedAlternative, 'group' | 'group_label' | 'tier'>): { kind: GradeKind; label: string } {
+  if (item.group) return { kind: GRADE_OF[item.group], label: item.group_label?.trim() || GROUP_LABELS[item.group] };
+  if (item.tier === 'same') return { kind: 'same', label: 'Same ingredient' };
+  if (item.tier === 'other') return { kind: 'looser', label: 'Not the same ingredient' };
+  return { kind: 'outside', label: GROUP_LABELS.outside };
+}
+
+// A row's origin in a few words, and how it is known, as Check ingredients marks it: a source on
+// file (a demo label photo says so), sources that disagree (read the label in the store), or not
+// checked, which pantry tells apart from evidence that names no country.
+export function altOrigin(o: AltOrigin): { text: string; kind: 'checked' | 'disputed' | 'none'; word: string } {
+  if (o.status === 'resolved' && o.country) {
+    const text = o.claim === 'processing' ? `Made in ${o.country}` : `From ${o.country}`;
+    return { text, kind: 'checked', word: o.demo ? 'demo label photo' : 'source on file' };
+  }
+  if (o.status === 'conflicting') return { text: 'Sources disagree', kind: 'disputed', word: 'check the label' };
+  return { text: o.label?.trim() || 'Origin not checked', kind: 'none', word: '' };
+}
+
+// ─── Compare with your pick ──────────────────────────────────
+// The plan's pick beside the two best other rows, attribute by attribute, as a comparison table
+// reads (NN/g): what a pack costs, the price per unit, the pack's size, where it is sold, where it
+// is from and how close a match it is. Nothing is left blank: what pantry does not know says so.
+
+export interface CompareColumn {
+  productId: number;
+  name: string;                    // the product, with its size unless the name says it
+  yours: boolean;                  // the plan's pick
+  grade: { kind: GradeKind; label: string };
+  price: string;                   // "$0.68 a pack", "$2.56 a pack · 2 packs"
+  unit: string;                    // "$1.36 / 100 g", "unknown"
+  size: string;                    // "~50g", "unknown"
+  store: string;                   // "Pantry Mart Downtown, 0.3 km", "catalog price"
+  origin: string;                  // "Origin not checked", "From Canada", "Sources disagree"
+}
+
+export const COMPARE_ROWS: readonly { key: 'price' | 'unit' | 'size' | 'store' | 'origin'; label: string }[] = [
+  { key: 'price', label: 'Price' }, { key: 'unit', label: 'Unit price' }, { key: 'size', label: 'Size' },
+  { key: 'store', label: 'Store' }, { key: 'origin', label: 'Origin' },
+];
+
+function compareColumn(it: RankedAlternative): CompareColumn {
+  const o = it.offer;
+  return {
+    productId: it.product_id, name: nameWithSize(it.product, it.size), yours: it.current, grade: rowGrade(it),
+    price: `${money(packPrice(it))} a pack${it.packs > 1 ? ` · ${it.packs} packs` : ''}`,
+    unit: it.unit_price != null && it.unit_basis ? `${money(it.unit_price)} / ${it.unit_basis}` : 'unknown',
+    size: it.size?.trim() || 'unknown',
+    store: o.store ? `${o.store}${o.distance_km != null ? `, ${o.distance_km.toFixed(1)} km` : ''}` : 'catalog price',
+    origin: altOrigin(it.origin).text,
+  };
+}
+
+// The plan's pick first, then the best-ranked others, `size` columns at most. With no pick (a line
+// with nothing chosen yet) the best rows alone. Fewer than two columns compare nothing: none.
+export function compareColumns(r: AlternativeRanking, size = 3): CompareColumn[] {
+  const current = r.items.find((it) => it.current) ?? null;
+  const rest = r.items.filter((it) => !it.current).sort((a, b) => a.rank - b.rank);
+  const cols = [...(current ? [current] : []), ...rest].slice(0, size).map(compareColumn);
+  return cols.length >= 2 ? cols : [];
 }
 
 // The note under the dialog's heading: matched by meaning, or by words while the meaning model

@@ -192,7 +192,9 @@ export function clockText(seconds: number): string {
 }
 
 // One stage in the progress indicator. done: before the current one; attention: a done stage
-// whose gate an edit has since blocked, and why; reachable: it can be opened from here.
+// whose gate an edit has since blocked, and why; reachable: it can be opened from here; finished:
+// the last stage, its work done (the plan's events have gone to a calendar and not changed since:
+// mealplan/exported.ts), which no stage after it would otherwise show.
 export interface StepView {
   n: StepNo;
   name: string;
@@ -200,9 +202,10 @@ export interface StepView {
   state: 'done' | 'current' | 'ahead';
   reachable: boolean;
   attention: string | null;
+  finished: boolean;
 }
 
-export function stepViews(current: StepNo, f: WizardFacts): StepView[] {
+export function stepViews(current: StepNo, f: WizardFacts, finished = false): StepView[] {
   const reach = furthest(f);
   return STEPS.map(({ n, name, optional }) => {
     const g = gate(n, f);
@@ -211,6 +214,7 @@ export function stepViews(current: StepNo, f: WizardFacts): StepView[] {
       state: n < current ? 'done' : n === current ? 'current' : 'ahead',
       reachable: n <= reach,
       attention: n < current && g.state === 'blocked' ? g.text : null,
+      finished: finished && n === LAST_STEP && n <= reach,
     };
   });
 }

@@ -9,13 +9,17 @@
 // turned off: then turning one back on is an answer too), and needs an answer before Place on
 // days: other meals (back to Pick meals), another product (its Options), or "skip this
 // ingredient".
-import { nameWithSize } from '../alternatives.ts';
+//
+// How sure each row is, in words as well as a mark: how well its product matches the recipe's
+// line (lineGrade: "Same item", "Closest match", "Your choice"), and how its origin is known
+// (originEvidence: a source on file, sources that disagree, or none yet).
+import { GROUP_LABELS, nameWithSize } from '../alternatives.ts';
 import { excludedWords } from './catalog.ts';
 import { recipePicture } from './images.ts';
 import type { PictureSource } from './images.ts';
 import { lineKey, mealsOf, recipeTitle } from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
-import type { BasketLine, BasketOrigin, MealBasket, MealPlanDraft, UnavailableKind } from '../types.ts';
+import type { BasketLine, BasketOrigin, MealBasket, MealPlanDraft, ResolvedLine, UnavailableKind } from '../types.ts';
 
 const money = (v: number) => `$${v.toFixed(2)}`;
 
@@ -57,6 +61,49 @@ export function originText(o: BasketOrigin): { text: string; flag: boolean } {
   const words = claim || (flag ? 'origin unclear: sources disagree'
     : o.status === 'evidenced' && o.country ? o.country : 'origin unknown');
   return { text: `${words}${o.preferred_rank !== null ? ' · a preferred origin' : ''}`, flag };
+}
+
+// How the origin is known, said after it as a marker (as a citation follows a claim): evidence
+// is on file for it; the sources disagree, so the label is what to read in the store; or nobody
+// has checked it yet. The words say it, the mark only shows it.
+export type EvidenceKind = 'checked' | 'disputed' | 'none';
+
+export interface EvidenceMark {
+  kind: EvidenceKind;
+  word: string;
+}
+
+export function originEvidence(o: BasketOrigin): EvidenceMark {
+  if (o.status === 'conflicting') return { kind: 'disputed', word: 'check the label' };
+  if (o.status === 'evidenced') return { kind: 'checked', word: 'source on file' };
+  return { kind: 'none', word: 'not checked' };
+}
+
+// How well the product the plan buys matches the recipe's line. The products check says how the
+// line's words met the catalog (ResolvedLine.match): every word as written ("exact"), with the
+// purchase form swapped or dropped ("form": cumin powder for Cumin Ground), or only once its
+// describing words were dropped ("generic": light brown sugar for Brown Sugar), the loosest, and
+// what pantry-api reports when nothing in the catalog is the same item; a product the shopper chose
+// in Options is theirs. A row whose product is not the check's pick (a pin made since, an older
+// answer) gets no grade rather than a guess, and neither does a row with no product.
+export type GradeKind = 'same' | 'form' | 'closest' | 'yours';
+
+export interface MatchGrade {
+  kind: GradeKind;
+  label: string;
+}
+
+export const GRADE_LABELS: Record<GradeKind, string> = {
+  same: GROUP_LABELS.same_item, form: `${GROUP_LABELS.same_item}, another form`, closest: 'Closest match',
+  yours: 'Your choice',
+};
+
+export function lineGrade(ln: Pick<BasketLine, 'product' | 'pinned'>, picked: ResolvedLine | undefined): MatchGrade | null {
+  if (!ln.product) return null;
+  if (ln.pinned) return { kind: 'yours', label: GRADE_LABELS.yours };
+  if (!picked || picked.product_id !== ln.product.id || !picked.match) return null;
+  const kind: GradeKind = picked.match === 'exact' ? 'same' : picked.match === 'form' ? 'form' : 'closest';
+  return { kind, label: GRADE_LABELS[kind] };
 }
 
 // Why an ingredient cannot be bought, as the row and the stage's banner say it.
@@ -104,9 +151,12 @@ export interface LineView {
   product: string | null;          // "Whole Milk 1L"
   productName: string | null;      // "Whole Milk", what its picture is asked by
   store: string;
+  storeName: string | null;        // where it is bought, by the store's own name ("Your stores" lights it)
   price: string;                   // a pack
   cost: string;                    // this recipe's share, all its meals
   origin: { text: string; flag: boolean };
+  evidence: EvidenceMark;          // how the origin is known, after it
+  grade: MatchGrade | null;        // how well the product matches the line, null when not known
   labels: string[];
   pinned: boolean;
   shared: string;                  // "also bought for Chicken Fried Rice"
@@ -145,11 +195,13 @@ function lineView(s: MealPlanState, recipeKey: string, meals: number, ln: Basket
   if (p?.says_organic && !labels.some((l) => /organic/i.test(l))) labels.push('says organic');
   if (p?.demo_product) labels.push('demo product');
   const kind = ln.available ? null : ln.unavailable_kind ?? null;
+  const picked = s.draft.resolved[recipeKey]?.lines.find((r) => r.line_no === ln.line_no);
   return {
     key: k, recipeKey, lineNo: ln.line_no, ingredient: ln.ingredient, need: ln.need,
-    productId: p?.id ?? null, product, productName: p?.name ?? null, store, price,
+    productId: p?.id ?? null, product, productName: p?.name ?? null, store, storeName: ln.store?.name ?? null, price,
     cost: ln.cost_for_need === null ? '' : `${money(ln.cost_for_need)} for these meals`,
-    origin: originText(ln.origin), labels, pinned: ln.pinned,
+    origin: originText(ln.origin), evidence: originEvidence(ln.origin), grade: lineGrade(ln, picked),
+    labels, pinned: ln.pinned,
     shared: others.length ? `also bought for ${listOf(others)}` : '',
     available: ln.available, kind, heading: ln.available ? '' : unavailableHeading(ln.unavailable_kind, excluded),
     issue: lineIssue({ available: ln.available, productId: p?.id ?? null, kind }, excluded),
@@ -179,7 +231,22 @@ export function basketView(b: MealBasket, s: MealPlanState): { recipes: RecipeVi
 export const unansweredCount = (b: MealBasket | null, s: MealPlanState): number =>
   (b ? basketView(b, s).unanswered.length : 0);
 
-// Whether the basket's total leaves out a price: some ingredient it buys has none.
+// The ingredients of the recipes that have meals: how many lines, how many a store nearby sells,
+// how many still need an answer, and how many the shopper chose to do without.
+export interface BasketCounts {
+  lines: number;
+  found: number;
+  unanswered: number;
+  skipped: number;
+}
+
+export function basketCounts(b: MealBasket, s: MealPlanState): BasketCounts {
+  const v = basketView(b, s);
+  const lines = v.recipes.filter((r) => r.meals > 0).flatMap((r) => r.lines);
+  return { lines: lines.length, found: lines.filter((l) => l.issue === null).length,
+    unanswered: v.unanswered.length, skipped: lines.filter((l) => l.skipped).length };
+}
+
 // How many of the basket's products have origin evidence: the origin rules (leave out a country,
 // prefer one) act only on those, so the stage says so. Each product counts once, however many
 // lines buy it; a conflicting record is not counted as known.
@@ -200,16 +267,6 @@ export function originCoverageText(c: { known: number; total: number }): string 
   return `${of}: your origin rules (leave out, prefer) can only act on products whose origin is known.`;
 }
 
+// Whether the basket's total leaves out a price: some ingredient it buys has none.
 export const basketAtLeast = (b: MealBasket): boolean =>
   b.recipes.some((r) => r.lines.some((ln) => ln.available && ln.product !== null && ln.price === null));
-
-// The unanswered ingredients by why, for the stage's banner, in the order first met.
-export function unansweredGroups(lines: readonly LineView[]): { heading: string; lines: LineView[] }[] {
-  const out: { heading: string; lines: LineView[] }[] = [];
-  for (const l of lines) {
-    const g = out.find((x) => x.heading === l.heading);
-    if (g) g.lines.push(l);
-    else out.push({ heading: l.heading, lines: [l] });
-  }
-  return out;
-}

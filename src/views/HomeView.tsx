@@ -2,8 +2,10 @@
 //   - a greeting for the time of day with the plan's days, beside the picture of the first meal
 //     it cooks (a warm placeholder when there is none, or the demo hub cannot fetch it);
 //   - "This week": the plan's six steps as a task list, each with its state in words (Done, In
-//     progress, Next, Needs attention, Cannot start yet) and what it has produced so far, and one
-//     "Continue" to the step to do next (mealplan/home.ts decides all of it);
+//     progress, Next, Needs attention, Cannot start yet, Changed) and what it has produced so far,
+//     and one "Continue" to the step to do next (mealplan/home.ts decides all of it). Once every
+//     step is done (the last once the plan's events have gone to a calendar: mealplan/exported.ts)
+//     the week is planned, and the way on is the shopping plan;
 //   - "Next trip": the next shopping trip, with "Shop this trip" (in-store mode) and the way to the
 //     shopping plan;
 //   - "Ask": a question for the assistant, carried to it and put in its message box, unsent.
@@ -19,6 +21,7 @@ import { RecipePicture } from '../components/pictures';
 import { Notice, Skeleton, Spinner, Tag } from '../components/ui';
 import type { NoticeAction } from '../components/ui';
 import { useBuildWeek } from '../components/useBuildWeek';
+import { useExported } from '../components/useExported';
 import { useHubStatus } from '../hubStatus';
 import { todayIn } from '../mealplan/dates';
 import { basketCounts, firstRecipe, greeting, homeTasks, nextTrip, periodText } from '../mealplan/home';
@@ -179,8 +182,9 @@ function ThisWeek() {
   const basket = useBasket(true);
   const facts = usePlanFacts(basket);
   const schedule = mp.schedule;
+  const exported = useExported(d.id);
   const counts = basket.answer && basket.current ? basketCounts(basket.answer, s) : null;
-  const home = homeTasks(s, facts, counts, { answer: schedule.answer, failed: schedule.status === 'error' });
+  const home = homeTasks(s, facts, counts, { answer: schedule.answer, failed: schedule.status === 'error' }, exported.mark);
   const trip = nextTrip(s, schedule.answer, todayIn());
   const first = firstRecipe(d);
   const pic = first ? planPictures(d, basket.answer?.recipes ?? []).get(first) ?? null : null;
@@ -218,9 +222,20 @@ function ThisWeek() {
                   </li>
                 ))}
               </ol>
-              <a className="btn btn-primary btn-lg home-continue" href={stepHash(home.next)} onClick={asking(home.next)}>
-                Continue: {stepName(home.next)}<Icon name="arrow-right" size={18} />
-              </a>
+              {home.done ? (
+                // every step done: the week is planned, and what is left is the shopping itself
+                <div className="home-done">
+                  <p className="home-done-text"><Icon name="circle-check" size={20} />Your week is planned.</p>
+                  <a className="btn btn-primary btn-lg home-continue" href={hrefFor({ name: 'shop' })}
+                     onClick={arriving(hrefFor({ name: 'shop' }))}>
+                    See shopping plan<Icon name="arrow-right" size={18} />
+                  </a>
+                </div>
+              ) : (
+                <a className="btn btn-primary btn-lg home-continue" href={stepHash(home.next)} onClick={asking(home.next)}>
+                  Continue: {stepName(home.next)}<Icon name="arrow-right" size={18} />
+                </a>
+              )}
             </>
           )}
         </section>

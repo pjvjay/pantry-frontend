@@ -98,6 +98,30 @@ export function eventsByDay(preview: CalendarPreview): PreviewDay[] {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+// What the Calendar stage leads with: "23 events: 4 shopping trips and 19 cook days".
+export function eventsHead(preview: CalendarPreview): string {
+  const n = preview.events.length;
+  return n ? `${plural(n, 'event', 'events')}: ${countsText(preview)}` : 'No events of the kinds chosen';
+}
+
+// What an event is about, for its picture in the preview: a cook's recipe (and its meal, whose
+// icon stands in for a missing picture), a freeze or thaw reminder's product, or a trip (a store,
+// which has no picture). Found by the event's item in the schedule it was built from; null when
+// the schedule does not name it.
+export type EventSubject = { kind: 'recipe'; key: string; slot: MealSlot } | { kind: 'product'; name: string }
+  | { kind: 'trip' };
+
+export function eventSubject(e: Pick<CalendarEvent, 'kind' | 'item_id'>, schedule: ApprovedSchedule | null)
+  : EventSubject | null {
+  if (e.kind === 'trip') return { kind: 'trip' };
+  if (e.kind === 'cook') {
+    const c = schedule?.cooks?.find((x) => x.item_id === e.item_id);
+    return c ? { kind: 'recipe', key: c.recipe_key, slot: c.slot } : null;
+  }
+  const r = schedule?.reminders?.find((x) => x.item_id === e.item_id);
+  return r ? { kind: 'product', name: r.product } : null;
+}
+
 // "2 shopping trips, 15 cook days and 8 reminders"
 export function countsText(preview: CalendarPreview): string {
   const c = preview.counts;
@@ -190,6 +214,9 @@ export const DEFAULT_TIMING: TimingForm = {
 };
 
 export const LENGTHS: readonly number[] = [15, 30, 45, 60, 90, 120, 180];
+
+// "45 min", "1 h", "1.5 h"
+export const lengthText = (n: number): string => (n < 60 ? `${n} min` : `${n / 60} h`);
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const toMinutes = (hhmm: string) => {
@@ -328,4 +355,19 @@ export function remindersText(e: Pick<CalendarEvent, 'all_day' | 'start_time' | 
   if (!mins.length) return '';
   const start = e.all_day ? null : e.start_time ?? null;
   return `Reminders: ${mins.map((m) => reminderWhen(m, start)).join(', ')}`;
+}
+
+// The Timing card's heading, with what it holds now, so it can stay closed: "Trips at 10:00 for
+// 1 h, cooking at meal times for 1 h, with reminders". A time that cannot be used reads as all day,
+// which is how it is sent (timingFrom).
+export function timingSummary(form: TimingForm, slots: readonly MealSlot[] = SLOT_ORDER): string {
+  const t = timingFrom(form, 'UTC', slots);
+  const trips = t.trips ? `Trips at ${t.trips.start} for ${lengthText(t.trips.minutes)}` : 'Trips all day';
+  const one = SLOT_ORDER.filter((sl) => slots.includes(sl));
+  const cooks = !t.cooks ? 'cooking all day'
+    : one.length === 1 ? `cooking at ${t.cooks.by_slot?.[one[0]] ?? t.cooks.start} for ${lengthText(t.cooks.minutes)}`
+      : `cooking at meal times for ${lengthText(t.cooks.minutes)}`;
+  const r = t.reminders;
+  const any = (r.trips?.length ?? 0) + (r.cooks?.length ?? 0) + (r.reminders?.length ?? 0) > 0;
+  return `${trips}, ${cooks}, ${any ? 'with reminders' : 'no reminders'}`;
 }

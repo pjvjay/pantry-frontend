@@ -138,18 +138,18 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
           )}
         </span>
         {turnOn.map((st) => (
-          <button key={st.id} type="button" className="secondary mini"
+          <button key={st.id} type="button" className="btn btn-secondary btn-sm"
                   onClick={() => mp.dispatch({ type: 'setStoreOff', storeId: st.id, name: st.name, off: false })}>
             Turn {st.name} back on
           </button>
         ))}
         {x.why === 'stores_off' && !turnOn.length && line && (
-          <button type="button" className="secondary mini" onClick={() => { onClose(); line.onStores(); }}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => { onClose(); line.onStores(); }}>
             Your stores
           </button>
         )}
         {km !== undefined && (
-          <button type="button" className="secondary mini"
+          <button type="button" className="btn btn-secondary btn-sm"
                   onClick={() => mp.dispatch({ type: 'setSettings', settings: { max_km: km } })}>
             {km === null ? 'Go any distance' : `Go up to ${distanceLabel(km)}`}
           </button>
@@ -170,9 +170,9 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
       <p>{nothingText(ingredient, choices)}</p>
       <div className="alt-nothing-actions">
         {!line.skipped && (
-          <button type="button" className="secondary mini" onClick={() => { onClose(); line.onMeals(); }}>Back to Pick meals</button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => { onClose(); line.onMeals(); }}>Back to Pick meals</button>
         )}
-        <button type="button" className="secondary mini"
+        <button type="button" className="btn btn-secondary btn-sm"
                 onClick={() => mp.dispatch({ type: 'skipLine', recipeKey: line.recipeKey, lineNo: line.lineNo,
                   ingredient: line.ingredient, skip: !line.skipped })}>
           {line.skipped ? 'Need it after all' : 'Skip this ingredient'}

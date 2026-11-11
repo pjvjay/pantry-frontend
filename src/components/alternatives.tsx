@@ -20,15 +20,20 @@
 // allergen, breaks the diet) is listed, closed, as "Not offered"; and a note under the heading
 // says whether the line was matched by meaning or, with the meaning model off, by words. An older
 // pantry's rows are under "Same ingredient" and "Not the same ingredient", as before
-// (alternatives.rowGroups).
+// (alternatives.rowGroups). Each row also wears its group as a tag, and its origin with how that
+// is known, so how sure it is reads on the row itself (components/matchmarks.tsx). Over the rows,
+// the pick and the two best others side by side: price, unit price, size, store, origin
+// (alternatives.compareColumns), nothing left blank.
 import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import {
-  coversText, footText, matchingNote, movedText, needText, notOffered, priceLine, reasonOf, reasonsLine, rowGroups,
-  sizeInName, storeText, unitPriceText,
+  COMPARE_ROWS, altOrigin, compareColumns, coversText, footText, matchingNote, movedText, needText, notOffered, priceLine,
+  reasonOf, reasonsLine, rowGrade, rowGroups, sizeInName, storeText, unitPriceText,
 } from '../alternatives';
+import type { CompareColumn } from '../alternatives';
 import { agentAlternatives } from '../hub';
 import type { AlternativeRanking, CartLine, RankedAlternative } from '../types';
+import { EvidenceMark, MatchTag } from './matchmarks';
 import { ProductPicture } from './pictures';
 import { Sheet } from './Sheet';
 
@@ -49,6 +54,8 @@ function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; act
   const trip = reasonOf(item, 'trip');
   const { summary, chips } = reasonsLine(item);
   const brandSize = [item.brand, sizeInName(item.product, item.size) ? '' : item.size].filter(Boolean).join(' · ');
+  const grade = rowGrade(item);
+  const origin = altOrigin(item.origin);
   return (
     <li className={`alt-row${item.current ? ' alt-row-current' : ''}`}>
       <ProductPicture product={item.product} ingredient={ingredient} />
@@ -56,6 +63,10 @@ function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; act
         <div className="alt-name">
           <span className="alt-rank">#{item.rank}</span> <strong>{item.product}</strong>
           {brandSize && <span className="muted"> {brandSize}</span>}
+        </div>
+        <div className="alt-marks">
+          <MatchTag kind={grade.kind} label={grade.label} />
+          <span className="alt-origin">{origin.text}<EvidenceMark kind={origin.kind} word={origin.word} /></span>
         </div>
         <div className="alt-price">
           <strong>{price.main}</strong> <span className="muted">{unitPriceText(item)}</span>
@@ -82,6 +93,45 @@ function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; act
       </div>
       {action}
     </li>
+  );
+}
+
+// The pick and the two best others, attribute by attribute (a table: the products are its columns,
+// each attribute a row headed by its name), so the differences read across without opening each
+// row. holds: what the pick is called here ("In your plan", "On this trip", "In your cart").
+function CompareStrip({ cols, holds }: { cols: CompareColumn[]; holds: string }) {
+  const head = useId();
+  const yours = cols.some((c) => c.yours);
+  return (
+    <section className="alt-section alt-compare" aria-labelledby={head}>
+      <h3 id={head}>{yours ? 'Compare with your pick' : 'Compare the top choices'}</h3>
+      <table className="alt-compare-table">
+        <thead>
+          <tr>
+            <td />
+            {cols.map((c) => (
+              <th key={c.productId} scope="col" className={c.yours ? 'alt-compare-yours' : undefined}>
+                {c.yours && <span className="alt-compare-badge">{holds}</span>}
+                <span className="alt-compare-name">{c.name}</span>
+                <MatchTag kind={c.grade.kind} label={c.grade.label} />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {COMPARE_ROWS.map((r) => (
+            <tr key={r.key}>
+              <th scope="row">{r.label}</th>
+              {cols.map((c) => (
+                <td key={c.productId} className={`${c.yours ? 'alt-compare-yours' : ''}${c[r.key] === 'unknown' ? ' alt-compare-unknown' : ''}`.trim() || undefined}>
+                  {c[r.key]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
 
@@ -179,11 +229,12 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
   const said = description ?? (ranking ? [needText(ranking), covers].filter(Boolean).join(' ') : undefined);
 
   const useThis = (item: RankedAlternative) => (
-    <button type="button" className="alt-use" {...actionProps}
+    <button type="button" className="btn btn-primary alt-use" {...actionProps}
             aria-label={`Use this: ${item.product}`} onClick={() => void choose(item.product_id)}>
       {choosing === item.product_id ? updating : 'Use this'}
     </button>
   );
+  const compare = ranking ? compareColumns(ranking) : [];
 
   const list = (heading: string, items: RankedAlternative[], tone: string) => items.length > 0 && (
     <section className={`alt-section alt-section-${tone}`} aria-label={heading}>
@@ -225,12 +276,13 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
 
       {ranking && rows && (
         <>
+          {compare.length > 0 && <CompareStrip cols={compare} holds={holds} />}
           {current && (
             <section className="alt-section" aria-label={holds}>
               <h3>{holds} ({target?.pinned ? 'chosen by you' : 'chosen by the planner'})</h3>
               <ul className="alt-list">
                 <Row item={current} buyer={buyer} ingredient={ingredient} action={target?.pinned ? (
-                  <button type="button" className="secondary alt-use" {...actionProps}
+                  <button type="button" className="btn btn-secondary alt-use" {...actionProps}
                           onClick={() => void choose(null)}>
                     {choosing === 'back' ? updating : 'Back to the planner’s pick'}
                   </button>
