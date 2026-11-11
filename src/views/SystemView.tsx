@@ -4,21 +4,30 @@
 // Workshop's panel above says so, and the switch still works.
 //
 // Resetting the demo data reseeds pantry's whole database, so it asks first, in place
-// (InlineConfirm), and says afterwards what happened.
+// (InlineConfirm), and says afterwards what happened. Whether each service answers, and whether
+// each key is there, is a Tag: a glyph and words, never a coloured dot alone.
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { ErrorBanner, JsonView, StatusDot } from '../components/common';
+import { ErrorBanner, JsonView } from '../components/common';
 import { InlineConfirm } from '../components/InlineConfirm';
 import { Notice } from '../components/ui';
 import { getRuntime, resetDemo, setRuntime } from '../hub';
 import { useHubStatus } from '../hubStatus';
 import type { RuntimeSettings } from '../types';
+import { humanize, keyStatus, serviceStatus } from '../workshop';
+import { StateTag } from '../components/evidence';
 import { Icon } from '../components/icons';
 
+// The keys the hub holds, by their own names; any other key by its name in words.
+const KEY_NAMES: Record<string, string> = {
+  gemini: 'Gemini key', pantry_token: 'pantry token', contextforge_jwt: 'ContextForge JWT', youtube: 'YouTube key',
+  google_calendar_client: 'Google Calendar client', google_calendar_connected: 'Google Calendar account',
+};
+
 const MODEL_ROLES: [string, string][] = [
-  ['nl2sql', 'recipe parser'],
-  ['selector_default', 'product selector'],
-  ['selector_escalation', 'selector escalation'],
-  ['classifier', 'classifier (three-phase routing)'],
+  ['nl2sql', 'Recipe parser'],
+  ['selector_default', 'Product selector'],
+  ['selector_escalation', 'Selector escalation'],
+  ['classifier', 'Classifier (three-phase routing)'],
 ];
 
 function LlmPanel({ onChanged }: { onChanged: () => void }) {
@@ -49,8 +58,8 @@ function LlmPanel({ onChanged }: { onChanged: () => void }) {
   };
 
   return (
-    <section className="panel">
-      <h2>The planner's LLM</h2>
+    <section className="card">
+      <h2 className="card-title">The planner’s LLM</h2>
       <p className="card-sub">
         pantry-api calls an LLM to parse a pasted recipe and to choose a product for each
         ingredient. In <strong>demo mode</strong> deterministic stand-ins replace both calls: free,
@@ -68,8 +77,8 @@ function LlmPanel({ onChanged }: { onChanged: () => void }) {
             <button type="button" className={`btn btn-sm ${runtime.demo_mode ? 'btn-primary' : 'btn-secondary'}`}
                     aria-pressed={runtime.demo_mode} disabled={busy || runtime.editable === false}
                     onClick={() => void apply({ demo_mode: true })}>Demo mode (no LLM)</button>
-            <span className="chip chip-muted">Gemini key {runtime.gemini_key_configured ? 'configured' : 'missing'}</span>
-            <span className="chip chip-muted">Anthropic key {runtime.anthropic_key_configured ? 'configured' : 'missing'}</span>
+            <StateTag state={keyStatus('Gemini key', Boolean(runtime.gemini_key_configured), 'pantry-api')} />
+            <StateTag state={keyStatus('Anthropic key', Boolean(runtime.anthropic_key_configured), 'pantry-api')} />
           </div>
           <form className="form-grid" onSubmit={(e) => { e.preventDefault(); void apply({ models }); }}>
             {MODEL_ROLES.map(([key, label]) => (
@@ -110,8 +119,8 @@ function DemoDataPanel({ hubOff }: { hubOff: boolean }) {
   };
 
   return (
-    <section className="panel">
-      <h2>Demo data</h2>
+    <section className="card">
+      <h2 className="card-title">Demo data</h2>
       <p className="card-sub">
         Put the catalog, the recipes and the demo’s origin evidence back the way the demo ships them,
         after trying out label readings and reviews in Provenance.
@@ -137,7 +146,7 @@ function DemoDataPanel({ hubOff }: { hubOff: boolean }) {
           The catalog, the recipes and the demo’s origin evidence are reloaded; the review queue is empty.
         </Notice>
       )}
-      {outcome?.ok === true && outcome.output && <JsonView value={outcome.output} label="what the reset printed" />}
+      {outcome?.ok === true && outcome.output && <JsonView value={outcome.output} label="What the reset printed" />}
       {outcome?.ok === false && (
         <Notice tone="danger" title="The demo data was not reset."
                 hint="The hub runs the reset with a script of its own (DEMO_RESET_SCRIPT); the words above are its answer.">
@@ -154,10 +163,10 @@ export default function SystemView() {
   const load = useCallback(() => { void hub.refresh(); }, [hub.refresh]);
 
   return (
-    <div className="view">
-      <section className="panel">
-        <div className="plan-header">
-          <h2>Services</h2>
+    <div className="view ws-stack">
+      <section className="card">
+        <div className="card-head">
+          <h2 className="card-title">Services</h2>
           <button type="button" className="btn btn-secondary btn-sm" onClick={load} aria-disabled={hub.checking || undefined}>
             <Icon name="refresh" size={16} />{hub.checking ? 'Checking…' : 'Refresh'}
           </button>
@@ -166,8 +175,11 @@ export default function SystemView() {
           : 'The demo hub lists the services it can reach; with the hub off there is nothing to list.'}</p>}
         <div className="service-grid">
           {status?.services.map((s) => (
-            <div key={s.id} className={`service ${s.ok ? '' : 'service-down'}`}>
-              <div className="service-head"><StatusDot ok={s.ok} /> <strong>{s.label}</strong></div>
+            <div key={s.id} className="service">
+              <div className="service-head">
+                <strong>{s.label}</strong>
+                <StateTag state={serviceStatus(s.ok)} />
+              </div>
               <div className="muted"><code>{s.url}</code> · {s.ok ? `HTTP ${s.status}` : 'not reachable'}</div>
               {s.servers && s.servers.length > 0 && (
                 <div className="muted">virtual servers: {s.servers.map((v) => `${v.name} (${v.tools} tools)`).join(', ')}</div>
@@ -184,17 +196,17 @@ export default function SystemView() {
           ))}
         </div>
         {status && (
-          <div className="plan-meta">
+          <div className="service-keys">
             {Object.entries(status.keys).map(([k, v]) => (
-              <span key={k} className={`chip ${v ? 'chip-ok' : 'chip-warn'}`}>{k.replace('_', ' ')}: {v ? 'held by the hub' : 'missing'}</span>
+              <StateTag key={k} state={keyStatus(KEY_NAMES[k] ?? humanize(k), v)} />
             ))}
-            <span className="chip chip-muted">Assistant default: {status.agent.default_model}</span>
+            <span className="chip">Assistant default: {status.agent.default_model}</span>
           </div>
         )}
       </section>
       <LlmPanel onChanged={load} />
       <DemoDataPanel hubOff={hub.state === 'refused' || hub.state === 'unreachable'} />
-      {status && <JsonView value={status} label="raw /hub/status" />}
+      {status && <JsonView value={status} label="Raw /hub/status" />}
     </div>
   );
 }

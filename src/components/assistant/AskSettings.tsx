@@ -1,6 +1,8 @@
 // The Assistant's settings, out of the way until wanted: a Settings button in the page's header
-// that says what the assistant runs on now ("Gemini 3 Flash (preview) · pantry"), and opens, in
-// place under the header, the model, the MCP server, the toolset and how it all works. It is a
+// that says what the assistant runs on ("Gemini 3 Flash (preview) · pantry": what the
+// conversation's answers came from, or what the first question will use; transcript.ts
+// runsOnText), and opens, in place under the header, the model, the MCP server, the toolset and
+// how it all works. It is a
 // disclosure: the choices follow the button in the reading order, and Escape on the button or
 // inside the choices closes them, with focus on the button. While an answer is coming the choices
 // wait (they apply to the next question).
@@ -10,29 +12,23 @@ import type { KeyboardEvent, RefObject } from 'react';
 import type { AgentOptions } from '../../types';
 import { Icon } from '../icons';
 
-// "pantry, direct (bearer token)" says "pantry" in the button; the full name is in the choices.
-const shortTarget = (label: string) => label.split(',')[0];
-
-export function SettingsButton({ open, onToggle, options, model, target, controls, buttonRef }: {
+// `runsOn`: the model and server in a few words, empty until the hub's options are known.
+export function SettingsButton({ open, onToggle, runsOn, controls, buttonRef }: {
   open: boolean;
   onToggle: () => void;
-  options: AgentOptions | null;
-  model: string;
-  target: string;
+  runsOn: string;
   controls: string;
   buttonRef: RefObject<HTMLButtonElement>;
 }) {
-  const modelLabel = options?.models.find((m) => m.id === model)?.label;
-  const targetLabel = options?.targets.find((t) => t.id === target)?.label;
   return (
     <button ref={buttonRef} type="button" className="btn btn-secondary btn-sm ask-settings-btn"
             aria-expanded={open} aria-controls={open ? controls : undefined} onClick={onToggle}
             onKeyDown={(e) => { if (e.key === 'Escape' && open) onToggle(); }}>
       <Icon name="settings" size={16} />
       Settings
-      {modelLabel && targetLabel && (
+      {runsOn && (
         <span className="ask-settings-now">
-          <span className="sr-only">: </span>{modelLabel} · {shortTarget(targetLabel)}
+          <span className="sr-only">: </span>{runsOn}
         </span>
       )}
       <Icon name="chevron-down" size={16} className="ask-settings-chev" />
@@ -70,7 +66,7 @@ export function SettingsPanel({
   };
 
   return (
-    <div id={id} className="ask-settings" role="group" aria-label="Assistant settings" onKeyDown={onKeyDown}>
+    <div id={id} className="card ask-settings" role="group" aria-label="Assistant settings" onKeyDown={onKeyDown}>
       <div className="ask-settings-grid">
         <div className="ask-field">
           <label htmlFor={modelId} className="label">Model</label>

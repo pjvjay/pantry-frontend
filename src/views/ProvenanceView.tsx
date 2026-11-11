@@ -5,19 +5,21 @@
 // lands in the Submit panel: the panel scrolls into view, its product field takes focus with the
 // product chosen, and the panel glows for a moment, so the jump is seen and the keyboard is where
 // the reading is typed. Readings in the review queue are cards (components/evidence.tsx), each with
-// its state as a tag. Resetting the demo data reseeds the whole database, so it lives in Workshop ›
-// System, behind a question; this page points there.
+// its state as a tag. The coverage is a row of StatTiles, a figure under each state's name.
+// Resetting the demo data reseeds the whole database, so it lives in Workshop › System, behind a
+// question; this page points there.
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { rankByOrigin } from '../api';
 import { ErrorBanner, JsonView, parseList } from '../components/common';
 import { EvidenceCard, StateTag } from '../components/evidence';
 import { Icon } from '../components/icons';
-import { HubErrorBanner, Skeleton } from '../components/ui';
+import { HubErrorBanner, Notice, ScrollRegion, Skeleton, StatRow, StatTile } from '../components/ui';
+import type { StatTone } from '../components/ui';
 import { getProducts, mcpRead, pantryTool } from '../hub';
 import { hrefFor } from '../routes';
 import type { OriginRanking, Product, UnrankedProduct } from '../types';
-import { originStatus, queueStatus, sourceLabel, stamp } from '../workshop';
+import { claimLabel, humanize, originStatus, queueStatus, sourceLabel, stamp } from '../workshop';
 
 const CLAIM_TYPES = ['product-of', 'grown-in', 'farmed-in', 'caught-in', 'harvested-in',
   'made-in', 'packaged-in', 'prepared-in'];
@@ -43,10 +45,15 @@ const REASON_LABELS: Record<UnrankedProduct['reason'], string> = {
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
+// A state's count in the colour of what it means, only when there is some of it: resolved
+// products are the good news, conflicting ones and failed lookups the ones to look at. The tile's
+// name says the state in words either way.
+const COVERAGE_TONE: Record<string, StatTone> = { resolved: 'good', conflicting: 'warn', lookup_failed: 'warn' };
+
 function CoveragePanel({ coverage }: { coverage: Coverage | null }) {
   return (
-    <section className="panel">
-      <h2>How much of the catalog’s origin is known</h2>
+    <section className="card">
+      <h2 className="card-title">How much of the catalog’s origin is known</h2>
       <p className="card-sub">
         From the MCP resource <code>pantry://origins/coverage</code>. Only <em>resolved</em> products
         carry usable evidence; <em>conflicting</em> means sources disagree, and <em>unknown</em> is
@@ -54,19 +61,17 @@ function CoveragePanel({ coverage }: { coverage: Coverage | null }) {
       </p>
       {!coverage && <Skeleton kind="row" count={2} label="Loading the coverage" />}
       {coverage && (
-        <div className="stat-row">
-          <div className="stat"><div className="stat-n">{coverage.products}</div><div className="stat-l">products</div></div>
+        <StatRow className="prov-coverage">
+          <StatTile label="Products" value={coverage.products} />
           {Object.entries(coverage.by_status).map(([k, v]) => (
-            <div key={k} className={`stat stat-${k}`}>
-              <div className="stat-n">{v}</div>
-              <div className="stat-l"><StateTag state={originStatus(k)} /></div>
-            </div>
+            <StatTile key={k} label={originStatus(k).word} value={v}
+                      tone={v > 0 ? COVERAGE_TONE[k] ?? 'default' : 'default'} />
           ))}
-          <div className="stat"><div className="stat-n">{coverage.evidence_rows}</div><div className="stat-l">evidence rows</div></div>
+          <StatTile label="Evidence rows" value={coverage.evidence_rows} />
           {Object.entries(coverage.submissions ?? {}).map(([k, v]) => (
-            <div key={k} className="stat"><div className="stat-n">{v}</div><div className="stat-l">{k} readings</div></div>
+            <StatTile key={k} label={`${humanize(k)} readings`} value={v} />
           ))}
-        </div>
+        </StatRow>
       )}
       <p className="muted prov-reset">
         To start again from the demo’s own readings, <a href={hrefFor({ name: 'workshop', tab: 'system' })}>reset
@@ -99,8 +104,8 @@ function RankPanel({ refreshKey }: { refreshKey: number }) {
   useEffect(() => { if (result) void run(); }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <section className="panel origin-panel">
-      <h2>Rank the catalog by where things come from</h2>
+    <section className="card">
+      <h2 className="card-title">Rank the catalog by where things come from</h2>
       <p className="card-sub">
         Nothing is inferred: products are placed only on label and database evidence. Try an
         unknown spelling like “Amerca” to see the server reject it with suggestions.
@@ -121,21 +126,21 @@ function RankPanel({ refreshKey }: { refreshKey: number }) {
           </p>
           <p className="coverage-note">{result.coverage_note}</p>
           {result.ranked.length > 0 && (
-            <div className="table-wrap">
-              <table className="origin-table">
+            <ScrollRegion label="The ranked products" className="table-scroll origin-ranked">
+              <table className="table">
                 <thead><tr><th>Product</th><th>Placement</th><th>On the label</th><th>Source</th></tr></thead>
                 <tbody>
                   {result.ranked.map((r) => (
                     <tr key={r.product_id}>
                       <td>{r.product_name}</td>
-                      <td>{r.tier_label}{r.origin.claim_type && <span className="claim-chip">{r.origin.claim_type}</span>}</td>
+                      <td>{r.tier_label}{r.origin.claim_type && <> <span className="chip">{claimLabel(r.origin.claim_type)}</span></>}</td>
                       <td className="verbatim">{r.origin.verbatim ? `“${r.origin.verbatim}”` : '—'}</td>
                       <td className="muted">{sourceLabel(r.origin.source)} · {r.origin.confidence} confidence</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollRegion>
           )}
           {result.excluded.length > 0 && (
             <>
@@ -153,7 +158,7 @@ function RankPanel({ refreshKey }: { refreshKey: number }) {
           )}
           <h3 className="origin-subhead">
             Unverified ({result.unranked.length}){' '}
-            <button type="button" className="linkish" aria-expanded={showUnranked}
+            <button type="button" className="btn btn-ghost btn-sm" aria-expanded={showUnranked}
                     onClick={() => setShowUnranked((v) => !v)}>{showUnranked ? 'Hide' : 'Show'}</button>
           </h3>
           {showUnranked && (
@@ -226,8 +231,8 @@ function SubmitPanel({ products, productId, setProductId, onSubmitted, arrival, 
   };
 
   return (
-    <section ref={panel} className={`panel prov-submit${glow ? ' prov-arrived' : ''}`}>
-      <h2>Submit a label reading</h2>
+    <section ref={panel} className={`card prov-submit${glow ? ' prov-arrived' : ''}`}>
+      <h2 className="card-title">Submit a label reading</h2>
       <p className="card-sub">
         The MCP write tool <code>submit_origin_evidence</code>: a reading of a package label,
         copied exactly. It only joins the review queue — nothing changes until a reviewer
@@ -261,10 +266,10 @@ function SubmitPanel({ products, productId, setProductId, onSubmitted, arrival, 
       </form>
       <HubErrorBanner error={error} />
       {result && (
-        <div className="coverage coverage-ok" role="status">
-          Reading #{result.id} for <strong>{result.product_name}</strong> is {queueStatus(result.status).word.toLowerCase()}
-          {result.duplicate && ' (the same reading was already there)'} · submitted by {result.submitted_by}
-        </div>
+        <Notice tone="success" title={`Reading #${result.id} is ${queueStatus(result.status).word.toLowerCase()}`}>
+          For <strong>{result.product_name}</strong>
+          {result.duplicate && ' (the same reading was already there)'}, submitted by {result.submitted_by}.
+        </Notice>
       )}
     </section>
   );
@@ -300,9 +305,9 @@ function QueuePanel({ refreshKey, onReviewed }: { refreshKey: number; onReviewed
   };
 
   return (
-    <section className="panel">
-      <div className="plan-header">
-        <h2>Review queue</h2>
+    <section className="card">
+      <div className="card-head">
+        <h2 className="card-title">Review queue</h2>
         <div className="form-row compact">
           <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Show readings that are">
             <option value="pending">Pending review</option>
@@ -408,15 +413,15 @@ export default function ProvenanceView({ initialProduct }: { initialProduct: num
   const changed = () => { setRefreshKey((k) => k + 1); void refresh(); };
 
   return (
-    <div className="view">
+    <div className="view ws-stack">
       <ErrorBanner error={productsError} />
       <HubErrorBanner error={error} />
       <CoveragePanel coverage={coverage} />
       <div className="two-col">
         <SubmitPanel products={products} productId={productId} setProductId={setProductId}
                      onSubmitted={changed} arrival={arrival} settled={coverage !== null || Boolean(error)} />
-        <section className="panel">
-          <h2>Worth photographing</h2>
+        <section className="card">
+          <h2 className="card-title">Worth photographing</h2>
           <p className="card-sub"><code>origin_triage</code>: products whose origin is unresolved
             and which matter most to a basket — hints, never evidence. Pick one to read its label.</p>
           {triage.length > 0 && (
@@ -433,7 +438,7 @@ export default function ProvenanceView({ initialProduct }: { initialProduct: num
               ))}
             </ul>
           )}
-          {triage.length > 0 && <JsonView value={triage} label="raw origin_triage result" />}
+          {triage.length > 0 && <JsonView value={triage} label="Raw origin_triage result" />}
         </section>
       </div>
       <QueuePanel refreshKey={refreshKey} onReviewed={changed} />

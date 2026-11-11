@@ -5,6 +5,7 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { JsonView } from '../components/common';
 import { StateTag } from '../components/evidence';
+import { Icon } from '../components/icons';
 import { TabList, TabPanel } from '../components/Tabs';
 import { HubErrorBanner, Skeleton } from '../components/ui';
 import { mcpCall, mcpCatalog, mcpPrompt, mcpRead, mcpTargets } from '../hub';
@@ -84,8 +85,10 @@ function ToolForm({ target, tool }: { target: string; tool: McpTool }) {
           const t = baseType(prop);
           const choices = enumOf(prop);
           const hint = `${t}${required.has(name) ? ', required' : ''}${prop.default !== undefined && prop.default !== null ? `, default ${JSON.stringify(prop.default)}` : ''}`;
+          // free text takes the form's whole width
+          const wide = t === 'string' && !choices;
           return (
-            <label key={name} className={t === 'string' && !choices ? 'wide' : ''} title={prop.description}>
+            <label key={name} className={wide ? 'wide' : undefined} title={prop.description}>
               {name} <span className="muted">({hint})</span>
               {choices ? (
                 <select value={values[name] ?? ''} onChange={(e) => setValues({ ...values, [name]: e.target.value })}>
@@ -105,7 +108,7 @@ function ToolForm({ target, tool }: { target: string; tool: McpTool }) {
           );
         })}
         {useRaw && (
-          <label className="wide">arguments (JSON)
+          <label className="wide">Arguments (JSON)
             <textarea rows={6} value={raw} onChange={(e) => setRaw(e.target.value)} />
           </label>
         )}
@@ -116,7 +119,7 @@ function ToolForm({ target, tool }: { target: string; tool: McpTool }) {
           }}>{useRaw ? 'Back to the form' : 'Edit as JSON'}</button>
         </div>
       </form>
-      {!useRaw && <JsonView value={{ name: tool.name, arguments: args }} label="request" />}
+      {!useRaw && <JsonView value={{ name: tool.name, arguments: args }} label="Request" />}
       <HubErrorBanner error={error} />
       {result && (
         <div className={`result ${result.is_error ? 'result-error' : 'result-ok'}`} role="status">
@@ -127,10 +130,10 @@ function ToolForm({ target, tool }: { target: string; tool: McpTool }) {
             {result.truncated && <span className="muted">The text was cut short.</span>}
           </p>
           {result.structured != null && <JsonView value={result.structured} label="structuredContent" open />}
-          <JsonView value={result.text} label="content (text)" open={result.structured == null} />
+          <JsonView value={result.text} label="Content (text)" open={result.structured == null} />
         </div>
       )}
-      <JsonView value={tool.inputSchema ?? {}} label="input schema" />
+      <JsonView value={tool.inputSchema ?? {}} label="Input schema" />
     </div>
   );
 }
@@ -160,7 +163,7 @@ function ResourcePanel({ target, catalog }: { target: string; catalog: McpCatalo
     <div>
       <ul className="origin-list">
         {catalog.resources.map((r) => (
-          <li key={r.uri}><button className="linkish" onClick={() => void read(r.uri)}>{r.uri}</button>
+          <li key={r.uri}><button type="button" className="linkish" onClick={() => void read(r.uri)}>{r.uri}</button>
             <span className="muted"> — {r.description ?? r.name}</span></li>
         ))}
         {catalog.resource_templates.map((t) => (
@@ -212,7 +215,7 @@ function PromptPanel({ target, catalog }: { target: string; catalog: McpCatalog 
       )}
       <HubErrorBanner error={error} />
       {result && result.messages.map((m, i) => (
-        <div key={i} className="bubble bubble-agent"><div className="muted">{m.role}</div>
+        <div key={i} className="bubble bubble-agent"><p className="bubble-role">{m.role}</p>
           <pre className="prompt-text">{m.content.text}</pre></div>
       ))}
     </div>
@@ -245,9 +248,9 @@ export default function McpView() {
   const current = targets.find((t) => t.id === target);
   const selected = catalog?.tools.find((t) => t.name === tool);
   return (
-    <div className="view">
-      <section className="panel">
-        <h2>MCP explorer</h2>
+    <div className="view ws-stack">
+      <section className="card">
+        <h2 className="card-title">MCP explorer</h2>
         <p className="card-sub">
           Everything the pantry MCP server offers, directly and through the ContextForge gateway.
           The hub holds the credentials; switch to <strong>no token</strong> to watch the endpoint
@@ -265,7 +268,7 @@ export default function McpView() {
         {current && <p className="muted">{current.description}{catalog?.target.url && <> · <code>{catalog.target.url}</code></>}</p>}
       </section>
 
-      {loading && <section className="panel"><Skeleton kind="row" count={6} label="Connecting to the server" /></section>}
+      {loading && <section className="card"><Skeleton kind="row" count={6} label="Connecting to the server" /></section>}
       <HubErrorBanner error={error && `The server refused or could not be reached: ${error}`}
                    hint={target === 'pantry-anon' ? 'This is the expected result: pantry requires a bearer token on /mcp when MCP_AUTH_TOKENS is set.' : undefined} />
 
@@ -277,8 +280,8 @@ export default function McpView() {
         };
         const words: Record<Offer, string> = { tools: 'Tools', resources: 'Resources', prompts: 'Prompts' };
         return (
-          <section className="panel">
-            <TabList idBase={tabsId} label="What the server offers" current={tab} onChange={setTab} className="mcp-tabs"
+          <section className="card">
+            <TabList idBase={tabsId} label="What the server offers" current={tab} onChange={setTab}
                      tabs={(['tools', 'resources', 'prompts'] as const).map((t) => ({
                        key: t, label: <>{words[t]} <span className="tab-count">{counts[t]}</span></>,
                      }))} />
@@ -292,7 +295,7 @@ export default function McpView() {
                                 aria-current={t.name === tool || undefined} onClick={() => setTool(t.name)}>
                           <code>{t.name}</code>
                           {t.annotations?.readOnlyHint === false && (
-                            <span className="tool-writes"><span className="dot dot-warn" aria-hidden="true" />writes</span>
+                            <span className="tool-writes"><Icon name="alert" size={14} />writes</span>
                           )}
                         </button>
                       </li>

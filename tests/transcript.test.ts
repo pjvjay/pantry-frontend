@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 
 import {
   ASK_PREFILL_KEY, STARTERS, appendEvent, argsText, callProgress, canonicalTool, cardIn, clockText,
-  durationText, foldRun, followUps, headline, metaLine, runningHeadline, swapInTurns, thoughtLabel,
+  durationText, foldRun, followUps, headline, metaLine, runningHeadline, runsOnText, swapInTurns, thoughtLabel,
   toolLabel, waitingOf,
 } from '../src/transcript.ts';
 import type { ModelStep, Note, Run, Step, ToolStep, Turn, TurnEvent } from '../src/transcript.ts';
@@ -321,4 +321,25 @@ test('the recorded meal-plan turn: the dishes read in code, plan_meals, a draft,
 test('the prefill key is the one Home writes', () => {
   assert.equal(ASK_PREFILL_KEY, 'pantry.ask.prefill');
   assert.equal(headline({ status: 'running', stepCount: 2, ms: 10, tools: [] }), '');
+});
+
+test('Settings says what the answers came from, and the default only as the default', () => {
+  const options = {
+    models: [{ id: 'gemini:gemini-3-flash-preview', label: 'Gemini 3 Flash (preview)' }],
+    targets: [{ id: 'gateway-recipes', label: 'ContextForge: pantry-recipes' },
+      { id: 'pantry', label: 'pantry, direct (bearer token)' }],
+    default_target: 'gateway-recipes',
+  };
+  const picked = { model: 'gemini:gemini-3-flash-preview', target: 'gateway-recipes' };
+  assert.equal(runsOnText(options, picked, null), 'Gemini 3 Flash (preview) · ContextForge: pantry-recipes (default)',
+    'before any answer: what is picked, and that it is only the default');
+  assert.equal(runsOnText(options, { ...picked, target: 'pantry' }, null), 'Gemini 3 Flash (preview) · pantry',
+    'a server the shopper picked is not the default');
+  // a replayed run (or one the hub sent elsewhere) answered from pantry while the picker shows the default
+  assert.equal(runsOnText(options, picked, { model: 'gemini:gemini-3-flash-preview', target: 'pantry' }),
+    'Gemini 3 Flash (preview) · pantry', 'once answered: where the answers came from');
+  assert.equal(runsOnText(options, picked, { model: 'ollama:qwen3:8b', target: 'gateway-sim' }), 'qwen3:8b · gateway-sim',
+    'a model or server the options do not list goes by its own name');
+  assert.equal(runsOnText(null, picked, null), '', 'nothing before the options are known');
+  assert.equal(runsOnText(options, { model: '', target: '' }, null), '');
 });

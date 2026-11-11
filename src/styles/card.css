@@ -36,11 +36,11 @@
 }
 
 .card, .card-row,
-/* Transitional, until every caller is .card: the console's older surfaces (.panel, the Workshop's
-   and the Planner lab's; .fc, a form's card, components/fields.tsx; .mp-card, a recipe on Pick
-   meals; and the Planner lab's recipe .card, which is this class already) take their surface from
-   this same rule and have no copy of it. Their own rules keep only how they lay out. A view that
-   moves to .card takes its class off this list; the last one removes the list. */
+/* Transitional, until every caller is .card: the console's older surfaces (.panel, the meal plan's
+   stage section, views/MealPlanView.tsx, since Ask and the Workshop are .card now; .fc, a form's
+   card, components/fields.tsx; .mp-card, a recipe on Pick meals) take their surface from this same
+   rule and have no copy of it. Their own rules keep only how they lay out. A view that moves to
+   .card takes its class off this list; the last one removes the list. */
 .panel, .fc, .mp-card {
   padding: var(--card-pad);
   border: 1px solid var(--border); border-radius: var(--radius-3);

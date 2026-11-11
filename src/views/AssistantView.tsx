@@ -21,7 +21,7 @@ import { useMealPlan } from '../mealplan/store';
 import { chatMessageFor } from '../recipes';
 import { ChatMeter } from '../telemetry';
 import {
-  ASK_PREFILL_KEY, STARTERS, appendEvent, cardIn, foldRun, followUps, swapInTurns,
+  ASK_PREFILL_KEY, STARTERS, appendEvent, cardIn, foldRun, followUps, runsOnText, swapInTurns,
 } from '../transcript';
 import type { Turn, TurnEvent } from '../transcript';
 import type { AgentOptions, CartLine, RecipeDoc, SwapResult } from '../types';
@@ -73,8 +73,10 @@ export default function AssistantView({ routes = NO_ROUTES, active = true }: {
   const [target, setTarget] = useState('');
   const [disclosure, setDisclosure] = useState('progressive');
   const [conversation, setConversation] = useState<string | null>(null);
-  // the conversation's MCP server, from its 'start' event: the sim gateway cannot re-price
+  // the conversation's MCP server and model, from its 'start' event: what its answers came from
+  // (Settings says so), and the sim gateway cannot re-price
   const [convTarget, setConvTarget] = useState('');
+  const [convModel, setConvModel] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -233,6 +235,7 @@ export default function AssistantView({ routes = NO_ROUTES, active = true }: {
         if (e.type === 'start') {
           setConversation(e.conversation_id);
           setConvTarget(e.target);
+          setConvModel(e.model);
         }
         if (e.type === 'done') finished = true;
         const got: TurnEvent = { ...e, rx: Date.now() };
@@ -264,6 +267,7 @@ export default function AssistantView({ routes = NO_ROUTES, active = true }: {
     setOptionsFor(null);
     setConversation(null);
     setConvTarget('');
+    setConvModel('');
     setTurns([]);
     setEnded('');
     box.current?.focus({ preventScroll: true });
@@ -308,8 +312,10 @@ export default function AssistantView({ routes = NO_ROUTES, active = true }: {
               <Icon name="plus" size={16} />New<span className="ask-narrow-hide"> conversation</span>
             </button>
           )}
-          <SettingsButton open={settingsOpen} onToggle={() => setSettingsOpen((o) => !o)} options={options}
-                          model={model} target={target} controls={settingsId} buttonRef={settingsButton} />
+          <SettingsButton open={settingsOpen} onToggle={() => setSettingsOpen((o) => !o)}
+                          runsOn={runsOnText(options, { model, target },
+                            convTarget ? { model: convModel || model, target: convTarget } : null)}
+                          controls={settingsId} buttonRef={settingsButton} />
         </div>
         {settingsOpen && (
           <SettingsPanel id={settingsId} options={options} model={model} setModel={setModel} target={target}
@@ -330,7 +336,8 @@ export default function AssistantView({ routes = NO_ROUTES, active = true }: {
           <ul className="ask-starters">
             {STARTERS.map((s) => (
               <li key={s.prompt}>
-                <button type="button" className="ask-starter" disabled={!canAsk} onClick={(e) => pick(s.prompt, e)}>
+                <button type="button" className="card card-interactive ask-starter" disabled={!canAsk}
+                        onClick={(e) => pick(s.prompt, e)}>
                   <span className="ask-starter-title">{s.title}</span>
                   <span className="ask-starter-text">{s.prompt}</span>
                 </button>

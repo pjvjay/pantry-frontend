@@ -3,9 +3,10 @@
 //
 // The Workshop's small decisions, kept where a test can read them: which row or tab a key moves
 // to, what a product costs per 100 g, the words and tag each state wears (an origin, a reading in
-// the review queue, a simulation, an Assistant run), and the Metrics waterfall's legend. The
-// Catalog, Provenance, Simulations and Metrics read them from here, so the same state is said the
-// same way on every page.
+// the review queue, a simulation, an Assistant run), the order and the time of the recent runs,
+// whether the simulation runner is there at all, and the Metrics waterfall's legend. The Catalog,
+// Provenance, Simulations and Metrics read them from here, so the same state is said the same way
+// on every page.
 
 // ─── Keys ────────────────────────────────────────────────────
 
@@ -163,6 +164,46 @@ const RUN: Record<string, StatusWords> = {
 export const runStatus = (status: string | null | undefined): StatusWords =>
   lookup(RUN, status, 'paused', 'No status');
 
+// A service the hub can see (Workshop › System): answering, not there, or not asked yet.
+export const serviceStatus = (ok: boolean | null | undefined): StatusWords => (ok == null
+  ? { kind: 'paused', word: 'Not checked' }
+  : ok ? { kind: 'done', word: 'Answering' } : { kind: 'attention', word: 'Not reachable' });
+
+// A key someone holds for the demo (the hub, pantry-api), by its name: "Gemini key: held by the
+// hub", or "YouTube key: missing".
+export const keyStatus = (name: string, held: boolean, holder = 'the hub'): StatusWords => (held
+  ? { kind: 'done', word: `${name}: held by ${holder}` } : { kind: 'attention', word: `${name}: missing` });
+
+// How sure an answer is, from the share of its checks that passed: done from 90%, needs attention
+// under it, and not measured when it had no checks.
+export function confidenceStatus(share: number | null | undefined): StatusWords {
+  if (share == null || !Number.isFinite(share)) return { kind: 'paused', word: 'Confidence not measured' };
+  return { kind: share >= 0.9 ? 'done' : 'attention', word: `Answer confidence ${Math.round(share * 100)}%` };
+}
+
+// How a simulated conversation ended: completed, or how it did not ("Gave up").
+export function outcomeStatus(outcome: string | null | undefined): StatusWords {
+  const o = (outcome ?? '').trim().toLowerCase();
+  return o === 'completed' ? { kind: 'done', word: 'Completed' } : { kind: 'attention', word: humanize(o) || 'No outcome' };
+}
+
+// What an observer saw at one point of a simulated conversation: yes, no, or it could not tell.
+export const observedStatus = (value: unknown): StatusWords => (value === true ? { kind: 'done', word: 'true' }
+  : value === false ? { kind: 'blocked', word: 'false' } : { kind: 'attention', word: 'unknown' });
+
+// How much of a basket's spend has its origin checked: done once the plan's floor is met, needing
+// attention under it (an unchecked basket is an open question, never drawn as clean).
+export const coverageStatus = (share: number, meetsFloor: boolean): StatusWords => ({
+  kind: meetsFloor ? 'done' : 'attention', word: `Origin checked for ${Math.round(share * 100)}% of the spend`,
+});
+
+// The plan's own flags: the trip split the optimizer recommends, and a plan the router sent on to
+// the stronger model.
+export const PLAN_STATES = {
+  recommended: { kind: 'done', word: 'Recommended' },
+  escalated: { kind: 'changed', word: 'Escalated' },
+} as const satisfies Record<string, StatusWords>;
+
 // ─── Origin evidence ─────────────────────────────────────────
 
 // How sure a reading is, as a band of three: the words say it, the bars only show it.
@@ -215,6 +256,42 @@ export function traceOf(hash: string): string | null {
   const id = new URLSearchParams(hash.slice(cut + 1)).get('trace');
   return id && id.trim() ? id : null;
 }
+
+// The runs newest first, by when each began. The hub's own list can put an older run first (a
+// replayed recording keeps adding the browser's spans to its run's trace), and a list that says
+// "newest first" has to be. Runs that began at the same moment, or whose time cannot be read
+// (those go last), keep the hub's order.
+export function newestFirst<T extends { started_at: string }>(runs: readonly T[]): T[] {
+  const at = (r: T) => {
+    const ms = Date.parse(r.started_at);
+    return Number.isFinite(ms) ? ms : Number.NEGATIVE_INFINITY;
+  };
+  return runs.map((r, i) => ({ r, i, at: at(r) }))
+    .sort((a, b) => (a.at === b.at ? a.i - b.i : b.at - a.at))
+    .map((x) => x.r);
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// "Wed 11 Nov, 2:00 AM": a moment the way the console writes a day (mealplan/dates.ts dayLabel),
+// with this browser's clock to the minute, in fixed English names, the same in every browser.
+// Empty for a time that cannot be read.
+export function whenText(at: string | number | Date): string {
+  const d = at instanceof Date ? at : new Date(at);
+  if (Number.isNaN(d.getTime())) return '';
+  const h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}, ${h % 12 || 12}:${m} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+// ─── Simulations ─────────────────────────────────────────────
+
+// The simulation runner is not running at all (the hub says it cannot reach it): that is how this
+// demo is set up, not something that went wrong, so Simulations says it calmly, with how to start
+// the runner, rather than as an error.
+export const runnerDown = (message: string | null | undefined): boolean =>
+  /runner\b.*\bnot reachable/i.test(message ?? '');
 
 // The columns of a table that hold figures, to be set right-aligned in equal widths: every value
 // in them is a number (a missing one aside), and at least one is there.

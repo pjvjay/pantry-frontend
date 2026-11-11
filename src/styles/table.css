@@ -16,8 +16,9 @@
      <table className="table table-sticky"><thead><tr><th>Question</th><th className="num">Time</th></tr></thead>…</table>
    </ScrollRegion> */
 
-/* Transitional, until the Workshop's tables say .table: .metrics-table (and its .compact, which
-   had a density of its own) share this rule. */
+/* Transitional, until the meal plan's nutrition table (components/nutrition.tsx) says .table, as
+   the Workshop's do: .metrics-table (and its .compact, which had a density of its own) share this
+   rule. */
 .table, .metrics-table {
   width: 100%; border-collapse: collapse; font: var(--type-compact); font-variant-numeric: tabular-nums;
 }

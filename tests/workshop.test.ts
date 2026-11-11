@@ -4,8 +4,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  claimLabel, confidenceBand, figureColumns, humanize, kindKey, legendFor, originStatus, queueStatus,
-  rowAfterKey, runStatus, simStatus, sourceLabel, stamp, tabAfterKey, traceOf, unitPrice, unitPriceText,
+  PLAN_STATES, claimLabel, confidenceBand, confidenceStatus, coverageStatus, figureColumns, humanize, keyStatus, kindKey,
+  legendFor, observedStatus, originStatus, outcomeStatus, queueStatus, serviceStatus,
+  newestFirst, rowAfterKey, runStatus, runnerDown, simStatus, sourceLabel, stamp, tabAfterKey, traceOf, unitPrice,
+  unitPriceText, whenText,
 } from '../src/workshop.ts';
 
 test('rows: the arrows move one row and stop at the ends, Home and End jump, other keys pass', () => {
@@ -147,4 +149,63 @@ test('the waterfall legend lists the kinds a trace holds, in one order, the gate
   assert.equal(kindKey('pantry.step'), 'pantry-step');
   assert.equal(kindKey('gateway.tool'), 'gateway');
   assert.equal(kindKey('model'), 'model');
+});
+
+test('recent runs: newest first by when each began, whatever order the hub sent', () => {
+  const runs = [
+    { id: 'penne', started_at: '2026-11-11T10:00:24.007015+00:00' },
+    { id: 'draft', started_at: '2026-11-11T10:30:24.164945+00:00' },
+    { id: 'cheap', started_at: '2026-11-11T10:54:10.861144+00:00' },
+    { id: 'early', started_at: '2026-11-11T07:35:27.264547+00:00' },
+    { id: 'first', started_at: '2026-11-11T07:32:01.946473+00:00' },
+  ];
+  assert.deepEqual(newestFirst(runs).map((r) => r.id), ['cheap', 'draft', 'penne', 'early', 'first']);
+  assert.deepEqual(runs.map((r) => r.id), ['penne', 'draft', 'cheap', 'early', 'first'], 'the list given is left as it was');
+  const ties = [{ id: 'a', started_at: '2026-11-11T09:00:00Z' }, { id: 'b', started_at: '2026-11-11T09:00:00Z' },
+    { id: 'odd', started_at: 'not a time' }, { id: 'c', started_at: '2026-11-11T08:00:00Z' }];
+  assert.deepEqual(newestFirst(ties).map((r) => r.id), ['a', 'b', 'c', 'odd'], 'ties keep their order; an unreadable time goes last');
+  assert.deepEqual(newestFirst([]), []);
+});
+
+test('a moment in the console\'s words: "Wed 11 Nov, 2:00 AM"', () => {
+  // local times, so the words are the same on any machine's clock
+  assert.equal(whenText(new Date(2026, 10, 11, 2, 0)), 'Wed 11 Nov, 2:00 AM');
+  assert.equal(whenText(new Date(2026, 10, 11, 0, 5)), 'Wed 11 Nov, 12:05 AM', 'midnight is 12 AM');
+  assert.equal(whenText(new Date(2026, 10, 11, 12, 30)), 'Wed 11 Nov, 12:30 PM', 'noon is 12 PM');
+  assert.equal(whenText(new Date(2026, 0, 3, 23, 59)), 'Sat 3 Jan, 11:59 PM');
+  assert.equal(whenText(new Date(2026, 10, 11, 14, 7).getTime()), 'Wed 11 Nov, 2:07 PM', 'a time in milliseconds');
+  assert.equal(whenText(new Date(2026, 10, 11, 14, 7).toISOString()), 'Wed 11 Nov, 2:07 PM', 'a stored ISO time');
+  assert.equal(whenText('not a time'), '');
+});
+
+test('the simulation runner not running is told apart from a run that failed', () => {
+  assert.equal(runnerDown('the mcp-sim runner is not reachable at http://127.0.0.1:8765 (All connection attempts failed)'), true);
+  assert.equal(runnerDown('the mcp-sim runner is busy with another job: wait for it to finish, then run again'), false);
+  assert.equal(runnerDown('The demo hub is not running'), false, 'the hub itself down is the OfflinePanel\'s to say');
+  assert.equal(runnerDown(''), false);
+  assert.equal(runnerDown(undefined), false);
+});
+
+test('the Workshop\'s other states have their words here: services, keys, answers, conversations, coverage', () => {
+  assert.deepEqual(serviceStatus(true), { kind: 'done', word: 'Answering' });
+  assert.deepEqual(serviceStatus(false), { kind: 'attention', word: 'Not reachable' });
+  assert.deepEqual(serviceStatus(null), { kind: 'paused', word: 'Not checked' });
+  assert.deepEqual(keyStatus('Gemini key', true), { kind: 'done', word: 'Gemini key: held by the hub' });
+  assert.deepEqual(keyStatus('Anthropic key', false, 'pantry-api'), { kind: 'attention', word: 'Anthropic key: missing' });
+  assert.deepEqual(keyStatus('Gemini key', true, 'pantry-api').word, 'Gemini key: held by pantry-api');
+  assert.deepEqual(confidenceStatus(1), { kind: 'done', word: 'Answer confidence 100%' });
+  assert.deepEqual(confidenceStatus(0.9), { kind: 'done', word: 'Answer confidence 90%' }, '90% is done');
+  assert.deepEqual(confidenceStatus(0.67), { kind: 'attention', word: 'Answer confidence 67%' });
+  assert.deepEqual(confidenceStatus(null), { kind: 'paused', word: 'Confidence not measured' });
+  assert.deepEqual(outcomeStatus('completed'), { kind: 'done', word: 'Completed' });
+  assert.deepEqual(outcomeStatus('gave_up'), { kind: 'attention', word: 'Gave up' });
+  assert.deepEqual(outcomeStatus(''), { kind: 'attention', word: 'No outcome' });
+  assert.deepEqual(observedStatus(true), { kind: 'done', word: 'true' });
+  assert.deepEqual(observedStatus(false), { kind: 'blocked', word: 'false' });
+  assert.deepEqual(observedStatus(null), { kind: 'attention', word: 'unknown' });
+  assert.deepEqual(coverageStatus(0.92, true), { kind: 'done', word: 'Origin checked for 92% of the spend' });
+  assert.deepEqual(coverageStatus(0, false), { kind: 'attention', word: 'Origin checked for 0% of the spend' },
+    'under the floor it needs attention, never reads as clean');
+  assert.deepEqual(PLAN_STATES.recommended, { kind: 'done', word: 'Recommended' });
+  assert.deepEqual(PLAN_STATES.escalated, { kind: 'changed', word: 'Escalated' });
 });

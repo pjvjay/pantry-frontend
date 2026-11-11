@@ -1,8 +1,13 @@
 // Workshop › About: what this console is and how its parts fit, for a visitor. It was the Overview
 // tab, which opened the console; the household's pages come first now, and this is where the
 // "how it works" lives. The diagram is the services this page talks to; the cards are the places
-// worth trying, each a link; the ports are for developers, behind a disclosure.
+// worth trying, each a card that is one link (its title's link stretches over it, so the card is
+// the target and a screen reader hears the title alone); the ports are for developers, behind a
+// disclosure.
+import { useId } from 'react';
+
 import { Icon } from '../components/icons';
+import { ScrollRegion } from '../components/ui';
 import { hrefFor } from '../routes';
 
 const TRY: { href: string; title: string; body: string }[] = [
@@ -33,10 +38,11 @@ const external = (label: string, href: string) => (
 );
 
 export default function AboutView() {
+  const tourId = useId();
   return (
-    <div className="view about">
-      <section className="panel">
-        <h2>How this works</h2>
+    <div className="view ws-stack">
+      <section className="card">
+        <h2 className="card-title">How this works</h2>
         <p className="about-intro">
           Pantry Planner plans meals for a household in Vancouver and works out what to buy, where,
           and for how much. Underneath, the planner is a service other programs can use too: an AI
@@ -44,9 +50,9 @@ export default function AboutView() {
           <strong>gateway</strong> sits in between, and <strong>simulated shoppers</strong> test the
           assistant. Every page here talks to those real services; nothing is mocked.
         </p>
-        {/* On a phone the diagram keeps a size its words can be read at, and scrolls sideways
-            (the browser lets the keyboard scroll it when it overflows) */}
-        <div className="arch-wrap">
+        {/* On a phone the diagram keeps a size its words can be read at, and scrolls sideways in
+            its own box, which the keyboard can reach and scroll while it does */}
+        <ScrollRegion label="How the parts connect" className="arch-wrap">
         <svg className="arch" viewBox="0 -50 860 300" role="img"
              aria-label="How the parts connect: this page talks to the assistant and to the simulated shoppers, both of which reach the pantry planner and a recipe reader through the ContextForge gateway; this page also calls the planner's own API directly.">
           <defs>
@@ -70,7 +76,7 @@ export default function AboutView() {
           <path d="M640 115 L700 55" markerEnd="url(#arr)" />
           <path d="M640 135 L700 195" markerEnd="url(#arr)" />
         </svg>
-        </div>
+        </ScrollRegion>
         <p className="muted">
           Solid arrows are MCP over HTTP; the dashed one is the planner’s own web API, which the meal
           plan, the catalog and the Planner lab call directly.
@@ -89,14 +95,17 @@ export default function AboutView() {
           </ul>
         </details>
       </section>
-      <section className="tour" aria-label="Things to try">
-        {TRY.map((t, i) => (
-          <a key={t.href} className="tour-card" href={t.href}>
-            <span className="tour-n">{i + 1}</span>
-            <strong>{t.title}</strong>
-            <span>{t.body}</span>
-          </a>
-        ))}
+      <section aria-labelledby={tourId}>
+        <h2 id={tourId} className="ws-section-title">Things to try</h2>
+        <ol className="tour">
+          {TRY.map((t, i) => (
+            <li key={t.href} className="card card-interactive tour-card">
+              <span className="tour-n" aria-hidden="true">{i + 1}</span>
+              <h3 className="card-title"><a className="card-link" href={t.href}>{t.title}</a></h3>
+              <p className="card-sub">{t.body}</p>
+            </li>
+          ))}
+        </ol>
       </section>
     </div>
   );

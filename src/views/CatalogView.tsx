@@ -4,16 +4,21 @@
 // the hub is off they say so quietly here and the Workshop's one panel says why.
 //
 // Both tables are grids of rows the keyboard walks (components/useRowNav.ts): one Tab stop, the
-// arrow keys along the rows, Enter shows the product. On a wide screen it shows in the panel beside
-// the table. On a narrower one that panel would land below a long table, out of sight, so the
-// product opens in a sheet over the table instead, and closing it puts the keyboard back on its row.
-// Prices and the price per 100 g sit right-aligned in figures of one width, so they compare down
-// the column; the table's head stays in view while its rows scroll.
-import { useEffect, useId, useMemo, useState } from 'react';
+// arrow keys along the rows (which scroll the table's box with them), Enter shows the product. Each row has the product's picture (a quiet
+// placeholder when there is none). Until a product is picked the table has the page's width; on a
+// wide screen the product then shows in a card beside the table, with a larger picture. On a
+// narrower one that card would land below a long table, out of sight, so the product opens in a
+// sheet over the table instead, and closing it puts the keyboard back on its row. Prices and the
+// price per 100 g sit right-aligned in figures of one width, so they compare down the column (on a
+// phone the price per 100 g goes under the price, and the category under the name, so the name
+// keeps its width); the table's head stays in view while its rows scroll.
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { JsonView } from '../components/common';
 import { EvidenceCard, StateTag } from '../components/evidence';
 import { Icon } from '../components/icons';
+import { ProductPicture } from '../components/pictures';
 import { Sheet } from '../components/Sheet';
 import { ErrorBanner, HubErrorBanner, Skeleton, Tag } from '../components/ui';
 import { useMedia } from '../components/useMedia';
@@ -50,6 +55,19 @@ interface FindResult {
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 
+// A product's name with its picture in front: the row's first cell.
+function ProductCell({ name, sub, kind }: { name: string; sub: ReactNode; kind?: string | null }) {
+  return (
+    <div className="cat-prod">
+      <ProductPicture product={name} ingredient={kind ?? name} />
+      <div>
+        <div className="prod-name">{name}</div>
+        <div className="prod-desc">{sub}</div>
+      </div>
+    </div>
+  );
+}
+
 // One product's offers, origin and evidence. `inSheet`: the sheet's own title names the product.
 function ProductDetailView({ detail, onLabel, inSheet = false }: {
   detail: ProductDetail; onLabel: (productId: number) => void; inSheet?: boolean;
@@ -61,13 +79,14 @@ function ProductDetailView({ detail, onLabel, inSheet = false }: {
     .filter(Boolean).join(' · ');
   return (
     <div className="pd">
-      {!inSheet && <h2 className="pd-name">{detail.name}</h2>}
+      <div className="pd-pic"><ProductPicture product={detail.name} ingredient={detail.subcategory || detail.name} /></div>
+      {!inSheet && <h2 className="card-title pd-name">{detail.name}</h2>}
       <p className="card-sub">{facts}{detail.dietary_tags && ` · contains ${detail.dietary_tags}`}</p>
       {detail.description && <p className="pd-desc">{detail.description}</p>}
 
       <h3 className="pd-sub">Store offers</h3>
       {detail.offers.length === 0 ? <p className="pd-none">No store sells it.</p> : (
-        <table className="pd-offers">
+        <table className="table">
           <thead><tr><th>Store</th><th className="num">Distance</th><th className="num">Price</th></tr></thead>
           <tbody>
             {detail.offers.map((o) => (
@@ -123,7 +142,7 @@ function ProductDetailView({ detail, onLabel, inSheet = false }: {
         {detail.review_count} {detail.review_count === 1 ? 'review' : 'reviews'}
         {detail.avg_rating != null && <> · <Icon name="star" className="ico-inline" /><span className="sr-only">rated </span>{detail.avg_rating.toFixed(1)}</>}
       </p>
-      <JsonView value={detail} label="raw get_product result" />
+      <JsonView value={detail} label="Raw get_product result" />
     </div>
   );
 }
@@ -139,13 +158,17 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
   const [selected, setSelected] = useState<number | null>(null);
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [lookup, setLookup] = useState('');
+  // Look up pressed with nothing typed: it says what to type instead of doing nothing
+  const [lookupEmpty, setLookupEmpty] = useState(false);
   const [found, setFound] = useState<FindResult | null>(null);
   // the table's failure (the pantry API) and the lookup's or a product's (the hub), each shown
   // where it happened
   const [listError, setListError] = useState('');
   const [lookupError, setLookupError] = useState('');
   const [detailError, setDetailError] = useState('');
+  const lookupField = useRef<HTMLInputElement>(null);
   const offNote = useId();
+  const emptyNote = useId();
   const gridHint = useId();
 
   useEffect(() => {
@@ -180,6 +203,11 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
 
   const runLookup = async () => {
     if (hubOff) return;
+    if (!lookup.trim()) {
+      setLookupEmpty(true);
+      lookupField.current?.focus();
+      return;
+    }
     setLookupError('');
     try {
       setFound(await pantryTool<FindResult>('find_product', { query: lookup, limit: 5 }));
@@ -190,14 +218,13 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
 
   const pickedName = products.find((p) => p.id === selected)?.name
     ?? found?.items.find((it) => it.id === selected)?.name ?? 'Product';
+  // the card beside the table: only on a wide screen, and only once a product is picked
+  const beside = !narrow && selected != null;
 
-  // What the panel beside the table (or the sheet) shows for the product picked, if any.
+  // What the card beside the table (or the sheet) shows for the product picked.
   const body = (inSheet: boolean) => {
     if (hubOff) {
       return <p className="card-sub">A product’s offers, origin and evidence come from MCP <code>get_product</code> through the demo hub, which is off here.</p>;
-    }
-    if (selected == null) {
-      return <p className="card-sub">Pick a product to see every store’s offer, its origin and the evidence behind it (MCP <code>get_product</code>).</p>;
     }
     if (detailError) return <HubErrorBanner error={`This product could not be read: ${detailError}`} />;
     if (!detail) return <Skeleton kind="row" count={6} label="Loading the product" />;
@@ -206,26 +233,32 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
 
   return (
     <div className="view split catalog">
-      <div className="split-main">
-        <section className="panel">
-          <h2>The planner’s lookup</h2>
+      <div className="split-main ws-stack">
+        <section className="card">
+          <h2 className="card-title">The planner’s lookup</h2>
           <p className="card-sub">
             <code>find_product</code> is the same lookup the planner runs for each ingredient:
             a <em>direct</em> match has every word, a <em>generic</em> one falls back to the
             head noun, and <em>relaxed</em> means nothing matched well.
           </p>
           <form className="form-row" onSubmit={(e) => { e.preventDefault(); void runLookup(); }}>
-            <input className="grow" value={lookup} onChange={(e) => setLookup(e.target.value)} aria-label="Look up a product"
-                   placeholder="penne, dark soy sauce, pene…" />
-            <button type="submit" className="btn btn-primary" disabled={!lookup.trim() || hubOff}
+            <input ref={lookupField} className="grow" value={lookup} aria-label="Look up a product"
+                   placeholder="penne, dark soy sauce, pene…"
+                   aria-describedby={lookupEmpty && !lookup.trim() ? emptyNote : undefined}
+                   onChange={(e) => { setLookup(e.target.value); setLookupEmpty(false); }} />
+            <button type="submit" className="btn btn-primary" aria-disabled={hubOff || undefined}
                     aria-describedby={hubOff ? offNote : undefined}>
               <Icon name="search" size={16} />Look up
             </button>
           </form>
-          {hubOff && <p id={offNote} className="muted">The lookup runs through the demo hub, which is off here.</p>}
+          {hubOff && <p id={offNote} className="muted lookup-note">The lookup runs through the demo hub, which is off here.</p>}
+          {/* on the page from the start (empty), so the words are heard when Look up finds nothing to look up */}
+          <p id={emptyNote} className="lookup-note" role="status">
+            {lookupEmpty && !lookup.trim() ? 'Type a product to look up first, such as penne.' : ''}
+          </p>
           <HubErrorBanner error={lookupError} />
           {found && (
-            <div className="lookup">
+            <div>
               <p className="lookup-meta">
                 <StateTag state={found.match === 'direct' ? { kind: 'done', word: 'Direct match' }
                   : { kind: 'attention', word: `${found.match[0]?.toUpperCase() ?? ''}${found.match.slice(1)} match` }} />
@@ -233,8 +266,9 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
                 {found.note && <span className="muted">{found.note}</span>}
               </p>
               {found.items.length > 0 && (
-                <div className="table-wrap">
-                  <table className="ws-grid" role="grid" aria-label={`Lookup results for ${found.query}`}
+                // the rows are the keyboard's way in and out, so the box needs no Tab stop of its own
+                <div className="table-scroll">
+                  <table className="table ws-grid" role="grid" aria-label={`Lookup results for ${found.query}`}
                          aria-describedby={gridHint}>
                     <thead>
                       <tr><th>Product</th><th>Store</th><th className="num">Price</th><th>Origin</th></tr>
@@ -243,7 +277,7 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
                       {found.items.map((it) => (
                         <tr key={it.id} {...foundGrid.rowProps(it.id)} aria-selected={selected === it.id}
                             className={selected === it.id ? 'row-active' : undefined}>
-                          <td><div className="prod-name">{it.name}</div><div className="prod-desc">{it.brand}</div></td>
+                          <td><ProductCell name={it.name} sub={it.brand} /></td>
                           <td>{it.store}<span className="muted"> · {it.distance_km} km</span></td>
                           <td className="num">{money(it.price)}</td>
                           <td><StateTag state={originStatus(it.origin_status)} /></td>
@@ -257,9 +291,9 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
           )}
         </section>
 
-        <section className="panel">
-          <div className="plan-header">
-            <h2>Catalog{loaded && !listError && <span className="count"> · {shown.length} of {products.length}</span>}</h2>
+        <section className="card">
+          <div className="card-head">
+            <h2 className="card-title">Catalog{loaded && !listError && <span className="count"> · {shown.length} of {products.length}</span>}</h2>
             <div className="form-row compact">
               <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter by name or brand"
                      aria-label="Filter the catalog" type="search" />
@@ -269,7 +303,9 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
               </select>
             </div>
           </div>
-          {narrow && !hubOff && <p className="card-sub catalog-cue">Pick a product for its offers, origin and evidence.</p>}
+          {!hubOff && selected == null && (
+            <p className="card-sub catalog-cue">Pick a product for every store’s offer, its origin and the evidence behind it.</p>
+          )}
           <p id={gridHint} className="sr-only">Up and Down move along the rows; Enter shows the product.</p>
           <ErrorBanner error={listError && `The catalog could not be loaded: ${listError}`}
                        hint="It comes from the pantry API: see Workshop › System." />
@@ -278,12 +314,12 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
             <p className="pd-none">No product matches{filter.trim() && <> “{filter.trim()}”</>}{category && <> in {category}</>}.</p>
           )}
           {loaded && !listError && shown.length > 0 && (
-            <div className="table-wrap tall">
-              <table className="ws-grid" role="grid" aria-label="Catalog" aria-describedby={gridHint}>
+            <div className="table-scroll ws-tall">
+              <table className="table table-sticky ws-grid" role="grid" aria-label="Catalog" aria-describedby={gridHint}>
                 <thead>
                   <tr>
                     <th>Product</th><th className="col-cat">Category</th>{withStores && <th>Cheapest store</th>}
-                    <th className="num">Price</th><th className="num">Unit price</th>
+                    <th className="num">Price</th><th className="num col-unit">Unit price</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -293,15 +329,18 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
                       <tr key={p.id} {...grid.rowProps(p.id)} aria-selected={selected === p.id}
                           className={selected === p.id ? 'row-active' : undefined}>
                         <td>
-                          <div className="prod-name">{p.name}</div>
-                          <div className="prod-desc">{p.brand}<span className="prod-cat"> · {p.category}</span></div>
+                          <ProductCell name={p.name} kind={p.subcategory}
+                                       sub={<>{p.brand}<span className="prod-cat"> · {p.category}</span></>} />
                         </td>
                         <td className="col-cat">{p.category}{p.subcategory ? ` · ${p.subcategory}` : ''}</td>
                         {withStores && (
                           <td>{p.store_name || '–'}{p.distance_km != null && <span className="muted"> · {p.distance_km} km</span>}</td>
                         )}
-                        <td className="num">{money(price)}</td>
-                        <td className="num unit-price">{unitPriceText(unitPrice(price, p.unit_qty, p.unit_uom))}</td>
+                        <td className="num">
+                          {money(price)}
+                          <span className="unit-sub">{unitPriceText(unitPrice(price, p.unit_qty, p.unit_uom))}</span>
+                        </td>
+                        <td className="num col-unit">{unitPriceText(unitPrice(price, p.unit_qty, p.unit_uom))}</td>
                       </tr>
                     );
                   })}
@@ -312,17 +351,16 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
         </section>
       </div>
 
-      {!narrow && (
-        <aside className="split-side">
-          <section className="panel sticky" aria-label="Product details">
+      {beside && (
+        <div className="split-side">
+          <section className="card sticky" aria-label="Product details">
             {/* said once the product has arrived, since the keyboard stays on the table's row */}
             <p className="sr-only" role="status">{detail && selected === detail.id ? `Showing ${detail.name}.` : ''}</p>
             {body(false)}
           </section>
-        </aside>
+        </div>
       )}
-      <Sheet open={narrow && selected != null} onClose={() => setSelected(null)} title={pickedName}
-             className="pd-sheet">
+      <Sheet open={narrow && selected != null} onClose={() => setSelected(null)} title={pickedName}>
         {body(true)}
       </Sheet>
     </div>

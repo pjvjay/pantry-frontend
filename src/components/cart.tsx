@@ -1,11 +1,22 @@
 // A plan as a shopping cart: what to pick up at each store, what it costs, and what could not go
-// in the cart with the swaps the planner found. The tool's JSON stays in its step above.
+// in the cart with the swaps the planner found. The tool's JSON stays in its step above. Ask's
+// answers draw it, and so does Shop's trip sheet (components/mealtrips.tsx), where it is read-only.
+//
+// Each line shows its product's picture (pictures.tsx, with a quiet placeholder when there is
+// none), and its tick for the basket sits in a label that is a fingertip's 44px. How sure a line is
+// shows as a quiet mark beside its words (matchmarks.tsx), never as coloured words alone, and only
+// where it sets the line apart: when no item's origin is known, the cart says so once, at the top,
+// instead of on every line.
 import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import { cartLineKey, isPinned, lineNotes, optionsLabel } from '../alternatives';
+import type { LineNote } from '../alternatives';
 import type { CartLine, CartSummary, LeftOut } from '../types';
-import { IngredientImage } from './flow';
+import { coverageStatus } from '../workshop';
 import { Icon } from './icons';
+import { EvidenceMark, MatchTag } from './matchmarks';
+import { ProductPicture } from './pictures';
+import { Tag } from './ui';
 
 // What a swap button does: put a request in the message box, for the shopper to send or edit.
 export const AskContext = createContext<(text: string) => void>(() => {});
@@ -111,6 +122,15 @@ function why(d: LeftOut, kind: LeftKind): string {
   return d.reason || kind.replace('_', ' ');
 }
 
+// A line's notes (alternatives.ts lineNotes, which also names the line's Options button for a
+// screen reader): a plain fact in words; how sure the line is, as a mark with its glyph.
+function LineMark({ note }: { note: LineNote }) {
+  if (!note.flag) return <span>{note.text}</span>;
+  if (note.text === 'closest match') return <MatchTag kind="closest" label="Closest match" />;
+  if (note.text === 'origin unclear') return <EvidenceMark kind="none" word="Origin unclear" />;
+  return <span title={note.title}><EvidenceMark kind="disputed" word={note.text} /></span>;
+}
+
 function listText(summary: CartSummary, groups: Group[], totalText: string): string {
   const out = [`${summary.recipe_name ?? 'Shopping list'} — ${totalText}`];
   for (const g of groups) {
@@ -150,6 +170,11 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
   ];
   const originAsked = !!summary.origin_status && summary.origin_status !== 'not_requested';
   const share = summary.coverage?.spend_fraction;
+  const verified = summary.origin_status === 'verified';
+  // no line's origin is known: said once at the top, not as "origin unclear" on every line
+  const unclearAll = originAsked && lines.length > 0 && lines.every((l) => !l.origin_country);
+  const notesOf = (l: CartLine) => lineNotes(l, originAsked)
+    .filter((n) => !(unclearAll && n.flag && n.text === 'origin unclear'));
   const toggle = (key: string) => setGot((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
@@ -179,21 +204,24 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
   };
 
   return (
-    <section className="cart" aria-label={`Shopping cart: ${summary.recipe_name ?? 'plan'}`}>
+    <section className="card cart" aria-label={`Shopping cart: ${summary.recipe_name ?? 'plan'}`}>
       <div className="cart-head">
         <div>
           <div className="cart-title">{summary.recipe_name ?? 'Your cart'}</div>
-          <div className="muted">
+          <div className="card-sub">
             {lines.length} item{lines.length === 1 ? '' : 's'} · {groups.length} store{groups.length === 1 ? '' : 's'}
             {got.size > 0 && ` · ${got.size} in the basket`}
           </div>
         </div>
         <div className={`cart-total${floor && !known ? ' cart-total-unknown' : ''}`}>{costText(total, floor, known)}</div>
       </div>
-      {originAsked && share != null && (
-        <div className={`cart-origin ${summary.origin_status === 'verified' ? 'cart-origin-ok' : 'cart-origin-warn'}`}>
-          {summary.origin_status === 'verified' && <><Icon name="check" className="ico-inline" /><span className="sr-only">Verified: </span></>}Origin checked for {Math.round(share * 100)}% of what you spend
-        </div>
+      {originAsked && (share != null || unclearAll) && (
+        <p className="cart-origin">
+          <Tag kind={verified ? 'done' : 'attention'}>
+            <span className="sr-only">{verified ? 'Verified: ' : 'Not verified: '}</span>
+            {share != null ? coverageStatus(share, verified).word : 'No item’s origin is known'}
+          </Tag>
+        </p>
       )}
 
       {groups.map((g) => (
@@ -209,9 +237,12 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
               const mine = isPinned(l, pinned);
               return (
                 <li key={key} className={`cart-item${done ? ' cart-item-done' : ''}`}>
-                  <input type="checkbox" checked={done} onChange={() => toggle(key)}
-                         aria-label={`${l.product}${l.storage ? ` (${l.storage})` : ''}: in the basket`} />
-                  <IngredientImage name={l.ingredient} size={36} />
+                  {/* the box's own name says what a tick means; the label around it is the 44px target */}
+                  <label className="check cart-tick">
+                    <input type="checkbox" checked={done} onChange={() => toggle(key)}
+                           aria-label={`${l.product}${l.storage ? ` (${l.storage})` : ''}: in the basket`} />
+                  </label>
+                  <ProductPicture product={l.product} ingredient={l.ingredient} />
                   {wrap(l, mine, <span className="cart-item-body">
                     <span className="cart-item-name">
                       {l.product}{(l.packs ?? 1) > 1 && <span className="muted"> ×{l.packs}</span>}
@@ -219,11 +250,7 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
                     <span className="cart-item-meta">
                       {mine && <span className="cart-mine">Changed by you</span>}
                       {!namesIngredient(l) && <span>for {l.ingredient}</span>}
-                      {lineNotes(l, originAsked).map((n) => (
-                        <span key={n.text} className={n.flag ? 'cart-flag' : undefined} title={n.title}>
-                          {n.text}
-                        </span>
-                      ))}
+                      {notesOf(l).map((n) => <LineMark key={n.text} note={n} />)}
                     </span>
                   </span>)}
                   <div className="cart-item-price">{money(priceOf(l))}</div>
@@ -245,7 +272,7 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
                 {(swaps.length > 0 || back.length > 0) && (
                   <div className="cart-swaps">
                     {swaps.map((s) => (
-                      <button key={s.name} type="button" className="cart-swap"
+                      <button key={s.name} type="button" className="btn btn-secondary btn-sm cart-swap"
                               title="Puts this request in the message box"
                               onClick={() => ask(`Use ${s.name} instead of ${d.ingredient} and update the plan.`)}>
                         Swap for {s.name}{s.price && ` · ${s.price}`}{s.origin && ` · ${s.origin}`}

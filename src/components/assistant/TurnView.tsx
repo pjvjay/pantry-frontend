@@ -38,7 +38,7 @@ function Answer({ answer, notice, routes }: {
   const meals = plans.filter((c) => c.kind === 'mealplan');
   if (meals.length > 0) {
     return (
-      <div className="answer answer-cards">
+      <div className="card answer answer-cards">
         {answer.reply && <Markdown text={answer.reply} headings={4} />}
         {meals.map((c, i) => <MealPlanCard key={i} card={c} />)}
       </div>
@@ -47,7 +47,7 @@ function Answer({ answer, notice, routes }: {
   if (plans.length > 0 && plans.every((c) => c.kind === 'plan')) {
     const before = answer.reply ? replyBeforeChange(plans) : '';
     return (
-      <div className="answer answer-cards">
+      <div className="card answer answer-cards">
         {answer.reply && <Markdown text={answer.reply} headings={4} />}
         {plans.map((c, i) => <CartCard key={i} summary={c.summary} cardRef={c.ref} pinned={c.pinned_lines} />)}
         {before && <p className="cart-notice">{before}</p>}
@@ -57,7 +57,7 @@ function Answer({ answer, notice, routes }: {
   }
   const links = routedLinks(plans.flatMap((c) => c.links ?? []), routes);
   return (
-    <div className="answer">
+    <div className="card answer">
       <Markdown text={answer.text} headings={4} />
       {links.length > 0 && (
         <p className="answer-links">

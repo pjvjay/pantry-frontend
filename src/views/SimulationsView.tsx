@@ -1,7 +1,8 @@
 // Workshop › Simulations: mcp-sim's scenarios (a simulated shopper talking to an agent that uses the
 // pantry MCP tools), their last runs, the judge's verdict and the conversation, and the runner's
-// jobs. The runner sits behind the demo hub (/hub/sims/*); when it is not running the page says so
-// and offers nothing to run.
+// jobs. The runner sits behind the demo hub (/hub/sims/*); when it is not running, which is how
+// this demo is often set up, the page says so calmly (what is off, and how to start it) and offers
+// nothing to run.
 //
 // "Run all" spends most of a day's free model quota, so it asks first, in place (InlineConfirm),
 // unless the preset is the dry run, which calls no model. Each scenario is a button that shows it
@@ -12,11 +13,11 @@ import { JsonView } from '../components/common';
 import { StateTag } from '../components/evidence';
 import { InlineConfirm } from '../components/InlineConfirm';
 import { TabList } from '../components/Tabs';
-import { HubErrorBanner, Skeleton } from '../components/ui';
+import { HubErrorBanner, Notice, ScrollRegion, Skeleton, Tag } from '../components/ui';
 import Markdown from '../components/Markdown';
 import { simCancel, simJob, simPresets, simRun, simScenario, simScenarios, simStart, simTranscript } from '../hub';
 import { Icon } from '../components/icons';
-import { simStatus } from '../workshop';
+import { humanize, observedStatus, outcomeStatus, runnerDown, simStatus } from '../workshop';
 
 type Rec = Record<string, unknown>;
 const str = (v: unknown) => (v == null ? '' : String(v));
@@ -49,7 +50,7 @@ function TranscriptView({ events }: { events: Rec[] }) {
             <div key={i} className={`sim-event ${e.is_error ? 'sim-error' : ''}`}>
               <code><Icon name="arrow-left" className="ico-inline" /><span className="sr-only">result of </span>{str(e.name)}</code>{' '}
               <span className="muted">{e.is_error ? 'error' : 'ok'} · <span className="figures">{num(e.ms)} ms</span></span>
-              <JsonView value={e.structured ?? e.text} label="result" />
+              <JsonView value={e.structured ?? e.text} label="Result" />
             </div>
           );
         }
@@ -59,9 +60,8 @@ function TranscriptView({ events }: { events: Rec[] }) {
             <div key={i} className="sim-event sim-informant">
               <span className="muted">observers at {str(e.trigger)}:</span>{' '}
               {reports.map((r, j) => (
-                <span key={j} className={`chip ${r.value === true ? 'chip-ok' : r.value === false ? 'chip-muted' : 'chip-warn'}`}
-                      title={str(r.evidence)}>
-                  {str(r.observer)}.{str(r.condition)} = {r.value === null ? 'unknown' : String(r.value)}
+                <span key={j} title={str(r.evidence)}>
+                  <Tag kind={observedStatus(r.value).kind}>{str(r.observer)}.{str(r.condition)} = {observedStatus(r.value).word}</Tag>
                 </span>
               ))}
             </div>
@@ -84,9 +84,9 @@ function VerdictView({ verdict }: { verdict: Verdict }) {
     <div>
       <p className="sim-verdict">
         <StateTag state={simStatus(verdict.passed ? 'passed' : 'failed')} />
-        <span className="chip figures">score {verdict.score.toFixed(2)}</span>
-        <span className="chip chip-muted">judge {verdict.judge_model} × {verdict.votes}</span>
-        {verdict.flags.map((f) => <span key={f} className="chip chip-warn">{f}</span>)}
+        <span className="chip">score {verdict.score.toFixed(2)}</span>
+        <span className="chip">judge {verdict.judge_model} × {verdict.votes}</span>
+        {verdict.flags.map((f) => <Tag key={f} kind="attention">{humanize(f)}</Tag>)}
       </p>
       <h4>Checklist (the judge)</h4>
       {verdict.checklist.length === 0 && <p className="muted">No judge ran for this transcript.</p>}
@@ -101,8 +101,8 @@ function VerdictView({ verdict }: { verdict: Verdict }) {
       {verdict.matches.length > 0 && (
         <>
           <h4>Deterministic matcher (cannot be overruled)</h4>
-          <div className="table-wrap">
-            <table className="origin-table">
+          <ScrollRegion label="The matcher's checks" className="table-scroll">
+            <table className="table">
               <thead><tr><th>Path</th><th>Check</th><th>Expected</th><th>Actual</th><th><span className="sr-only">Result</span></th></tr></thead>
               <tbody>
                 {verdict.matches.map((m, i) => (
@@ -115,11 +115,13 @@ function VerdictView({ verdict }: { verdict: Verdict }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         </>
       )}
       {verdict.failure_reasons.length > 0 && (
-        <ul className="week-notes">{verdict.failure_reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+        <Notice tone="warn" title="Why it failed">
+          <ul className="sim-reasons">{verdict.failure_reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+        </Notice>
       )}
     </div>
   );
@@ -181,10 +183,10 @@ function ScenarioDetail({ name, runnerUrl, refreshKey }: { name: string; runnerU
   const dry = Boolean((run?.summary as Rec | undefined)?.dry_run) || current?.judge_model === 'dry-run';
   const shownId = `${tabsId}-shown`;
   return (
-    <section className="panel" aria-labelledby={`${tabsId}-title`}>
+    <section className="card" aria-labelledby={`${tabsId}-title`}>
       <HubErrorBanner error={error} />
-      <div className="plan-header">
-        <h2 id={`${tabsId}-title`}>{str(sc.title) || name}</h2>
+      <div className="card-head">
+        <h2 id={`${tabsId}-title`} className="card-title">{str(sc.title) || name}</h2>
         {last && <a href={`${runnerUrl}/#/${name}/${str(last.run_id)}`} target="_blank" rel="noreferrer">Open in the runner<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>}
       </div>
       <p className="card-sub">{str(sc.category)} · {name}</p>
@@ -199,10 +201,10 @@ function ScenarioDetail({ name, runnerUrl, refreshKey }: { name: string; runnerU
         <>
           <p className="sim-verdict">
             <StateTag state={simStatus(str(last.status))} />
-            <span className="chip figures">{num(last.passed)} of {num(last.runs)} runs passed</span>
-            <span className="chip chip-muted figures">{str(last.started_at).slice(0, 16).replace('T', ' ')} UTC · {Math.round(num(last.duration_s))} s</span>
+            <span className="chip">{num(last.passed)} of {num(last.runs)} runs passed</span>
+            <span className="chip">{str(last.started_at).slice(0, 16).replace('T', ' ')} UTC · {Math.round(num(last.duration_s))} s</span>
             {Object.entries((last.models as Rec) ?? {}).filter(([k]) => k !== 'allow_same_judge').map(([k, v]) => (
-              <span key={k} className="chip chip-muted">{k}: {str(v)}</span>
+              <span key={k} className="chip">{k}: {str(v)}</span>
             ))}
           </p>
           {transcripts.length > 1 && (
@@ -217,9 +219,7 @@ function ScenarioDetail({ name, runnerUrl, refreshKey }: { name: string; runnerU
                aria-labelledby={transcripts.length > 1 && stem ? `${tabsId}-tab-${stem}` : undefined}>
             {currentRow && (
               <p className="sim-verdict">
-                <span className={`chip ${str(currentRow.outcome) === 'completed' ? 'chip-muted' : 'pill-bad'}`}>
-                  outcome: {str(currentRow.outcome)}
-                </span>
+                <StateTag state={outcomeStatus(str(currentRow.outcome))} />
                 <span className="muted">{str(currentRow.reason)}</span>
               </p>
             )}
@@ -311,11 +311,12 @@ export default function SimulationsView() {
   const presetLabel = presets[preset]?.label ?? preset;
   // a dry run calls no model, so it costs nothing and asks nothing
   const askFirst = preset !== 'dry';
+  const down = runnerDown(error);
   return (
-    <div className="view">
-      <section className="panel">
-        <div className="plan-header">
-          <h2>Agent simulations (mcp-sim)</h2>
+    <div className="view ws-stack">
+      <section className="card">
+        <div className="card-head">
+          <h2 className="card-title">Agent simulations (mcp-sim)</h2>
           <div className="form-row compact sim-controls">
             <label htmlFor={modelsId}>Models</label>
             <select id={modelsId} value={preset} onChange={(e) => setPreset(e.target.value)}>
@@ -345,15 +346,21 @@ export default function SimulationsView() {
           observers watching the tool traffic. The scenarios with <em>(gateway)</em> run through ContextForge.
         </p>
         {presets[preset] && (
-          <div className="plan-meta">{Object.entries(presets[preset].models).map(([r, m]) => <span key={r} className="chip chip-muted">{r}: {m}</span>)}</div>
+          <p className="sim-models">{Object.entries(presets[preset].models).map(([r, m]) => <span key={r} className="chip">{r}: {m}</span>)}</p>
         )}
       </section>
-      <HubErrorBanner error={error} hint={error.includes('not reachable') ? 'Start the runner with the stack script (scripts/up.sh).' : undefined} />
+      {down ? (
+        <Notice tone="info" title="The simulation runner is not running"
+                hint="Start it with the stack script (scripts/up.sh): it runs mcp-sim beside the demo hub."
+                actions={[{ label: 'Check again', icon: 'refresh', onClick: () => { setError(''); setScenarios(null); load(); } }]}>
+          Simulations are run and kept by mcp-sim, so there are no scenarios to show or run until it is started.
+        </Notice>
+      ) : <HubErrorBanner error={error} />}
 
       {job && (
-        <section className="panel" aria-labelledby="sim-job-title">
-          <div className="plan-header">
-            <h3 id="sim-job-title" className="sim-job-title">Job <code>{str(job.job_id)}</code> <StateTag state={simStatus(str(job.status))} /></h3>
+        <section className="card" aria-labelledby="sim-job-title">
+          <div className="card-head">
+            <h3 id="sim-job-title" className="card-title sim-job-title">Job <code>{str(job.job_id)}</code> <StateTag state={simStatus(str(job.status))} /></h3>
             {running && (
               <button type="button" className="btn btn-danger btn-sm" onClick={() => void simCancel(str(job.job_id))}>
                 <Icon name="stop" size={16} />Stop
@@ -368,16 +375,18 @@ export default function SimulationsView() {
               </li>
             ))}
           </ul>
-          <pre className="log" tabIndex={0} aria-label="The runner's log, last lines">{((job.log_tail as string[]) ?? []).slice(-14).join('\n')}</pre>
+          <ScrollRegion label="The runner’s log, last lines" className="log">
+            <pre>{((job.log_tail as string[]) ?? []).slice(-14).join('\n')}</pre>
+          </ScrollRegion>
         </section>
       )}
 
       <div className="split">
-        <aside className="split-side-left" aria-label="Scenarios">
+        <section className="split-side-left" aria-label="Scenarios">
           {scenarios === null && <Skeleton kind="row" count={6} label="Loading the scenarios" />}
           {Object.entries(groups).map(([cat, items]) => (
             <div key={cat} className="sim-group">
-              <h3 className="timeline-heading">{cat}</h3>
+              <h3 className="sim-cat">{cat}</h3>
               <ul className="sim-list">
                 {items.map((s) => {
                   const last = s.last_run as Rec | null;
@@ -402,7 +411,7 @@ export default function SimulationsView() {
               </ul>
             </div>
           ))}
-        </aside>
+        </section>
         <div className="split-main">
           {selected && <ScenarioDetail name={selected} runnerUrl={runnerUrl} refreshKey={refreshKey} />}
         </div>

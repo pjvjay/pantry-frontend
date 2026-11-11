@@ -2,11 +2,13 @@
 // reach. It grows with what is typed (up to two fifths of the screen, then it scrolls), says how
 // Enter works, and holds Import a recipe and Send. While the assistant answers, Send becomes Stop
 // in the same place, the same button, so focus never falls off it; the box stays typeable, and
-// what is typed waits there until the answer is done.
+// what is typed waits there until the answer is done. On a phone its example is shorter, so it
+// fits the box's one line instead of wrapping it two lines tall before anything is typed.
 import { useId, useLayoutEffect } from 'react';
 import type { FormEvent, KeyboardEvent, MouseEvent, RefObject } from 'react';
 
 import { Icon } from '../icons';
+import { useMedia } from '../useMedia';
 
 export function Composer({
   value, onChange, onSend, onStop, onImport, busy, canSend, offline, boxRef, formRef,
@@ -26,6 +28,7 @@ export function Composer({
 }) {
   const boxId = useId();
   const hintId = useId();
+  const narrow = useMedia('(max-width: 640px)');
 
   // Grow to fit what is typed: measured from nothing each time, so it shrinks again too.
   useLayoutEffect(() => {
@@ -63,7 +66,8 @@ export function Composer({
       <div className="ask-box">
         <label htmlFor={boxId} className="sr-only">Message</label>
         <textarea id={boxId} ref={boxRef} rows={1} value={value} aria-describedby={hintId}
-                  placeholder="Ask about a recipe link, a product, a week of dinners…"
+                  placeholder={narrow ? 'Ask about a recipe or a product…'
+                    : 'Ask about a recipe link, a product, a week of dinners…'}
                   onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} />
         <div className="ask-box-foot">
           <button type="button" className="btn btn-ghost btn-sm ask-import" onClick={onImport}>
