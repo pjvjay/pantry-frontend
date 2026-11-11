@@ -48,7 +48,7 @@ const NEEDS_HUB: Partial<Record<WorkshopTab, { off: string; works: string }>> = 
     works: 'the meal plan, the catalog table and the Planner lab.',
   },
   system: {
-    off: 'The list of services comes from the demo hub, so it is off here.',
+    off: 'The list of services and the demo data’s reset come from the demo hub, so they are off here.',
     works: 'the planner’s LLM switch below, which talks to the pantry API.',
   },
 };

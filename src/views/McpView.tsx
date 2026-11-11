@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+// Workshop › MCP explorer: everything the pantry MCP server offers, directly and through the
+// ContextForge gateway, called by hand. The targets are pressed buttons (one at a time); the tools,
+// resources and prompts are a real tab list (components/Tabs.tsx: the arrow keys move along it, and
+// each tab names its panel). A call's result says ok or error in a tag, words and a glyph.
+import { useEffect, useId, useMemo, useState } from 'react';
 import { JsonView } from '../components/common';
-import { HubErrorBanner } from '../components/ui';
+import { StateTag } from '../components/evidence';
+import { TabList, TabPanel } from '../components/Tabs';
+import { HubErrorBanner, Skeleton } from '../components/ui';
 import { mcpCall, mcpCatalog, mcpPrompt, mcpRead, mcpTargets } from '../hub';
 import type { JsonSchema, McpCatalog, McpTarget, McpTool, ToolResult } from '../types';
 
@@ -67,9 +73,9 @@ function ToolForm({ target, tool }: { target: string; tool: McpTool }) {
   return (
     <div>
       <h3 className="tool-title"><code>{tool.name}</code>
-        {annotations.readOnlyHint === true && <span className="chip chip-ok">read-only</span>}
-        {annotations.destructiveHint === true && <span className="chip pill-bad">destructive</span>}
-        {annotations.readOnlyHint === false && <span className="chip chip-warn">writes</span>}
+        {annotations.readOnlyHint === true && <StateTag state={{ kind: 'done', word: 'Read-only' }} />}
+        {annotations.destructiveHint === true && <StateTag state={{ kind: 'attention', word: 'Destructive' }} />}
+        {annotations.readOnlyHint === false && <StateTag state={{ kind: 'changed', word: 'Writes' }} />}
         {annotations.openWorldHint === true && <span className="chip">open world</span>}
       </h3>
       {tool.description && <p className="tool-desc">{tool.description}</p>}
@@ -104,21 +110,22 @@ function ToolForm({ target, tool }: { target: string; tool: McpTool }) {
           </label>
         )}
         <div className="form-row">
-          <button disabled={busy}>{busy ? 'Calling…' : 'Call tool'}</button>
-          <button type="button" className="secondary" onClick={() => {
+          <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Calling…' : 'Call tool'}</button>
+          <button type="button" className="btn btn-secondary" onClick={() => {
             setRaw(JSON.stringify(args, null, 2)); setUseRaw(!useRaw);
-          }}>{useRaw ? 'Form' : 'Edit as JSON'}</button>
+          }}>{useRaw ? 'Back to the form' : 'Edit as JSON'}</button>
         </div>
       </form>
       {!useRaw && <JsonView value={{ name: tool.name, arguments: args }} label="request" />}
       <HubErrorBanner error={error} />
       {result && (
-        <div className={`result ${result.is_error ? 'result-error' : 'result-ok'}`}>
-          <div className="plan-meta">
-            <span className={`chip ${result.is_error ? 'pill-bad' : 'chip-ok'}`}>{result.is_error ? 'isError' : 'ok'}</span>
-            <span className="chip chip-muted">{result.ms} ms</span>
-            {result.truncated && <span className="chip chip-warn">text truncated</span>}
-          </div>
+        <div className={`result ${result.is_error ? 'result-error' : 'result-ok'}`} role="status">
+          <p className="result-head">
+            <StateTag state={result.is_error ? { kind: 'attention', word: 'The tool answered with an error' }
+              : { kind: 'done', word: 'Answered' }} />
+            <span className="muted figures">{result.ms} ms</span>
+            {result.truncated && <span className="muted">The text was cut short.</span>}
+          </p>
           {result.structured != null && <JsonView value={result.structured} label="structuredContent" open />}
           <JsonView value={result.text} label="content (text)" open={result.structured == null} />
         </div>
@@ -161,8 +168,9 @@ function ResourcePanel({ target, catalog }: { target: string; catalog: McpCatalo
         ))}
       </ul>
       <form className="form-row" onSubmit={(e) => { e.preventDefault(); void read(uri); }}>
-        <input className="grow" value={uri} onChange={(e) => setUri(e.target.value)} placeholder="pantry://recipes/tomato_penne" />
-        <button disabled={!uri.trim()}>Read</button>
+        <input className="grow" value={uri} onChange={(e) => setUri(e.target.value)} placeholder="pantry://recipes/tomato_penne"
+               aria-label="Resource URI" />
+        <button type="submit" className="btn btn-primary" disabled={!uri.trim()}>Read</button>
       </form>
       <HubErrorBanner error={error} />
       {content !== null && <JsonView value={content} label={uri} open />}
@@ -181,8 +189,9 @@ function PromptPanel({ target, catalog }: { target: string; catalog: McpCatalog 
   return (
     <div>
       <div className="form-row">
-        <select value={name} onChange={(e) => { setName(e.target.value); setArgs({}); setResult(null); }}>
-          <option value="">choose a prompt…</option>
+        <select value={name} onChange={(e) => { setName(e.target.value); setArgs({}); setResult(null); }}
+                aria-label="Prompt">
+          <option value="">Choose a prompt…</option>
           {catalog.prompts.map((p) => <option key={p.name}>{p.name}</option>)}
         </select>
       </div>
@@ -198,7 +207,7 @@ function PromptPanel({ target, catalog }: { target: string; catalog: McpCatalog 
               <input value={args[a.name] ?? ''} onChange={(e) => setArgs({ ...args, [a.name]: e.target.value })} />
             </label>
           ))}
-          <button>Render prompt</button>
+          <button type="submit" className="btn btn-primary">Render prompt</button>
         </form>
       )}
       <HubErrorBanner error={error} />
@@ -210,11 +219,14 @@ function PromptPanel({ target, catalog }: { target: string; catalog: McpCatalog 
   );
 }
 
+type Offer = 'tools' | 'resources' | 'prompts';
+
 export default function McpView() {
+  const tabsId = useId();
   const [targets, setTargets] = useState<McpTarget[]>([]);
   const [target, setTarget] = useState('pantry');
   const [catalog, setCatalog] = useState<McpCatalog | null>(null);
-  const [tab, setTab] = useState<'tools' | 'resources' | 'prompts'>('tools');
+  const [tab, setTab] = useState<Offer>('tools');
   const [tool, setTool] = useState<string>('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -241,9 +253,10 @@ export default function McpView() {
           The hub holds the credentials; switch to <strong>no token</strong> to watch the endpoint
           refuse an anonymous client.
         </p>
-        <div className="target-row">
+        <div className="target-row" role="group" aria-label="Server">
           {targets.map((t) => (
-            <button key={t.id} className={`target ${t.id === target ? 'target-active' : ''}`} onClick={() => setTarget(t.id)}>
+            <button key={t.id} type="button" className={`target ${t.id === target ? 'target-active' : ''}`}
+                    aria-pressed={t.id === target} onClick={() => setTarget(t.id)}>
               <strong>{t.label}</strong>
               <span>{t.auth}</span>
             </button>
@@ -252,40 +265,53 @@ export default function McpView() {
         {current && <p className="muted">{current.description}{catalog?.target.url && <> · <code>{catalog.target.url}</code></>}</p>}
       </section>
 
-      {loading && <p className="muted">Connecting…</p>}
+      {loading && <section className="panel"><Skeleton kind="row" count={6} label="Connecting to the server" /></section>}
       <HubErrorBanner error={error && `The server refused or could not be reached: ${error}`}
                    hint={target === 'pantry-anon' ? 'This is the expected result: pantry requires a bearer token on /mcp when MCP_AUTH_TOKENS is set.' : undefined} />
 
-      {catalog && (
-        <section className="panel">
-          <div className="subtabs">
-            {(['tools', 'resources', 'prompts'] as const).map((t) => (
-              <button key={t} className={`subtab ${tab === t ? 'subtab-active' : ''}`} onClick={() => setTab(t)}>
-                {t} ({t === 'tools' ? catalog.tools.length : t === 'resources'
-                  ? catalog.resources.length + catalog.resource_templates.length : catalog.prompts.length})
-              </button>
-            ))}
-          </div>
-          {tab === 'tools' && (
-            <div className="split">
-              <ul className="tool-list split-side-left">
-                {catalog.tools.map((t) => (
-                  <li key={t.name}>
-                    <button className={`tool-item ${t.name === tool ? 'tool-item-active' : ''}`} onClick={() => setTool(t.name)}>
-                      <code>{t.name}</code>
-                      {t.annotations?.readOnlyHint === false && <span className="dot dot-warn" title="writes" />}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <div className="split-main">{selected && <ToolForm target={target} tool={selected} />}</div>
-            </div>
-          )}
-          {tab === 'resources' && <ResourcePanel target={target} catalog={catalog} />}
-          {tab === 'prompts' && <PromptPanel target={target} catalog={catalog} />}
-          {catalog.notes.length > 0 && <p className="muted">{catalog.notes.join(' · ')}</p>}
-        </section>
-      )}
+      {catalog && (() => {
+        const counts: Record<Offer, number> = {
+          tools: catalog.tools.length,
+          resources: catalog.resources.length + catalog.resource_templates.length,
+          prompts: catalog.prompts.length,
+        };
+        const words: Record<Offer, string> = { tools: 'Tools', resources: 'Resources', prompts: 'Prompts' };
+        return (
+          <section className="panel">
+            <TabList idBase={tabsId} label="What the server offers" current={tab} onChange={setTab} className="mcp-tabs"
+                     tabs={(['tools', 'resources', 'prompts'] as const).map((t) => ({
+                       key: t, label: <>{words[t]} <span className="tab-count">{counts[t]}</span></>,
+                     }))} />
+            <TabPanel idBase={tabsId} tabKey="tools" current={tab} reachable={counts.tools === 0}>
+              {counts.tools === 0 ? <p className="muted">This server offers no tools.</p> : (
+                <div className="split">
+                  <ul className="tool-list split-side-left" aria-label="Tools">
+                    {catalog.tools.map((t) => (
+                      <li key={t.name}>
+                        <button type="button" className={`tool-item ${t.name === tool ? 'tool-item-active' : ''}`}
+                                aria-current={t.name === tool || undefined} onClick={() => setTool(t.name)}>
+                          <code>{t.name}</code>
+                          {t.annotations?.readOnlyHint === false && (
+                            <span className="tool-writes"><span className="dot dot-warn" aria-hidden="true" />writes</span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="split-main">{selected && <ToolForm target={target} tool={selected} />}</div>
+                </div>
+              )}
+            </TabPanel>
+            <TabPanel idBase={tabsId} tabKey="resources" current={tab} reachable={counts.resources === 0}>
+              <ResourcePanel target={target} catalog={catalog} />
+            </TabPanel>
+            <TabPanel idBase={tabsId} tabKey="prompts" current={tab} reachable={counts.prompts === 0}>
+              <PromptPanel target={target} catalog={catalog} />
+            </TabPanel>
+            {catalog.notes.length > 0 && <p className="muted">{catalog.notes.join(' · ')}</p>}
+          </section>
+        );
+      })()}
     </div>
   );
 }

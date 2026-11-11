@@ -334,6 +334,67 @@ and empties the inbox. `src/mealplan/store.tsx` (`MealPlanProvider`, `useMealPla
 the reducer with saving, the schedule call and the other `/mealplan/*`
 requests in `api.ts`.
 
+## Ask (`#/ask`)
+
+The Assistant runs on the demo hub: each question is one `POST /hub/agent/chat`
+whose answer streams back as events (`hub.ts` `agentChat`). `src/transcript.ts`
+(pure; `tests/transcript.test.ts`, with two recorded runs in
+`tests/fixtures/ask-run-*.json`) folds a question's events into one run: its
+steps (observers choosing tools, model calls, tool calls with their results, a
+recipe read from a link, dishes read in code), what it is doing now, how long it
+took, a thinking model's reasoning, the answer, and what stopped it when
+something did. It also holds the words: each step's name and one-line summary,
+the run's line, the starters and the follow-ups.
+
+The page (`views/AssistantView.tsx`, `components/assistant/*`, `styles/ask.css`)
+draws each run as one line between the question and the answer: "Planned in 6
+steps · 19 s", or while it works "Planning the shopping · 12 s" beside a slowly
+turning ring (still under reduced motion). It opens into the steps
+(`RunTimeline.tsx`, `StepRow.tsx`: each with its arguments and result as JSON),
+the model and server, the answer's checks and Run details (Workshop › Metrics).
+Reasoning is open while it comes and closes as "Thought for 4 s" when the answer
+starts. Two or three questions to ask next follow the newest answer; six
+starters come before the first. The message box sticks above the bottom bar,
+grows with what is typed (Enter sends, Shift+Enter is a new line) and turns
+Send into Stop while an answer comes; the model, MCP server and toolset are
+under Settings. The page follows a reply only while the reader is within 80px
+of its end, and otherwise offers "New reply". Home's Ask box hands its text over
+in sessionStorage `pantry.ask.prefill`: the page puts it in the box (never
+sends it), focuses the box and removes the key. While the hub is refusing or not
+there, one `OfflinePanel` says so and the starters and Send wait.
+
+## Workshop (`#/workshop/<tab>`)
+
+The tools under the hood (`views/WorkshopView.tsx` and the views it holds,
+`styles/workshop.css`). Their small decisions are in the pure module
+`src/workshop.ts` (`tests/workshop.test.ts`): which row or tab a key moves to, a
+product's price per 100 g, the words and tag of each state, the waterfall's legend.
+
+- The Catalog and Metrics' Recent turns are grids of rows the keyboard walks
+  (`components/useRowNav.ts`): one Tab stop, Up and Down, Home and End, Page Up and
+  Down, Enter opens the row. A table's head stays in view while its rows scroll, and
+  figures sit right-aligned in equal widths; the Catalog also prices each product per
+  100 g. Under 900px a product opens in a sheet over the table.
+- A run opens in a drawer over Metrics (`views/RunView.tsx`, the drawer preset of
+  `components/Sheet.tsx`) whose header stays in view: the way back, the question, its
+  model and state, the raw JSON, even when the run cannot be read.
+  `#/workshop/metrics?trace=<id>` opens it from anywhere (the Assistant's Run details);
+  Back closes it, and closing a drawer that came in by its address leaves Metrics' own
+  address in its place. The waterfall has a legend in the chart colours and folds the
+  browser's spans away when there are many.
+- "Run all" (Simulations) and "Reset demo data" (System) ask first, in place
+  (`components/InlineConfirm.tsx`, also behind the Planner lab's "Open in Meal plan"):
+  Escape or Cancel puts the button back, with focus. Reset demo data reseeds the whole
+  database, so it lives in System now; Provenance points there.
+- The Catalog's "Submit a label reading" lands in Provenance's Submit panel: scrolled
+  into view, the product field focused with the product chosen.
+- States are tags (`Tag` in `components/ui.tsx`): an origin, a reading in the review
+  queue, a simulation, a run. Origin evidence and readings are cards
+  (`components/evidence.tsx`): the claim and the place, the label's words in quotes, a
+  confidence band, the source, who saw or reviewed it and when.
+- The MCP explorer's tools, resources and prompts are a tab list (`components/Tabs.tsx`):
+  the arrow keys move along it and go round, Home and End go to either end.
+
 ## Build the image
 
 ```bash

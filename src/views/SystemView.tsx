@@ -1,10 +1,15 @@
 // Workshop › System: every service the demo hub can see (from /hub/status, the console's one
-// shared status: hubStatus.tsx), the keys it holds, and the planner's LLM switch (pantry API's
-// /settings/runtime, which works without the hub). With the hub off, the Workshop's panel above
-// says so, and the switch still works.
-import { useCallback, useEffect, useState } from 'react';
+// shared status: hubStatus.tsx), the keys it holds, the planner's LLM switch (pantry API's
+// /settings/runtime, which works without the hub), and the demo data's reset. With the hub off, the
+// Workshop's panel above says so, and the switch still works.
+//
+// Resetting the demo data reseeds pantry's whole database, so it asks first, in place
+// (InlineConfirm), and says afterwards what happened.
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ErrorBanner, JsonView, StatusDot } from '../components/common';
-import { getRuntime, setRuntime } from '../hub';
+import { InlineConfirm } from '../components/InlineConfirm';
+import { Notice } from '../components/ui';
+import { getRuntime, resetDemo, setRuntime } from '../hub';
 import { useHubStatus } from '../hubStatus';
 import type { RuntimeSettings } from '../types';
 import { Icon } from '../components/icons';
@@ -56,9 +61,12 @@ function LlmPanel({ onChanged }: { onChanged: () => void }) {
       {runtime && (
         <>
           <div className="mode-toggle">
-            <button className={!runtime.demo_mode ? 'mode-on' : 'secondary'} disabled={busy || runtime.editable === false}
+            {/* the mode in use is pressed, said to a screen reader too (aria-pressed), not by its fill alone */}
+            <button type="button" className={`btn btn-sm ${!runtime.demo_mode ? 'btn-primary' : 'btn-secondary'}`}
+                    aria-pressed={!runtime.demo_mode} disabled={busy || runtime.editable === false}
                     onClick={() => void apply({ demo_mode: false })}>LLM planning</button>
-            <button className={runtime.demo_mode ? 'mode-on' : 'secondary'} disabled={busy || runtime.editable === false}
+            <button type="button" className={`btn btn-sm ${runtime.demo_mode ? 'btn-primary' : 'btn-secondary'}`}
+                    aria-pressed={runtime.demo_mode} disabled={busy || runtime.editable === false}
                     onClick={() => void apply({ demo_mode: true })}>Demo mode (no LLM)</button>
             <span className="chip chip-muted">Gemini key {runtime.gemini_key_configured ? 'configured' : 'missing'}</span>
             <span className="chip chip-muted">Anthropic key {runtime.anthropic_key_configured ? 'configured' : 'missing'}</span>
@@ -69,10 +77,72 @@ function LlmPanel({ onChanged }: { onChanged: () => void }) {
                 <input value={models[key] ?? ''} onChange={(e) => setModels({ ...models, [key]: e.target.value })} />
               </label>
             ))}
-            <button disabled={busy || runtime.editable === false}>Apply models</button>
+            <button type="submit" className="btn btn-primary" disabled={busy || runtime.editable === false}>Apply models</button>
           </form>
           {runtime.editable === false && <p className="muted">Read-only: start pantry-api with RUNTIME_SETTINGS_ENABLED=1 to change these here.</p>}
         </>
+      )}
+    </section>
+  );
+}
+
+// The demo's own data back as it ships: the catalog, the recipes and the origin evidence, with an
+// empty review queue (the hub runs pantry's seed and loads the demo's label readings).
+function DemoDataPanel({ hubOff }: { hubOff: boolean }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<{ ok: true; output: string } | { ok: false; message: string } | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const offNote = useId();
+
+  const reset = async () => {
+    setAsking(false);
+    setBusy(true);
+    setOutcome(null);
+    try {
+      const r = await resetDemo();
+      setOutcome({ ok: true, output: r.output });
+    } catch (e) {
+      setOutcome({ ok: false, message: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="panel">
+      <h2>Demo data</h2>
+      <p className="card-sub">
+        Put the catalog, the recipes and the demo’s origin evidence back the way the demo ships them,
+        after trying out label readings and reviews in Provenance.
+      </p>
+      <div className="demo-reset">
+        {asking ? (
+          <InlineConfirm
+            question="Reset the demo data?"
+            detail="This reseeds pantry’s database: readings submitted or approved since are gone, and the review queue is emptied. Meal plans saved in browsers are not touched."
+            choices={[{ label: 'Reset demo data', onClick: () => void reset(), tone: 'danger' }]}
+            onCancel={() => setAsking(false)} returnFocus={trigger} />
+        ) : (
+          <button ref={trigger} type="button" className="btn btn-secondary"
+                  aria-disabled={hubOff || busy || undefined} aria-describedby={hubOff ? offNote : undefined}
+                  onClick={() => { if (!hubOff && !busy) setAsking(true); }}>
+            <Icon name="refresh" size={16} />{busy ? 'Resetting…' : 'Reset demo data'}
+          </button>
+        )}
+        {hubOff && <p id={offNote} className="muted">Resetting goes through the demo hub, which is off here.</p>}
+      </div>
+      {outcome?.ok === true && (
+        <Notice tone="success" title="The demo data is back as it ships.">
+          The catalog, the recipes and the demo’s origin evidence are reloaded; the review queue is empty.
+        </Notice>
+      )}
+      {outcome?.ok === true && outcome.output && <JsonView value={outcome.output} label="what the reset printed" />}
+      {outcome?.ok === false && (
+        <Notice tone="danger" title="The demo data was not reset."
+                hint="The hub runs the reset with a script of its own (DEMO_RESET_SCRIPT); the words above are its answer.">
+          {outcome.message}
+        </Notice>
       )}
     </section>
   );
@@ -88,8 +158,8 @@ export default function SystemView() {
       <section className="panel">
         <div className="plan-header">
           <h2>Services</h2>
-          <button className="secondary" onClick={load} aria-disabled={hub.checking || undefined}>
-            {hub.checking ? 'Checking…' : 'Refresh'}
+          <button type="button" className="btn btn-secondary btn-sm" onClick={load} aria-disabled={hub.checking || undefined}>
+            <Icon name="refresh" size={16} />{hub.checking ? 'Checking…' : 'Refresh'}
           </button>
         </div>
         {!status && <p className="muted">{hub.state === 'connecting' ? 'Asking the demo hub…'
@@ -123,6 +193,7 @@ export default function SystemView() {
         )}
       </section>
       <LlmPanel onChanged={load} />
+      <DemoDataPanel hubOff={hub.state === 'refused' || hub.state === 'unreachable'} />
       {status && <JsonView value={status} label="raw /hub/status" />}
     </div>
   );

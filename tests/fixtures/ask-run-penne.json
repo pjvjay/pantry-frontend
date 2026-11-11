@@ -1,0 +1,690 @@
+{
+ "_about": "One real Assistant turn as the demo hub streamed it (POST /hub/agent/chat, recorded 2026-11-11 on gemini-3-flash-preview through the pantry server, pantry-api in demo mode): observers, three model calls, list_recipes and plan_recipe, the answer with its cart, the evals and the end. tests/transcript.test.ts folds it into a run.",
+ "question": "Plan tomato penne with nothing from the United States, and tell me how much of the basket’s origin is verified.",
+ "events": [
+  {
+   "type": "start",
+   "conversation_id": "4f9c7ab260f2",
+   "model": "gemini:gemini-3-flash-preview",
+   "target": "pantry",
+   "tools": [
+    "list_recipes",
+    "find_product"
+   ],
+   "available": 17,
+   "disclosure": "progressive",
+   "discoverable": true,
+   "ts": 79.9,
+   "at": 1794391224087,
+   "trace_id": "tr-53c01836faf0"
+  },
+  {
+   "type": "observing",
+   "trigger": "turn",
+   "model": "gemini:gemini-flash-lite-latest",
+   "observers": [
+    "compliance_officer",
+    "diet_watch",
+    "label_desk",
+    "origin_listener",
+    "tone_watch"
+   ],
+   "ts": 80.2,
+   "at": 1794391224087
+  },
+  {
+   "type": "observation",
+   "observer": "menu_clerk",
+   "condition": "dish_to_cook",
+   "kind": "code",
+   "when": "the shopper wants to make, cook or plan a dish or some meals",
+   "value": true,
+   "evidence": "said 'Plan'",
+   "added": [
+    "get_recipe",
+    "plan_recipe"
+   ],
+   "removed": [],
+   "ts": 6694.3,
+   "at": 1794391230701
+  },
+  {
+   "type": "observation",
+   "observer": "origin_listener",
+   "condition": "cares_about_origin",
+   "kind": "llm",
+   "when": "the shopper wants to know or control where products come from (a country to avoid or prefer, local food, imports)",
+   "value": true,
+   "evidence": "nothing from the United States",
+   "added": [
+    "get_product_origins",
+    "rank_products_by_origin"
+   ],
+   "removed": [],
+   "ts": 6694.4,
+   "at": 1794391230701
+  },
+  {
+   "type": "thinking",
+   "step": 1,
+   "model": "gemini:gemini-3-flash-preview",
+   "ts": 6694.7,
+   "at": 1794391230702
+  },
+  {
+   "type": "progress",
+   "step": 1,
+   "model": "gemini:gemini-3-flash-preview",
+   "phase": "waiting",
+   "elapsed_s": 0,
+   "tokens": 0,
+   "eta_s": 1.1,
+   "estimate_s": 1.1,
+   "read_s": 0,
+   "gen_s": 0,
+   "prompt_tokens_est": 0,
+   "new_tokens_est": 0,
+   "output_tokens_est": 0,
+   "read_tok_s": 0,
+   "gen_tok_s": 0,
+   "samples": 2,
+   "basis": "2 earlier call(s) of this model",
+   "ts": 6742.3,
+   "at": 1794391230749
+  },
+  {
+   "type": "llm_call",
+   "step": 1,
+   "model": "gemini:gemini-3-flash-preview",
+   "tool_calls": 1,
+   "prompt_tokens": 2770,
+   "output_tokens": 10,
+   "wall_s": 8.542,
+   "ts": 15283.9,
+   "at": 1794391239291
+  },
+  {
+   "type": "tool_call",
+   "id": "call_5187175892283814213",
+   "name": "list_recipes",
+   "arguments": {},
+   "step": 1,
+   "ts": 15284,
+   "at": 1794391239291
+  },
+  {
+   "type": "tool_result",
+   "id": "call_5187175892283814213",
+   "name": "list_recipes",
+   "is_error": false,
+   "structured": {
+    "result": [
+     {
+      "slug": "pbj_sandwich",
+      "name": "Peanut Butter & Jelly Sandwich",
+      "servings": 2,
+      "ingredient_count": 3
+     },
+     {
+      "slug": "spaghetti_bolognese",
+      "name": "Spaghetti Bolognese",
+      "servings": 4,
+      "ingredient_count": 7
+     },
+     {
+      "slug": "chicken_curry",
+      "name": "Simple Chicken Curry",
+      "servings": 4,
+      "ingredient_count": 9
+     },
+     {
+      "slug": "grilled_cheese",
+      "name": "Grilled Cheese Sandwich",
+      "servings": 1,
+      "ingredient_count": 3
+     },
+     {
+      "slug": "veggie_stirfry",
+      "name": "Vegetable Stir Fry",
+      "servings": 2,
+      "ingredient_count": 5
+     },
+     {
+      "slug": "beef_rice_bowl",
+      "name": "Beef & Broccoli Rice Bowl",
+      "servings": 3,
+      "ingredient_count": 5
+     },
+     {
+      "slug": "tomato_penne",
+      "name": "Tomato Penne",
+      "servings": 2,
+      "ingredient_count": 5
+     }
+    ]
+   },
+   "text": "{\n  \"slug\": \"pbj_sandwich\",\n  \"name\": \"Peanut Butter & Jelly Sandwich\",\n  \"servings\": 2,\n  \"ingredient_count\": 3\n}\n{\n  \"slug\": \"spaghetti_bolognese\",\n  \"name\": \"Spaghetti Bolognese\",\n  \"servings\": 4,\n  \"ingredient_count\": 7\n}\n{\n  \"slug\": \"chicken_curry\",\n  \"name\": \"Simple Chicken Curry\",\n  \"servings\": 4,\n  \"ingredient_count\": 9\n}\n{\n  \"slug\": \"grilled_cheese\",\n  \"name\": \"Grilled Cheese Sandwich\",\n  \"servings\": 1,\n  \"ingredient_count\": 3\n}\n{\n  \"slug\": \"veggie_stirfry\",\n  \"name\": \"Vegetable Stir Fry\",\n  \"servings\": 2,\n  \"ingredient_count\": 5\n}\n{\n  \"slug\": \"beef_rice_bowl\",\n  \"name\": \"Beef & Broccoli Rice Bowl\",\n  \"servings\": 3,\n  \"ingredient_count\": 5\n}\n{\n  \"slug\": \"tomato_penne\",\n  \"name\": \"Tomato Penne\",\n  \"servings\": 2,\n  \"ingredient_count\": 5\n}",
+   "truncated": false,
+   "ms": 12.6,
+   "step": 1,
+   "model_chars": 705,
+   "ts": 15296.9,
+   "at": 1794391239304
+  },
+  {
+   "type": "thinking",
+   "step": 2,
+   "model": "gemini:gemini-3-flash-preview",
+   "ts": 15297.3,
+   "at": 1794391239304
+  },
+  {
+   "type": "progress",
+   "step": 2,
+   "model": "gemini:gemini-3-flash-preview",
+   "phase": "waiting",
+   "elapsed_s": 0,
+   "tokens": 0,
+   "eta_s": 1.3,
+   "estimate_s": 1.3,
+   "read_s": 0,
+   "gen_s": 0,
+   "prompt_tokens_est": 0,
+   "new_tokens_est": 0,
+   "output_tokens_est": 0,
+   "read_tok_s": 0,
+   "gen_tok_s": 0,
+   "samples": 3,
+   "basis": "3 earlier call(s) of this model",
+   "ts": 15342.8,
+   "at": 1794391239350
+  },
+  {
+   "type": "llm_call",
+   "step": 2,
+   "model": "gemini:gemini-3-flash-preview",
+   "tool_calls": 1,
+   "prompt_tokens": 3031,
+   "output_tokens": 28,
+   "wall_s": 1.39,
+   "ts": 16733.3,
+   "at": 1794391240740
+  },
+  {
+   "type": "tool_call",
+   "id": "call_12856827104392423015",
+   "name": "plan_recipe",
+   "arguments": {
+    "slug": "tomato_penne",
+    "exclude_origin": [
+     "United States"
+    ],
+    "basis": true,
+    "lat": 49.2827,
+    "lon": -123.1207,
+    "max_km": 5
+   },
+   "step": 2,
+   "filled_by_hub": [
+    "basis",
+    "lat",
+    "lon",
+    "max_km"
+   ],
+   "ts": 16733.5,
+   "at": 1794391240740
+  },
+  {
+   "type": "tool_result",
+   "id": "call_12856827104392423015",
+   "name": "plan_recipe",
+   "is_error": false,
+   "structured": {
+    "summary": {
+     "recipe_slug": "tomato_penne",
+     "recipe_name": "Tomato Penne",
+     "total_cost": 20.94,
+     "origin_status": "unverified",
+     "coverage": {
+      "spend_fraction": 0,
+      "count_fraction": 0,
+      "meets_floor": false,
+      "lines_known": 0,
+      "lines_total": 5,
+      "lines_excluded_origin": 0
+     },
+     "lines": [
+      {
+       "line_no": 1,
+       "ingredient": "Penne",
+       "product_id": 51,
+       "product": "Penne Rigate 500g",
+       "brand": "Fraser Farms",
+       "size": "500g",
+       "store": "GreenLeaf Grocers Kitsilano",
+       "price": 1.97,
+       "confidence": 0.9,
+       "origin_country": "",
+       "origin_status": "unknown",
+       "match": "exact",
+       "also_lines": [],
+       "packs": 1,
+       "trip_store": "Pantry Mart Downtown",
+       "trip_price": 2.51
+      },
+      {
+       "line_no": 2,
+       "ingredient": "Canned Tomatoes",
+       "product_id": 15,
+       "product": "Canned Diced Tomatoes",
+       "brand": "PantryCo",
+       "size": "796ml",
+       "store": "GreenLeaf Grocers Kitsilano",
+       "price": 1.89,
+       "confidence": 0.9,
+       "origin_country": "",
+       "origin_status": "unknown",
+       "match": "exact",
+       "also_lines": [],
+       "packs": 1,
+       "trip_store": "Pantry Mart Downtown",
+       "trip_price": 2.18
+      },
+      {
+       "line_no": 3,
+       "ingredient": "Garlic",
+       "product_id": 13,
+       "product": "Fresh Garlic",
+       "brand": "Coastline Foods",
+       "size": "~50g",
+       "store": "Pantry Mart Downtown",
+       "price": 0.68,
+       "confidence": 0.9,
+       "origin_country": "",
+       "origin_status": "unknown",
+       "match": "exact",
+       "also_lines": [],
+       "packs": 1,
+       "trip_store": "Pantry Mart Downtown",
+       "trip_price": 0.68
+      },
+      {
+       "line_no": 4,
+       "ingredient": "Olive Oil",
+       "product_id": 62,
+       "product": "Olive Oil 1L",
+       "brand": "Maple Ridge",
+       "size": "1L",
+       "store": "GreenLeaf Grocers Kitsilano",
+       "price": 11.91,
+       "confidence": 0.9,
+       "origin_country": "",
+       "origin_status": "unknown",
+       "match": "exact",
+       "also_lines": [],
+       "packs": 1,
+       "trip_store": "Pantry Mart Downtown",
+       "trip_price": 12.64
+      },
+      {
+       "line_no": 5,
+       "ingredient": "Mozzarella",
+       "product_id": 24,
+       "product": "Mozzarella Shredded 200g",
+       "brand": "Golden Gate",
+       "size": "200g",
+       "store": "Pantry Mart Downtown",
+       "price": 4.49,
+       "confidence": 0.9,
+       "origin_country": "",
+       "origin_status": "unknown",
+       "match": "exact",
+       "also_lines": [],
+       "packs": 1,
+       "trip_store": "Pantry Mart Downtown",
+       "trip_price": 4.49
+      }
+     ],
+     "trip": {
+      "stores": [
+       "Pantry Mart Downtown"
+      ],
+      "basket_cost": 22.5,
+      "travel_cost": 0.21,
+      "total_cost": 22.71,
+      "savings_vs_one_stop": 0,
+      "items": [
+       {
+        "product_id": 51,
+        "store": "Pantry Mart Downtown",
+        "price": 2.51
+       },
+       {
+        "product_id": 15,
+        "store": "Pantry Mart Downtown",
+        "price": 2.18
+       },
+       {
+        "product_id": 13,
+        "store": "Pantry Mart Downtown",
+        "price": 0.68
+       },
+       {
+        "product_id": 62,
+        "store": "Pantry Mart Downtown",
+        "price": 12.64
+       },
+       {
+        "product_id": 24,
+        "store": "Pantry Mart Downtown",
+        "price": 4.49
+       }
+      ]
+     },
+     "notes": [
+      "coverage below floor: origin known for 0 of 5 lines (0% of spend, floor 60%); unknown is not foreign, but do not call this basket clean"
+     ],
+     "not_stocked": [],
+     "out_of_range": [],
+     "skipped": [],
+     "llm_cost_usd": 0,
+     "latency_ms": 0,
+     "llm_calls": [],
+     "burr_run": "run-tomato_penne-20261111-100040-af4c8d",
+     "pipeline": {
+      "load_recipe": 1.3,
+      "load_products": 54.4,
+      "preselect_model": 0.5,
+      "select_products": 0.5,
+      "check_escalation": 0.5,
+      "skip_escalation": 0.4,
+      "optimize_trips": 1.6,
+      "build_plan": 1.1
+     }
+    },
+    "full": null
+   },
+   "text": "{\n  \"summary\": {\n    \"recipe_slug\": \"tomato_penne\",\n    \"recipe_name\": \"Tomato Penne\",\n    \"total_cost\": 20.94,\n    \"origin_status\": \"unverified\",\n    \"coverage\": {\n      \"spend_fraction\": 0.0,\n      \"count_fraction\": 0.0,\n      \"meets_floor\": false,\n      \"lines_known\": 0,\n      \"lines_total\": 5,\n      \"lines_excluded_origin\": 0\n    },\n    \"lines\": [\n      {\n        \"line_no\": 1,\n        \"ingredient\": \"Penne\",\n        \"product_id\": 51,\n        \"product\": \"Penne Rigate 500g\",\n        \"brand\": \"Fraser Farms\",\n        \"size\": \"500g\",\n        \"store\": \"GreenLeaf Grocers Kitsilano\",\n        \"price\": 1.97,\n        \"confidence\": 0.9,\n        \"origin_country\": \"\",\n        \"origin_status\": \"unknown\",\n        \"match\": \"exact\",\n        \"also_lines\": [],\n        \"packs\": 1,\n        \"trip_store\": \"Pantry Mart Downtown\",\n        \"trip_price\": 2.51\n      },\n      {\n        \"line_no\": 2,\n        \"ingredient\": \"Canned Tomatoes\",\n        \"product_id\": 15,\n        \"product\": \"Canned Diced Tomatoes\",\n        \"brand\": \"PantryCo\",\n        \"size\": \"796ml\",\n        \"store\": \"GreenLeaf Grocers Kitsilano\",\n        \"price\": 1.89,\n        \"confidence\": 0.9,\n        \"origin_country\": \"\",\n        \"origin_status\": \"unknown\",\n        \"match\": \"exact\",\n        \"also_lines\": [],\n        \"packs\": 1,\n        \"trip_store\": \"Pantry Mart Downtown\",\n        \"trip_price\": 2.18\n      },\n      {\n        \"line_no\": 3,\n        \"ingredient\": \"Garlic\",\n        \"product_id\": 13,\n        \"product\": \"Fresh Garlic\",\n        \"brand\": \"Coastline Foods\",\n        \"size\": \"~50g\",\n        \"store\": \"Pantry Mart Downtown\",\n        \"price\": 0.68,\n        \"confidence\": 0.9,\n        \"origin_country\": \"\",\n        \"origin_status\": \"unknown\",\n        \"match\": \"exact\",\n        \"also_lines\": [],\n        \"packs\": 1,\n        \"trip_store\": \"Pantry Mart Downtown\",\n        \"trip_price\": 0.68\n      },\n      {\n        \"line_no\": 4,\n        \"ingredient\": \"Olive Oil\",\n        \"product_id\": 62,\n        \"product\": \"Olive Oil 1L\",\n        \"brand\": \"Maple Ridge\",\n        \"size\": \"1L\",\n        \"store\": \"GreenLeaf Grocers Kitsilano\",\n        \"price\": 11.91,\n        \"confidence\": 0.9,\n        \"origin_country\": \"\",\n        \"origin_status\": \"unknown\",\n        \"match\": \"exact\",\n        \"also_lines\": [],\n        \"packs\": 1,\n        \"trip_store\": \"Pantry Mart Downtown\",\n        \"trip_price\": 12.64\n      },\n      {\n        \"line_no\": 5,\n        \"ingredient\": \"Mozzarella\",\n        \"product_id\": 24,\n        \"product\": \"Mozzarella Shredded 200g\",\n        \"brand\": \"Golden Gate\",\n        \"size\": \"200g\",\n        \"store\": \"Pantry Mart Downtown\",\n        \"price\": 4.49,\n        \"confidence\": 0.9,\n        \"origin_country\": \"\",\n        \"origin_status\": \"unknown\",\n        \"match\": \"exact\",\n        \"also_lines\": [],\n        \"packs\": 1,\n        \"trip_store\": \"Pantry Mart Downtown\",\n        \"trip_price\": 4.49\n      }\n    ],\n    \"trip\": {\n      \"stores\": [\n        \"Pantry Mart Downtown\"\n      ],\n      \"basket_cost\": 22.5,\n      \"travel_cost\": 0.21,\n      \"total_cost\": 22.71,\n      \"savings_vs_one_stop\": 0.0,\n      \"items\": [\n        {\n          \"product_id\": 51,\n          \"store\": \"Pantry Mart Downtown\",\n          \"price\": 2.51\n        },\n        {\n          \"product_id\": 15,\n          \"store\": \"Pantry Mart Downtown\",\n          \"price\": 2.18\n        },\n        {\n          \"product_id\": 13,\n          \"store\": \"Pantry Mart Downtown\",\n          \"price\": 0.68\n        },\n        {\n          \"product_id\": 62,\n          \"store\": \"Pantry Mart Downtown\",\n          \"price\": 12.64\n        },\n        {\n          \"product_id\": 24,\n          \"store\": \"Pantry Mart Downtown\",\n          \"price\": 4.49\n        }\n      ]\n    },\n    \"notes\": [\n      \"coverage below floor: origin known for 0 of 5 lines (0% of spend, floor 60%); unknown is not foreign, but do not call this basket clean\"\n    ],\n    \"not_stocked\": [],\n    \"out_of_range\": [],\n    \"skipped\": [],\n    \"llm_cost_usd\": 0.0,\n    \"latency_ms\": 0,\n    \"llm_calls\": [],\n    \"burr_run\": \"run-tomato_penne-20261111-100040-af4c8d\",\n    \"pipeline\": {\n      \"load_recipe\": 1.3,\n      \"load_products\": 54.4,\n      \"preselect_model\": 0.5,\n      \"select_products\": 0.5,\n      \"check_escalation\": 0.5,\n      \"skip_escalation\": 0.4,\n      \"optimize_trips\": 1.6,\n      \"build_plan\": 1.1\n    }\n  },\n  \"full\": null\n}",
+   "truncated": false,
+   "ms": 191,
+   "step": 2,
+   "model_chars": 2834,
+   "ts": 16925.2,
+   "at": 1794391240932
+  },
+  {
+   "type": "thinking",
+   "step": 3,
+   "model": "gemini:gemini-3-flash-preview",
+   "ts": 16925.7,
+   "at": 1794391240933
+  },
+  {
+   "type": "progress",
+   "step": 3,
+   "model": "gemini:gemini-3-flash-preview",
+   "phase": "waiting",
+   "elapsed_s": 0,
+   "tokens": 0,
+   "eta_s": 1.3,
+   "estimate_s": 1.3,
+   "read_s": 0,
+   "gen_s": 0,
+   "prompt_tokens_est": 0,
+   "new_tokens_est": 0,
+   "output_tokens_est": 0,
+   "read_tok_s": 0,
+   "gen_tok_s": 0,
+   "samples": 4,
+   "basis": "4 earlier call(s) of this model",
+   "ts": 16968.4,
+   "at": 1794391240975
+  },
+  {
+   "type": "llm_call",
+   "step": 3,
+   "model": "gemini:gemini-3-flash-preview",
+   "tool_calls": 0,
+   "prompt_tokens": 4129,
+   "output_tokens": 58,
+   "wall_s": 2.344,
+   "ts": 19312.7,
+   "at": 1794391243320
+  },
+  {
+   "type": "assistant",
+   "text": "Your plan for Tomato Penne totals $22.71 at Pantry Mart Downtown. While the United States was excluded from the search, 0% of the basket's origin is verified as the data for all five items is currently unknown. Nothing was left out of the plan.\n\n### Tomato Penne\n\n| Item | Product | Store | Price | Origin |\n|---|---|---|---|---|\n| Penne | Penne Rigate 500g | Pantry Mart Downtown | $2.51 | unknown |\n| Canned Tomatoes | Canned Diced Tomatoes | Pantry Mart Downtown | $2.18 | unknown |\n| Garlic | Fresh Garlic | Pantry Mart Downtown | $0.68 | unknown |\n| Olive Oil | Olive Oil 1L | Pantry Mart Downtown | $12.64 | unknown |\n| Mozzarella | Mozzarella Shredded 200g | Pantry Mart Downtown | $4.49 | unknown |\n\n**Total:** $22.71 for the trip to Pantry Mart Downtown ($22.50 basket + $0.21 travel)\n**Origin:** 0% of the spend verified (0 of 5 lines); status unverified\n**Left out:** nothing",
+   "step": 3,
+   "reply": "Your plan for Tomato Penne totals $22.71 at Pantry Mart Downtown. While the United States was excluded from the search, 0% of the basket's origin is verified as the data for all five items is currently unknown. Nothing was left out of the plan.",
+   "plans": [
+    {
+     "kind": "plan",
+     "summary": {
+      "recipe_slug": "tomato_penne",
+      "recipe_name": "Tomato Penne",
+      "total_cost": 20.94,
+      "origin_status": "unverified",
+      "coverage": {
+       "spend_fraction": 0,
+       "count_fraction": 0,
+       "meets_floor": false,
+       "lines_known": 0,
+       "lines_total": 5,
+       "lines_excluded_origin": 0
+      },
+      "lines": [
+       {
+        "line_no": 1,
+        "ingredient": "Penne",
+        "product_id": 51,
+        "product": "Penne Rigate 500g",
+        "brand": "Fraser Farms",
+        "size": "500g",
+        "store": "GreenLeaf Grocers Kitsilano",
+        "price": 1.97,
+        "confidence": 0.9,
+        "origin_country": "",
+        "origin_status": "unknown",
+        "match": "exact",
+        "also_lines": [],
+        "packs": 1,
+        "trip_store": "Pantry Mart Downtown",
+        "trip_price": 2.51
+       },
+       {
+        "line_no": 2,
+        "ingredient": "Canned Tomatoes",
+        "product_id": 15,
+        "product": "Canned Diced Tomatoes",
+        "brand": "PantryCo",
+        "size": "796ml",
+        "store": "GreenLeaf Grocers Kitsilano",
+        "price": 1.89,
+        "confidence": 0.9,
+        "origin_country": "",
+        "origin_status": "unknown",
+        "match": "exact",
+        "also_lines": [],
+        "packs": 1,
+        "trip_store": "Pantry Mart Downtown",
+        "trip_price": 2.18
+       },
+       {
+        "line_no": 3,
+        "ingredient": "Garlic",
+        "product_id": 13,
+        "product": "Fresh Garlic",
+        "brand": "Coastline Foods",
+        "size": "~50g",
+        "store": "Pantry Mart Downtown",
+        "price": 0.68,
+        "confidence": 0.9,
+        "origin_country": "",
+        "origin_status": "unknown",
+        "match": "exact",
+        "also_lines": [],
+        "packs": 1,
+        "trip_store": "Pantry Mart Downtown",
+        "trip_price": 0.68
+       },
+       {
+        "line_no": 4,
+        "ingredient": "Olive Oil",
+        "product_id": 62,
+        "product": "Olive Oil 1L",
+        "brand": "Maple Ridge",
+        "size": "1L",
+        "store": "GreenLeaf Grocers Kitsilano",
+        "price": 11.91,
+        "confidence": 0.9,
+        "origin_country": "",
+        "origin_status": "unknown",
+        "match": "exact",
+        "also_lines": [],
+        "packs": 1,
+        "trip_store": "Pantry Mart Downtown",
+        "trip_price": 12.64
+       },
+       {
+        "line_no": 5,
+        "ingredient": "Mozzarella",
+        "product_id": 24,
+        "product": "Mozzarella Shredded 200g",
+        "brand": "Golden Gate",
+        "size": "200g",
+        "store": "Pantry Mart Downtown",
+        "price": 4.49,
+        "confidence": 0.9,
+        "origin_country": "",
+        "origin_status": "unknown",
+        "match": "exact",
+        "also_lines": [],
+        "packs": 1,
+        "trip_store": "Pantry Mart Downtown",
+        "trip_price": 4.49
+       }
+      ],
+      "trip": {
+       "stores": [
+        "Pantry Mart Downtown"
+       ],
+       "basket_cost": 22.5,
+       "travel_cost": 0.21,
+       "total_cost": 22.71,
+       "savings_vs_one_stop": 0,
+       "items": [
+        {
+         "product_id": 51,
+         "store": "Pantry Mart Downtown",
+         "price": 2.51
+        },
+        {
+         "product_id": 15,
+         "store": "Pantry Mart Downtown",
+         "price": 2.18
+        },
+        {
+         "product_id": 13,
+         "store": "Pantry Mart Downtown",
+         "price": 0.68
+        },
+        {
+         "product_id": 62,
+         "store": "Pantry Mart Downtown",
+         "price": 12.64
+        },
+        {
+         "product_id": 24,
+         "store": "Pantry Mart Downtown",
+         "price": 4.49
+        }
+       ]
+      },
+      "notes": [
+       "coverage below floor: origin known for 0 of 5 lines (0% of spend, floor 60%); unknown is not foreign, but do not call this basket clean"
+      ],
+      "not_stocked": [],
+      "out_of_range": [],
+      "skipped": [],
+      "llm_cost_usd": 0,
+      "latency_ms": 0
+     },
+     "ref": 1,
+     "pinned_lines": []
+    }
+   ],
+   "ts": 19313.4,
+   "at": 1794391243320
+  },
+  {
+   "type": "evals",
+   "trace_id": "tr-53c01836faf0",
+   "checks": [
+    {
+     "name": "finished",
+     "passed": true,
+     "detail": "answered"
+    },
+    {
+     "name": "known_tools",
+     "passed": true,
+     "detail": ""
+    },
+    {
+     "name": "valid_calls",
+     "passed": true,
+     "detail": ""
+    },
+    {
+     "name": "grounded_money",
+     "passed": true,
+     "detail": ""
+    },
+    {
+     "name": "grounded_stores",
+     "passed": true,
+     "detail": "1 store(s) named, all from tool results"
+    },
+    {
+     "name": "plan_table",
+     "passed": true,
+     "detail": "5 table row(s) for 5 line(s)"
+    },
+    {
+     "name": "kept_location",
+     "passed": true,
+     "detail": ""
+    },
+    {
+     "name": "no_scope_violation",
+     "passed": true,
+     "detail": ""
+    }
+   ],
+   "passed": 8,
+   "total": 8,
+   "answer_confidence": 1,
+   "plan": {
+    "lines": 5,
+    "min_line_confidence": 0.9,
+    "mean_line_confidence": 0.9,
+    "exact_share": 1,
+    "origin_status": "unverified",
+    "origin_spend_verified": 0,
+    "left_out": 0
+   },
+   "ts": 19374.1,
+   "at": 1794391243381
+  },
+  {
+   "type": "done",
+   "steps": 3,
+   "stop": "answered",
+   "seconds": 19.3,
+   "input_tokens": 9930,
+   "output_tokens": 96,
+   "ts": 19374.2,
+   "at": 1794391243381
+  }
+ ]
+}

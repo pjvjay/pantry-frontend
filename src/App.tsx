@@ -147,7 +147,7 @@ export default function App() {
               )}
               {assistantOpened && (
                 <div hidden={route.name !== 'ask'}>
-                  <AssistantView routes={ROUTE_IDS} />
+                  <AssistantView routes={ROUTE_IDS} active={route.name === 'ask'} />
                 </div>
               )}
               {route.name === 'workshop' && <WorkshopView tab={route.tab} query={route.query ?? ''} />}

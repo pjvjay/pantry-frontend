@@ -22,10 +22,12 @@ export type IconName =
   | 'plug'
   // what a day's plan does: freeze, thaw, cook
   | 'snowflake' | 'droplet' | 'pan'
-  // the meal plan's ways in and its board (phase 2)
+  // the meal plan's ways in and its board (phase 2); Ask's recipe import uses 'link' too
   | 'redo' | 'link' | 'clipboard'
   // how sure a match is (works instead, a looser match, not known) and the calendar file (phase 6)
-  | 'swap' | 'approx' | 'help' | 'download';
+  | 'swap' | 'approx' | 'help' | 'download'
+  // Ask: send a message, a new reply further down
+  | 'send' | 'arrow-down';
 
 const PATHS: Record<IconName, ReactNode> = {
   calendar: <><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></>,
@@ -111,7 +113,8 @@ const PATHS: Record<IconName, ReactNode> = {
   pan: <><circle cx="9.5" cy="12.5" r="6.5" /><circle cx="9.5" cy="12.5" r="2.2" /><path d="M16 12.5h5.5" /></>,
 
   redo: <><path d="M15 14.5l4.5-4.5L15 5.5" /><path d="M19.5 10H10a5.5 5.5 0 0 0 0 11h3" /></>,
-  link: <><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2" /></>,
+  link: <><path d="M10 13.5a4.5 4.5 0 0 0 6.8.5l2.7-2.7a4.5 4.5 0 0 0-6.4-6.4l-1.5 1.5" />
+    <path d="M14 10.5a4.5 4.5 0 0 0-6.8-.5l-2.7 2.7a4.5 4.5 0 0 0 6.4 6.4l1.5-1.5" /></>,
   clipboard: <><rect x="5" y="4.5" width="14" height="16.5" rx="2.5" /><rect x="9" y="3" width="6" height="3.5" rx="1" />
     <path d="M8.5 11h7M8.5 14.5h7M8.5 18h4" /></>,
 
@@ -119,6 +122,9 @@ const PATHS: Record<IconName, ReactNode> = {
   approx: <><path d="M5 9.5c2.3-2.2 4.6-2.2 7 0s4.7 2.2 7 0" /><path d="M5 15c2.3-2.2 4.6-2.2 7 0s4.7 2.2 7 0" /></>,
   help: <><circle cx="12" cy="12" r="8.5" /><path d="M9.6 9.6a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6M12 17h.01" /></>,
   download: <><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 16.5v2a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2" /></>,
+
+  send: <><path d="M20.5 3.5L10.5 13.5" /><path d="M20.5 3.5l-6.3 17-3.7-7-7-3.7z" /></>,
+  'arrow-down': <path d="M12 4.5v15M6 13.5l6 6 6-6" />,
 };
 
 // className adds to "ico": "ico-inline" sits the icon in a line of text, sized to the text.

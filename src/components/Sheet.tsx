@@ -20,6 +20,13 @@
 // A sheet can open from inside another (a trip line's Options inside its trip). The browser
 // sends Escape to the one on top only, but React hands a nested dialog's cancel and close events
 // to the outer dialog's handlers as well, so each handler acts on its own dialog's events only.
+//
+// The drawer preset (variant="drawer") is for reading something long over the page it came from,
+// such as one Assistant run over Workshop › Metrics: wider on a wide screen, the whole screen on a
+// phone (where it comes in from the side, like a page), with a header that stays put while the
+// body scrolls: a back arrow first (closeLabel names it, "Back to Metrics"), the title and its
+// description, and the owner's own actions (a JSON link). Everything else about it is the sheet's:
+// the same dialog, the same ways out and the same focus return. The default sheet is unchanged.
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject, SyntheticEvent } from 'react';
 import { Icon } from './icons';
@@ -35,7 +42,7 @@ function msOf(value: string): number {
 const ownEvent = (e: SyntheticEvent<HTMLDialogElement>) => e.target === e.currentTarget;
 
 export function Sheet({ open, onClose, title, description, footer, initialFocus, returnFocus,
-  className, children }: {
+  className, variant = 'sheet', actions, closeLabel = 'Close', children }: {
   open: boolean;
   // Called however the sheet is closed (Close, Escape, the backdrop); it must set `open` false.
   onClose: () => void;
@@ -50,6 +57,12 @@ export function Sheet({ open, onClose, title, description, footer, initialFocus,
   returnFocus?: RefObject<HTMLElement | null>;
   // Added to "sheet", for a sheet that needs another width (the cart's Options are wider).
   className?: string;
+  // "drawer": the wide reading panel described above. The default is the sheet.
+  variant?: 'sheet' | 'drawer';
+  // The owner's controls in the header, beside the way out (a link to the raw JSON).
+  actions?: ReactNode;
+  // What the way out is called to a screen reader: "Close", or where it goes back to.
+  closeLabel?: string;
   children: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -71,8 +84,8 @@ export function Sheet({ open, onClose, title, description, footer, initialFocus,
   }
   // What the sheet shows as it leaves: its content as last drawn open, since the owner may have
   // let go of the thing it was about.
-  const shown = useRef({ title, description, footer, children });
-  if (open) shown.current = { title, description, footer, children };
+  const shown = useRef({ title, description, footer, actions, children });
+  if (open) shown.current = { title, description, footer, actions, children };
   const view = shown.current;
 
   // Focus back where it was before the sheet opened, or where the owner asked.
@@ -143,13 +156,14 @@ export function Sheet({ open, onClose, title, description, footer, initialFocus,
   // backdrop: the content fills the dialog, which has no padding. Checking the press too keeps
   // a text selection dragged out of the sheet from closing it.
   const pressedOutside = useRef(false);
+  const drawer = variant === 'drawer';
 
   return (
     <>
       {leaving && <div className="sheet-scrim" aria-hidden="true" />}
       <dialog
         ref={dialog}
-        className={className ? `sheet ${className}` : 'sheet'}
+        className={['sheet', drawer && 'sheet-drawer', className].filter(Boolean).join(' ')}
         aria-labelledby={titleId}
         aria-describedby={view.description ? descriptionId : undefined}
         onClose={closed}
@@ -166,15 +180,24 @@ export function Sheet({ open, onClose, title, description, footer, initialFocus,
       >
         {(open || leaving) && (
           <>
-            <div className="sheet-head">
-              <div>
+            <div className={drawer ? 'sheet-head sheet-head-drawer' : 'sheet-head'}>
+              {drawer && (
+                <button type="button" className="btn btn-ghost btn-icon sheet-back" aria-label={closeLabel}
+                        title={closeLabel} onClick={dismiss}>
+                  <Icon name="arrow-left" />
+                </button>
+              )}
+              <div className={drawer ? 'sheet-heading' : undefined}>
                 <h2 id={titleId} className="sheet-title">{view.title}</h2>
                 {view.description && <p id={descriptionId} className="sheet-desc">{view.description}</p>}
               </div>
-              <button type="button" className="btn btn-ghost btn-icon sheet-close" aria-label="Close" title="Close"
-                      onClick={dismiss}>
-                <Icon name="x" />
-              </button>
+              {view.actions && <div className="sheet-actions">{view.actions}</div>}
+              {!drawer && (
+                <button type="button" className="btn btn-ghost btn-icon sheet-close" aria-label={closeLabel}
+                        title={closeLabel} onClick={dismiss}>
+                  <Icon name="x" />
+                </button>
+              )}
             </div>
             <div className="sheet-body">{view.children}</div>
             {view.footer && <div className="sheet-foot">{view.footer}</div>}

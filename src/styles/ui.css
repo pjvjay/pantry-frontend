@@ -137,3 +137,19 @@
   .tag { border: 1px solid CanvasText; }
   .toast { border-color: CanvasText; }
 }
+
+/* ─── InlineConfirm (components/InlineConfirm.tsx): a question in place of the control that
+   asked, with its choices and Cancel beside it, wrapping under it on a narrow screen ─────── */
+.confirm {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 1px solid var(--border-ui); border-radius: var(--radius-2); background: var(--surface-2);
+  color: var(--text);
+}
+.confirm-words { flex: 1 1 16rem; min-width: 0; }
+.confirm-q { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; }
+.confirm-detail { margin: 2px 0 0; color: var(--muted); font-size: 13px; line-height: 18px; }
+.confirm-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+@media (forced-colors: active) {
+  .confirm { border-color: CanvasText; }
+}
