@@ -21,7 +21,7 @@ import { PrimaryNav, ShellFooter, ShellHeader } from './components/nav';
 import { Notice, Skeleton, ToastProvider } from './components/ui';
 import { HubStatusProvider } from './hubStatus';
 import { MealPlanProvider } from './mealplan/store';
-import { ROUTE_IDS, hrefFor, parseHash, sectionOf, titleFor } from './routes';
+import { ROUTE_IDS, arrivalFor, hrefFor, parseHash, sectionOf, titleFor } from './routes';
 import type { Route } from './routes';
 import AssistantView from './views/AssistantView';
 import HomeView from './views/HomeView';
@@ -92,14 +92,19 @@ export default function App() {
 
   useEffect(() => { document.title = titleFor(route); }, [route]);
 
-  // A new place opens at its top; a change within one (a stage, a trace) leaves the page where
-  // it is, and the view moves focus itself where it needs to.
+  // A new place opens at its top, and a screen reader hears where it now is ("System, Workshop"):
+  // focus stays on the link that was pressed, which is there on every page, and most screen
+  // readers do not read out a new title. A change within a place (a stage, a trace) leaves the
+  // page where it is, and the view moves focus itself where it needs to.
   const place = route.name === 'workshop' ? `workshop/${route.tab}` : sectionOf(route);
   const shownPlace = useRef(place);
+  const [arrived, setArrived] = useState('');
   useEffect(() => {
     if (shownPlace.current === place) return;
     shownPlace.current = place;
     window.scrollTo(0, 0);
+    setArrived(arrivalFor(route));
+    // the route of this place is the one just drawn; `place` is what changes
   }, [place]);
 
   const skip = (e: MouseEvent<HTMLAnchorElement>) => {
@@ -113,6 +118,8 @@ export default function App() {
         <MealPlanProvider>
           <div className="app">
             <a className="skip-link" href="#main" onClick={skip}>Skip to content</a>
+            {/* on the page from the start, so a change of place is heard (a polite live region) */}
+            <p className="sr-only" role="status">{arrived}</p>
             <ShellHeader route={route} />
             <PrimaryNav route={route} />
             {stale && (

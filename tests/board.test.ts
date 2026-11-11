@@ -36,15 +36,31 @@ test('a trip chip says its state in words, not colour alone, and "at least" for 
   const floor = trip(D(1), [line(10, 'Chicken', { price: null }), line(11, 'Rice', { price: 4 })],
     { total_cost: 4, total_is_floor: true });
   assert.equal(tripChipText(floor), 'Suggested · 1 store · at least $4.00 · 2 items');
-  assert.deepEqual(tripLook(trip(D(1), [], { status: 'approved' })),
-    { kind: 'approved', mark: '✓', word: 'Approved' });
+  assert.deepEqual(tripLook(trip(D(1), [], { status: 'approved' })), { kind: 'approved', word: 'Approved' });
   const review = trip(D(1), [], { status: 'needs_review',
     diff: { added: [{ product_id: 1, name: 'Milk', storage: 'fridge' }], removed: [], changed: [], text: ['+1 Milk'] } });
-  assert.match(tripChipText(review), /^⚠ Changed since approved \(1 change\)/);
+  assert.match(tripChipText(review), /^Changed since approved \(1 change\) · /);
   assert.equal(priceDeltaText(1.2), '+$1.20 since you approved (demo prices)');
   assert.equal(priceDeltaText(-0.5), '−$0.50 since you approved (demo prices)');
   assert.equal(priceDeltaText(0), null);
   assert.equal(priceDeltaText(null), null);
+});
+
+// The words carry the state; the icon beside them is drawn where the trip is (TripMark), never a
+// sign written into the text, which reads as an emoji on some systems and twice to a screen reader.
+test("a trip's state is said in words only, with no sign in the text", () => {
+  const review = trip(D(1), [], { status: 'needs_review',
+    diff: { added: [{ product_id: 1, name: 'Milk', storage: 'fridge' }], removed: [], changed: [], text: ['+1 Milk'] } });
+  const texts = [
+    tripChipText(trip(D(1), [])),
+    tripChipText(trip(D(1), [], { status: 'approved' })),
+    tripChipText(review),
+    tripChipText(trip(D(1), [], { id: `fewest_trips-${D(1)}` }), 'fresh'),
+  ];
+  assert.deepEqual(texts.map((x) => x.split(' · ')[0]),
+    ['Suggested', 'Approved', 'Changed since approved (1 change)', 'Approved under Shop fresh']);
+  // arrows, dingbats, symbols and emoji (U+2190 to U+2BFF, and the emoji planes)
+  for (const x of texts) assert.doesNotMatch(x, /[\u2190-\u2bff]|[\u{1f000}-\u{1faff}]/u, x);
 });
 
 test('a trip line names its meals, its amount and its storage time on whose word', () => {
@@ -149,9 +165,9 @@ test('a day approved under the other strategy says so, and is counted apart', ()
   s = run(s, { type: 'approveTrip', trip: trip(D(1), []), strategy: 'fresh', rev: s.draft.rev },
     { type: 'setPrefs', prefs: { strategy: 'fewest_trips' } });
   const t = trip(D(1), [], { id: `fewest_trips-${D(1)}` });
-  assert.deepEqual(tripLook(t, 'fresh'), { kind: 'elsewhere', mark: '✓', word: 'Approved under Shop fresh' });
+  assert.deepEqual(tripLook(t, 'fresh'), { kind: 'elsewhere', word: 'Approved under Shop fresh' });
   assert.equal(tripLook(t).kind, 'suggested');
-  assert.match(tripChipText(t, 'fresh'), /^✓ Approved under Shop fresh · /);
+  assert.match(tripChipText(t, 'fresh'), /^Approved under Shop fresh · /);
   // The engine's own status wins: under its own strategy the trip is approved or needs review.
   assert.equal(tripLook({ ...t, status: 'approved' }, 'fresh').kind, 'approved');
   const sc = schedule(s.draft.rev, []);

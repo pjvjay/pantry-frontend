@@ -8,6 +8,11 @@
 // said no, as on the public demo, where the header says "Hub paused") or `unreachable` (nothing
 // answered, or a proxy found nothing behind it). While a check runs, the last state stays on
 // screen, so a page never flickers back to "Connecting…".
+//
+// One check runs at a time: whoever asks while one is out (the poll, focus, a Retry, System's
+// Refresh) gets that one's answer. So a check is given up after STATUS_TIMEOUT_MS and counts as
+// no answer; a request left hanging by the network or a proxy would otherwise be the answer every
+// later check waited on, and the console would say "Connecting…" for good.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
@@ -17,6 +22,9 @@ import type { HubState } from './status';
 import type { HubStatus } from './types';
 
 const POLL_MS = 30_000;
+// The hub's own status route answers within about 8 s even when what it asks behind it is slow
+// (demo-hub's checks time out at 4 s each), so a check still open after this is not coming back.
+const STATUS_TIMEOUT_MS = 10_000;
 // Several hub calls failing together (a page loading) ask for one check, not one each.
 const TROUBLE_GAP_MS = 3_000;
 
@@ -52,6 +60,9 @@ export function useHubStatus(): HubStatusApi {
 
 // What a failed check says: refused or unreachable, and in whose words.
 function failed(e: unknown): Omit<Seen, 'checkedAt'> {
+  if (e instanceof DOMException && e.name === 'AbortError') {
+    return { state: 'unreachable', status: null, reason: `No answer within ${STATUS_TIMEOUT_MS / 1000} s` };
+  }
   if (e instanceof HubError) {
     return { state: hubStateOf(e.status), status: null,
       reason: e.reason ?? (e.status ? `HTTP ${e.status}` : 'No answer') };
@@ -70,7 +81,9 @@ export function HubStatusProvider({ children }: { children: ReactNode }) {
     if (inFlight.current) return inFlight.current;
     lastCheck.current = Date.now();
     setChecking(true);
-    const check = getStatus()
+    const deadline = new AbortController();
+    const timer = window.setTimeout(() => deadline.abort(), STATUS_TIMEOUT_MS);
+    const check = getStatus(deadline.signal)
       .then((status): Omit<Seen, 'checkedAt'> => ({ state: 'ok', status, reason: null }), failed)
       .then((next) => {
         setSeen((prev) => ({
@@ -83,6 +96,7 @@ export function HubStatusProvider({ children }: { children: ReactNode }) {
         return next.state;
       })
       .finally(() => {
+        window.clearTimeout(timer);
         inFlight.current = null;
         setChecking(false);
       });

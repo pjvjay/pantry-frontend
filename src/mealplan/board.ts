@@ -97,28 +97,31 @@ export const mealCountText = (n: number): string => (n ? plural(n, 'meal', 'meal
 
 // elsewhere: the day is approved under the other strategy (model.approvedElsewhere), so this
 // strategy's list for it is not, and it neither moves nor is dismissed until that is settled.
+// The state is always said in words; where a trip is drawn, its kind also picks the icon beside
+// them (TripMark in components/mealcal.tsx), so it is never colour alone. No sign is written into
+// the words themselves: a symbol in text is an emoji on some systems, and a screen reader reads
+// it out on top of the word that already says the same.
 export interface TripLook {
   kind: 'suggested' | 'approved' | 'review' | 'elsewhere';
-  mark: string;                    // a sign beside the word, so the state is never colour only
   word: string;
 }
 
 export function tripLook(t: Trip, elsewhere: TripStrategy | null = null): TripLook {
-  if (t.status === 'approved') return { kind: 'approved', mark: '✓', word: 'Approved' };
-  if (t.status === 'needs_review') return { kind: 'review', mark: '⚠', word: 'Changed since approved' };
-  if (elsewhere) return { kind: 'elsewhere', mark: '✓', word: `Approved under ${STRATEGY_NAMES[elsewhere]}` };
-  return { kind: 'suggested', mark: '', word: 'Suggested' };
+  if (t.status === 'approved') return { kind: 'approved', word: 'Approved' };
+  if (t.status === 'needs_review') return { kind: 'review', word: 'Changed since approved' };
+  if (elsewhere) return { kind: 'elsewhere', word: `Approved under ${STRATEGY_NAMES[elsewhere]}` };
+  return { kind: 'suggested', word: 'Suggested' };
 }
 
 const diffSize = (t: Trip) =>
   (t.diff ? t.diff.added.length + t.diff.removed.length + t.diff.changed.length : 0);
 
-// "Suggested · 2 stores · at least $41.20 · 14 items", or "⚠ Changed since approved (3 changes) · …".
+// "Suggested · 2 stores · at least $41.20 · 14 items", or "Changed since approved (3 changes) · …".
 export function tripChipText(t: Trip, elsewhere: TripStrategy | null = null): string {
   const look = tripLook(t, elsewhere);
   const head = look.kind === 'review' && diffSize(t)
-    ? `${look.mark} ${look.word} (${plural(diffSize(t), 'change', 'changes')})`
-    : `${look.mark ? `${look.mark} ` : ''}${look.word}`;
+    ? `${look.word} (${plural(diffSize(t), 'change', 'changes')})`
+    : look.word;
   const cost = costText(t.total_cost, t.total_is_floor, tripPriced(t));
   return [head, plural(t.stores.length, 'store', 'stores'), cost, plural(t.lines.length, 'item', 'items')]
     .join(' · ');

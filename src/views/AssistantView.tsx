@@ -26,6 +26,7 @@ import type {
   RecipeImportEvent, SwapResult,
 } from '../types';
 import { Icon } from '../components/icons';
+import { useKeepClear } from '../components/useKeepClear';
 
 const SUGGESTIONS = [
   'I want to make https://omnivorescookbook.com/mala-chicken/ this week. What should I buy at stores within 5 km of downtown, what does it cost, and what won’t I find?',
@@ -297,6 +298,9 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // The message box sticks above the bottom bar: the suggestions and replies the keyboard reaches
+  // come to rest above it, not under it.
+  const keepClear = useKeepClear('bottom');
   // The model call in flight (from the hub's `thinking` events).
   const [waiting, setWaiting] = useState<Waiting | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -621,7 +625,7 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
           : swapping ? 'A cart change is being priced; try again in a moment.' : null}
       />
 
-      <form className="chat-input" onSubmit={(e) => { e.preventDefault(); void send(input); }}>
+      <form ref={keepClear} className="chat-input" onSubmit={(e) => { e.preventDefault(); void send(input); }}>
         <button type="button" className="secondary" onClick={() => openImport({})}>
           Import a recipe
         </button>

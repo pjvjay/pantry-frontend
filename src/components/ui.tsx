@@ -9,7 +9,8 @@
 //                 refusing or not there: what is off, what still works, Retry and Open System. It
 //                 draws nothing while the hub answers (or has not been asked yet).
 //   HubErrorBanner  a failed hub call's error, shown only while the hub answers: when the hub
-//                 itself is down, the page's OfflinePanel already says so once.
+//                 itself is down, the page's OfflinePanel already says so once, and an error the
+//                 hub has been down over since is old news when it comes back.
 //   EmptyState    what is not here yet: an icon, one sentence of where things stand, one cue for
 //                 what to do, one action.
 //   Skeleton      placeholders shaped like what is loading, only once it has taken 300 ms.
@@ -93,9 +94,20 @@ export function ErrorBanner({ error, hint }: { error: string; hint?: ReactNode }
 
 // ─── The demo hub, when it is not there ──────────────────────
 
+// An error that was on the page while the hub was down (the outage's own "The demo hub is not
+// running", or anything from before it) is over once the hub answers again, so it stays hidden
+// from then on, until the page has a new error to show. The Workshop's pages are drawn afresh when
+// the hub returns, which drops their errors the same way; a page that stays mounted (the
+// Assistant) relies on this, or the outage's error would come back beside the header's "Ready".
 export function HubErrorBanner({ error, hint }: { error: string; hint?: ReactNode }) {
   const hub = useHubStatus();
-  if (!error || !hub.ok) return null;
+  const down = hub.state === 'refused' || hub.state === 'unreachable';
+  const [outlived, setOutlived] = useState('');
+  useEffect(() => {
+    if (!error) setOutlived('');
+    else if (down) setOutlived(error);
+  }, [error, down]);
+  if (!error || !hub.ok || error === outlived) return null;
   return <ErrorBanner error={error} hint={hint} />;
 }
 
@@ -144,8 +156,11 @@ export function OfflinePanel({ off, works, systemLink = true, className }: {
             <a className="btn btn-ghost btn-sm" href={hrefFor({ name: 'workshop', tab: 'system' })}>Open System</a>
           )}
         </div>
+        {/* A live region is heard when its words change, so it is on the page from the start,
+            empty, and keeps its last words while the next check runs: each Retry that finds the
+            hub still off changes them (a new time), and a screen reader says so. */}
         <p className="offline-checked" role="status">
-          {stillOff && !hub.checking && hub.checkedAt ? `Checked again at ${clockTime(hub.checkedAt)}: still not answering.` : ''}
+          {stillOff && hub.checkedAt ? `Checked again at ${clockTime(hub.checkedAt)}: still not answering.` : ''}
         </p>
         {hub.reason && (
           <details className="offline-details">
@@ -194,7 +209,9 @@ export function EmptyState({ icon, heading, status, cue, action, className }: {
 
 // A load that answers within 300 ms shows nothing at all, rather than a flash of grey; a slower
 // one shows rows or cards in the shape of what is coming, and says what is loading to a screen
-// reader. The shimmer stops under reduced motion (styles/ui.css).
+// reader. The live region is there from the start, empty, and the words arrive in it at 300 ms: a
+// region that appears already holding its words is not reliably read out. The shimmer stops under
+// reduced motion (styles/ui.css).
 export function Skeleton({ kind = 'row', count = 3, label }: {
   kind?: 'row' | 'card';
   count?: number;
@@ -205,11 +222,14 @@ export function Skeleton({ kind = 'row', count = 3, label }: {
     const id = window.setTimeout(() => setShown(true), 300);
     return () => window.clearTimeout(id);
   }, []);
-  if (!shown) return null;
   return (
-    <div className={`skel-group skel-group-${kind}`} role="status">
-      <span className="sr-only">{label}…</span>
-      {Array.from({ length: count }, (_, i) => <span key={i} className={`skel skel-${kind}`} aria-hidden="true" />)}
+    <div className={shown ? `skel-group skel-group-${kind}` : undefined} role="status">
+      {shown && (
+        <>
+          <span className="sr-only">{label}…</span>
+          {Array.from({ length: count }, (_, i) => <span key={i} className={`skel skel-${kind}`} aria-hidden="true" />)}
+        </>
+      )}
     </div>
   );
 }

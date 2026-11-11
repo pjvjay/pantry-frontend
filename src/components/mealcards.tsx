@@ -28,6 +28,7 @@ import { ImportSheet } from './ImportSheet';
 import { AddRecipes, QuickAdd } from './mealtray';
 import { RecipePicture } from './pictures';
 import { Icon } from './icons';
+import { useKeepClear } from './useKeepClear';
 
 // ─── The budget bar ──────────────────────────────────────────
 
@@ -38,8 +39,11 @@ function BudgetBar({ spend, pending }: { spend: Spend; pending: boolean }) {
   const t = pending ? { ...budgetBarText(bar), spent: 'estimating…', remaining: '…' } : budgetBarText(bar);
   const over = bar.remaining !== null && bar.remaining < 0;
   const used = bar.budget ? Math.min(100, Math.round((bar.spent / bar.budget) * 100)) : 0;
+  // stuck at the top while the cards scroll under it: a card's button the keyboard reaches comes
+  // to rest below it, not under it
+  const keepClear = useKeepClear('top');
   return (
-    <div className={`mp-budget${over ? ' mp-budget-over' : ''}`} role="group" aria-label="Budget and slots">
+    <div ref={keepClear} className={`mp-budget${over ? ' mp-budget-over' : ''}`} role="group" aria-label="Budget and slots">
       <dl className="mp-budget-figures">
         <div><dt>Budget</dt><dd>{t.budget}</dd></div>
         <div><dt>Estimated</dt><dd>{t.spent}</dd></div>

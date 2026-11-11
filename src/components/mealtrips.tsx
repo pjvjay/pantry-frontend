@@ -169,7 +169,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
   const delta = priceDeltaText(trip.price_delta);
   return (
     <Sheet open onClose={onClose} title={`Shopping trip ${dayLabel(trip.date)}`}
-           description={`${STRATEGY_NAMES[strategy]} · ${tripChipText(trip, elsewhere)}`}
+           description={<>{STRATEGY_NAMES[strategy]} · <TripMark kind={look.kind} />{tripChipText(trip, elsewhere)}</>}
            footer={<>
              <button type="button" className="secondary" onClick={() => void list.copy()}>
                {list.copied === 'copied' ? 'Copied' : list.copied === 'failed' ? 'Copy failed' : 'Copy list'}
@@ -423,7 +423,7 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
           return (
             <li key={t.id} className={`mp-trip-card mp-trip-${look.kind}`}>
               <div>
-                <strong>{dayLabel(t.date)}</strong> · {tripChipText(t, elsewhere)}
+                <strong>{dayLabel(t.date)}</strong> · <TripMark kind={look.kind} />{tripChipText(t, elsewhere)}
                 {priceDeltaText(t.price_delta) && <span className="cart-flag"> · {priceDeltaText(t.price_delta)}</span>}
               </div>
               <div className="muted">{t.reason}</div>

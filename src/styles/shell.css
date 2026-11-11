@@ -4,16 +4,32 @@
    The primary navigation is a row under the header on a screen 900px or wider, and a bar fixed to
    the bottom of a narrower one. --bottom-nav-h is the bar's height (0 where there is no bar), and
    everything fixed or sticky at the bottom of the page keeps clear of it: the meal plan's action
-   bar (.mp-bar), the Assistant's message box (.chat-input), the toasts, the page's own bottom
-   padding, and the scroll that brings a focused control into view. */
+   bar (.mp-bar), the Assistant's message box (.chat-input), the toasts and the page's own bottom
+   padding.
+
+   The scroll that brings a focused control into view keeps clear of all of them too. The bars that
+   lie over the page report how far they reach into the screen from its top or bottom edge
+   (components/useKeepClear.ts: --top-cover, --bottom-cover, each counting the bar's own offset,
+   the bottom bar included); the scroll padding takes the deepest at each edge, and at the bottom
+   at least the bottom bar, with a gap for the focus ring. A fixed bar at the bottom also gives
+   the page that much more bottom padding (--bottom-fixed-cover), so the footer can scroll above
+   it. */
 
 :root { --bottom-nav-h: 0px; }
 @media (max-width: 899.98px) {
   :root { --bottom-nav-h: calc(56px + env(safe-area-inset-bottom, 0px)); }
 }
-html { scroll-padding-bottom: calc(var(--bottom-nav-h) + var(--space-4)); }
+html {
+  scroll-padding-top: var(--top-cover, 0px);
+  scroll-padding-bottom: calc(max(var(--bottom-nav-h), var(--bottom-cover, 0px)) + var(--space-4));
+}
 
-.app { max-width: 1180px; margin: 0 auto; padding: var(--space-6) var(--space-4) calc(64px + var(--bottom-nav-h)); }
+/* The page's bottom padding clears the bottom bar, or a fixed bar above it when one is showing
+   (--bottom-fixed-cover, see below), so the end of the page can still scroll out from under it. */
+.app {
+  max-width: 1180px; margin: 0 auto;
+  padding: var(--space-6) var(--space-4) calc(64px + max(var(--bottom-nav-h), var(--bottom-fixed-cover, 0px)));
+}
 
 /* The skip link: off screen until the keyboard reaches it, first thing on the page. */
 .skip-link {
@@ -27,7 +43,10 @@ html { scroll-padding-bottom: calc(var(--bottom-nav-h) + var(--space-4)); }
    itself needs no ring (what is inside it shows its own). */
 .shell-main:focus { outline: none; }
 
-/* ─── Header: wordmark, status, theme, Workshop ───────────────────────────────────────────── */
+/* ─── Header: wordmark and Workshop, then status and theme ────────────────────────────────── */
+/* Laid out in the order it is read and tabbed through (components/nav.tsx), at every width: the
+   two places on the left, the status and the theme menu pushed to the right. Nothing is moved
+   with `order`, which would send the keyboard somewhere other than where the eye goes next. */
 .shell-head { display: flex; align-items: center; gap: var(--space-3); }
 .wordmark { margin: 0; font: var(--type-page); }
 .wordmark-link {
@@ -71,7 +90,11 @@ html { scroll-padding-bottom: calc(var(--bottom-nav-h) + var(--space-4)); }
 .status-line dt { font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--muted); }
 .status-line dd { margin: 2px 0 0; overflow-wrap: anywhere; }
 .status-why { display: block; margin-top: 2px; color: var(--muted); font-size: 13px; }
-.status-foot { margin: var(--space-3) 0 0; padding-top: var(--space-3); border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+.status-foot {
+  display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3);
+  border-top: 1px solid var(--border); color: var(--muted); font-size: 13px;
+}
+.status-foot p { margin: 0; }
 
 /* ─── Primary navigation ──────────────────────────────────────────────────────────────────── */
 .pnav-list { display: flex; margin: 0; padding: 0; list-style: none; }
@@ -139,22 +162,24 @@ html { scroll-padding-bottom: calc(var(--bottom-nav-h) + var(--space-4)); }
 }
 /* On a phone: the wordmark and the Workshop on one row (the Workshop as its icon, still named for
    a screen reader), the status and the theme menu on the next. The wordmark takes the first row
-   but the Workshop's width, so the other two cannot fit beside it and wrap together. */
+   but the Workshop's width, so the Workshop, next in line, fits beside it and the other two wrap
+   together. */
 @media (max-width: 640px) {
   .app { padding-top: var(--space-4); }
   .shell-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
-  .wordmark { order: 1; flex: 1 1 calc(100% - 44px - var(--space-3)); min-width: 0; font-size: 24px; line-height: 30px; }
-  .ws-link { order: 2; width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .wordmark { flex: 1 1 calc(100% - 44px - var(--space-3)); min-width: 0; font-size: 24px; line-height: 30px; }
+  .ws-link { width: 44px; height: 44px; padding: 0; justify-content: center; }
   .ws-link-word {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
   }
-  .shell-head .status { order: 3; margin-left: 0; }
-  .shell-head .theme-menu { order: 4; margin-left: auto; }
+  .shell-head .status { margin-left: 0; }
+  .shell-head .theme-menu { margin-left: auto; }
   .status-pop { left: 0; right: auto; }
 }
+/* A fingertip's 44px for the header's links too (the buttons get theirs from styles/buttons.css). */
 @media (pointer: coarse) {
-  .ws-link { min-height: 44px; }
+  .ws-link, .wordmark-link { min-height: 44px; }
 }
 
 /* Forced colours: the current place keeps an edge the system draws. */

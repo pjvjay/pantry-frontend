@@ -7,13 +7,21 @@
 // the title labels the dialog, and on close focus goes back to the control that opened it.
 //
 // It slides in from its edge and out again (the motion is in index.css, timed by the duration
-// tokens). Leaving takes --dur-exit: for that long the sheet stays open, marked data-closing and
-// showing what it showed last, even if its owner has already moved on, and then the dialog
-// closes and focus goes back. Escape, the backdrop and the close button all ask the owner to
-// close (onClose), so every way out leaves the same way. Under reduced motion the duration is
-// zero and it simply goes.
-import { useEffect, useId, useRef, useState } from 'react';
-import type { ReactNode, RefObject } from 'react';
+// tokens). Escape, the backdrop and the close button all ask the owner to close (onClose), so
+// every way out leaves the same way. The moment it starts to leave, the dialog closes: the page
+// behind is live again and focus goes back straight away. So wherever the owner sends focus as it
+// closes the sheet (Quick add, after the first-run sheet's "Try the example") is where focus
+// lands; a modal still on its way out would have left the page inert, and that focus() would
+// have done nothing. What slides out over --dur-exit is a picture of the sheet: the closed
+// dialog kept on screen, inert, marked data-closing and showing what it showed last (its owner
+// may have let go of what it was about), over a scrim that fades as the backdrop did. Under
+// reduced motion the duration is zero and it simply goes.
+//
+// A sheet can open from inside another (a trip line's Options inside its trip). The browser
+// sends Escape to the one on top only, but React hands a nested dialog's cancel and close events
+// to the outer dialog's handlers as well, so each handler acts on its own dialog's events only.
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import type { ReactNode, RefObject, SyntheticEvent } from 'react';
 import { Icon } from './icons';
 
 // A duration token's value in milliseconds ("160ms", "0.16s", or "0ms" under reduced motion).
@@ -22,6 +30,9 @@ function msOf(value: string): number {
   if (!Number.isFinite(n)) return 0;
   return value.trim().endsWith('ms') ? n : n * 1000;
 }
+
+// An event the dialog itself fired, not one React passed up from a sheet opened inside it.
+const ownEvent = (e: SyntheticEvent<HTMLDialogElement>) => e.target === e.currentTarget;
 
 export function Sheet({ open, onClose, title, description, footer, initialFocus, returnFocus,
   className, children }: {
@@ -64,11 +75,8 @@ export function Sheet({ open, onClose, title, description, footer, initialFocus,
   if (open) shown.current = { title, description, footer, children };
   const view = shown.current;
 
-  // Closed for good: the dialog shut, the mark off, focus back where it was.
-  const finish = (d: HTMLDialogElement) => {
-    if (d.open) d.close();
-    delete d.dataset.closing;
-    setLeaving(false);
+  // Focus back where it was before the sheet opened, or where the owner asked.
+  const giveBackFocus = () => {
     const back = latest.current.returnFocus?.current ?? opener.current;
     if (back?.isConnected) back.focus();
   };
@@ -76,46 +84,56 @@ export function Sheet({ open, onClose, title, description, footer, initialFocus,
   useEffect(() => {
     const d = dialog.current;
     if (!open || !d) return;
-    // Reopened while leaving, it is still open: it simply stays.
+    // Reopened on its way out, the picture of it becomes the sheet again.
     if (!d.open) {
       opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       d.showModal();
     }
     initialFocus?.current?.focus();
     return () => {
-      // `open` turned false: the exit below lets it leave in view first. Unmounted (or StrictMode
-      // rehearsing an unmount), it closes now.
+      // `open` turned false: the exit below closes it. Unmounted (or StrictMode rehearsing an
+      // unmount), it closes now.
       if (!latest.current.open) return;
       if (d.open) d.close();
-      const back = latest.current.returnFocus?.current ?? opener.current;
-      if (back?.isConnected) back.focus();
+      giveBackFocus();
     };
+    // giveBackFocus reads only refs
   }, [open, initialFocus]);
 
-  useEffect(() => {
+  // The exit, before anything else on the page runs its effects for the same change, so that
+  // whatever moves focus next finds the page live: the dialog closes and focus goes back now,
+  // and the closed dialog stays in view, inert, while it slides out.
+  useLayoutEffect(() => {
     const d = dialog.current;
-    if (!leaving || !d) return;
-    let done = false;
-    const end = () => { done = true; finish(d); };
-    // already shut by the browser itself (a second Escape can close a dialog outright)
-    if (!d.open) { end(); return; }
+    if (!leaving || !d) return undefined;
+    // already shut by the browser itself (a second Escape can close a dialog outright): nothing
+    // is left on screen to slide out
+    if (!d.open) {
+      giveBackFocus();
+      setLeaving(false);
+      return undefined;
+    }
+    d.close();
+    d.inert = true;
     d.dataset.closing = '';
-    const timer = window.setTimeout(end, msOf(getComputedStyle(d).getPropertyValue('--dur-exit')));
+    giveBackFocus();
+    const timer = window.setTimeout(() => setLeaving(false),
+      msOf(getComputedStyle(d).getPropertyValue('--dur-exit')));
     return () => {
       window.clearTimeout(timer);
-      if (done) return;
-      // reopened on the way out: it stays; unmounted on the way out: it goes now
-      if (latest.current.open) delete d.dataset.closing;
-      else finish(d);
+      // gone, reopened on the way out, or unmounted: the picture goes either way
+      d.inert = false;
+      delete d.dataset.closing;
     };
-    // finish reads only refs and a state setter, so `leaving` is all this depends on
+    // giveBackFocus reads only refs, so `leaving` is all this depends on
   }, [leaving]);
 
-  // Escape and close() both end in the dialog's close event; tell the owner, unless it was the
-  // owner that closed it (`open` already false). The event arrives a task later, so it can also
-  // be a stale one from a close the dialog has since reopened after: StrictMode runs an effect,
-  // its cleanup and the effect again on mount.
-  const closed = () => {
+  // Escape and the browser's own close both end in the dialog's close event; tell the owner,
+  // unless it was the owner that closed it (`open` already false). The event arrives a task
+  // later, so it can also be a stale one from a close the dialog has since reopened after:
+  // StrictMode runs an effect, its cleanup and the effect again on mount.
+  const closed = (e: SyntheticEvent<HTMLDialogElement>) => {
+    if (!ownEvent(e)) return;
     if (latest.current.open && !dialog.current?.open) latest.current.onClose();
   };
   // Every way out asks the owner, so the sheet leaves the same way whichever was used.
@@ -127,35 +145,42 @@ export function Sheet({ open, onClose, title, description, footer, initialFocus,
   const pressedOutside = useRef(false);
 
   return (
-    <dialog
-      ref={dialog}
-      className={className ? `sheet ${className}` : 'sheet'}
-      aria-labelledby={titleId}
-      aria-describedby={view.description ? descriptionId : undefined}
-      onClose={closed}
-      onCancel={(e) => { e.preventDefault(); dismiss(); }}
-      onPointerDown={(e) => { pressedOutside.current = e.target === e.currentTarget; }}
-      onClick={(e) => {
-        if (pressedOutside.current && e.target === e.currentTarget) dismiss();
-        pressedOutside.current = false;
-      }}
-    >
-      {(open || leaving) && (
-        <>
-          <div className="sheet-head">
-            <div>
-              <h2 id={titleId} className="sheet-title">{view.title}</h2>
-              {view.description && <p id={descriptionId} className="sheet-desc">{view.description}</p>}
+    <>
+      {leaving && <div className="sheet-scrim" aria-hidden="true" />}
+      <dialog
+        ref={dialog}
+        className={className ? `sheet ${className}` : 'sheet'}
+        aria-labelledby={titleId}
+        aria-describedby={view.description ? descriptionId : undefined}
+        onClose={closed}
+        onCancel={(e) => {
+          if (!ownEvent(e)) return;
+          e.preventDefault();
+          dismiss();
+        }}
+        onPointerDown={(e) => { pressedOutside.current = e.target === e.currentTarget; }}
+        onClick={(e) => {
+          if (pressedOutside.current && e.target === e.currentTarget) dismiss();
+          pressedOutside.current = false;
+        }}
+      >
+        {(open || leaving) && (
+          <>
+            <div className="sheet-head">
+              <div>
+                <h2 id={titleId} className="sheet-title">{view.title}</h2>
+                {view.description && <p id={descriptionId} className="sheet-desc">{view.description}</p>}
+              </div>
+              <button type="button" className="btn btn-ghost btn-icon sheet-close" aria-label="Close" title="Close"
+                      onClick={dismiss}>
+                <Icon name="x" />
+              </button>
             </div>
-            <button type="button" className="btn btn-ghost btn-icon sheet-close" aria-label="Close" title="Close"
-                    onClick={dismiss}>
-              <Icon name="x" />
-            </button>
-          </div>
-          <div className="sheet-body">{view.children}</div>
-          {view.footer && <div className="sheet-foot">{view.footer}</div>}
-        </>
-      )}
-    </dialog>
+            <div className="sheet-body">{view.children}</div>
+            {view.footer && <div className="sheet-foot">{view.footer}</div>}
+          </>
+        )}
+      </dialog>
+    </>
   );
 }

@@ -9,6 +9,7 @@
 // the hub answers again, the page under the tabs is drawn afresh, so what it could not load, it
 // loads now. The Planner lab and About need no hub and show no panel.
 import { useEffect, useRef, useState } from 'react';
+import type { FocusEvent } from 'react';
 
 import { Icon } from '../components/icons';
 import { OfflinePanel } from '../components/ui';
@@ -68,6 +69,15 @@ export default function WorkshopView({ tab, query }: { tab: WorkshopTab; query: 
     }
   }, [tab]);
 
+  // A tab the keyboard reaches comes fully into view in the bar, its focus ring too (the bar's
+  // scroll-padding leaves room for it): the browser itself leaves a tab that is half out of the
+  // bar where it is, cut at the edge.
+  const showFocused = (e: FocusEvent<HTMLElement>) => {
+    if (e.target instanceof HTMLElement && e.target.classList.contains('ws-tab')) {
+      e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  };
+
   // Drawn afresh each time the hub comes back, so a page that failed to load loads now.
   const [generation, setGeneration] = useState(0);
   const wasOff = useRef(false);
@@ -90,7 +100,7 @@ export default function WorkshopView({ tab, query }: { tab: WorkshopTab; query: 
         <h2 className="ws-title"><Icon name="wrench" />Workshop</h2>
         <p className="ws-sub">How the planner works under the hood, and the tools that run the demo.</p>
       </div>
-      <nav ref={bar} className="ws-tabs" aria-label="Workshop">
+      <nav ref={bar} className="ws-tabs" aria-label="Workshop" onFocus={showFocused}>
         <ul>
           {WORKSHOP_TABS.map((t) => (
             <li key={t.id}>

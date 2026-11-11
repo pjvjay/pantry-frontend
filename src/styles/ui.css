@@ -42,9 +42,14 @@
 .offline-works strong { font-weight: 600; }
 .offline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
 .offline-checked { margin: var(--space-2) 0 0; color: var(--muted); font-size: 13px; }
-.offline-checked:empty { display: none; }
+/* empty, it takes no room but stays on the page: a live region must be there before its words */
+.offline-checked:empty { margin: 0; }
 .offline-details { margin-top: var(--space-2); font-size: 13px; color: var(--muted); }
 .offline-details summary { cursor: pointer; width: fit-content; }
+/* a fingertip's 44px; padding rather than flex, so the summary keeps its disclosure triangle */
+@media (pointer: coarse) {
+  .offline-details summary { padding-block: 12px; line-height: 20px; }
+}
 .offline-details p { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
 @media (max-width: 520px) {
   .offline { grid-template-columns: minmax(0, 1fr); padding: var(--space-4); }
@@ -68,7 +73,7 @@
 
 /* ─── Skeleton: grey shapes that breathe slowly; still under reduced motion ──────────────── */
 .skel-group { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
-.skel-group-card { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.skel-group-card { grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
 .skel { display: block; border-radius: var(--radius-2); background: var(--surface-2);
   animation: skel-breathe calc(var(--dur-3) * 5) var(--ease-standard) infinite alternate; }
 .skel-row { height: 20px; }

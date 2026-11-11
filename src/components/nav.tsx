@@ -1,8 +1,8 @@
 // The console's frame, which App.tsx puts around every page (styles/shell.css):
 //
-//   ShellHeader  the wordmark (home), the status of the services behind the page as one dot and a
-//                few words that open into a line per service, the theme menu, and the way into
-//                the Workshop.
+//   ShellHeader  the wordmark (home), the way into the Workshop, the status of the services behind
+//                the page as one dot and a few words that open into a line per service, and the
+//                theme menu.
 //   PrimaryNav   the household's four places, Home, Plan, Shop and Ask: a row under the header on
 //                a wide screen, a bar along the bottom of a phone's screen (its height is
 //                --bottom-nav-h, which everything fixed or sticky at the bottom keeps clear of).
@@ -12,6 +12,7 @@
 // The current place is marked with aria-current="page", and shown by more than colour: weight
 // and an underline in the row, weight and a filled pill behind the icon in the bar.
 import { useEffect, useId, useRef, useState } from 'react';
+import type { FocusEvent } from 'react';
 
 import { getHealth } from '../api';
 import { getRuntime } from '../hub';
@@ -55,8 +56,11 @@ function useApiHealth(): { state: ApiState; health: Health | null; runtime: Runt
 }
 
 // One dot and a few words; pressed, a line for each service and the way to Workshop › System.
-// It is a disclosure: the lines follow the button, so Tab goes through them in order; Escape or a
-// press anywhere else closes them, Escape with focus back on the button.
+// It is a disclosure: the lines follow the button, so Tab goes through them in order. The lines
+// lie over the page, so they close as soon as they could hide what the shopper moves on to: when
+// focus leaves them for anything else, on a press anywhere else, and on a change of page. Escape
+// closes them too, and brings focus back to the button only when focus was inside them; from
+// anywhere else it leaves focus where it is.
 function StatusCluster() {
   const api = useApiHealth();
   const hub = useHubStatus();
@@ -70,22 +74,41 @@ function StatusCluster() {
     if (!open) return undefined;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      const inside = box.current?.contains(document.activeElement) ?? false;
       setOpen(false);
-      button.current?.focus();
+      if (inside) button.current?.focus();
     };
     const onPointer = (e: PointerEvent) => {
       if (!box.current?.contains(e.target as Node)) setOpen(false);
     };
+    const onPlace = () => setOpen(false);
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onPointer);
+    window.addEventListener('hashchange', onPlace);
     return () => {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onPointer);
+      window.removeEventListener('hashchange', onPlace);
     };
   }, [open]);
 
+  // Focus moved on to something outside (Tab, Shift+Tab, a page moving focus itself). A blur with
+  // nowhere to go (a press on the panel's own words, the window losing focus) is not leaving: a
+  // press outside is the pointer handler's.
+  const onBlur = (e: FocusEvent<HTMLDivElement>) => {
+    const next = e.relatedTarget;
+    if (next instanceof Node && !e.currentTarget.contains(next)) setOpen(false);
+  };
+
+  // The panel and its link go as System opens, so the keyboard starts at the top of the page it
+  // opened instead of nowhere.
+  const openSystem = () => {
+    setOpen(false);
+    document.getElementById('main')?.focus({ preventScroll: true });
+  };
+
   return (
-    <div className="status" ref={box}>
+    <div className="status" ref={box} onBlur={onBlur}>
       <button ref={button} type="button" className="btn btn-secondary btn-sm status-btn"
               aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
         <span className={`status-dot status-dot-${tone}`} aria-hidden="true" />
@@ -111,15 +134,19 @@ function StatusCluster() {
             </dd>
           </div>
         </dl>
-        <p className="status-foot">
-          The meal plan needs only the pantry API; the Assistant and the Workshop’s live tools need the demo hub.{' '}
-          <a href={hrefFor({ name: 'workshop', tab: 'system' })} onClick={() => setOpen(false)}>Open System</a>
-        </p>
+        <div className="status-foot">
+          <p>The meal plan needs only the pantry API; the Assistant and the Workshop’s live tools need the demo hub.</p>
+          <a className="btn btn-secondary btn-sm" href={hrefFor({ name: 'workshop', tab: 'system' })} onClick={openSystem}>
+            <Icon name="wrench" size={16} />Open System
+          </a>
+        </div>
       </div>
     </div>
   );
 }
 
+// In the order it is read and tabbed through at every width (styles/shell.css moves nothing out of
+// it): the wordmark and the Workshop, the two places, then the status and the theme menu.
 export function ShellHeader({ route }: { route: Route }) {
   const inWorkshop = route.name === 'workshop';
   return (
@@ -129,13 +156,13 @@ export function ShellHeader({ route }: { route: Route }) {
           <Icon name="cart" size={28} />Pantry Planner
         </a>
       </h1>
-      <StatusCluster />
-      <ThemeMenu />
       <a className="ws-link" href={hrefFor({ name: 'workshop', tab: 'catalog' })}
          aria-current={inWorkshop ? 'page' : undefined}>
         <Icon name="wrench" size={20} />
         <span className="ws-link-word">Workshop</span>
       </a>
+      <StatusCluster />
+      <ThemeMenu />
     </header>
   );
 }

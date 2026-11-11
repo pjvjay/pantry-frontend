@@ -134,6 +134,20 @@ test('dark redefines no token that light lacks, and names a colour scheme in eac
   assert.match(bodyOf(css, ':root[data-theme="dark"]'), /color-scheme:\s*dark\s*;/);
 });
 
+// Shadow tokens are listed beside other shadows (`box-shadow: var(--shadow-1), inset 0 0 0 1px
+// var(--border-ui)`: a chosen face's edge, a card's accent ring). `none` is not a shadow, so inside
+// a list it makes the whole declaration invalid and the edge goes with it. A set with no shadow
+// there writes the empty one, `0 0 #0000`.
+test('no shadow token is none, in either set', () => {
+  for (const [setName, set] of Object.entries(SETS)) {
+    const shadows = [...set.keys()].filter((k) => k.includes('shadow'));
+    assert.ok(shadows.length >= 2, `${setName} has no shadow tokens`);
+    for (const name of shadows) {
+      assert.notEqual(set.get(name)?.trim(), 'none', `${setName}: ${name} is none; write 0 0 #0000`);
+    }
+  }
+});
+
 test('reduced motion sets every duration token to zero', () => {
   const reduced = declarations(bodyOf(bodyOf(css, '@media (prefers-reduced-motion: reduce)'), ':root'));
   const durations = [...light.keys()].filter((k) => k.startsWith('--dur-'));

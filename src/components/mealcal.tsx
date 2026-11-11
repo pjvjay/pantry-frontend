@@ -36,6 +36,7 @@ import { RecipePicture } from './pictures';
 import { Sheet } from './Sheet';
 import type { DragView } from './usePointerDrag';
 import { Icon } from './icons';
+import { useKeepClear } from './useKeepClear';
 import type { TripLook } from '../mealplan/board';
 
 // Everything the board needs from the view that owns the plan and the gesture.
@@ -161,9 +162,10 @@ export function ShopRow({ ctl, date, trip, keyMove = false }: { ctl: BoardCtl; d
   );
 }
 
-// The sign beside a trip's state word (tripLook in mealplan/board.ts), so the state is never said
+// The icon beside a trip's state words (tripLook in mealplan/board.ts), so the state is never said
 // by colour alone: a tick when approved (here or under the other strategy), a warning when it has
-// changed since; a suggested trip has none.
+// changed since; a suggested trip has none. Drawn wherever the state is (this chip, the trips list,
+// the trip sheet's description); the words themselves carry no sign, and say it to a screen reader.
 export function TripMark({ kind }: { kind: TripLook['kind'] }) {
   if (kind === 'suggested') return null;
   return <Icon name={kind === 'review' ? 'alert' : 'check'} className="ico-inline" />;
@@ -286,12 +288,15 @@ export function MealChip({ ctl, meal, inTray = false }: { ctl: BoardCtl; meal: M
 
 // ─── The bar shown while something is held ───────────────────
 
+// It lies over the bottom of the page while something is held, which is when the keyboard Tabs
+// to the slots and days below: those come to rest above it, not under it (useKeepClear).
 export function ActionBar({ ctl, onCancel, onTray }: { ctl: BoardCtl; onCancel: () => void; onTray: () => void }) {
+  const keepClear = useKeepClear('bottom');
   const p = ctl.held;
   if (!p) return null;
   const meal = p.kind === 'meal' ? ctl.state.draft.meals.find((m) => m.id === p.mealId) : undefined;
   return (
-    <div className="mp-bar" role="region" aria-label="Moving">
+    <div ref={keepClear} className="mp-bar" role="region" aria-label="Moving">
       {p.kind === 'meal' && meal ? (
         <span>Placing <strong>{title(ctl, meal)}</strong>: tap a slot, or use Tab and Enter</span>
       ) : (

@@ -47,7 +47,7 @@ export default function AboutView() {
         {/* On a phone the diagram keeps a size its words can be read at, and scrolls sideways
             (the browser lets the keyboard scroll it when it overflows) */}
         <div className="arch-wrap">
-        <svg className="arch" viewBox="0 0 860 250" role="img"
+        <svg className="arch" viewBox="0 -50 860 300" role="img"
              aria-label="How the parts connect: this page talks to the assistant and to the simulated shoppers, both of which reach the pantry planner and a recipe reader through the ContextForge gateway; this page also calls the planner's own API directly.">
           <defs>
             <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -62,7 +62,9 @@ export default function AboutView() {
           <g className="arch-box"><rect x="700" y="175" width="150" height="60" rx="10" /><text x="775" y="200">Recipe reader</text><text x="775" y="220" className="arch-sub">fetches recipe pages</text></g>
           <path d="M160 115 L230 50" markerEnd="url(#arr)" />
           <path d="M160 135 L230 200" markerEnd="url(#arr)" />
-          <path d="M160 110 C 400 -10, 600 -10, 700 40" markerEnd="url(#arr)" className="arch-dash" />
+          {/* over the top of everything, from the top of this page's box down onto the planner's,
+              so it crosses no other box or its words (the viewBox starts above 0 to hold it) */}
+          <path d="M85 95 C 85 -70, 775 -70, 775 15" markerEnd="url(#arr)" className="arch-dash" />
           <path d="M400 50 L470 110" markerEnd="url(#arr)" />
           <path d="M400 200 L470 140" markerEnd="url(#arr)" />
           <path d="M640 115 L700 55" markerEnd="url(#arr)" />

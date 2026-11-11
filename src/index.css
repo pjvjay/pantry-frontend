@@ -39,7 +39,7 @@ a { color: var(--accent); }
 .model-haiku { color: var(--haiku); background: var(--haiku-soft); border-color: transparent; }
 .model-sonnet { color: var(--sonnet); background: var(--sonnet-soft); border-color: transparent; }
 
-.recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 24px; }
+.recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; margin-top: 24px; }
 .card {
   background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
   padding: 16px; display: flex; flex-direction: column; gap: 6px;
@@ -81,6 +81,9 @@ button:disabled { opacity: 0.55; cursor: default; }
 .plan-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .plan-header h2 { margin: 0; font: var(--type-section); }
 .plan-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+/* a chip here can hold a long name (a model, a key): one line while it fits, and wrapping rather
+   than running past the screen's edge when it does not */
+.plan-meta .chip, .mode-toggle .chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 
 .table-wrap { overflow-x: auto; margin-top: 14px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -104,7 +107,7 @@ td.total { color: var(--accent); font-size: 16px; }
 .recipe-input { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; }
 .recipe-input textarea {
   width: 100%; padding: 12px 14px; border-radius: 12px; resize: vertical;
-  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  border: 1px solid var(--border-ui); background: var(--panel); color: var(--text);
   font: 14px/1.5 var(--font-mono);
 }
 .recipe-input textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
@@ -193,8 +196,8 @@ td.total { color: var(--accent); font-size: 16px; }
   font-size: 12px; color: var(--muted);
 }
 .origin-controls input {
-  padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--bg); color: var(--text); font-size: 14px; min-width: 220px;
+  padding: 8px 10px; border: 1px solid var(--border-ui); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-size: 14px; min-width: min(220px, 100%);
 }
 
 .origin-counts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
@@ -260,8 +263,12 @@ table, .chip, .subtab, .tour-n, .service, .stat, .kpi, .chat-meta, .toolcard sum
   font-variant-numeric: tabular-nums;
 }
 
+/* A field's edge is --border-ui, the one line that says a field is there (3:1 against the panel
+   it sits on and its own fill). A field never runs past its container: a select is as wide as its
+   longest option otherwise, and on a phone that pushes the page wider than the screen (the phone
+   then lays out every page at that width, the bottom bar included). */
 input, select, textarea {
-  padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+  max-width: 100%; padding: 7px 10px; border: 1px solid var(--border-ui); border-radius: 8px;
   background: var(--bg); color: var(--text); font: inherit; font-size: 14px;
 }
 button.secondary { background: var(--panel); color: var(--text); border: 1px solid var(--border-ui); }
@@ -269,21 +276,21 @@ button.secondary:not(:disabled, [aria-disabled="true"]):hover { background: var(
 button.danger { background: var(--danger); color: var(--on-danger); }
 button.danger:not(:disabled, [aria-disabled="true"]):hover { background: var(--danger-fg); }
 button.mini { padding: 3px 9px; font-size: 12px; }
-.form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-top: 10px; }
+.form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; min-width: 0; margin-top: 10px; }
 .form-row.compact { margin-top: 0; align-items: center; }
 .form-row label, .form-grid label {
-  display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted);
+  display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; font-size: 12px; color: var(--muted);
 }
-.form-row .grow { flex: 1; min-width: 240px; }
+.form-row .grow { flex: 1; min-width: min(240px, 100%); }
 label.check { flex-direction: row !important; align-items: center; gap: 6px !important; font-size: 13px !important; }
 .form-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 10px;
   align-items: end; margin-top: 12px;
 }
 .form-grid .wide { grid-column: 1 / -1; }
 .form-grid textarea { font: 13px/1.5 var(--font-mono); }
 
-.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 0 18px; }
+.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 0 18px; }
 .split { display: flex; gap: 18px; align-items: flex-start; }
 .split-main { flex: 1; min-width: 0; }
 .split-side { width: 380px; flex-shrink: 0; }
@@ -328,7 +335,7 @@ tr.row-active td { background: var(--accent-soft); }
 .chat-meta { color: var(--muted); font-size: 12px; text-align: center; }
 .chat-input { display: flex; gap: 10px; margin-top: 14px; position: sticky; bottom: var(--bottom-nav-h, 0px); background: var(--bg); padding: 8px 0; }
 .chat-input textarea { flex: 1; resize: vertical; }
-.suggestions { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.suggestions { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 10px; }
 .suggestion {
   margin: 0; text-align: left; font-weight: 400; background: var(--panel); color: var(--text);
   border: 1px solid var(--border); padding: 12px; line-height: 1.4;
@@ -358,7 +365,7 @@ tr.row-active td { background: var(--accent-soft); }
 .md-table td, .md-table th { padding: 5px 8px; font-size: 13px; }
 
 /* MCP explorer */
-.target-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 12px; }
+.target-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 8px; margin-top: 12px; }
 .target {
   margin: 0; display: flex; flex-direction: column; gap: 2px; text-align: left;
   background: var(--panel); color: var(--text); border: 1px solid var(--border); font-weight: 400;
@@ -413,7 +420,7 @@ tr.row-active td { background: var(--accent-soft); }
 .linkish-chip { margin: 0; cursor: pointer; color: var(--text); }
 
 /* System */
-.service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 12px 0; }
+.service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 10px; margin: 12px 0; }
 .service { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--bg); font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
 .service-down { border-color: var(--error-text); }
 .service-head { display: flex; gap: 8px; align-items: center; font-size: 14px; }
@@ -430,7 +437,7 @@ tr.row-active td { background: var(--accent-soft); }
 .arch path { fill: none; stroke: var(--muted); stroke-width: 1.5; }
 .arch .arch-dash { stroke-dasharray: 5 4; }
 .arch-arrow { fill: var(--muted); stroke: none; }
-.tour { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 18px; }
+.tour { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; margin-top: 18px; }
 .tour-card {
   margin: 0; text-align: left; display: flex; flex-direction: column; gap: 6px; font-weight: 400;
   background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 14px; line-height: 1.45;
@@ -530,7 +537,7 @@ tr.row-active td { background: var(--accent-soft); }
 /* --- metrics and traces ------------------------------------------------------------------------- */
 .metrics-table { font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .metrics-table td.msg { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
 .waterfall { display: flex; flex-direction: column; gap: 2px; font-size: 12px; margin: 10px 0; }
 .wf-row { display: grid; grid-template-columns: minmax(180px, 34%) 1fr 72px; gap: 8px; align-items: center; }
 .wf-label { text-align: left; background: none; border: none; color: var(--text); font: inherit; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 0; }
@@ -606,13 +613,22 @@ tr.row-active td { background: var(--accent-soft); }
 /* a plain colour: older browsers do not pass custom properties into ::backdrop */
 .sheet::backdrop { background: rgb(0 0 0 / 0.45); }
 /* It arrives from its edge (the right on a wide screen, the bottom on a phone) and leaves the same
-   way, faster, while the backdrop fades. Sheet.tsx marks it data-closing as it leaves and closes
-   the dialog once --dur-exit has passed. Under reduced motion every duration is zero, so it simply
-   appears and goes. A browser that cannot pass the tokens into ::backdrop skips that fade. */
+   way, faster, while the dim behind it fades. Under reduced motion every duration is zero, so it
+   simply appears and goes. A browser that cannot pass the tokens into ::backdrop skips the fade in.
+   Leaving, the dialog is closed already (Sheet.tsx): the page behind is live and has focus back.
+   What slides out is the closed dialog, kept on screen where the modal one was (data-closing) and
+   inert, over .sheet-scrim, its own copy of the backdrop. Out of the top layer now, both sit above
+   the page's own layers (the bottom bar, the action bar, the toasts) by z-index. */
 .sheet[open] { animation: sheet-in-side var(--dur-3) var(--ease-out); }
 .sheet[open]::backdrop { animation: sheet-fade-in var(--dur-3) var(--ease-out); }
-.sheet[data-closing] { animation: sheet-out-side var(--dur-exit) var(--ease-in) forwards; pointer-events: none; }
-.sheet[data-closing]::backdrop { animation: sheet-fade-out var(--dur-exit) var(--ease-in) forwards; }
+.sheet[data-closing] {
+  display: flex; flex-direction: column; position: fixed; inset: 0; z-index: 61;
+  animation: sheet-out-side var(--dur-exit) var(--ease-in) forwards; pointer-events: none;
+}
+.sheet-scrim {
+  position: fixed; inset: 0; z-index: 60; background: var(--backdrop); pointer-events: none;
+  animation: sheet-fade-out var(--dur-exit) var(--ease-in) forwards;
+}
 @keyframes sheet-in-side { from { transform: translateX(100%); } }
 @keyframes sheet-out-side { to { transform: translateX(100%); } }
 @keyframes sheet-in-up { from { transform: translateY(100%); } }
@@ -1337,7 +1353,7 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
 .fc-inline { flex-direction: row; align-items: center; gap: 8px; }
 .fc-label { font-size: 12px; font-weight: 600; color: var(--muted); }
 .fc-input {
-  padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--bg);
+  padding: 8px 10px; border: 1.5px solid var(--border-ui); border-radius: var(--radius); background: var(--bg);
   color: var(--text); font: inherit; font-size: 14px; transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
 .fc-input:hover { border-color: var(--line-strong); }
@@ -1362,7 +1378,8 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
   white-space: nowrap; transition: background var(--dur-2) var(--ease), color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
 }
 .seg-opt:hover span { color: var(--text); }
-.seg-opt input:checked + span { background: var(--panel); color: var(--text); box-shadow: var(--shadow-1); }
+/* the chosen segment is raised: lighter than the track in either theme */
+.seg-opt input:checked + span { background: var(--popover); color: var(--text); box-shadow: var(--shadow-1); }
 .seg-opt input:focus-visible + span, .tile input:focus-visible + .tile-face, .tchip input:focus-visible + span {
   outline: 2px solid var(--focus); outline-offset: 2px;
 }
@@ -1374,11 +1391,11 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
 }
 
 /* one of several, as tiles */
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr)); gap: 8px; }
 .tile { position: relative; display: block; }
 .tile-face {
   display: flex; flex-direction: column; gap: 3px; height: 100%; padding: 10px 12px;
-  border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--bg);
+  border: 1.5px solid var(--border-ui); border-radius: var(--radius); background: var(--bg);
   transition: border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
 }
 .tile-face .ico { color: var(--muted); margin-bottom: 2px; transition: color var(--dur-2) var(--ease); }
@@ -1444,7 +1461,7 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
 
 /* a sum of money, large */
 .money {
-  display: inline-flex; align-items: baseline; gap: 2px; padding: 4px 14px; border: 1.5px solid var(--border);
+  display: inline-flex; align-items: baseline; gap: 2px; padding: 4px 14px; border: 1.5px solid var(--border-ui);
   border-radius: var(--radius); background: var(--bg); transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
 .money:hover { border-color: var(--line-strong); }
@@ -1459,7 +1476,7 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
 
 /* an address search: the field, its button, and what it found */
 .search {
-  display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border: 1.5px solid var(--border);
+  display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border: 1.5px solid var(--border-ui);
   border-radius: 999px; background: var(--bg); transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
 .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }

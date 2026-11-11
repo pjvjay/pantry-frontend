@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  ALIASES, PRIMARY, ROUTE_IDS, WORKSHOP_TABS, canonicalHash, hrefFor, parseHash, sectionOf, titleFor,
+  ALIASES, PRIMARY, ROUTE_IDS, WORKSHOP_TABS, arrivalFor, canonicalHash, hrefFor, parseHash, sectionOf, titleFor,
 } from '../src/routes.ts';
 import type { Route } from '../src/routes.ts';
 import { routedLinks } from '../src/alternatives.ts';
@@ -121,4 +121,15 @@ test('the navigation knows its place for each page, and the browser tab says whe
   assert.equal(titleFor({ name: 'trip', date: '2026-11-12' }), 'Trip on 2026-11-12 · Shop · Pantry Planner');
   assert.deepEqual(WORKSHOP_TABS.map((t) => t.label),
     ['Catalog', 'Provenance', 'MCP explorer', 'Simulations', 'Metrics', 'System', 'Planner lab', 'About']);
+});
+
+test('arriving at a page says its name and where it sits, in words a screen reader reads', () => {
+  assert.equal(arrivalFor({ name: 'ask' }), 'Ask');
+  assert.equal(arrivalFor({ name: 'plan', query: 'step=2' }), 'Plan');
+  assert.equal(arrivalFor({ name: 'workshop', tab: 'system' }), 'System, Workshop');
+  assert.equal(arrivalFor({ name: 'trip', date: '2026-11-12' }), 'Trip on 2026-11-12, Shop');
+  // the same page as the title, without the console's name or the separators
+  for (const route of [{ name: 'home' }, { name: 'shop' }, { name: 'workshop', tab: 'mcp' }] as const) {
+    assert.equal(`${arrivalFor(route).replace(', ', ' · ')} · Pantry Planner`, titleFor(route));
+  }
 });

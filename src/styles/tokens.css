@@ -77,11 +77,14 @@
   --map-ring: #ffffff;
   --map-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
 
-  /* Fixed pieces: a switch's knob, and the scrim under words laid over a photo. */
+  /* Fixed pieces: a switch's knob, the scrim under words laid over a photo, and the dim behind
+     a sheet (a dialog's ::backdrop writes this colour itself: older browsers do not pass custom
+     properties into it; a sheet on its way out fades its own copy of it, components/Sheet.tsx). */
   --knob: #ffffff;
   --knob-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
   --scrim: rgb(0 0 0 / 0.6);
   --on-scrim: #ffffff;
+  --backdrop: rgb(0 0 0 / 0.45);
 
   /* Type. The body is the system's own face; the display face (Fraunces, from Google Fonts in
      index.html) is for the page and section headings and the wordmark only. Without it, Georgia
@@ -119,7 +122,10 @@
   --radius-lg: var(--radius-3);
 
   /* Elevation. --shadow-1 lifts a card at rest, in light only; --shadow-2 is for what floats
-     over the page: sheets, toasts, the drag ghost, the action bar. */
+     over the page: sheets, toasts, the drag ghost, the action bar. Dark has no resting shadow, but
+     writes it as an empty one (0 0 #0000), never `none`: rules list a token beside another shadow
+     (an inset edge, a ring), and `none` inside a list makes the whole declaration invalid, so the
+     edge would go too. */
   --shadow-1: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.07);
   --shadow-2: 0 6px 20px rgb(16 24 40 / 0.09);
 
@@ -177,7 +183,7 @@
     --gemini-soft: #172033;
     --map-you: #60a5fa;
     --map-off: #7a7367;
-    --shadow-1: none;
+    --shadow-1: 0 0 #0000;
     --shadow-2: 0 8px 24px rgb(0 0 0 / 0.45);
   }
 }
@@ -218,7 +224,7 @@
   --gemini-soft: #172033;
   --map-you: #60a5fa;
   --map-off: #7a7367;
-  --shadow-1: none;
+  --shadow-1: 0 0 #0000;
   --shadow-2: 0 8px 24px rgb(0 0 0 / 0.45);
 }
 

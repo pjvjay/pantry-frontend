@@ -139,15 +139,22 @@ export const sectionOf = (route: Route): Section => (route.name === 'trip' ? 'sh
 export const workshopLabel = (tab: WorkshopTab): string =>
   WORKSHOP_TABS.find((t) => t.id === tab)?.label ?? tab;
 
-// The browser tab's title: the page, then the console's name.
-export function titleFor(route: Route): string {
-  const app = 'Pantry Planner';
+// The page, then where it sits: ['Planner lab', 'Workshop'], ['Ask'].
+function placeParts(route: Route): string[] {
   switch (route.name) {
     case 'workshop':
-      return `${workshopLabel(route.tab)} · Workshop · ${app}`;
+      return [workshopLabel(route.tab), 'Workshop'];
     case 'trip':
-      return `Trip on ${route.date} · Shop · ${app}`;
+      return [`Trip on ${route.date}`, 'Shop'];
     default:
-      return `${PRIMARY.find((p) => p.section === route.name)?.label ?? 'Home'} · ${app}`;
+      return [PRIMARY.find((p) => p.section === route.name)?.label ?? 'Home'];
   }
 }
+
+// The browser tab's title: the page, then the console's name.
+export const titleFor = (route: Route): string => [...placeParts(route), 'Pantry Planner'].join(' · ');
+
+// What a screen reader hears on arriving at another page (App.tsx says it in a polite live
+// region): the page and where it sits, as words, "Planner lab, Workshop". Focus stays on the link
+// that was pressed, and most screen readers do not read out a new title.
+export const arrivalFor = (route: Route): string => placeParts(route).join(', ');
