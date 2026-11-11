@@ -57,8 +57,8 @@
 .view .mp-check-title { margin: 0; font: var(--type-section); font-variant-numeric: tabular-nums; }
 /* focused by script once the last answer is given; it is not a control and draws no ring */
 .mp-check-title:focus { outline: none; }
-.mp-check-note { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
-.mp-check-clock { margin-left: auto; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.mp-check-note { color: var(--muted); font-size: var(--fs-compact); font-variant-numeric: tabular-nums; }
+.mp-check-clock { margin-left: auto; color: var(--muted); font-size: var(--fs-compact); font-variant-numeric: tabular-nums; }
 
 /* The bar: found, skipped (striped) and still to answer, side by side, as the words say; a sweep
    along it while a check is under way, still under reduced motion. */
@@ -73,7 +73,7 @@
 }
 .mp-check-bar-open, .mp-check-key-open { background: var(--warn); }
 .mp-check-bar-sweep::after {
-  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 35%; border-radius: inherit;
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 35%; border-radius: var(--radius-pill);
   background: var(--accent); animation: mp-check-sweep 1.6s var(--ease-standard) infinite;
 }
 @keyframes mp-check-sweep { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
@@ -82,21 +82,21 @@
 }
 .mp-check-key {
   display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0 0; padding: 0;
-  list-style: none; color: var(--muted); font-size: 12.5px;
+  list-style: none; color: var(--muted); font-size: var(--fs-compact);
 }
 .mp-check-key li { display: inline-flex; align-items: center; gap: var(--space-1); }
-.mp-check-key span { width: 14px; height: 8px; border-radius: 2px; }
+.mp-check-key span { width: 14px; height: 8px; border-radius: var(--radius-1); }
 
 .mp-check-total {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4);
-  margin-top: var(--space-3); font-size: 14px; font-variant-numeric: tabular-nums;
+  margin-top: var(--space-3); font-size: var(--fs-compact); font-variant-numeric: tabular-nums;
 }
 .mp-check-total > p { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); margin: 0; }
 .mp-check-over { color: var(--warn); font-weight: 600; }
-.mp-check-about { font-size: 13px; color: var(--muted); }
+.mp-check-about { font-size: var(--fs-compact); color: var(--muted); }
 .mp-check-about summary { width: fit-content; cursor: pointer; }
 .mp-check-about p { margin: var(--space-1) 0 0; max-width: 62ch; }
-.mp-check-coverage { margin: var(--space-2) 0 0; color: var(--muted); font-size: 13px; }
+.mp-check-coverage { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--fs-compact); }
 
 /* ─── The ingredients still to answer ────────────────────────────────────────────────────── */
 /* A card with the warning's edge, its sign beside the count; each task a row: the product's
@@ -108,7 +108,7 @@
 }
 .view .mp-tasks-title { display: flex; align-items: center; gap: var(--space-2); margin: 0; font: var(--type-title); }
 .mp-tasks-title .ico { flex: none; color: var(--warn); }
-.mp-tasks-lede { margin: var(--space-1) 0 0; color: var(--muted); font-size: 14px; }
+.mp-tasks-lede { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--fs-compact); }
 .mp-tasks-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; }
 .mp-task {
   display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: start; gap: var(--space-3);
@@ -116,11 +116,11 @@
 }
 .mp-task-main { min-width: 0; }
 .mp-task-what { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); margin: 0; }
-.mp-task-name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
-.mp-task-for { color: var(--muted); font-size: 13.5px; }
-.mp-task-issue { margin: 2px 0 0; color: var(--warn); font-size: 13.5px; overflow-wrap: anywhere; }
+.mp-task-name { font-size: var(--fs-body); font-weight: 600; overflow-wrap: anywhere; }
+.mp-task-for { color: var(--muted); font-size: var(--fs-compact); }
+.mp-task-issue { margin: 2px 0 0; color: var(--warn); font-size: var(--fs-compact); overflow-wrap: anywhere; }
 .mp-task-why { color: var(--muted); font-weight: 400; }
-.mp-task-had { margin: 2px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.mp-task-had { margin: 2px 0 0; color: var(--muted); font-size: var(--fs-compact); overflow-wrap: anywhere; }
 .mp-task-answers { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 @media (max-width: 520px) {
   .mp-tasks { padding: var(--space-4) var(--space-4) var(--space-2); }
@@ -147,13 +147,13 @@
 .mtag {
   display: inline-flex; align-items: center; gap: 3px; padding: 0 6px;
   border: 1px solid var(--border-ui); border-radius: var(--radius-1);
-  font: 600 12px/18px var(--font-body); white-space: nowrap; color: var(--muted);
+  font: 600 var(--fs-label)/18px var(--font-body); white-space: nowrap; color: var(--muted);
 }
 .mtag .ico { flex: none; }
 .mtag-same, .mtag-form { color: var(--accent-soft-fg); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .mtag-yours, .mtag-instead { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, transparent); }
 .mtag-closest, .mtag-looser { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
-.evid { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.evid { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: var(--fs-label); white-space: nowrap; }
 .evid .ico { flex: none; }
 .evid-checked { color: var(--accent-soft-fg); }
 .evid-disputed { color: var(--warn); font-weight: 600; }
@@ -163,7 +163,7 @@
 
 /* ─── The Options sheet: each row's marks, and the pick compared with the best others ────── */
 .alt-marks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: 3px; }
-.alt-origin { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); color: var(--muted); font-size: 12.5px; }
+.alt-origin { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); color: var(--muted); font-size: var(--fs-compact); }
 
 .alt-compare { margin: var(--space-1) 0 var(--space-4); }
 .alt-compare h3 { margin: 4px 0 6px; }
@@ -172,7 +172,7 @@
    long names wrap inside theirs; nothing scrolls sideways, even on a phone. */
 .alt-compare-table {
   width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0;
-  border: 1px solid var(--border); border-radius: var(--radius-2); font-size: 13px; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border); border-radius: var(--radius-2); font-size: var(--fs-compact); font-variant-numeric: tabular-nums;
 }
 .alt-compare-table th, .alt-compare-table td {
   padding: var(--space-2); vertical-align: top; text-align: left; overflow-wrap: anywhere;
@@ -182,7 +182,7 @@
 .alt-compare-table thead td { width: 6.5rem; }
 /* the products' names as they are written (a th is a label elsewhere, index.css) */
 .alt-compare-table thead th {
-  font: 600 13px/1.35 var(--font-body); letter-spacing: normal; text-transform: none; color: var(--text);
+  font: 600 var(--fs-compact)/1.35 var(--font-body); letter-spacing: normal; text-transform: none; color: var(--text);
 }
 .alt-compare-table tbody th {
   color: var(--muted); font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase;
@@ -197,7 +197,7 @@
 .alt-compare-unknown { color: var(--muted); font-style: italic; }
 .alt-compare .mtag { white-space: normal; }
 @media (max-width: 520px) {
-  .alt-compare-table { font-size: 12px; }
+  .alt-compare-table { font-size: var(--fs-label); }
   .alt-compare-table thead td { width: 4.5rem; }
   .alt-compare-table th, .alt-compare-table td { padding: var(--space-1) 6px; }
 }

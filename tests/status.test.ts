@@ -15,13 +15,27 @@ const RUNTIME: RuntimeSettings = { demo_mode: false, models: { selector_default:
 const STATUS = { services: [], keys: {}, agent: { default_model: 'gemini:gemini-3-flash-preview' } } satisfies HubStatus;
 
 test('the header says the most important thing first: the API, then waiting, then the hub', () => {
-  assert.deepEqual(statusSummary('ok', 'ok'), { words: 'Ready', tone: 'ok' });
-  assert.deepEqual(statusSummary('offline', 'ok'), { words: 'API offline · retrying', tone: 'danger' });
-  assert.deepEqual(statusSummary('offline', 'refused'), { words: 'API offline · retrying', tone: 'danger' });
-  assert.deepEqual(statusSummary('connecting', 'ok'), { words: 'Connecting…', tone: 'muted' });
-  assert.deepEqual(statusSummary('ok', 'connecting'), { words: 'Connecting…', tone: 'muted' });
-  assert.deepEqual(statusSummary('ok', 'refused'), { words: 'Hub paused', tone: 'warn' });
-  assert.deepEqual(statusSummary('ok', 'unreachable'), { words: 'Hub offline', tone: 'warn' });
+  assert.deepEqual(statusSummary('ok', 'ok'), { words: 'Ready', short: 'Ready', tone: 'ok' });
+  assert.deepEqual(statusSummary('offline', 'ok'), { words: 'API offline · retrying', short: 'Offline', tone: 'danger' });
+  assert.deepEqual(statusSummary('offline', 'refused'), { words: 'API offline · retrying', short: 'Offline', tone: 'danger' });
+  assert.deepEqual(statusSummary('connecting', 'ok'), { words: 'Connecting…', short: 'Connecting…', tone: 'muted' });
+  assert.deepEqual(statusSummary('ok', 'connecting'), { words: 'Connecting…', short: 'Connecting…', tone: 'muted' });
+  assert.deepEqual(statusSummary('ok', 'refused'), { words: 'Hub paused', short: 'Paused', tone: 'warn' });
+  assert.deepEqual(statusSummary('ok', 'unreachable'), { words: 'Hub offline', short: 'Hub off', tone: 'warn' });
+});
+
+// A phone's header shows the short word; a screen reader hears the whole words. What is seen must
+// be inside what is said (WCAG's label in name), and short enough for the one row.
+test('the short word is part of the whole words and fits a phone header', () => {
+  const apis = ['connecting', 'ok', 'offline'] as const;
+  const hubs = ['connecting', 'ok', 'refused', 'unreachable'] as const;
+  for (const api of apis) {
+    for (const hub of hubs) {
+      const { words, short } = statusSummary(api, hub);
+      assert.ok(words.toLowerCase().includes(short.toLowerCase()), `${short} is not in ${words}`);
+      assert.ok(short.length <= 11, `${short} is too long for a phone's header`);
+    }
+  }
 });
 
 test('a refusal is the hub saying no; anything else is the hub not being there', () => {

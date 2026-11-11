@@ -1,0 +1,44 @@
+/* Tables: one density for every table of records and figures (imported after card.css, main.tsx).
+
+     .table         a table: its head in the label role (small capitals, muted), its cells in the
+                    compact role, each padded --space-2 by --space-3, a hairline under each row
+     .num           a cell of figures (or its head): right-aligned, in equal-width figures, on one
+                    line, so a column of prices or durations reads straight down
+     .table-sticky  the head stays in view while the rows scroll under it: inside a ScrollRegion
+                    (components/ui.tsx) that has a height, or under the page itself
+
+   A row answers the pointer only where it does something: a row the keyboard can reach (tabindex,
+   as components/useRowNav.ts gives the Workshop's grids) lifts on hover; a row of plain record does
+   not. A table that can be wider than the screen goes inside a ScrollRegion, which scrolls it in
+   its own box and is a keyboard stop only while it overflows.
+
+   <ScrollRegion label="Recent turns" className="table-scroll">
+     <table className="table table-sticky"><thead><tr><th>Question</th><th className="num">Time</th></tr></thead>…</table>
+   </ScrollRegion> */
+
+/* Transitional, until the Workshop's tables say .table: .metrics-table (and its .compact, which
+   had a density of its own) share this rule. */
+.table, .metrics-table {
+  width: 100%; border-collapse: collapse; font: var(--type-compact); font-variant-numeric: tabular-nums;
+}
+.table th, .table td, .metrics-table th, .metrics-table td {
+  padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); text-align: left; vertical-align: top;
+}
+.table th, .metrics-table th {
+  font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--muted);
+}
+.table tfoot td, .metrics-table tfoot td { border-bottom: none; font-weight: 600; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.num, td.num { text-align: right; }
+
+.table tbody tr[tabindex] { cursor: pointer; }
+@media (hover: hover) {
+  .table tbody tr[tabindex]:hover > td { background: var(--surface-2); }
+}
+
+.table-sticky thead th {
+  position: sticky; top: 0; z-index: 1; background: var(--panel); box-shadow: inset 0 -1px 0 var(--border-ui);
+}
+
+/* A table's own box, for one that can be wider than the screen (ScrollRegion's usual class). */
+.table-scroll { overflow-x: auto; overscroll-behavior-x: contain; }

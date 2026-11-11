@@ -4,7 +4,7 @@
    The primary navigation is a row under the header on a screen 900px or wider, and a bar fixed to
    the bottom of a narrower one. --bottom-nav-h is the bar's height (0 where there is no bar), and
    everything fixed or sticky at the bottom of the page keeps clear of it: the meal plan's Back and
-   Next (.mp-wnav) and its action bar (.mp-bar), the Assistant's message box (.chat-input), the
+   Next (.mp-wnav) and its action bar (.mp-bar), the Assistant's message box (.ask-composer), the
    toasts and the page's own bottom padding.
 
    The scroll that brings a focused control into view keeps clear of all of them too. The bars that
@@ -44,9 +44,10 @@ html {
 .shell-main:focus { outline: none; }
 
 /* ─── Header: wordmark and Workshop, then status and theme ────────────────────────────────── */
-/* Laid out in the order it is read and tabbed through (components/nav.tsx), at every width: the
-   two places on the left, the status and the theme menu pushed to the right. Nothing is moved
-   with `order`, which would send the keyboard somewhere other than where the eye goes next. */
+/* Laid out in the order it is read and tabbed through (components/nav.tsx), at every width: on a
+   wide screen the two places on the left, the status and the theme menu pushed to the right; on a
+   phone one row (below). Nothing is moved with `order`, which would send the keyboard somewhere
+   other than where the eye goes next. */
 .shell-head { display: flex; align-items: center; gap: var(--space-3); }
 .wordmark { margin: 0; font: var(--type-page); }
 .wordmark-link {
@@ -60,7 +61,7 @@ html {
 .ws-link {
   display: inline-flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 0 var(--space-3);
   border: 1px solid transparent; border-radius: var(--radius-2); color: var(--text);
-  font: 600 14px/1.25 var(--font-body); text-decoration: none;
+  font: 600 var(--fs-compact)/1.25 var(--font-body); text-decoration: none;
   transition: background-color var(--dur-1) var(--ease-standard), border-color var(--dur-1) var(--ease-standard);
 }
 .ws-link:hover { background: var(--surface-2); }
@@ -77,22 +78,24 @@ html {
 /* waiting for a first answer: an empty ring, not a colour that means something */
 .status-dot-muted { background: transparent; box-shadow: inset 0 0 0 2px var(--muted); }
 .status-chev { color: var(--muted); transition: transform var(--dur-1) var(--ease-standard); }
+/* a phone's word for the status (below); a wide screen says it in full */
+.status-short { display: none; }
 .status-btn[aria-expanded="true"] .status-chev { transform: rotate(180deg); }
 
 .status-pop {
   position: absolute; right: 0; top: calc(100% + var(--space-2)); z-index: 30;
   width: min(360px, calc(100vw - 2 * var(--space-4))); padding: var(--space-4);
   border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--popover);
-  box-shadow: var(--shadow-2); font-size: 14px;
+  box-shadow: var(--shadow-2); font-size: var(--fs-compact);
 }
 .status-pop[hidden] { display: none; }
 .status-lines { display: grid; gap: var(--space-3); margin: 0; }
 .status-line dt { font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--muted); }
 .status-line dd { margin: 2px 0 0; overflow-wrap: anywhere; }
-.status-why { display: block; margin-top: 2px; color: var(--muted); font-size: 13px; }
+.status-why { display: block; margin-top: 2px; color: var(--muted); font-size: var(--fs-compact); }
 .status-foot {
   display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3);
-  border-top: 1px solid var(--border); color: var(--muted); font-size: 13px;
+  border-top: 1px solid var(--border); color: var(--muted); font-size: var(--fs-compact);
 }
 .status-foot p { margin: 0; }
 
@@ -105,10 +108,11 @@ html {
   border-bottom: 0 solid transparent;
 }
 .pnav-icon { display: grid; place-items: center; }
+.pnav-label { white-space: nowrap; }
 .pnav-badge {
   display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
   border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent);
-  font: 700 11px/1 var(--font-body); font-variant-numeric: tabular-nums;
+  font: 700 var(--fs-chrome)/1 var(--font-body); font-variant-numeric: tabular-nums;
 }
 
 /* Wide: one row under the header; the current place is underlined, heavier and in the accent. */
@@ -117,7 +121,7 @@ html {
   .pnav-list { gap: var(--space-1); }
   .pnav-link {
     gap: var(--space-2); min-height: 44px; padding: 0 var(--space-4); margin-bottom: -1px;
-    border-bottom: 3px solid transparent; font: 600 15px/1 var(--font-body);
+    border-bottom: 3px solid transparent; font: 600 var(--fs-body)/1 var(--font-body);
     transition: color var(--dur-1) var(--ease-standard), border-color var(--dur-1) var(--ease-standard);
   }
   .pnav-link:hover { color: var(--text); border-bottom-color: var(--border-ui); }
@@ -137,7 +141,7 @@ html {
   .pnav-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); height: 56px; }
   .pnav-link {
     flex-direction: column; justify-content: center; gap: 2px; height: 100%;
-    font: 600 11px/14px var(--font-body);
+    font: 600 var(--fs-chrome)/14px var(--font-body);
   }
   .pnav-icon { width: 56px; height: 30px; border-radius: var(--radius-pill); transition: background-color var(--dur-1) var(--ease-standard); }
   .pnav-link[aria-current="page"] { color: var(--text); font-weight: 700; }
@@ -147,7 +151,7 @@ html {
 }
 
 /* ─── Footer ──────────────────────────────────────────────────────────────────────────────── */
-.shell-foot { margin-top: var(--space-8); color: var(--muted); font-size: 13px; text-align: center; }
+.shell-foot { margin-top: var(--space-8); color: var(--muted); font-size: var(--fs-compact); text-align: center; }
 
 /* ─── Narrow headers ──────────────────────────────────────────────────────────────────────── */
 /* Under 900px the theme menu shows its icons only (its words stay for screen readers and as each
@@ -160,22 +164,39 @@ html {
   }
   .shell-head .theme-face { padding: 0 8px; }
 }
-/* On a phone: the wordmark and the Workshop on one row (the Workshop as its icon, still named for
-   a screen reader), the status and the theme menu on the next. The wordmark takes the first row
-   but the Workshop's width, so the Workshop, next in line, fits beside it and the other two wrap
-   together. */
+/* On a phone: one row, so a page (in-store mode too) starts right under it. In the order it is
+   read and tabbed through: the wordmark, which takes the room the other three leave; the
+   Workshop's wrench; the status as its dot and a short word (a screen reader still hears the whole
+   words); and the theme as one button (styles/theme-menu.css). Each is a fingertip's 44px. When the
+   row leaves the wordmark too little room for its name (the narrowest phones, or a long status such
+   as "Connecting…"), only its cart shows, and the name stays the link's accessible name. What the
+   status opens lies under the header, the header's width. */
 @media (max-width: 640px) {
-  .app { padding-top: var(--space-4); }
-  .shell-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
-  .wordmark { flex: 1 1 calc(100% - 44px - var(--space-3)); min-width: 0; font-size: 24px; line-height: 30px; }
-  .ws-link { width: 44px; height: 44px; padding: 0; justify-content: center; }
-  .ws-link-word {
+  .app { padding-top: var(--space-3); }
+  .shell-head { position: relative; flex-wrap: nowrap; gap: var(--space-1); }
+  .wordmark {
+    flex: 1 1 0; min-width: 44px; container: wordmark / inline-size;
+    font: 600 var(--fs-title)/24px var(--font-display);
+  }
+  .wordmark-link { max-width: 100%; min-width: 44px; min-height: 44px; justify-content: center; gap: 6px; }
+  .wordmark-link .ico { width: 24px; height: 24px; }
+  .wordmark-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-link { flex: none; width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .ws-link-word, .status-words {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
   }
-  .shell-head .status { margin-left: 0; }
-  .shell-head .theme-menu { margin-left: auto; }
-  .status-pop { left: 0; right: auto; }
+  .shell-head .status { position: static; flex: none; margin-left: 0; }
+  .status-btn { gap: 6px; padding: 0 var(--space-2); }
+  .status-short { display: inline; white-space: nowrap; }
+  .status-chev { display: none; }
+  .status-pop { left: 0; right: 0; width: auto; }
+}
+@container wordmark (max-width: 159.98px) {
+  .wordmark-word {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
 }
 /* A fingertip's 44px for the header's links too (the buttons get theirs from styles/buttons.css). */
 @media (pointer: coarse) {

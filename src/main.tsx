@@ -7,6 +7,8 @@ import './index.css';
 import './styles/buttons.css';
 import './styles/theme-menu.css';
 import './styles/ui.css';
+import './styles/card.css';
+import './styles/table.css';
 import './styles/shell.css';
 import './styles/plan.css';
 import './styles/workshop.css';

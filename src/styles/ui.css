@@ -7,14 +7,14 @@
   display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); align-items: start;
   margin-top: var(--space-5); padding: var(--space-3) var(--space-4);
   border: 1px solid transparent; border-left-width: 4px; border-radius: var(--radius-2);
-  color: var(--text); font-size: 14px; line-height: 1.45;
+  color: var(--text); font-size: var(--fs-compact); line-height: 1.45;
 }
 .notice-icon { display: inline-flex; padding-top: 1px; }
 .notice-body { min-width: 0; overflow-wrap: anywhere; }
 .notice-title { margin: 0; font-weight: 600; }
 .notice-text { margin: 0; }
 .notice-title + .notice-text { margin-top: 2px; }
-.notice-hint { margin: var(--space-1) 0 0; color: var(--muted); font-size: 13px; }
+.notice-hint { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--fs-compact); }
 .notice-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 .notice-danger { background: var(--danger-soft); border-left-color: var(--danger); }
 .notice-danger .notice-icon { color: var(--danger-fg); }
@@ -41,10 +41,10 @@
 .offline-off, .offline-works { margin: var(--space-1) 0 0; }
 .offline-works strong { font-weight: 600; }
 .offline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
-.offline-checked { margin: var(--space-2) 0 0; color: var(--muted); font-size: 13px; }
+.offline-checked { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--fs-compact); }
 /* empty, it takes no room but stays on the page: a live region must be there before its words */
 .offline-checked:empty { margin: 0; }
-.offline-details { margin-top: var(--space-2); font-size: 13px; color: var(--muted); }
+.offline-details { margin-top: var(--space-2); font-size: var(--fs-compact); color: var(--muted); }
 .offline-details summary { cursor: pointer; width: fit-content; }
 /* a fingertip's 44px; padding rather than flex, so the summary keeps its disclosure triangle */
 @media (pointer: coarse) {
@@ -68,7 +68,7 @@
 }
 .view .empty-heading, .empty-heading { margin: 0; font: var(--type-title); }
 .empty-status { margin: 0; font-weight: 600; }
-.empty-cue { margin: 0 0 var(--space-2); color: var(--muted); font-size: 14px; }
+.empty-cue { margin: 0 0 var(--space-2); color: var(--muted); font-size: var(--fs-compact); }
 .empty .btn { margin-top: auto; }
 
 /* ─── Skeleton: grey shapes that breathe slowly; still under reduced motion ──────────────── */
@@ -88,7 +88,7 @@
 /* ─── Tag: a state in a glyph and words ──────────────────────────────────────────────────── */
 .tag {
   display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px var(--space-2);
-  border-radius: var(--radius-1); font: 600 12px/16px var(--font-body); white-space: nowrap;
+  border-radius: var(--radius-1); font: 600 var(--fs-label)/16px var(--font-body); white-space: nowrap;
 }
 .tag .ico { flex: none; }
 .tag-done { background: var(--accent-soft); color: var(--accent-soft-fg); }
@@ -113,7 +113,9 @@
   color: var(--text); box-shadow: var(--shadow-2);
   animation: toast-in var(--dur-2) var(--ease-out);
 }
-.toast-text { flex: 1; margin: 0; font-size: 14px; }
+.toast-text { flex: 1; margin: 0; font-size: var(--fs-compact); }
+/* the action keeps its words on one line; the toast's own words wrap instead */
+.toast-action { flex: none; }
 .toast-close { color: var(--muted); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 @media (min-width: 900px) {
@@ -147,9 +149,58 @@
   color: var(--text);
 }
 .confirm-words { flex: 1 1 16rem; min-width: 0; }
-.confirm-q { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; }
-.confirm-detail { margin: 2px 0 0; color: var(--muted); font-size: 13px; line-height: 18px; }
+.confirm-q { margin: 0; font-size: var(--fs-compact); line-height: 20px; font-weight: 600; }
+.confirm-detail { margin: 2px 0 0; color: var(--muted); font-size: var(--fs-compact); line-height: 18px; }
 .confirm-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 @media (forced-colors: active) {
   .confirm { border-color: CanvasText; }
+}
+
+/* ─── StatTile and StatRow: a figure under its name, in a row of them ───────────────────────── */
+/* Boxed on the page; plain inside a bar that is already a box. A tone colours the figure only, in
+   a colour that holds 4.5:1 on the tile (tests/tokens-contrast.test.ts), with its sign beside it. */
+.stat-tiles {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 128px), 1fr)); gap: var(--space-2);
+  margin: 0;
+}
+.stat-tile {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0; margin: 0; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--bg);
+}
+.stat-tile-label {
+  font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--muted);
+}
+.stat-tile-value {
+  display: flex; align-items: center; gap: var(--space-1); margin: 0;
+  font: var(--type-title); font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.stat-tile-value .ico { flex: none; }
+.stat-tile-note { margin: 0; color: var(--muted); font: var(--type-compact); }
+.stat-tile-good .stat-tile-value { color: var(--accent); }
+.stat-tile-warn .stat-tile-value { color: var(--warn); }
+.stat-tile-danger .stat-tile-value { color: var(--danger-fg); }
+.stat-tiles-plain { gap: var(--space-1) var(--space-4); }
+.stat-tiles-plain .stat-tile { padding: 0; border: 0; background: none; }
+
+/* ─── ScrollRegion: a box that scrolls inside itself, a keyboard stop while it overflows ────── */
+/* its ring inside its edge, where no scrolling parent can cut it off */
+.scroll-region:focus-visible { outline-offset: -2px; }
+
+/* ─── View transitions (components/viewTransition.ts) ───────────────────────────────────────
+   A change of view cross-fades only what is named for it, .vt-stage (the meal plan's stage body):
+   the page itself is not captured, so the header, the stepper and the bars stay still and stay
+   live. Short (--dur-2) and in place (--ease-standard). Under reduced motion withViewTransition
+   does not start one, and the durations are zero as well. */
+:root { view-transition-name: none; }
+.vt-stage { view-transition-name: stage; }
+::view-transition-group(stage), ::view-transition-old(stage), ::view-transition-new(stage) {
+  animation-duration: var(--dur-2); animation-timing-function: var(--ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none; }
+}
+
+@media (forced-colors: active) {
+  .stat-tile { border-color: CanvasText; }
+  .stat-tiles-plain .stat-tile { border: 0; }
 }

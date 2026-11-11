@@ -17,11 +17,11 @@
 }
 .mealplan h2[tabindex="-1"]:focus, .mealplan h2[tabindex="-1"]:focus-visible { outline: none; }
 @media (max-width: 640px) {
-  .view .mp-stage-title { font-size: 26px; line-height: 32px; }
+  .view .mp-stage-title { font-size: var(--fs-section); line-height: 32px; }
 }
 
 /* Set up says it is optional, under its name in the progress indicator. */
-.mp-step-opt { display: block; font: 400 11px/14px var(--font-body); color: var(--muted); }
+.mp-step-opt { display: block; font: 400 var(--fs-chrome)/14px var(--font-body); color: var(--muted); }
 
 /* Set up's own answers to a question it asks back (When: "send them back to the tray?") */
 .fc-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
@@ -48,16 +48,16 @@
   align-items: baseline; column-gap: var(--space-2); min-width: 0;
 }
 .mp-setup-key { grid-area: key; color: var(--muted); font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; }
-.mp-setup-value { grid-area: value; margin: var(--space-1) 0 0; font-weight: 600; font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
-.mp-setup-note { display: block; font-weight: 400; font-size: 12.5px; line-height: 18px; color: var(--muted); }
-.mp-setup-change { grid-area: change; margin: 0; font-size: 13px; line-height: 16px; }
+.mp-setup-value { grid-area: value; margin: var(--space-1) 0 0; font-weight: 600; font-size: var(--fs-compact); line-height: 20px; overflow-wrap: anywhere; }
+.mp-setup-note { display: block; font-weight: 400; font-size: var(--fs-compact); line-height: 18px; color: var(--muted); }
+.mp-setup-change { grid-area: change; margin: 0; font-size: var(--fs-compact); line-height: 16px; }
 .mp-setup-change a { font-weight: 600; text-underline-offset: 2px; }
 @media (max-width: 599.98px) {
   /* compact on a phone: the cells closer, the notes smaller */
   .mp-setup { padding: var(--space-3); }
   .mp-setup-list { gap: var(--space-3); }
-  .mp-setup-value { font-size: 13.5px; line-height: 19px; }
-  .mp-setup-note { font-size: 12px; line-height: 16px; }
+  .mp-setup-value { font-size: var(--fs-compact); line-height: 19px; }
+  .mp-setup-note { font-size: var(--fs-compact); line-height: 16px; }
 }
 /* A fingertip's 44px for each Change, reaching out over the cell's edges rather than making the
    cells taller. */
@@ -68,13 +68,13 @@
 /* ─── Pick meals: the ways in ────────────────────────────────────────────────────────────── */
 .mp-ways { margin: 0 0 var(--space-5); }
 .mp-ways-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-.mp-build { padding: 0 var(--space-6); font-size: 16px; }
+.mp-build { padding: 0 var(--space-6); font-size: var(--fs-body); }
 /* building: it cannot be pressed again, but it is working, not switched off, so it keeps its
    colour; the turning ring and the time say what is going on */
 .mp-ways .mp-build[aria-disabled="true"] { opacity: 1; cursor: progress; background: var(--accent-hover); }
 .mp-build-clock, .mp-wnav-clock { font-variant-numeric: tabular-nums; font-weight: 400; }
-.mp-ways-about { margin: var(--space-2) 0 0; color: var(--muted); font-size: 13px; }
-.mp-ways-note { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-3) 0 0; font-size: 13.5px; }
+.mp-ways-about { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--fs-compact); }
+.mp-ways-note { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-3) 0 0; font-size: var(--fs-compact); }
 .mp-ways-note .ico { flex: none; margin-top: 2px; color: var(--info); }
 .mp-ways-problem { margin-top: var(--space-3); }
 @media (max-width: 640px) {
@@ -111,7 +111,7 @@
 .mp-wnav[hidden] { display: none; }
 .mp-wnav-back { grid-area: back; }
 .mp-wnav-next { grid-area: next; justify-self: end; }
-.mp-wnav-why { grid-area: why; margin: 0; font-size: 13px; line-height: 18px; text-align: right; }
+.mp-wnav-why { grid-area: why; margin: 0; font-size: var(--fs-compact); line-height: 18px; text-align: right; }
 .mp-wnav-next { min-width: 0; max-width: 100%; }
 .mp-wnav-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
@@ -120,7 +120,7 @@
 .mp-wnav .mp-wnav-wait { position: relative; overflow: hidden; background: var(--accent-soft); color: var(--accent-soft-fg); border-color: var(--accent); }
 .mp-wnav .mp-wnav-wait:hover { background: var(--accent-soft); }
 .mp-wnav-wait::after {
-  content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 3px; border-radius: 2px;
+  content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 3px; border-radius: var(--radius-pill);
   background: var(--accent); animation: mp-wait-sweep 1.6s var(--ease-standard) infinite;
 }
 @keyframes mp-wait-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
@@ -163,15 +163,12 @@
   .cchip-btn { width: 44px; height: 44px; }
   .tchip > span { min-height: 44px; }
   .seg-opt span { display: flex; align-items: center; justify-content: center; min-height: 44px; }
-  .search-input { min-height: 44px; }
   .mp-step-link { min-width: 44px; }
   .geo-pick { min-height: 44px; align-items: center; }
-  .fc-input, .mp-inline select { min-height: 44px; }
   .switch { min-height: 44px; }
   details.mp-section > summary, .mp-hidden summary, .mp-add summary, .mp-nutrition summary { padding-block: 12px; }
   .mp-qchip .linkish, .mp-recipe .linkish { min-height: 44px; padding: 0 4px; }
   .mp-slot-target { min-height: 44px; }
   .mp-side .mp-slot-target { min-height: 44px; }
   .mp-period button, .mp-proposal button { min-height: 44px; }
-  .mp-move-opts .check { min-height: 44px; }
 }

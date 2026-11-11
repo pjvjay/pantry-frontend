@@ -49,13 +49,15 @@ export function hubMessage(state: HubState): string {
 export type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 // The header's dot and words. The pantry API comes first: without it nothing plans. Then a part
-// not heard from yet, then the hub, which only some pages need.
-export function statusSummary(api: ApiState, hub: HubState): { words: string; tone: Tone } {
-  if (api === 'offline') return { words: 'API offline · retrying', tone: 'danger' };
-  if (api === 'connecting' || hub === 'connecting') return { words: 'Connecting…', tone: 'muted' };
-  if (hub === 'refused') return { words: 'Hub paused', tone: 'warn' };
-  if (hub === 'unreachable') return { words: 'Hub offline', tone: 'warn' };
-  return { words: 'Ready', tone: 'ok' };
+// not heard from yet, then the hub, which only some pages need. `short` is what a phone's one-row
+// header shows beside the dot; it is always part of `words`, which a screen reader still hears in
+// full, so what is seen is inside what is said.
+export function statusSummary(api: ApiState, hub: HubState): { words: string; short: string; tone: Tone } {
+  if (api === 'offline') return { words: 'API offline · retrying', short: 'Offline', tone: 'danger' };
+  if (api === 'connecting' || hub === 'connecting') return { words: 'Connecting…', short: 'Connecting…', tone: 'muted' };
+  if (hub === 'refused') return { words: 'Hub paused', short: 'Paused', tone: 'warn' };
+  if (hub === 'unreachable') return { words: 'Hub offline', short: 'Hub off', tone: 'warn' };
+  return { words: 'Ready', short: 'Ready', tone: 'ok' };
 }
 
 // ─── One line per part, for the opened status ────────────────

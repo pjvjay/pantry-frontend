@@ -27,9 +27,15 @@
 // body scrolls: a back arrow first (closeLabel names it, "Back to Metrics"), the title and its
 // description, and the owner's own actions (a JSON link). Everything else about it is the sheet's:
 // the same dialog, the same ways out and the same focus return. The default sheet is unchanged.
+//
+// Its body scrolls inside the sheet. When what it holds is longer than the sheet (a trip's lines,
+// a run's timeline), the body is a stop for the keyboard, named by the sheet's title, so the arrow
+// keys can scroll it however little in it takes focus (ScrollRegion, components/ui.tsx); when it
+// all fits, it is no stop at all.
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject, SyntheticEvent } from 'react';
 import { Icon } from './icons';
+import { ScrollRegion } from './ui';
 
 // A duration token's value in milliseconds ("160ms", "0.16s", or "0ms" under reduced motion).
 function msOf(value: string): number {
@@ -199,7 +205,7 @@ export function Sheet({ open, onClose, title, description, footer, initialFocus,
                 </button>
               )}
             </div>
-            <div className="sheet-body">{view.children}</div>
+            <ScrollRegion className="sheet-body" labelledBy={titleId}>{view.children}</ScrollRegion>
             {view.footer && <div className="sheet-foot">{view.footer}</div>}
           </>
         )}

@@ -22,10 +22,25 @@
 //   Spinner       a small turning ring beside the words of something under way ("Building your
 //                 week… 0:04"); the words say it, the ring is decoration, and it holds still under
 //                 reduced motion.
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { FocusEvent, ReactNode } from 'react';
+//   StatTile      one figure with its name over it ("BUDGET  $90.00") and a note under it, in a
+//   StatRow       StatRow of them; a tone colours the figure and puts a sign beside it.
+//   ScrollRegion  a box that scrolls inside itself (a wide table, a long sheet): a stop for the
+//                 keyboard, named, only while its content overflows.
+//
+// Beside them, the primitives that are classes only, with no component of their own:
+//   styles/card.css   .card, the one surface, with .card-row, .card-pic, .card-head, .card-title,
+//                     .card-sub, .card-interactive and its stretched .card-link
+//   styles/table.css  .table, .num for a cell of figures, .table-sticky for a head that stays,
+//                     and .table-scroll for ScrollRegion's box
+//   index.css         .chip (a choice, a filter or a plain fact; a state is a Tag) and the fields'
+//                     own look, set on input, select and textarea themselves
+//   styles/ui.css     .vt-stage, what a view transition fades (components/viewTransition.ts)
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { FocusEvent, HTMLAttributes, ReactNode } from 'react';
 
 import { useHubStatus } from '../hubStatus';
+import { STAT_TONES, overflows, scrollRegionProps } from '../primitives';
+import type { StatTone } from '../primitives';
 import { hrefFor } from '../routes';
 import { Icon } from './icons';
 import type { IconName } from './icons';
@@ -48,6 +63,10 @@ const TONE_ICON: Record<NoticeTone, IconName> = {
 const TONE_WORD: Record<NoticeTone, string> = {
   danger: 'Problem', warn: 'Warning', info: 'Note', success: 'Done',
 };
+// Each tone's class written out whole, so a search for it finds where it is drawn.
+const TONE_CLASS: Record<NoticeTone, string> = {
+  danger: 'notice-danger', warn: 'notice-warn', info: 'notice-info', success: 'notice-success',
+};
 
 function ActionButton({ action, primary }: { action: NoticeAction; primary: boolean }) {
   const cls = `btn btn-sm ${primary ? 'btn-secondary' : 'btn-ghost'}`;
@@ -68,7 +87,7 @@ export function Notice({ tone = 'info', title, children, hint, actions = [], ico
   className?: string;
 }) {
   return (
-    <div className={`notice notice-${tone}${className ? ` ${className}` : ''}`}
+    <div className={`notice ${TONE_CLASS[tone]}${className ? ` ${className}` : ''}`}
          role={tone === 'danger' ? 'alert' : 'status'}>
       <span className="notice-icon">
         <Icon name={icon ?? TONE_ICON[tone]} />
@@ -356,4 +375,83 @@ function Toast({ toast, dismiss }: { toast: ToastItem; dismiss: (id: number) => 
 // Beside words that say what is under way, never instead of them.
 export function Spinner({ size = 16 }: { size?: number }) {
   return <span className="spinner" style={{ width: size, height: size }} aria-hidden="true" />;
+}
+
+// ─── StatTile and StatRow ────────────────────────────────────
+
+export type { StatTone } from '../primitives';
+
+// A figure the shopper reads at a glance: its name in the label role, the figure in the title
+// role in equal-width digits, and an optional note under it ("of $90.00", "2 not placed"). A tone
+// other than 'default' colours the figure and puts its sign beside it; say what it means in the
+// note as well ("$12.40 over"), since a screen reader hears no colour. Tiles go in a StatRow,
+// which is the description list their names and figures belong to.
+export function StatTile({ label, value, note, tone = 'default' }: {
+  label: ReactNode;
+  value: ReactNode;
+  note?: ReactNode;
+  tone?: StatTone;
+}) {
+  const { className, icon } = STAT_TONES[tone];
+  return (
+    <div className={className}>
+      <dt className="stat-tile-label">{label}</dt>
+      <dd className="stat-tile-value">{icon && <Icon name={icon} size={16} strokeWidth={2.2} />}{value}</dd>
+      {note && <dd className="stat-tile-note">{note}</dd>}
+    </div>
+  );
+}
+
+// A row of tiles, as many to a line as fit (about 130px each), wrapping on a phone. `plain` draws
+// them without their boxes, for a bar that is already a box (the meal plan's budget strip). (Its
+// class is .stat-tiles: .stat-row is still Provenance's older row of .stat boxes.)
+export function StatRow({ children, plain = false, className }: {
+  children: ReactNode;
+  plain?: boolean;
+  className?: string;
+}) {
+  return <dl className={['stat-tiles', plain && 'stat-tiles-plain', className].filter(Boolean).join(' ')}>{children}</dl>;
+}
+
+// ─── ScrollRegion ────────────────────────────────────────────
+
+// A box that scrolls inside itself (a table wider than a phone, a sheet's long body). While its
+// content overflows it is a stop for the keyboard (Tab reaches it, the arrow keys scroll it) and a
+// region named by `label` or by `labelledBy` (the id of a heading that says it), so a screen
+// reader says what the stop is; while everything fits it is a plain box, with no Tab stop that
+// leads nowhere. It measures itself and its children whenever either changes size (a phone turned,
+// rows arriving), so it follows its content without being told. Its overflow is the caller's
+// class's to set (styles/table.css has .table-scroll); it adds .scroll-region for the focus ring.
+export function ScrollRegion({ label, labelledBy, className, children, ...rest }: {
+  label?: string;
+  labelledBy?: string;
+  className?: string;
+  children: ReactNode;
+} & Omit<HTMLAttributes<HTMLDivElement>, 'role' | 'tabIndex' | 'aria-label' | 'aria-labelledby' | 'children'>) {
+  const box = useRef<HTMLDivElement>(null);
+  const [over, setOver] = useState(false);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return undefined;
+    const measure = () => setOver(overflows(el));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    // the box itself, and each thing directly in it (a table that grows a row grows itself)
+    const sizes = new ResizeObserver(measure);
+    const watch = () => {
+      sizes.disconnect();
+      sizes.observe(el);
+      for (const child of Array.from(el.children)) sizes.observe(child);
+    };
+    watch();
+    const kids = new MutationObserver(() => { watch(); measure(); });
+    kids.observe(el, { childList: true });
+    return () => { sizes.disconnect(); kids.disconnect(); };
+  }, []);
+  return (
+    <div ref={box} className={className ? `scroll-region ${className}` : 'scroll-region'} {...rest}
+         {...scrollRegionProps(over, { label, labelledBy })}>
+      {children}
+    </div>
+  );
 }

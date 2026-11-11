@@ -18,14 +18,14 @@
 .cal-card-top .tag { flex: none; margin-top: 4px; }
 .cal-card-what { flex: 1; min-width: 0; }
 .view .cal-card-title { margin: 0; font: var(--type-section); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.cal-card-help { margin: var(--space-1) 0 0; color: var(--muted); font-size: 13.5px; }
+.cal-card-help { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--fs-compact); }
 .cal-card .fc-sub { margin-top: var(--space-4); }
 .cal-card .cal-status { margin: var(--space-2) 0 0; }
 .cal-card .cal-actions { margin-top: var(--space-4); gap: var(--space-3); }
-.cal-saved { display: block; margin: var(--space-2) 0 0; font-size: 13.5px; }
+.cal-saved { display: block; margin: var(--space-2) 0 0; font-size: var(--fs-compact); }
 .cal-saved:empty { margin: 0; }
 .cal-done, .cal-changed {
-  display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-2) 0 0; font-size: 13.5px;
+  display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-2) 0 0; font-size: var(--fs-compact);
 }
 .cal-done .ico, .cal-changed .ico { flex: none; margin-top: 2px; }
 .cal-done { color: var(--accent-soft-fg); font-weight: 600; }
@@ -33,13 +33,13 @@
 
 /* the sync's line under the actions: what it does, how it went, or why it is not offered */
 .cal-sync-line {
-  display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-3) 0 0; color: var(--muted); font-size: 13.5px;
+  display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-compact);
 }
 .cal-sync-line .ico { flex: none; margin-top: 2px; }
-.cal-sync-note { margin-top: var(--space-3); font-size: 13.5px; }
+.cal-sync-note { margin-top: var(--space-3); font-size: var(--fs-compact); }
 .cal-sync-note p { margin: var(--space-1) 0 0; }
 .cal-sync-what { color: var(--muted); max-width: 72ch; }
-.cal-sync-note-test { font-size: 12px; }
+.cal-sync-note-test { font-size: var(--fs-compact); }
 /* the apply button says exactly what it writes ("Create the Pantry plan calendar and add 19
    events"), so on a narrow screen its words wrap rather than run out of the card */
 .cal-sync-actions .btn { max-width: 100%; white-space: normal; text-align: left; }
@@ -51,7 +51,7 @@
   .cal-card { padding: var(--space-4); }
   .cal-card-top { flex-wrap: wrap; }
   .cal-card-top .fc-icon { display: none; }
-  .view .cal-card-title { font-size: 20px; line-height: 26px; }
+  .view .cal-card-title { font-size: var(--fs-title); line-height: 26px; }
   /* the two ways to add the events, one under the other, each the width of the card */
   .cal-card .cal-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
   .cal-card .cal-actions .btn { width: 100%; }
@@ -71,7 +71,7 @@
 .cal-timing > summary > .ico:first-child { flex: none; color: var(--accent); }
 .cal-timing-what { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .cal-timing-title { font: var(--type-title); }
-.cal-timing-now { color: var(--muted); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.cal-timing-now { color: var(--muted); font-size: var(--fs-compact); font-variant-numeric: tabular-nums; }
 .cal-timing-chev { flex: none; color: var(--muted); transition: transform var(--dur-2) var(--ease-standard); }
 .cal-timing[open] .cal-timing-chev { transform: rotate(180deg); }
 .cal-timing-body { padding: 0 var(--space-5) var(--space-5); }
@@ -96,7 +96,7 @@
 }
 .cal-event .ppic { width: 48px; height: 48px; }
 .cal-pic {
-  display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--radius);
+  display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--radius-2);
   background: var(--surface-2); color: var(--muted);
 }
 .cal-pic-trip { background: var(--accent-soft); color: var(--accent-soft-fg); }
@@ -107,7 +107,7 @@
   font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--accent-soft-fg);
 }
 .cal-freeze .cal-kind, .cal-thaw .cal-kind { color: var(--info); }
-.cal-event-line { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.cal-event-line { color: var(--muted); font-size: var(--fs-compact); overflow-wrap: anywhere; }
 .cal-event-more { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-4); }
 .cal-google { display: inline-flex; align-items: center; gap: var(--space-1); }
 .cal-notes { margin-top: var(--space-1); }
@@ -117,5 +117,4 @@
 @media (pointer: coarse) {
   /* padding rather than flex, so the summary keeps its disclosure triangle */
   .cal-details summary { padding-block: 12px; line-height: 20px; }
-  .cal-disconnect-confirm label.check, .cal-choice label.check { display: flex; align-items: center; min-height: 44px; }
 }

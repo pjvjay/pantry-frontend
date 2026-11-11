@@ -15,11 +15,16 @@
 import { useEffect, useId, useState } from 'react';
 
 import { LAST_STEP, clockText, nextBlock, stepHash, stepName, stepViews, waitWords } from '../mealplan/wizard';
-import type { StepNo, WizardFacts } from '../mealplan/wizard';
+import type { StepNo, StepView, WizardFacts } from '../mealplan/wizard';
 import { Icon } from './icons';
 import { Spinner } from './ui';
 import { useElapsed } from './useElapsed';
 import { useKeepClear } from './useKeepClear';
+
+// A stage's class for where it stands, written out whole so a search for one finds it.
+const STATE_CLASS: Record<StepView['state'], string> = {
+  done: 'mp-step-done', current: 'mp-step-current', ahead: 'mp-step-ahead',
+};
 
 // finished: the last stage's work is done (the plan's events have gone to a calendar), which it
 // shows with a tick like the stages before it, even while it is the one shown.
@@ -45,7 +50,7 @@ export function Stepper({ step, facts, finished = false }: { step: StepNo; facts
               {said && <span className="sr-only">{said}</span>}
             </>
           );
-          const cls = `mp-step mp-step-${v.state}${v.attention ? ' mp-step-attention' : ''}`
+          const cls = `mp-step ${STATE_CLASS[v.state]}${v.attention ? ' mp-step-attention' : ''}`
             + `${v.reachable ? '' : ' mp-step-closed'}${v.finished ? ' mp-step-finished' : ''}`;
           return (
             <li key={v.n} className={cls}>

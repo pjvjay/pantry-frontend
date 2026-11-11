@@ -187,20 +187,20 @@ test('every dark-mode rule in the stylesheets follows the theme choice', () => {
   }
 });
 
-// Colours live in tokens.css. Elsewhere a rule names a token, except where a token cannot reach:
-// the printed list (always black on white) and a dialog's ::backdrop (older browsers do not pass
-// custom properties into it).
+// Colours live in tokens.css. Everywhere else a rule names a token, with no exception: the printed
+// list has --print-paper and --print-ink, and a dialog's ::backdrop is given --backdrop itself.
 test('no stylesheet but tokens.css writes a raw colour', () => {
   for (const file of cssFiles(join(ROOT, 'src')).filter((f) => f !== TOKENS)) {
-    let text = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    for (;;) {
-      const at = text.indexOf('@media print');
-      if (at === -1) break;
-      const open = text.indexOf('{', at);
-      text = text.slice(0, at) + text.slice(open + blockAt(text, open).length + 2);
-    }
-    text = text.replace(/[^{}]*::backdrop\s*\{[^}]*\}/g, '');
+    const text = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     const raw = text.match(/#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(/gi) ?? [];
     assert.deepEqual(raw, [], `${file} writes raw colours: ${raw.join(', ')}`);
   }
+});
+
+// Older browsers do not let a dialog's ::backdrop inherit from the page, so the dim behind a sheet
+// is set on ::backdrop as well as on :root, in one rule.
+test('a dialog backdrop gets the dim token itself', () => {
+  const rule = /:root\s*,\s*::backdrop\s*\{([^}]*)\}/.exec(css);
+  assert.ok(rule, 'tokens.css has no ":root, ::backdrop" rule');
+  assert.match(rule[1], /--backdrop\s*:/);
 });

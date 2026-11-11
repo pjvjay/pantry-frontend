@@ -34,6 +34,9 @@ function inline(text: string, key: string): ReactNode[] {
 
 const cells = (row: string) => row.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
 
+// A heading's classes by its depth (# to ####), written out whole so a search for one finds it.
+const HEADING_CLASS = ['md-h', 'md-h md-h1', 'md-h md-h2', 'md-h md-h3', 'md-h md-h4'];
+
 export default function Markdown({ text, headings }: { text: string; headings?: 2 | 3 | 4 | 5 }) {
   const lines = text.split('\n');
   const blocks: ReactNode[] = [];
@@ -72,7 +75,7 @@ export default function Markdown({ text, headings }: { text: string; headings?: 
     const heading = /^(#{1,4})\s+(.*)$/.exec(line);
     if (heading) {
       const depth = heading[1].length;
-      const cls = `md-h md-h${depth}`;
+      const cls = HEADING_CLASS[depth];
       if (headings) {
         const Tag = `h${Math.min(6, headings + depth - top)}` as 'h4';
         blocks.push(<Tag key={key} className={cls}>{inline(heading[2], key)}</Tag>);

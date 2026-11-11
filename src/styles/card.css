@@ -1,0 +1,102 @@
+/* The card: the console's one surface (imported right after ui.css, main.tsx). A page is cards on
+   the warm paper of the page; inside them, rows. Every surface the shopper reads something on is
+   drawn by the one rule below, so cards look the same on every page, in either theme.
+
+     .card              a surface on the page: the panel's fill, a hairline edge, --radius-3, the
+                        resting shadow (none in dark) and --card-pad around what it holds (20px,
+                        16px on a phone). It lays nothing out: what is inside keeps its own flow.
+     .card-row          one row of a list, as a card: --radius-2, tighter padding, its picture on
+                        the left, the words beside it and anything else at the end. Works alone or
+                        with .card.
+     .card-pic          the picture slot, holding pictures.tsx's RecipePicture or ProductPicture
+                        (each brings its own quiet placeholder): across the top of a card, edge to
+                        edge, 16:9; on a row, a 48px square on the left. The picture covers it.
+     .card-head         the card's first row: its title (and the line under it) on the left, a Tag
+                        or an action on the right, wrapping under the title when there is no room.
+     .card-title        the card's title, in the title role.
+     .card-sub          the line under a title: compact and muted.
+     .card-interactive  a card that is one link or button as a whole. Hover and focus inside it
+                        raise it (the strong line, the floating shadow); a touch screen, which has
+                        no hover, keeps it still until something in it is focused. Its own link or
+                        button takes .card-link, which stretches over the whole card, so the card
+                        is one target and the ring goes round the card.
+
+   <article class="card">
+     <div class="card-pic"><RecipePicture … size="card" /></div>
+     <div class="card-head"><div><h3 class="card-title">Tomato penne</h3>
+       <p class="card-sub">4 servings · 25 min</p></div><Tag kind="done" /></div>
+     …
+   </article> */
+
+/* The padding is a property, so what bleeds to a card's edge (its picture) can reach it, and a card
+   in a dense grid (four to a row) can take the tighter step: `--card-pad: var(--space-4)`. */
+:root { --card-pad: var(--space-5); }
+@media (max-width: 640px) {
+  :root { --card-pad: var(--space-4); }
+}
+
+.card, .card-row,
+/* Transitional, until every caller is .card: the console's older surfaces (.panel, the Workshop's
+   and the Planner lab's; .fc, a form's card, components/fields.tsx; .mp-card, a recipe on Pick
+   meals; and the Planner lab's recipe .card, which is this class already) take their surface from
+   this same rule and have no copy of it. Their own rules keep only how they lay out. A view that
+   moves to .card takes its class off this list; the last one removes the list. */
+.panel, .fc, .mp-card {
+  padding: var(--card-pad);
+  border: 1px solid var(--border); border-radius: var(--radius-3);
+  background: var(--panel); box-shadow: var(--shadow-1);
+}
+
+.card-row {
+  display: flex; align-items: center; gap: var(--space-3); min-width: 0;
+  padding: var(--space-3) var(--space-4); border-radius: var(--radius-2);
+}
+.card-row > :not(.card-pic) { min-width: 0; }
+
+/* ─── The picture ────────────────────────────────────────────────────────────────────────── */
+.card-pic {
+  position: relative; display: block; overflow: hidden; aspect-ratio: 16 / 9;
+  margin: calc(-1 * var(--card-pad)) calc(-1 * var(--card-pad)) var(--space-3);
+  /* the card's own corner, inside its edge */
+  border-radius: 0; border-top-left-radius: calc(var(--radius-3) - 1px); border-top-right-radius: calc(var(--radius-3) - 1px);
+  background: var(--surface-2);
+}
+.card-pic > .rpic, .card-pic > .ppic {
+  width: 100%; height: 100%; border: 0; border-radius: 0;
+}
+.card-row > .card-pic {
+  flex: none; width: 48px; height: 48px; aspect-ratio: 1; margin: 0; border-radius: var(--radius-2);
+}
+
+/* ─── The head, the title, the line under it ─────────────────────────────────────────────── */
+.card-head {
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+  gap: var(--space-1) var(--space-3); margin: 0 0 var(--space-3);
+}
+.card-head:last-child { margin-bottom: 0; }
+.card-head > :first-child { flex: 1 1 12rem; min-width: 0; }
+/* (with .view, so a heading's own rules there do not win) */
+.card-title, .view .card-title { margin: 0; font: var(--type-title); overflow-wrap: anywhere; }
+.card-sub { margin: 0; color: var(--muted); font: var(--type-compact); }
+.card-title + .card-sub { margin-top: 2px; }
+
+/* ─── A card that is one target ──────────────────────────────────────────────────────────── */
+.card-interactive {
+  position: relative;
+  transition: border-color var(--dur-1) var(--ease-standard), box-shadow var(--dur-1) var(--ease-standard);
+}
+@media (hover: hover) {
+  .card-interactive:hover { border-color: var(--line-strong); box-shadow: var(--shadow-2); }
+}
+.card-interactive:focus-within { border-color: var(--line-strong); box-shadow: var(--shadow-2); }
+.card-link { color: inherit; text-decoration: none; }
+.card-link::after { content: ''; position: absolute; inset: 0; }
+/* the ring goes round the card the link stands for, not round its words */
+.card-link:focus-visible { outline: none; }
+.card-interactive:has(.card-link:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* anything else in the card that answers on its own stays above the stretched link */
+.card-interactive :is(a, button, input, select, textarea, summary):not(.card-link) { position: relative; z-index: 1; }
+
+@media (forced-colors: active) {
+  .card-interactive:has(.card-link:focus-visible) { outline-color: Highlight; }
+}

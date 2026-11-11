@@ -2,7 +2,9 @@
 //
 //   ShellHeader  the wordmark (home), the way into the Workshop, the status of the services behind
 //                the page as one dot and a few words that open into a line per service, and the
-//                theme menu.
+//                theme menu. On a phone it is one row: the wordmark (its cart alone when the row
+//                has no room for its name), the Workshop's wrench, the dot with a short word, and
+//                the theme as one button that opens its list.
 //   PrimaryNav   the household's four places, Home, Plan, Shop and Ask: a row under the header on
 //                a wide screen, a bar along the bottom of a phone's screen (its height is
 //                --bottom-nav-h, which everything fixed or sticky at the bottom keeps clear of).
@@ -68,7 +70,7 @@ function StatusCluster() {
   const panelId = useId();
   const box = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
-  const { words, tone } = statusSummary(api.state, hub.state);
+  const { words, short, tone } = statusSummary(api.state, hub.state);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -113,7 +115,9 @@ function StatusCluster() {
               aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
         <span className={`status-dot status-dot-${tone}`} aria-hidden="true" />
         <span className="sr-only">Status: </span>
+        {/* a phone shows the short word, which is part of the words a screen reader hears */}
         <span className="status-words">{words}</span>
+        <span className="status-short" aria-hidden="true">{short}</span>
         <Icon name="chevron-down" size={16} className="status-chev" />
       </button>
       <div id={panelId} className="status-pop" hidden={!open}>
@@ -153,7 +157,7 @@ export function ShellHeader({ route }: { route: Route }) {
     <header className="shell-head">
       <h1 className="wordmark">
         <a className="wordmark-link" href={hrefFor({ name: 'home' })}>
-          <Icon name="cart" size={28} />Pantry Planner
+          <Icon name="cart" size={28} /><span className="wordmark-word">Pantry Planner</span>
         </a>
       </h1>
       <a className="ws-link" href={hrefFor({ name: 'workshop', tab: 'catalog' })}

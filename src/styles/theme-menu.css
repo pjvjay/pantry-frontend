@@ -1,9 +1,10 @@
-/* The theme menu (components/ThemeMenu.tsx): three radios drawn as one segmented control. The real
-   input lies transparent over each face, so a click, a tap, the keyboard and a screen reader all
-   reach it. The chosen face is raised and edged, with its icon in the accent: more than a colour
-   says which one is on. Raised means lighter than its track in either theme (--popover over
-   --surface-2), as dark shows elevation, and its edge is the control's edge, which holds 3:1. On a
-   phone the words hide (they stay for screen readers). */
+/* The theme menu (components/ThemeMenu.tsx). On a wide screen, three radios drawn as one segmented
+   control. The real input lies transparent over each face, so a click, a tap, the keyboard and a
+   screen reader all reach it. The chosen face is raised and edged, with its icon in the accent:
+   more than a colour says which one is on. Raised means lighter than its track in either theme
+   (--popover over --surface-2), as dark shows elevation, and its edge is the control's edge, which
+   holds 3:1. On a phone (640px and under) one button instead, opening the three as a short list
+   (.theme-pick, at the end of this file). */
 .theme-menu {
   display: inline-flex; gap: 2px; min-width: 0; margin: 0; padding: 3px;
   border: 1px solid var(--border-ui); border-radius: var(--radius-pill); background: var(--surface-2);
@@ -14,7 +15,7 @@
 }
 .theme-face {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px;
-  padding: 0 10px; border-radius: var(--radius-pill); color: var(--muted); font-size: 13px; font-weight: 600;
+  padding: 0 10px; border-radius: var(--radius-pill); color: var(--muted); font-size: var(--fs-compact); font-weight: 600;
   transition: background-color var(--dur-1) var(--ease-standard), color var(--dur-1) var(--ease-standard),
     box-shadow var(--dur-1) var(--ease-standard);
 }
@@ -25,16 +26,40 @@
 .theme-opt input:checked + .theme-face .ico { color: var(--accent); }
 .theme-opt input:focus-visible + .theme-face { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-@media (max-width: 640px) {
-  .theme-word {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-  }
-  .theme-face { padding: 0 8px; }
-}
 @media (pointer: coarse) {
   .theme-face { min-width: 44px; min-height: 44px; }
 }
+
+/* ─── A phone's: one button, the three as a list under it ─────────────────────────────────── */
+/* The button shows the theme in use; the list floats under it at the screen's right edge, each
+   theme a row a fingertip tall with the browser's own radio, in the accent, beside its icon and
+   word. */
+.theme-pick { position: relative; display: none; flex: none; }
+.theme-pop {
+  position: absolute; right: 0; top: calc(100% + var(--space-2)); z-index: 30;
+  width: min(220px, calc(100vw - 2 * var(--space-4))); padding: var(--space-2);
+  border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--popover); box-shadow: var(--shadow-2);
+}
+.theme-pop[hidden] { display: none; }
+.theme-list { display: grid; gap: 2px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.theme-list-head {
+  padding: var(--space-1) var(--space-2) var(--space-2); font: var(--type-label); letter-spacing: var(--label-tracking);
+  text-transform: uppercase; color: var(--muted);
+}
+.theme-item {
+  display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: 0 var(--space-2);
+  border-radius: var(--radius-2); font-weight: 600; cursor: pointer;
+}
+.theme-item:hover { background: var(--surface-2); }
+.theme-item input { flex: none; width: 18px; height: 18px; margin: 0; }
+.theme-item .ico { flex: none; color: var(--muted); }
+.theme-item:has(input:checked) .ico { color: var(--accent); }
+
+@media (max-width: 640px) {
+  .theme-menu { display: none; }
+  .theme-pick { display: block; }
+}
 @media (forced-colors: active) {
   .theme-opt input:checked + .theme-face { outline: 2px solid Highlight; outline-offset: -2px; }
+  .theme-pop { border-color: CanvasText; }
 }
