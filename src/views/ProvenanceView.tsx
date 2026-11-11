@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { rankByOrigin } from '../api';
 import { ErrorBanner, JsonView, parseList } from '../components/common';
+import { HubErrorBanner } from '../components/ui';
 import { getProducts, mcpRead, pantryTool, resetDemo } from '../hub';
 import type { OriginRanking, Product, UnrankedProduct } from '../types';
 
@@ -215,7 +216,7 @@ function SubmitPanel({ products, productId, setProductId, onSubmitted }: {
           {busy ? 'Submitting…' : 'Submit for review'}
         </button>
       </form>
-      <ErrorBanner error={error} />
+      <HubErrorBanner error={error} />
       {result && (
         <div className="coverage coverage-ok">
           Submission #{result.id} for <strong>{result.product_name}</strong> is <strong>{result.status}</strong>
@@ -270,7 +271,7 @@ function QueuePanel({ refreshKey, onReviewed }: { refreshKey: number; onReviewed
         copies the reading into the evidence table as <em>agent-label</em>, and the product's
         origin and the ranking change; rejecting needs a reason.
       </p>
-      <ErrorBanner error={error} />
+      <HubErrorBanner error={error} />
       {items.length === 0 && <p className="muted">No {status} readings.</p>}
       {items.map((s) => (
         <div key={s.id} className="queue-item">
@@ -296,6 +297,9 @@ function QueuePanel({ refreshKey, onReviewed }: { refreshKey: number; onReviewed
   );
 }
 
+// The products list comes from the pantry API; coverage, triage, readings, the queue and the reset
+// go through the demo hub. Each kind of failure is shown on its own, so one never hides the
+// other, and the hub's only while the hub answers (the Workshop's panel says when it does not).
 export default function ProvenanceView({ initialProduct }: { initialProduct: number | null }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [coverage, setCoverage] = useState<Coverage | null>(null);
@@ -303,6 +307,7 @@ export default function ProvenanceView({ initialProduct }: { initialProduct: num
   const [productId, setProductId] = useState<number | ''>(initialProduct ?? '');
   const [refreshKey, setRefreshKey] = useState(0);
   const [resetting, setResetting] = useState(false);
+  const [productsError, setProductsError] = useState('');
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
@@ -317,7 +322,7 @@ export default function ProvenanceView({ initialProduct }: { initialProduct: num
   }, []);
 
   useEffect(() => {
-    getProducts().then(setProducts).catch((e: Error) => setError(e.message));
+    getProducts().then(setProducts).catch((e: Error) => setProductsError(`The products could not be loaded: ${e.message}`));
     void refresh();
   }, [refresh]);
 
@@ -340,7 +345,8 @@ export default function ProvenanceView({ initialProduct }: { initialProduct: num
 
   return (
     <div className="view">
-      <ErrorBanner error={error} />
+      <ErrorBanner error={productsError} />
+      <HubErrorBanner error={error} />
       <CoveragePanel coverage={coverage} onReset={() => void reset()} resetting={resetting} />
       <div className="two-col">
         <SubmitPanel products={products} productId={productId} setProductId={setProductId} onSubmitted={changed} />

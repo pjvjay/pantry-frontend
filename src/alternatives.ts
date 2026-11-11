@@ -238,10 +238,10 @@ export function footText(r: AlternativeRanking): string[] {
   return out;
 }
 
-// The links a card offers that this console can follow: in-page routes (`#/<tab>...`) to a tab
-// it has (`routes`). A week card links to the Meal plan; a console without that tab would land on
-// the Overview instead, and leaving the Assistant tab drops the conversation, so such a link is
-// not drawn.
+// The links a card offers that this console can follow: in-page routes (`#/<place>...`) whose
+// first segment is one it has (`routes`: routes.ts ROUTE_IDS, today's places and the old tab
+// names the shell rewrites, so `#/mealplan?step=4` and `#/plan?step=4` both count). A console
+// without the place would land on Home instead, so such a link is not drawn.
 export function routedLinks(links: readonly { label: string; href: string }[],
                             routes: readonly string[]): { label: string; href: string }[] {
   return links.filter((l) => {

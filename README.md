@@ -21,7 +21,7 @@ bring up the whole stack with docker-compose from pantry-platform.
 
 ## Recipe import
 
-"Import a recipe" (the Assistant's composer and the Planner) reads a recipe
+"Import a recipe" (the Assistant's composer and the Workshop's Planner lab) reads a recipe
 into ingredient lines the shopper reviews before anything is planned
 (`components/ImportSheet.tsx`). What was reviewed is what gets planned: lines
 can be ticked or removed, never rewritten.
@@ -60,7 +60,41 @@ test framework to install. It needs Node 22.18 or later (CI uses 24):
 npm test   # node --test "tests/**/*.test.ts"
 ```
 
-## Meal plan (`#/mealplan`)
+## Pages and addresses
+
+Every page lives in the hash (`src/routes.ts`, pure and tested), so it can be
+bookmarked, reloaded and reached with Back:
+
+| Address | Page |
+|---|---|
+| `#/home` | Home (also an empty hash and any address the console does not know) |
+| `#/plan?step=1..6` | the meal plan's six stages |
+| `#/shop` | the shopping plan on its own (`#/shop/trip/<YYYY-MM-DD>`: one trip, for the shop itself) |
+| `#/ask` | the Assistant |
+| `#/workshop/<tab>` | the Workshop: `catalog` (the default), `provenance` (`?product=`), `mcp`, `simulations`, `metrics` (`?trace=`), `system`, `planner` (the Planner lab) and `about` |
+
+The old addresses still work: `#/overview`, `#/mealplan` (with every query key,
+`?step=`, `?calendar=` and `?reason=` included), `#/assistant`, `#/planner` and
+`#/catalog`, `#/provenance`, `#/mcp`, `#/simulations`, `#/metrics`, `#/system`
+(which move under `#/workshop/`). The shell rewrites an old address to its new
+one in place (`history.replaceState`), so Back never lands on it.
+
+The shell (`App.tsx`, `components/nav.tsx`, `styles/shell.css`) is the header (the
+wordmark, the status of the services, the theme menu, the Workshop) and the four
+places, Home, Plan, Shop and Ask: a row under the header from 900px, a bar fixed
+to the bottom of a narrower screen, whose height is `--bottom-nav-h` (anything
+fixed or sticky at the bottom keeps clear of it). The status asks pantry-api
+every 15 s, and the demo hub once for the whole console (`src/hubStatus.tsx`:
+on load, every 30 s, on window focus, and at once when a hub call fails as if
+the hub were down); it reads "Ready", "Hub paused" (the hub refused: 401 or 403),
+"Hub offline" (nothing answered), "API offline · retrying" or "Connecting…", and
+opens into a line per service. A page that needs the hub shows one `OfflinePanel`
+while it is off, saying what is off, what still works, Retry and Open System,
+instead of a red banner per failed call. The shared pieces (`Notice`,
+`OfflinePanel`, `EmptyState`, `Skeleton`, `Tag`, toasts with `useToast`) are in
+`components/ui.tsx` and `styles/ui.css`.
+
+## Meal plan (`#/plan`, and `#/shop`)
 
 The meal plan is pantry-api's `MealPlanDraft`, held in this browser; the
 server computes its schedule, trips and freshness on every change and keeps
@@ -109,7 +143,7 @@ The tab is a wizard of six stages under a progress indicator (a nav of links,
 `aria-current="step"` on the stage shown; done, current and ahead, and a stage the
 plan cannot be on yet says what it waits for), with Back and Next under each; Next
 stays focusable when it cannot be used and says what stops it. The stage is in the
-address, `#/mealplan?step=1..6`, so the browser's Back works and a reload comes
+address, `#/plan?step=1..6`, so the browser's Back works and a reload comes
 back to it; Google's `?calendar=` return lands on Calendar, and the Assistant's and
 the Planner's "Open in Meal plan" on Schedule. On each change of stage focus moves
 to its heading. `views/MealPlanView.tsx` puts them together:
@@ -203,8 +237,11 @@ edits change it. An approval belongs to the strategy it was given under, as the
 engine reads it: after switching strategy that day reads "Approved under Shop
 fresh" (say), with Take the approval back, and approving the other strategy's
 list replaces the approval only when asked; a plan keeps one approval a day.
-The tab works with only `/pantry/api` (no hub), so it runs on the public demo
-and on AKS as well as in the local stack.
+The meal plan works with only `/pantry/api` (no hub), so it runs on the public demo
+and on AKS as well as in the local stack. `#/shop` is the same view in "shop" mode
+(`MealPlanView mode="shop"`): stage 5 with no stepper, its heading beside "Back
+to planning", and, while a stage before it is blocked, what it waits for and a
+button to that stage.
 
 The plan is saved in this browser only (`pantry.mealplan.v1`): a private
 window, cleared site data or another device starts empty, so Basics and Calendar
@@ -263,7 +300,8 @@ review.
 only with the local demo hub and an OAuth client the user made; demo-hub
 `docs/google-calendar.md`): Connect opens Google's consent page from the
 `auth_url` the hub returns, and Google sends the shopper back to
-`#/mealplan?calendar=connected`, which opens the Calendar stage. The times and
+`#/plan?calendar=connected`, which opens the Calendar stage (a hub given the old
+`#/mealplan` return address still lands there: the shell rewrites it). The times and
 reminders go with every review and sync, so changing them shows as an edit. Review changes shows
 the hub's diff for a calendar named Pantry plan, grouped Add, Change, Remove,
 Edited in Google (Keep chosen, or Overwrite), Deleted in Google (Restore only

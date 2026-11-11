@@ -1,0 +1,16 @@
+/* The shopping plan on its own (#/shop: views/MealPlanView.tsx in "shop" mode). Its heading sits
+   on one line with the way back to planning; while the plan cannot have a shopping plan yet, an
+   EmptyState says what it waits for. */
+
+.mp-shop-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4); }
+.view .mp-shop-head h2 { margin: 0; }
+.mp-shop-back {
+  display: inline-flex; align-items: center; gap: var(--space-1); font-size: 14px; font-weight: 600;
+  text-decoration: none;
+}
+.mp-shop-back:hover { text-decoration: underline; }
+.mp-shop-back .ico { align-self: center; }
+.mp-shop-waits { margin-top: var(--space-2); height: auto; padding: var(--space-4) 0 0; border: none; box-shadow: none; background: none; }
+@media (pointer: coarse) {
+  .mp-shop-back { min-height: 44px; }
+}

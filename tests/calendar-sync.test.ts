@@ -6,10 +6,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  applyLabel, applySummary, choicesFor, connectionText, defaultChoices, failedItems, groupOps,
+  RETURN_TO, applyLabel, applySummary, choicesFor, connectionText, defaultChoices, failedItems, groupOps,
   oauthNotice, oauthReturn, opDay, refusal, resultText, retryIsSame, syncErrorText, syncPlan,
   unchangedText, withoutOauthReturn,
 } from '../src/calendarSync.ts';
+import { stepFromHash } from '../src/mealplan/wizard.ts';
+import { canonicalHash } from '../src/routes.ts';
 import type { CalendarDiff, CalendarOp, CalendarOpKind, CalendarSyncStatus } from '../src/types.ts';
 
 const op = (item_id: string, kind: CalendarOpKind, extra: Partial<CalendarOp> = {}): CalendarOp => ({
@@ -114,18 +116,42 @@ test('refusals read in the shopper\'s words', () => {
 });
 
 test('the return from Google is read once and taken out of the address', () => {
-  assert.deepEqual(oauthReturn('#/mealplan?calendar=connected'), { outcome: 'connected', reason: null });
-  assert.deepEqual(oauthReturn('#/mealplan?calendar=denied&reason=access_denied'),
+  assert.deepEqual(oauthReturn('#/plan?calendar=connected'), { outcome: 'connected', reason: null });
+  assert.deepEqual(oauthReturn('#/plan?calendar=denied&reason=access_denied'),
     { outcome: 'denied', reason: 'access_denied' });
-  assert.equal(oauthReturn('#/mealplan'), null);
-  assert.equal(oauthReturn('#/mealplan?calendar=pwned'), null);
-  assert.equal(withoutOauthReturn('#/mealplan?calendar=error&reason=no_refresh_token'), '#/mealplan');
-  assert.equal(withoutOauthReturn('#/catalog?product=3&calendar=connected'), '#/catalog?product=3');
-  assert.equal(withoutOauthReturn('#/mealplan'), '#/mealplan');
+  assert.equal(oauthReturn('#/plan'), null);
+  assert.equal(oauthReturn('#/plan?calendar=pwned'), null);
+  assert.equal(withoutOauthReturn('#/plan?calendar=error&reason=no_refresh_token'), '#/plan');
+  assert.equal(withoutOauthReturn('#/plan?step=6&calendar=connected'), '#/plan?step=6');
+  assert.equal(withoutOauthReturn('#/workshop/provenance?product=3&calendar=connected'),
+    '#/workshop/provenance?product=3');
+  assert.equal(withoutOauthReturn('#/plan'), '#/plan');
   assert.deepEqual(oauthNotice({ outcome: 'connected', reason: null }), { text: 'Connected to Google Calendar.', ok: true });
   assert.match(oauthNotice({ outcome: 'denied', reason: 'access_denied' }).text, /not a test user/);
   assert.match(oauthNotice({ outcome: 'error', reason: 'scope_not_granted' }).text, /leave that box ticked/);
   assert.match(oauthNotice({ outcome: 'error', reason: '<script>' }).text, /did not complete/);
+});
+
+// Google sends the shopper back to RETURN_TO: the plan's own address, which the shell leaves as it
+// is and the wizard opens on Calendar. A hub handed the old address before this changed sends
+// them to #/mealplan, which the shell rewrites to #/plan with the query intact.
+test('Google returns to the plan, under its address or its old one, and lands on Calendar', () => {
+  assert.equal(RETURN_TO, '#/plan');
+  assert.equal(canonicalHash(RETURN_TO), RETURN_TO);
+  for (const back of [`${RETURN_TO}?calendar=connected`, '#/mealplan?calendar=connected']) {
+    const shown = canonicalHash(back);
+    assert.equal(shown, '#/plan?calendar=connected', back);
+    assert.equal(stepFromHash(shown), 6);
+    assert.deepEqual(oauthReturn(shown), { outcome: 'connected', reason: null });
+    // read once, then out of the address: a reload does not repeat it
+    assert.equal(withoutOauthReturn(shown), '#/plan');
+  }
+  const refused = canonicalHash('#/mealplan?calendar=error&reason=scope_not_granted');
+  assert.equal(refused, '#/plan?calendar=error&reason=scope_not_granted');
+  assert.deepEqual(oauthReturn(refused), { outcome: 'error', reason: 'scope_not_granted' });
+  assert.equal(withoutOauthReturn(refused), '#/plan');
+  // the old address without the redirect's keys is left to the shell, which rewrites it
+  assert.equal(withoutOauthReturn('#/mealplan?calendar=denied'), '#/mealplan');
 });
 
 test('the connection line names the calendar and the reconnect-by day', () => {

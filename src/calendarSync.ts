@@ -12,9 +12,11 @@ import type {
   CalendarSyncStatus,
 } from './types.ts';
 
-// Where Google sends the shopper back to: the Meal plan, whose ?calendar= return opens the
-// Calendar stage (the hub takes no query in it, so the stage is not named here).
-export const RETURN_TO = '#/mealplan';
+// Where Google sends the shopper back to: the meal plan, whose ?calendar= return opens the
+// Calendar stage (the hub takes no query in it, so the stage is not named here). A hub that was
+// handed the old '#/mealplan' before this changed still lands there: the shell rewrites it to
+// '#/plan', keeping ?calendar= and ?reason=.
+export const RETURN_TO = '#/plan';
 
 export interface SyncGroup {
   op: CalendarOpKind;
@@ -196,8 +198,8 @@ export function refusal(detail: unknown, fallback: string): { code: string | nul
 
 export type OAuthOutcome = 'connected' | 'denied' | 'error';
 
-// "#/mealplan?calendar=connected" (or denied, or error&reason=...): the hub's redirect back from
-// Google. null for any other hash.
+// "#/plan?calendar=connected" (or denied, or error&reason=...): the hub's redirect back from
+// Google, under the plan's address or its old one. null for any other hash.
 export function oauthReturn(hash: string): { outcome: OAuthOutcome; reason: string | null } | null {
   const query = hash.split('?')[1];
   if (!query) return null;

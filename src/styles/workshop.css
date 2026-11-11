@@ -1,0 +1,47 @@
+/* The Workshop (views/WorkshopView.tsx) and its About page (views/AboutView.tsx).
+
+   The tab bar is one row that never wraps: on a narrow screen it scrolls sideways, and the open
+   tab is scrolled into view. The current tab is underlined and in the accent, and aria-current
+   says it to a screen reader. */
+
+.ws-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin-top: var(--space-6); }
+.view .ws-title, .ws-title { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; font: var(--type-section); }
+.ws-title .ico { color: var(--accent); align-self: center; }
+.ws-sub { margin: 0; color: var(--muted); font-size: 14px; }
+
+.ws-tabs { margin-top: var(--space-3); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+.ws-tabs ul {
+  display: flex; gap: 2px; width: max-content; min-width: 100%; margin: 0; padding: 0; list-style: none;
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+.ws-tab {
+  display: block; padding: 10px 14px; white-space: nowrap; color: var(--muted); text-decoration: none;
+  font: 600 14px/20px var(--font-body); border-bottom: 2px solid transparent;
+  transition: color var(--dur-1) var(--ease-standard), border-color var(--dur-1) var(--ease-standard);
+}
+.ws-tab:hover { color: var(--text); border-bottom-color: var(--border-ui); }
+.ws-tab[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
+.ws-tab:focus-visible { outline-offset: -2px; }
+@media (pointer: coarse) {
+  .ws-tab { padding-top: 12px; padding-bottom: 12px; }
+}
+
+/* About: the diagram scrolls in its own box below 640px instead of shrinking past reading; the
+   tour's cards are links now (they were buttons). */
+.arch-wrap { overflow-x: auto; overscroll-behavior-x: contain; border-radius: var(--radius-2); }
+.arch-wrap:focus-visible { outline-offset: 2px; }
+@media (max-width: 640px) {
+  .arch-wrap .arch { width: 640px; max-width: none; }
+}
+a.tour-card { text-decoration: none; border-radius: var(--radius-3); }
+.about-intro { max-width: 72ch; }
+.about-source { margin: var(--space-3) 0 0; }
+.about-dev { margin-top: var(--space-3); color: var(--muted); font-size: 13px; }
+.about-dev summary { cursor: pointer; width: fit-content; }
+.about-dev ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); }
+
+@media (forced-colors: active) {
+  /* a transparent border shows in forced colours, so the tabs not open hide theirs */
+  .ws-tab { border-bottom-color: Canvas; }
+  .ws-tab[aria-current="page"] { border-bottom-color: Highlight; }
+}

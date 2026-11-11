@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ErrorBanner } from '../components/common';
+import { HubErrorBanner } from '../components/ui';
 import { EvalCard, Reasoning, Waterfall, dur, modelSegments } from '../components/flow';
 import Markdown from '../components/Markdown';
 import { runDetail } from '../hub';
@@ -248,7 +248,19 @@ export default function RunView({ id, onClose }: { id: string; onClose: () => vo
     const steps = (detail?.trace.spans ?? []).filter((s) => s.kind === 'model' && typeof s.attrs.text === 'string');
     return steps.length ? String(steps[steps.length - 1].attrs.text) : '';
   }, [detail]);
-  if (error) return <ErrorBanner error={error} />;
+  // a run that cannot be read (gone, or the hub is off) still has the way back
+  if (error) {
+    return (
+      <>
+        <HubErrorBanner error={`This run could not be read: ${error}`} />
+        <p className="row-gap">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            <Icon name="arrow-left" size={16} />Back to metrics
+          </button>
+        </p>
+      </>
+    );
+  }
   if (!detail) return <p className="muted">Loading the run…</p>;
   const t = detail.trace;
   const models = t.spans.filter((s) => s.kind === 'model');

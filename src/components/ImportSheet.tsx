@@ -14,7 +14,8 @@ import { createContext, useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { PlanAbortError, parseLines, planSpec } from '../api';
 import type { SpecOptions } from '../api';
-import { HubError, getStatus, importRecipe, importVideo } from '../hub';
+import { HubError, importRecipe, importVideo } from '../hub';
+import { useHubStatus } from '../hubStatus';
 import {
   addToMealPlan, amountText, basisBadge, confirmAll, dailyText, docFromParsed, durationText,
   estimateSeconds, evidenceHref, finished, fitsDaily, hasTranscribed, importError,
@@ -281,7 +282,10 @@ export function ImportSheet({ open, onClose, start, planInChat, chatBlocked, onP
   onPlanned?: (plan: ShoppingPlan) => void;
   planOptions?: SpecOptions;
 }) {
-  const [support, setSupport] = useState<ImportSupport | null>(null);
+  // What this console can read, from the console's one hub status: null until the hub has
+  // answered or refused once.
+  const hub = useHubStatus();
+  const support: ImportSupport | null = hub.state === 'connecting' ? null : importSupport(hub.status);
   const [tab, setTab] = useState<ImportTab | null>(null);
   const [url, setUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -327,10 +331,6 @@ export function ImportSheet({ open, onClose, start, planInChat, chatBlocked, onP
       if (start.url && t === 'youtube') setVideoUrl(start.url);
       else if (start.url) setUrl(start.url);
     }
-    let live = true;
-    getStatus().then((s) => { if (live) setSupport(importSupport(s)); })
-      .catch(() => { if (live) setSupport(importSupport(null)); });
-    return () => { live = false; };
   }, [open, start]);
 
   const tabs: ImportTab[] = support?.links ? ['link', 'youtube', 'paste'] : ['paste'];

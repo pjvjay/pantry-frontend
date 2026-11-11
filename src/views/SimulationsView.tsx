@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ErrorBanner, JsonView, StatusDot } from '../components/common';
+import { JsonView, StatusDot } from '../components/common';
+import { HubErrorBanner } from '../components/ui';
 import Markdown from '../components/Markdown';
 import { simCancel, simJob, simPresets, simRun, simScenario, simScenarios, simStart, simTranscript } from '../hub';
 import { Icon } from '../components/icons';
@@ -164,7 +165,7 @@ function ScenarioDetail({ name, runnerUrl, refreshKey }: { name: string; runnerU
   const dry = Boolean((run?.summary as Rec | undefined)?.dry_run) || current?.judge_model === 'dry-run';
   return (
     <section className="panel">
-      <ErrorBanner error={error} />
+      <HubErrorBanner error={error} />
       <div className="plan-header">
         <h2>{str(sc.title) || name}</h2>
         {last && <a href={`${runnerUrl}/#/${name}/${str(last.run_id)}`} target="_blank" rel="noreferrer">open in the runner<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>}
@@ -309,7 +310,7 @@ export default function SimulationsView() {
           <div className="plan-meta">{Object.entries(presets[preset].models).map(([r, m]) => <span key={r} className="chip chip-muted">{r}: {m}</span>)}</div>
         )}
       </section>
-      <ErrorBanner error={error} hint={error.includes('not reachable') ? 'Start the runner with the stack script (scripts/up.sh).' : undefined} />
+      <HubErrorBanner error={error} hint={error.includes('not reachable') ? 'Start the runner with the stack script (scripts/up.sh).' : undefined} />
 
       {job && (
         <section className="panel">

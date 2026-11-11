@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ErrorBanner } from '../components/common';
 import { dur } from '../components/flow';
+import { HubErrorBanner } from '../components/ui';
 import { getMetrics, traceList } from '../hub';
+import { hrefFor } from '../routes';
 import type { Metrics, MetricsRow, TraceSummary } from '../types';
 import RunView from './RunView';
 
@@ -69,7 +70,7 @@ export default function MetricsView() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const close = () => { setOpen(null); window.location.hash = '#/metrics'; };
+  const close = () => { setOpen(null); window.location.hash = hrefFor({ name: 'workshop', tab: 'metrics' }); };
   if (open) return <div className="view"><RunView id={open} onClose={close} /></div>;
 
   const b = metrics?.browser;
@@ -87,7 +88,7 @@ export default function MetricsView() {
           answer's checks that passed (mean {fmt('answer_confidence', metrics?.answer_confidence_mean)}).
         </p>
       </section>
-      <ErrorBanner error={error} />
+      <HubErrorBanner error={error} />
       {/* everything below arrives at once: sections filling in one by one moved the ones under
           them (a layout shift of 0.22 on this page) */}
       {!loaded && <p className="muted">Loading metrics…</p>}
@@ -167,7 +168,7 @@ export default function MetricsView() {
                     <td>{t.steps}</td>
                     <td>{(t.input_tokens ?? 0).toLocaleString()} / {(t.output_tokens ?? 0).toLocaleString()}</td>
                     <td>{fmt('answer_confidence', t.answer_confidence)}</td>
-                    <td><button type="button" className="secondary" onClick={() => { setOpen(t.id); window.location.hash = `#/metrics?trace=${t.id}`; }}>run</button></td>
+                    <td><button type="button" className="secondary" onClick={() => { setOpen(t.id); window.location.hash = hrefFor({ name: 'workshop', tab: 'metrics', query: `trace=${encodeURIComponent(t.id)}` }); }}>run</button></td>
                   </tr>
                 ))}
               </tbody>

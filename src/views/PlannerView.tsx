@@ -5,6 +5,7 @@ import { ImportSheet } from '../components/ImportSheet';
 import { OpenInMealPlan } from '../components/OpenInMealPlan';
 import { AbortAlert, PlanView, WeekView } from '../components/plan';
 import { planNLWith, planRecipeWith, planWeekWith } from '../hub';
+import { hrefFor } from '../routes';
 import type { PlanExecution, Recipe, ShoppingPlan, WeekPlan } from '../types';
 
 const RECIPE_SAMPLE = `Sichuan Mala Chicken (serves 2)
@@ -28,6 +29,9 @@ const PLACES: { label: string; lat: number | null; lon: number | null }[] = [
   { label: 'East Vancouver', lat: 49.2765, lon: -123.07 },
   { label: 'Richmond', lat: 49.1666, lon: -123.1336 },
 ];
+
+// Where the planner's health and its LLM switch are.
+const SYSTEM = hrefFor({ name: 'workshop', tab: 'system' });
 
 function OriginInputs({ prefer, exclude, setPrefer, setExclude }: {
   prefer: string; exclude: string; setPrefer: (v: string) => void; setExclude: (v: string) => void;
@@ -127,7 +131,7 @@ export default function PlannerView() {
   return (
     <div className="view">
       <ErrorBanner error={loadError && `Couldn't load recipes: ${loadError}`}
-                   hint="Is the pantry API up and the database seeded? See the System tab." />
+                   hint={<>Is the pantry API up and the database seeded? See <a href={SYSTEM}>Workshop › System</a>.</>} />
 
       <section className="panel">
         <h2>Plan from a recipe</h2>
@@ -179,7 +183,7 @@ export default function PlannerView() {
         <p className="card-sub">
           Picks dinners from the recipe library, merges the basket so shared ingredients are
           bought once, and keeps the total under the budget when one is given. Want to choose the
-          recipes and days yourself? <a href="#/mealplan">Open the Meal plan</a>.
+          recipes and days yourself? <a href={hrefFor({ name: 'plan' })}>Open the meal plan</a>.
         </p>
         <form className="form-row" onSubmit={(e) => { e.preventDefault(); void onPlanWeek(); }}>
           <label>
@@ -219,7 +223,7 @@ export default function PlannerView() {
       </section>
 
       <ErrorBanner error={planError && `Planning failed: ${planError}`}
-                   hint="Planning calls the server's LLM. Switch to demo mode on the System tab if the model is unavailable or over quota." />
+                   hint={<>Planning calls the server's LLM. If the model is unavailable or over quota, switch to demo mode in <a href={SYSTEM}>Workshop › System</a>.</>} />
       {planAbort && <AbortAlert execution={planAbort} />}
       {plan && <PlanView plan={plan} />}
       {week && <WeekView week={week} actions={<OpenInMealPlan week={week} />} />}

@@ -87,6 +87,9 @@ const EDGE = 3;
 const PAIRS: [fg: string, bgs: string[], need: number, why: string][] = [
   ['--text', ['--bg', '--panel', '--surface-2', '--popover', '--accent-soft'], TEXT, 'body text'],
   ['--muted', ['--bg', '--panel', '--surface-2', '--popover'], TEXT, 'secondary text at 12-13px'],
+  // a Notice and the OfflinePanel (styles/ui.css) write their words and hints on the soft fills
+  ['--text', ['--danger-soft', '--warn-soft', '--info-soft'], TEXT, "a notice's words"],
+  ['--muted', ['--danger-soft', '--warn-soft', '--info-soft', '--accent-soft'], TEXT, "a notice's hint"],
   ['--accent-soft-fg', ['--accent-soft'], TEXT, 'words on a soft accent tag or chip'],
   ['--danger-fg', ['--danger-soft', '--panel', '--bg'], TEXT, 'an error said in words'],
   ['--warn', ['--bg', '--panel', '--surface-2', '--warn-soft'], TEXT, 'a warning said in words'],
@@ -97,6 +100,8 @@ const PAIRS: [fg: string, bgs: string[], need: number, why: string][] = [
   ['--line-strong', ['--panel', '--bg'], EDGE, 'drop zones and the selected row'],
   ['--border-ui', ['--panel', '--bg'], EDGE, 'the edge of a control'],
   ['--accent', ['--panel', '--bg'], EDGE, 'accent marks and outlines'],
+  ['--accent', ['--accent-soft'], EDGE, "a success notice's edge"],
+  ['--danger', ['--panel', '--danger-soft'], EDGE, "the status dot when the API is offline, a danger notice's edge"],
   ['--focus', ['--panel', '--bg'], EDGE, 'the focus ring'],
 ];
 

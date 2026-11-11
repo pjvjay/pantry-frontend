@@ -13,12 +13,8 @@ body {
   accent-color: var(--accent);
 }
 
-.app { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+/* The page's width, the header, the navigation and the footer are the shell's: styles/shell.css. */
 
-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-/* the header's right end: the status chips, then the theme menu; under the title, from the left,
-   when the screen is too narrow for one row */
-.header-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 /* One focus ring for everything the keyboard reaches; a mouse click shows none. The offset
    keeps it visible around accent-coloured buttons. */
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -30,10 +26,6 @@ header { display: flex; justify-content: space-between; align-items: flex-start;
 }
 
 h1 { margin: 0; font: var(--type-page); }
-/* the name of the console, in the display face, after its cart */
-.wordmark { display: flex; align-items: center; gap: var(--space-2); }
-.wordmark .ico { color: var(--accent); }
-.tagline { margin: 4px 0 0; color: var(--muted); }
 a { color: var(--accent); }
 
 .chip {
@@ -42,7 +34,6 @@ a { color: var(--accent); }
   background: var(--panel); white-space: nowrap;
 }
 .chip-ok { color: var(--accent-soft-fg); background: var(--accent-soft); border-color: transparent; }
-.health-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .chip-muted { color: var(--muted); }
 .chip-warn { color: var(--warn); }
 .model-haiku { color: var(--haiku); background: var(--haiku-soft); border-color: transparent; }
@@ -108,8 +99,6 @@ td.total { color: var(--accent); font-size: 16px; }
 .conf-mid { background: var(--warn); }
 .conf-low { background: var(--danger); }
 .conf-label { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-
-footer { margin-top: 40px; color: var(--muted); font-size: 13px; text-align: center; }
 
 /* NL2SQL recipe input */
 .recipe-input { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; }
@@ -250,16 +239,6 @@ footer { margin-top: 40px; color: var(--muted); font-size: 13px; text-align: cen
 
 /* ─── Demo console ─────────────────────────────────────────── */
 .model-gemini { color: var(--gemini); background: var(--gemini-soft); border-color: transparent; }
-.tabs {
-  display: flex; gap: 2px; flex-wrap: wrap; margin-top: 18px;
-  border-bottom: 1px solid var(--border);
-}
-.tab {
-  padding: 9px 14px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px;
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-}
-.tab:hover { color: var(--text); }
-.tab-active { color: var(--accent); border-bottom-color: var(--accent); }
 /* the footer starts below the fold, so a view filling in as its data arrives moves nothing on
    screen (no layout shift) */
 .view { min-height: 100vh; }
@@ -310,8 +289,10 @@ label.check { flex-direction: row !important; align-items: center; gap: 6px !imp
 .split-side { width: 380px; flex-shrink: 0; }
 .split-side-left { width: 280px; flex-shrink: 0; }
 .sticky { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; }
+/* Stacked, each part takes the column's width: shrunk to its content, a wide table would push it
+   past the screen's edge instead of scrolling inside its own box. */
 @media (max-width: 900px) {
-  .split { flex-direction: column; }
+  .split { flex-direction: column; align-items: stretch; }
   .split-side, .split-side-left { width: 100%; }
 }
 .table-wrap.tall { max-height: 560px; overflow: auto; }
@@ -345,7 +326,7 @@ tr.row-active td { background: var(--accent-soft); }
 .bubble-user { align-self: flex-end; background: var(--accent); color: var(--on-accent); white-space: pre-wrap; }
 .bubble-agent { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); }
 .chat-meta { color: var(--muted); font-size: 12px; text-align: center; }
-.chat-input { display: flex; gap: 10px; margin-top: 14px; position: sticky; bottom: 0; background: var(--bg); padding: 8px 0; }
+.chat-input { display: flex; gap: 10px; margin-top: 14px; position: sticky; bottom: var(--bottom-nav-h, 0px); background: var(--bg); padding: 8px 0; }
 .chat-input textarea { flex: 1; resize: vertical; }
 .suggestions { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
 .suggestion {
@@ -577,7 +558,6 @@ tr.row-active td { background: var(--accent-soft); }
    used to grow to the longest model name on load, wrap the row and push the page down (the
    browser measured a layout shift of 0.3 from div.form-row.compact and everything below it). */
 .view.assistant .form-row.compact select { width: 17rem; max-width: 100%; text-overflow: ellipsis; }
-.health-chips { min-height: 24px; }
 
 /* the run view: one Assistant run from every system that saw it */
 .run-view .kpis { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
@@ -926,8 +906,9 @@ tr.row-active td { background: var(--accent-soft); }
 .mp-trip-review .mp-trip-word { color: var(--warn); }
 .mp-trip-cost { color: var(--muted); font-variant-numeric: tabular-nums; }
 
+/* fixed above the phone's bottom navigation bar, where there is one (styles/shell.css) */
 .mp-bar {
-  position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 20;
+  position: fixed; left: 50%; bottom: calc(12px + var(--bottom-nav-h, 0px)); transform: translateX(-50%); z-index: 20;
   display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; max-width: calc(100% - 24px);
   padding: 10px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line-strong);
   box-shadow: var(--shadow-2); font-size: 13.5px;
@@ -1749,9 +1730,6 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
   :focus-visible { outline-color: Highlight; }
   /* buttons have no border of their own and would read as plain text */
   button { border: 1px solid ButtonText; }
-  /* a transparent border shows in forced colours, so the inactive tabs hide theirs */
-  .tab { border-bottom-color: Canvas; }
-  .tab-active { border-bottom-color: Highlight; }
   /* a choice that cannot be made now is dimmed by opacity, which forced colours keep; say it
      with the system's disabled colour as well */
   .alt-use[aria-disabled="true"], .cart-item-open[aria-disabled="true"] { color: GrayText; }

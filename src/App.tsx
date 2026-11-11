@@ -1,76 +1,55 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
-import { getHealth } from './api';
-import { getRuntime } from './hub';
-import { Icon } from './components/icons';
-import { ThemeMenu } from './components/ThemeMenu';
-import { MealPlanProvider } from './mealplan/store';
-import type { Health, RuntimeSettings } from './types';
-import AssistantView from './views/AssistantView';
-import CatalogView from './views/CatalogView';
-import McpView from './views/McpView';
-import MetricsView from './views/MetricsView';
-import OverviewView from './views/OverviewView';
-import PlannerView from './views/PlannerView';
-import ProvenanceView from './views/ProvenanceView';
-import SimulationsView from './views/SimulationsView';
-import SystemView from './views/SystemView';
+// The console: the shell (components/nav.tsx) around the page the address names (routes.ts).
+//
+//   #/home          Home
+//   #/plan          the meal plan's six stages
+//   #/shop          the shopping plan on its own (#/shop/trip/<date>: one trip; it shows the
+//                   shopping plan until in-store mode exists)
+//   #/ask           the Assistant
+//   #/workshop/…    the Workshop: the Catalog, Provenance, the MCP explorer, Simulations, Metrics,
+//                   System, the Planner lab and About
+//
+// An old address (#/mealplan, #/assistant, #/catalog, …) or one the console does not know is
+// rewritten in place to the page's own, so the browser's Back never lands on it again.
+//
+// Above every page, so nothing is lost by moving between them: the toasts, the demo hub's one
+// shared status, and the meal plan with its undo (the Planner lab and the Assistant both open a
+// week in it, and Shop is the same plan).
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import type { MouseEvent } from 'react';
 
-// The meal plan's views load when the tab is first opened; its plan and store are above the tabs.
+import { PrimaryNav, ShellFooter, ShellHeader } from './components/nav';
+import { Notice, Skeleton, ToastProvider } from './components/ui';
+import { HubStatusProvider } from './hubStatus';
+import { MealPlanProvider } from './mealplan/store';
+import { ROUTE_IDS, hrefFor, parseHash, sectionOf, titleFor } from './routes';
+import type { Route } from './routes';
+import AssistantView from './views/AssistantView';
+import HomeView from './views/HomeView';
+import WorkshopView from './views/WorkshopView';
+
+// The meal plan's views load when Plan or Shop is first opened; its plan and store are above
+// every page.
 const MealPlanView = lazy(() => import('./views/MealPlanView'));
 
-export type Tab = 'overview' | 'planner' | 'mealplan' | 'assistant' | 'catalog' | 'provenance' | 'mcp'
-  | 'simulations' | 'metrics' | 'system';
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'planner', label: 'Planner' },
-  { id: 'mealplan', label: 'Meal plan' },
-  { id: 'assistant', label: 'Assistant' },
-  { id: 'catalog', label: 'Catalog' },
-  { id: 'provenance', label: 'Provenance' },
-  { id: 'mcp', label: 'MCP explorer' },
-  { id: 'simulations', label: 'Simulations' },
-  { id: 'metrics', label: 'Metrics' },
-  { id: 'system', label: 'System' },
-];
-
-// Where an in-page link can lead: a card's link to a tab this console lacks is not drawn.
-const ROUTES: readonly string[] = TABS.map((t) => t.id);
-
-// `#/<tab>` or `#/<tab>?product=<id>`; the hash keeps a tab bookmarkable and survives reloads.
-function readHash(): { tab: Tab; product: number | null } {
-  const [path, query] = window.location.hash.replace(/^#\/?/, '').split('?');
-  const tab = (TABS.find((t) => t.id === path)?.id ?? 'overview') as Tab;
-  const product = new URLSearchParams(query ?? '').get('product');
-  return { tab, product: product ? Number(product) : null };
-}
-
-function HealthChips({ health, runtime }: { health: Health | null; runtime: RuntimeSettings | null }) {
-  if (!health) return <span className="chip chip-muted">api: connecting…</span>;
-  const demo = runtime ? runtime.demo_mode : health.demo_mode;
-  return (
-    <span className="health-chips">
-      <span className="chip chip-ok" title={`default: ${health.default_model} · escalation: ${health.escalation_model}`}>
-        api: {health.status} · {health.routing_strategy}
-      </span>
-      {demo ? (
-        <span className="chip chip-warn" title="Deterministic stand-ins replace the parse & selection LLM calls; switch on the System tab.">
-          planner: demo mode — no LLM
-        </span>
-      ) : (
-        <span className="chip model-gemini" title="The planner's LLM; change it on the System tab.">
-          planner: {runtime?.models.selector_default ?? health.default_model}
-        </span>
-      )}
-    </span>
-  );
+// The page the address names. An old or unknown address becomes the page's own in place
+// (replaceState: no history entry, and no hashchange, so what reads the hash after this reads
+// the new one).
+function readRoute(): Route {
+  const hash = window.location.hash;
+  const route = parseHash(hash);
+  const href = hrefFor(route);
+  if (href !== hash) window.history.replaceState(window.history.state, '', href);
+  return route;
 }
 
 // The bundle this page runs. After a rebuild, an open tab keeps running the old code until it is
 // reloaded, so the page compares this with the bundle the hub now serves and offers a reload.
-const BUNDLE_RE = /\/assets\/index-[\w-]+\.js/;
-const BUNDLE = BUNDLE_RE.exec(
-  document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/"]')?.src ?? '')?.[0] ?? '';
+const BUNDLE_RE = /\/assets\/index-([\w-]+)\.js/;
+const BUNDLE_MATCH = BUNDLE_RE.exec(
+  document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/"]')?.src ?? '');
+const BUNDLE = BUNDLE_MATCH?.[0] ?? '';
+// What the footer calls this build: its bundle's hash, or the dev server's.
+const BUILD = BUNDLE_MATCH ? `build ${BUNDLE_MATCH[1]}` : 'development build';
 
 function useNewBuild() {
   const [stale, setStale] = useState(false);
@@ -92,87 +71,79 @@ function useNewBuild() {
   return stale;
 }
 
+function Loading({ what }: { what: string }) {
+  return <div className="view"><Skeleton kind="card" count={3} label={`Loading ${what}`} /></div>;
+}
+
 export default function App() {
-  const [{ tab, product }, setRoute] = useState(readHash);
-  const [health, setHealth] = useState<Health | null>(null);
-  const [runtime, setRuntime] = useState<RuntimeSettings | null>(null);
+  const [route, setRoute] = useState(readRoute);
   const stale = useNewBuild();
-  // The Assistant stays mounted once opened: its conversation survives a trip to another tab
+  // The Assistant stays mounted once opened: its conversation survives a trip to another page
   // (a meal-plan card's "Open in Meal plan", say) and back. Never opened, it is not mounted, so
-  // a local model is not asked to warm up for a tab nobody used.
-  const [assistantOpened, setAssistantOpened] = useState(tab === 'assistant');
-  useEffect(() => { if (tab === 'assistant') setAssistantOpened(true); }, [tab]);
+  // a local model is not asked to warm up for a page nobody used.
+  const [assistantOpened, setAssistantOpened] = useState(route.name === 'ask');
+  useEffect(() => { if (route.name === 'ask') setAssistantOpened(true); }, [route.name]);
 
   useEffect(() => {
-    const onHash = () => setRoute(readHash());
+    const onHash = () => setRoute(readRoute());
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  useEffect(() => {
-    const refresh = () => {
-      getHealth().then(setHealth).catch(() => setHealth(null));
-      getRuntime().then(setRuntime).catch(() => setRuntime(null));
-    };
-    refresh();
-    const id = window.setInterval(refresh, 15000);
-    return () => window.clearInterval(id);
-  }, [tab]);
+  useEffect(() => { document.title = titleFor(route); }, [route]);
 
-  const go = (t: Tab, query = '') => { window.location.hash = `#/${t}${query}`; };
+  // A new place opens at its top; a change within one (a stage, a trace) leaves the page where
+  // it is, and the view moves focus itself where it needs to.
+  const place = route.name === 'workshop' ? `workshop/${route.tab}` : sectionOf(route);
+  const shownPlace = useRef(place);
+  useEffect(() => {
+    if (shownPlace.current === place) return;
+    shownPlace.current = place;
+    window.scrollTo(0, 0);
+  }, [place]);
+
+  const skip = (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    document.getElementById('main')?.focus();
+  };
 
   return (
-    <div className="app">
-      <header>
-        <div>
-          <h1 className="wordmark"><Icon name="cart" size={28} />Pantry Planner</h1>
-          <p className="tagline">
-            Agentic grocery planning over MCP —{' '}
-            <a href="https://github.com/pjvjay/pantry-platform" target="_blank" rel="noreferrer">how this runs</a>
-          </p>
-        </div>
-        <div className="header-tools">
-          <HealthChips health={health} runtime={runtime} />
-          <ThemeMenu />
-        </div>
-      </header>
-      <nav className="tabs">
-        {TABS.map((t) => (
-          <a key={t.id} href={`#/${t.id}`} className={`tab ${tab === t.id ? 'tab-active' : ''}`}>{t.label}</a>
-        ))}
-      </nav>
-      {stale && (
-        <div className="banner banner-update">
-          A newer build of this console is being served; this tab is still running the old one.{' '}
-          <button className="mini" onClick={() => window.location.reload()}>Reload</button>
-        </div>
-      )}
-      {/* The meal plan's provider sits above the tabs, so the plan (and its undo) survives
-          switching tabs, and the Planner can open a week in it. */}
-      <MealPlanProvider>
-      {tab === 'overview' && <OverviewView go={(t) => go(t)} />}
-      {tab === 'planner' && <PlannerView />}
-      {tab === 'mealplan' && (
-        <Suspense fallback={<div className="view"><p className="muted">Loading the meal plan…</p></div>}>
-          <MealPlanView />
-        </Suspense>
-      )}
-      {assistantOpened && (
-        <div hidden={tab !== 'assistant'}>
-          <AssistantView routes={ROUTES} />
-        </div>
-      )}
-      {tab === 'catalog' && <CatalogView onLabel={(id) => go('provenance', `?product=${id}`)} />}
-      {tab === 'provenance' && <ProvenanceView initialProduct={product} />}
-      {tab === 'mcp' && <McpView />}
-      {tab === 'simulations' && <SimulationsView />}
-      {tab === 'metrics' && <MetricsView />}
-      {tab === 'system' && <SystemView />}
-      </MealPlanProvider>
-      <footer>
-        pantry-platform · React → demo hub → pantry API, ContextForge, mcp-sim ·{' '}
-        <a href="https://github.com/pjvjay/pantry-gitops" target="_blank" rel="noreferrer">pantry-gitops</a>
-      </footer>
-    </div>
+    <ToastProvider>
+      <HubStatusProvider>
+        <MealPlanProvider>
+          <div className="app">
+            <a className="skip-link" href="#main" onClick={skip}>Skip to content</a>
+            <ShellHeader route={route} />
+            <PrimaryNav route={route} />
+            {stale && (
+              <Notice tone="info" title="A newer build of this console is out"
+                      actions={[{ label: 'Reload', icon: 'refresh', onClick: () => window.location.reload() }]}>
+                This tab is still running the old one.
+              </Notice>
+            )}
+            <main id="main" className="shell-main" tabIndex={-1}>
+              {route.name === 'home' && <HomeView />}
+              {route.name === 'plan' && (
+                <Suspense fallback={<Loading what="the meal plan" />}>
+                  <MealPlanView mode="plan" />
+                </Suspense>
+              )}
+              {sectionOf(route) === 'shop' && (
+                <Suspense fallback={<Loading what="the shopping plan" />}>
+                  <MealPlanView mode="shop" />
+                </Suspense>
+              )}
+              {assistantOpened && (
+                <div hidden={route.name !== 'ask'}>
+                  <AssistantView routes={ROUTE_IDS} />
+                </div>
+              )}
+              {route.name === 'workshop' && <WorkshopView tab={route.tab} query={route.query ?? ''} />}
+            </main>
+            <ShellFooter build={BUILD} />
+          </div>
+        </MealPlanProvider>
+      </HubStatusProvider>
+    </ToastProvider>
   );
 }

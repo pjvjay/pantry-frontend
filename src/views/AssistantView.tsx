@@ -6,7 +6,9 @@ import {
 } from '../alternatives';
 import { AlternativesDialog } from '../components/alternatives';
 import type { OptionsTarget } from '../components/alternatives';
-import { ErrorBanner, JsonView } from '../components/common';
+import { JsonView } from '../components/common';
+import { HubErrorBanner, OfflinePanel } from '../components/ui';
+import { useHubStatus } from '../hubStatus';
 import Markdown from '../components/Markdown';
 import { AskContext, CartActions, CartCard, PlanStrip } from '../components/cart';
 import { EvalCard, Reasoning, RecipeImages, imagesIn } from '../components/flow';
@@ -274,10 +276,17 @@ const ChatItem = memo(function ChatItem({ it, routes }: { it: Item; routes: read
 
 const NO_ROUTES: readonly string[] = [];
 
-// `routes`: the console's tabs, so a card's link is drawn only when it leads to one of them.
+// `routes`: the first path segments of the console's addresses (routes.ts ROUTE_IDS, today's and
+// the old ones the shell rewrites), so a card's link is drawn only when it leads somewhere here.
+//
+// The Assistant runs on the demo hub. While the hub is refusing or not there, one panel says so at
+// the top (what is off, what still works, Retry) instead of a red banner; the suggestions and Send
+// wait. Its options are asked for once the hub answers, and again if it comes back.
 export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonly string[] }) {
   const mealPlan = useMealPlan();
+  const hub = useHubStatus();
   const [options, setOptions] = useState<AgentOptions | null>(null);
+  const [optionsError, setOptionsError] = useState('');
   const [model, setModel] = useState('');
   const [target, setTarget] = useState('');
   const [disclosure, setDisclosure] = useState('progressive');
@@ -362,16 +371,24 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
   };
 
   useEffect(() => {
+    if (!hub.ok || options) return undefined;
+    let live = true;
+    setOptionsError('');
     agentOptions().then((o) => {
+      if (!live) return;
       setOptions(o);
       setModel(o.default_model);
       setTarget(o.default_target);
       if (o.default_disclosure) setDisclosure(o.default_disclosure);
-    }).catch((e: Error) => setError(`The demo hub is not reachable: ${e.message}`));
-  }, []);
+    }).catch((e: Error) => { if (live) setOptionsError(`The Assistant could not start: ${e.message}`); });
+    return () => { live = false; };
+  }, [hub.ok, options]);
 
   useEffect(() => {
     if (keepScroll.current) { keepScroll.current = false; return; }
+    // An empty conversation has no newest line to follow: the page stays at its top, where the
+    // suggestions are (and, with the hub off, the panel that says so).
+    if (items.length === 0) return;
     // With reduced motion the transcript jumps to the newest line instead of gliding to it.
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     bottom.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'end' });
@@ -515,6 +532,8 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
 
   return (
     <div className="view assistant">
+      <OfflinePanel off="The Assistant runs on the demo hub, so it is off here."
+                    works="planning meals, the shopping plan and the calendar file, which need only the pantry API." />
       <section className="panel">
         <div className="plan-header">
           <h2>Assistant</h2>
@@ -555,7 +574,8 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
         <p className="muted warm-line">{warm || '\u00a0'}</p>
       </section>
 
-      <ErrorBanner error={error} />
+      <HubErrorBanner error={optionsError} />
+      <HubErrorBanner error={error} />
 
       <div className="chat">
         {items.length === 0 && (

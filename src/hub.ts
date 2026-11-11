@@ -31,41 +31,86 @@ import type {
 import { PlanAbortError } from './api';
 import type { MealPlanContext } from './mealplan/chatDraft';
 import { fromConsole } from './consoleRequest';
+import { HUB_DOWN, HUB_REFUSED, plainHubError } from './status';
 
 const API = `${import.meta.env.BASE_URL}api`;
 const HUB = '/hub';
 
 // A refusal from the hub, with the status and the detail as sent: routes that name a reason
-// send {code, message, ...}, which the caller can switch on (recipe import does). The message
-// is the same text as before, so callers that only show it are unchanged.
+// send {code, message, ...}, which the caller can switch on (recipe import does). The message is
+// the route's own words when it gave some, and otherwise plain ones (status.ts): "The demo hub is
+// not open to this page" for the hub's guard (401 or 403), "The demo hub is not running" when
+// nothing answered (status 0) or a proxy found no hub behind it. `reason` is the guard's own
+// sentence, kept for whoever shows the details (the status in the header does).
 export class HubError extends Error {
   status: number;
   detail: unknown;
+  reason: string | null;
 
-  constructor(message: string, status: number, detail: unknown) {
+  constructor(message: string, status: number, detail: unknown, reason: string | null = null) {
     super(message);
     this.name = 'HubError';
     this.status = status;
     this.detail = detail;
+    this.reason = reason;
   }
 }
 
-async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, fromConsole(init));
-  if (!res.ok) {
-    let detail: unknown = null;
-    try {
-      detail = (await res.json()).detail;
-    } catch {
-      /* non-JSON error body */
-    }
-    if (res.status === 409 && detail && typeof detail === 'object' && 'aborted' in detail) {
-      throw new PlanAbortError(detail as PlanExecution);
-    }
-    const text = typeof detail === 'string' ? detail
-      : detail ? JSON.stringify(detail) : `${res.status} ${res.statusText}`;
-    throw new HubError(text, res.status, detail);
+// Told whenever a call to the hub fails in a way that says the hub itself is refusing or not
+// there, so the shared status (hubStatus.tsx) checks again now rather than at its next poll, and
+// every page agrees with the header. The status call itself does not tell: it is the check.
+const troubleListeners = new Set<() => void>();
+export function onHubTrouble(listener: () => void): () => void {
+  troubleListeners.add(listener);
+  return () => { troubleListeners.delete(listener); };
+}
+function hubTrouble(url: string) {
+  if (url.startsWith(`${HUB}/`) && !url.startsWith(`${HUB}/status`)) troubleListeners.forEach((f) => f());
+}
+
+const isAbort = (e: unknown) => e instanceof DOMException && e.name === 'AbortError';
+
+// A request; a hub that does not answer at all is a HubError with status 0, in plain words.
+async function send(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, fromConsole(init));
+  } catch (e) {
+    if (isAbort(e) || !url.startsWith(`${HUB}/`)) throw e;
+    hubTrouble(url);
+    throw new HubError(HUB_DOWN, 0, null);
   }
+}
+
+// A failed answer's HubError. The hub's guard answers 403 {reason} for /hub/* and for
+// /pantry/api/* alike where the hub stands in front of pantry-api; a route answers {detail}.
+async function failure(url: string, res: Response): Promise<Error> {
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    /* non-JSON error body */
+  }
+  const b = body && typeof body === 'object' ? body as { detail?: unknown; reason?: unknown } : {};
+  const detail = b.detail === '' ? null : b.detail ?? null;
+  const reason = typeof b.reason === 'string' ? b.reason : null;
+  if (res.status === 409 && detail && typeof detail === 'object' && 'aborted' in detail) {
+    return new PlanAbortError(detail as PlanExecution);
+  }
+  const plain = url.startsWith(`${HUB}/`) ? plainHubError(res.status, detail)
+    : (res.status === 401 || res.status === 403) && reason ? HUB_REFUSED : null;
+  if (plain) hubTrouble(url);
+  return new HubError(said(detail) ?? plain ?? `${res.status} ${res.statusText}`, res.status, detail, reason);
+}
+
+// A detail as words: a string as it is, anything else (a {code, message} refusal) as its JSON.
+function said(detail: unknown): string | null {
+  if (detail === null || detail === undefined) return null;
+  return typeof detail === 'string' ? detail : JSON.stringify(detail);
+}
+
+async function json<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await send(url, init);
+  if (!res.ok) throw await failure(url, res);
   return res.json() as Promise<T>;
 }
 
@@ -169,21 +214,15 @@ export async function agentChat(
   signal?: AbortSignal,
   onOpen?: () => void,
 ): Promise<void> {
-  const res = await fetch(`${HUB}/agent/chat`, fromConsole({ ...post(body), signal }));
+  const res = await send(`${HUB}/agent/chat`, { ...post(body), signal });
   onOpen?.();
   if (!res.ok || !res.body) {
-    let detail: unknown = null;
-    try {
-      detail = (await res.json()).detail;
-    } catch {
-      /* keep the status */
+    const err = await failure(`${HUB}/agent/chat`, res);
+    // a refusal of a reviewed recipe is {code, message}: say the message, not the JSON
+    if (err instanceof HubError && err.detail && typeof err.detail === 'object' && 'message' in err.detail) {
+      throw new HubError(String((err.detail as { message: unknown }).message), err.status, err.detail, err.reason);
     }
-    // a refusal of a reviewed recipe is {code, message}: say the message, not "[object Object]"
-    const said = detail && typeof detail === 'object' && 'message' in detail
-      ? String((detail as { message: unknown }).message) : detail;
-    const text = typeof said === 'string' ? said
-      : said ? JSON.stringify(said) : `${res.status} ${res.statusText}`;
-    throw new HubError(text, res.status, detail);
+    throw err;
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

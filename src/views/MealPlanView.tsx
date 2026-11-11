@@ -1,5 +1,7 @@
-// The Meal plan tab (#/mealplan?step=1..6): six stages under a progress indicator, with Back
-// and Next under each.
+// The meal plan (#/plan?step=1..6): six stages under a progress indicator, with Back and Next
+// under each. The same view, in "shop" mode, is the shopping plan on its own (#/shop): stage 5
+// with no stepper, a way back to planning, and, while the plan cannot have a shopping plan yet,
+// what it is waiting for and the stage that gives it.
 //   1 Basics:        the period, the budget, the diet and origin rules, where and when to shop
 //                    (components/basics.tsx). Every plan is for one person for now.
 //   2 Meals:         recipe cards by meal under a budget bar; Quick add, import and the
@@ -15,7 +17,7 @@
 //   6 Calendar:      times and reminders, the events, the .ics and Google Calendar
 //                    (components/CalendarExport.tsx).
 // Where a stage opens and what stops Next are decided in mealplan/wizard.ts. The plan lives in
-// MealPlanProvider (above the tab switch, so it survives changing tabs) and is saved in this
+// MealPlanProvider (above every page, so it survives moving between them) and is saved in this
 // browser only. Every change re-runs /mealplan/schedule, which is pure: no model call, and the
 // same plan gives the same answer.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -28,8 +30,10 @@ import { ActionBar, DragGhost, MoveSheet, PlanBoard, WeekStrip } from '../compon
 import type { BoardCtl } from '../components/mealcal';
 import { MealsStage } from '../components/mealcards';
 import { CookDaysDiff, CoverageChips, ShopPanel, TripSheet, WarningsPanel } from '../components/mealtrips';
+import { Icon } from '../components/icons';
 import { EXAMPLE_SENTENCE, FirstRunSheet, RecipeTray } from '../components/mealtray';
 import { PeriodBand, TargetsEditor } from '../components/nutrition';
+import { EmptyState } from '../components/ui';
 import { usePointerDrag } from '../components/usePointerDrag';
 import { StageNav, Stepper } from '../components/wizard';
 import { unansweredCount } from '../mealplan/basket';
@@ -44,7 +48,9 @@ import { STRATEGY_NAMES, budgetOf, recipeTitle } from '../mealplan/model';
 import type { PlanEdit } from '../mealplan/model';
 import { pinFix } from '../mealplan/options';
 import { useBasket, useMealPlan } from '../mealplan/store';
-import { nextBlock, routeStep, stepFromHash, stepHash, stepName, stepTitle, wizardFacts } from '../mealplan/wizard';
+import {
+  furthest, isPlanHash, nextBlock, routeStep, stepFromHash, stepHash, stepName, stepTitle, wizardFacts,
+} from '../mealplan/wizard';
 import type { StepNo } from '../mealplan/wizard';
 import type { RemedyOp } from '../types';
 
@@ -55,10 +61,18 @@ const inText = (el: EventTarget | null) =>
 const mealChipSelector = (mealId: string) => `[data-meal="${CSS.escape(mealId)}"] .mp-chip-main`;
 const tripChipSelector = (date: string) => `[data-trip="${CSS.escape(date)}"] .mp-trip-main`;
 
-// The stage the shopper was on when they last left the tab, for opening it again in this page.
+// The stage the shopper was on when they last left the plan, for opening it again in this page.
 let lastStep: StepNo | null = null;
 
-export default function MealPlanView() {
+// plan: the six stages at #/plan. shop: the shopping plan on its own at #/shop, which is stage 5
+// with no stepper and no Back or Next, and never moves the address or the plan's stage.
+export type MealPlanMode = 'plan' | 'shop';
+
+// The stage the shopping plan is.
+const SHOP_STEP: StepNo = 5;
+
+export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode }) {
+  const shop = mode === 'shop';
   const mp = useMealPlan();
   const { state, schedule } = mp;
   const d = state.draft;
@@ -74,8 +88,9 @@ export default function MealPlanView() {
   }), [state, mp.resolve.status, hasRecipes, basket.current, basket.status, basket.answer]);
   const factsRef = useRef(facts);
   factsRef.current = facts;
-  const [step, setStep] = useState<StepNo>(() =>
+  const [planStep, setStep] = useState<StepNo>(() =>
     routeStep(stepFromHash(window.location.hash), facts, lastStep, hasRecipes));
+  const step: StepNo = shop ? SHOP_STEP : planStep;
   const stepRef = useRef(step);
   stepRef.current = step;
   // Where focus goes once the next stage is drawn, instead of its heading.
@@ -84,8 +99,11 @@ export default function MealPlanView() {
   const shown = useRef<StepNo | null>(null);
 
   // A stage asked for by the address (a stepper link, Back and Next, the browser's own Back): no
-  // further than the plan allows. '#/mealplan' alone (the tab) keeps the stage shown, and says so.
+  // further than the plan allows. '#/plan' alone (Plan in the navigation) keeps the stage shown,
+  // and says so. The plan's old address, '#/mealplan', is read the same way, in case it arrives
+  // before the shell has rewritten it. The shopping plan on its own has no stage to follow.
   useEffect(() => {
+    if (shop) return undefined;
     const onHash = () => {
       const asked = stepFromHash(window.location.hash);
       if (asked !== null) {
@@ -93,25 +111,26 @@ export default function MealPlanView() {
         // held back to the stage shown already: the effect below would not run, so say it here
         if (to !== asked) window.history.replaceState(null, '', stepHash(to));
         setStep(to);
-      } else if (window.location.hash.startsWith('#/mealplan')) {
+      } else if (isPlanHash(window.location.hash)) {
         window.history.replaceState(null, '', stepHash(stepRef.current));
       }
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  }, [shop]);
 
   // The address always names the stage shown, so a reload or a bookmark comes back to it. This
   // runs after the Calendar stage has read and cleared Google's ?calendar= return.
   useEffect(() => {
+    if (shop) return;
     lastStep = step;
-    if (window.location.hash.startsWith('#/mealplan') && stepFromHash(window.location.hash) !== step) {
+    if (isPlanHash(window.location.hash) && stepFromHash(window.location.hash) !== step) {
       window.history.replaceState(null, '', stepHash(step));
     }
-  }, [step]);
+  }, [step, shop]);
 
   // A new stage: focus its heading (or what was asked for), so the keyboard and a screen reader
-  // start there. Not on the first one: opening the tab leaves focus where it was.
+  // start there. Not on the first one: opening the plan leaves focus where it was.
   useEffect(() => {
     if (shown.current === null || shown.current === step) {
       shown.current = step;
@@ -141,7 +160,8 @@ export default function MealPlanView() {
   const [targetsOpen, setTargetsOpen] = useState(false);
   const [hideEmpty, setHideEmpty] = useState(false);
   const [quickText, setQuickText] = useState('');
-  const [firstRun, setFirstRun] = useState(() => d.rev === 0 && Object.keys(d.recipes).length === 0);
+  // The first-run sheet belongs to the plan; the shopping plan says what it waits for instead.
+  const [firstRun, setFirstRun] = useState(() => !shop && d.rev === 0 && Object.keys(d.recipes).length === 0);
   // Where focus goes once the render that moved or put something down is on screen. It is
   // state, not a ref, so it is used by the render it was asked for and by no later one: a
   // leftover request would pull focus out of whatever the shopper is typing in next.
@@ -191,7 +211,7 @@ export default function MealPlanView() {
 
   const { drag, grip, ghost } = usePointerDrag(onEffect);
 
-  // Recipes saved or sent from recipe import in this same page since the tab was last open.
+  // Recipes saved or sent from recipe import in this same page since the plan was last open.
   const { syncSaved } = mp;
   useEffect(() => { syncSaved(); }, [syncSaved]);
 
@@ -334,26 +354,42 @@ export default function MealPlanView() {
 
   // An earlier stage an edit has since undone: said at the top of this one too.
   const earlier = nextBlock(step, facts);
-  const behind = earlier && earlier.state === 'blocked' && earlier.step < step ? earlier : null;
+  // (The shopping plan on its own says it with its EmptyState below instead.)
+  const behind = !shop && earlier && earlier.state === 'blocked' && earlier.step < step ? earlier : null;
+
+  // The shopping plan on its own, while a stage before it is blocked: what it waits for (the first
+  // gate not passed) and the stage that gives it. "Back to planning" goes to the furthest stage
+  // the plan can be on.
+  const reach = furthest(facts);
+  const shopWaits = shop && reach < SHOP_STEP ? nextBlock((SHOP_STEP - 1) as StepNo, facts) : null;
 
   const st = strategyOf(answer, strategy);
   const planTotal = st && st.trips.length
     ? againstBudget(st.trips.some(tripPriced) ? st.total_cost : null, st.total_is_floor, budgetOf(d.prefs)) : null;
 
   return (
-    <div className="view mealplan" onKeyDown={onKeyDown}>
+    <div className={`view mealplan${shop ? ' mealplan-shop' : ''}`} onKeyDown={onKeyDown}>
       {mp.loadProblem && (
         <div className="banner banner-error">
           {mp.loadProblem} It was kept in this browser as a backup, and a new plan was started.
         </div>
       )}
 
-      <Stepper step={step} facts={facts} />
+      {!shop && <Stepper step={step} facts={facts} />}
 
       {/* every stage but the Shopping plan is cards, drawn on the page itself */}
       <section className={`panel mp-stage${step !== 5 ? ' mp-stage-flat' : ''}`}
                aria-labelledby="mp-stage-head">
-        <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{stepTitle(step)}</h2>
+        {shop ? (
+          <div className="mp-shop-head">
+            <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{stepName(SHOP_STEP)}</h2>
+            <a className="mp-shop-back" href={stepHash(reach)}>
+              <Icon name="arrow-left" size={16} />Back to planning
+            </a>
+          </div>
+        ) : (
+          <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{stepTitle(step)}</h2>
+        )}
         {behind && (
           <p className="banner banner-update mp-behind">
             {stepName(behind.step)}: {behind.text}.{' '}
@@ -406,7 +442,14 @@ export default function MealPlanView() {
           </>
         )}
 
-        {step === 5 && (
+        {shopWaits && (
+          <EmptyState icon="bag" className="mp-shop-waits"
+                      status={`Not yet: ${shopWaits.text}.`}
+                      cue="The shopping plan is made from the meals you pick and place on days: its trips, what to buy on each, and the total."
+                      action={{ label: `Go to ${stepName(shopWaits.step)}`, href: stepHash(shopWaits.step) }} />
+        )}
+
+        {step === 5 && !shopWaits && (
           <>
             {statusLine}
             {answer && <WeekStrip ctl={ctl} />}
@@ -445,9 +488,9 @@ export default function MealPlanView() {
         )}
       </section>
 
-      <StageNav step={step} facts={facts} go={go} onBlocked={mp.announce} />
+      {!shop && <StageNav step={step} facts={facts} go={go} onBlocked={mp.announce} />}
 
-      {(step === 4 || step === 5) && (
+      {(step === 4 || (step === 5 && !shopWaits)) && (
         <>
           <ActionBar ctl={ctl} onCancel={cancelHeld} onTray={() => dropOn('tray')} />
           <DragGhost ctl={ctl} ghostRef={ghost} preview={preview} />

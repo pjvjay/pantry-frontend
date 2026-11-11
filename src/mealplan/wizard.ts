@@ -1,10 +1,12 @@
 // Pure module: no React, DOM or import.meta.env, and sibling imports name their .ts file, so
 // node --test runs it as it is (tests/pure-modules.test.ts checks all of this).
 //
-// The Meal plan tab as six stages with a progress indicator: Basics, Meals, Ingredients,
-// Schedule, Shopping plan and Calendar. The stage is in the address (#/mealplan?step=1..6), so
-// the browser's Back goes to the stage before and a stage can be bookmarked; Google's return
-// from its consent page (#/mealplan?calendar=...) lands on Calendar.
+// The meal plan as six stages with a progress indicator: Basics, Meals, Ingredients, Schedule,
+// Shopping plan and Calendar. The stage is in the address (#/plan?step=1..6), so the browser's
+// Back goes to the stage before and a stage can be bookmarked; Google's return from its consent
+// page (#/plan?calendar=...) lands on Calendar. The plan's old address, #/mealplan, is read the
+// same way: the shell rewrites it (routes.ts), and this module accepts it too, so a stage asked
+// for under the old name is never lost on the way.
 //
 // Moving on from a stage needs what the later ones work from, its gate:
 //   2 Meals: at least one meal;
@@ -39,14 +41,21 @@ export const stepName = (n: StepNo): string => STEPS[n - 1].name;
 // "Stage 2 of 6: Meals", the stage heading.
 export const stepTitle = (n: StepNo): string => `Stage ${n} of ${LAST_STEP}: ${stepName(n)}`;
 
-// Where a stage lives: '#/mealplan?step=3'.
-export const stepHash = (n: StepNo): string => `#/mealplan?step=${n}`;
+// Where a stage lives: '#/plan?step=3'.
+export const stepHash = (n: StepNo): string => `#/plan?step=${n}`;
+
+// Whether the address is the meal plan's, under its name or its old one ('#/plan',
+// '#/mealplan?step=2'); the shopping plan on its own (#/shop) is not.
+export function isPlanHash(hash: string): boolean {
+  const path = hash.replace(/^#\/?/, '').split('?')[0].replace(/\/+$/, '');
+  return path === 'plan' || path === 'mealplan';
+}
 
 // The stage the address asks for, or null when it names none (or one that is not a stage).
 // Google's return from its consent page carries ?calendar= and belongs to the Calendar stage.
 export function stepFromHash(hash: string): StepNo | null {
-  const [path, query] = hash.replace(/^#\/?/, '').split('?');
-  if (path !== 'mealplan' || query === undefined) return null;
+  const query = hash.split('?')[1];
+  if (!isPlanHash(hash) || query === undefined) return null;
   const q = new URLSearchParams(query);
   if (q.has('calendar')) return LAST_STEP;
   const raw = q.get('step');

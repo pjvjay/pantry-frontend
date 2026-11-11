@@ -3,6 +3,7 @@
 // spans from every layer (browser, model, tools, gateway, pantry's own steps and LLM calls).
 import { useState } from 'react';
 import { ingredientImage, remoteImage } from '../hub';
+import { hrefFor } from '../routes';
 import type { Evals, PlanConfidence, Span, Trace } from '../types';
 import { Icon } from './icons';
 
@@ -86,7 +87,7 @@ export function EvalCard({ evals, traceId }: { evals: Evals; traceId?: string })
       <div className="eval-head">
         <ConfidenceBadge value={evals.answer_confidence} label="answer confidence" />
         <span className="muted">{evals.passed} of {evals.total} checks passed</span>
-        {traceId && <a href={`#/metrics?trace=${traceId}`} title="Everything recorded about this run, from every system">run details<Icon name="arrow-right" className="ico-inline ico-end" /></a>}
+        {traceId && <a href={hrefFor({ name: 'workshop', tab: 'metrics', query: `trace=${encodeURIComponent(traceId)}` })} title="Everything recorded about this run, from every system">run details<Icon name="arrow-right" className="ico-inline ico-end" /></a>}
       </div>
       <div className="eval-checks">
         {evals.checks.map((c) => (

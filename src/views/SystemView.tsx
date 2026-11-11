@@ -1,7 +1,12 @@
+// Workshop › System: every service the demo hub can see (from /hub/status, the console's one
+// shared status: hubStatus.tsx), the keys it holds, and the planner's LLM switch (pantry API's
+// /settings/runtime, which works without the hub). With the hub off, the Workshop's panel above
+// says so, and the switch still works.
 import { useCallback, useEffect, useState } from 'react';
 import { ErrorBanner, JsonView, StatusDot } from '../components/common';
-import { getRuntime, getStatus, setRuntime } from '../hub';
-import type { HubStatus, RuntimeSettings } from '../types';
+import { getRuntime, setRuntime } from '../hub';
+import { useHubStatus } from '../hubStatus';
+import type { RuntimeSettings } from '../types';
 import { Icon } from '../components/icons';
 
 const MODEL_ROLES: [string, string][] = [
@@ -74,22 +79,21 @@ function LlmPanel({ onChanged }: { onChanged: () => void }) {
 }
 
 export default function SystemView() {
-  const [status, setStatus] = useState<HubStatus | null>(null);
-  const [error, setError] = useState('');
-
-  const load = useCallback(() => {
-    getStatus().then(setStatus).catch((e: Error) => setError(`The demo hub is not reachable: ${e.message}`));
-  }, []);
-  useEffect(load, [load]);
+  const hub = useHubStatus();
+  const status = hub.status;
+  const load = useCallback(() => { void hub.refresh(); }, [hub.refresh]);
 
   return (
     <div className="view">
-      <ErrorBanner error={error} />
       <section className="panel">
         <div className="plan-header">
           <h2>Services</h2>
-          <button className="secondary" onClick={load}>Refresh</button>
+          <button className="secondary" onClick={load} aria-disabled={hub.checking || undefined}>
+            {hub.checking ? 'Checking…' : 'Refresh'}
+          </button>
         </div>
+        {!status && <p className="muted">{hub.state === 'connecting' ? 'Asking the demo hub…'
+          : 'The demo hub lists the services it can reach; with the hub off there is nothing to list.'}</p>}
         <div className="service-grid">
           {status?.services.map((s) => (
             <div key={s.id} className={`service ${s.ok ? '' : 'service-down'}`}>

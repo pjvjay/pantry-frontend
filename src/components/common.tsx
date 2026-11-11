@@ -1,17 +1,11 @@
 import { useState } from 'react';
 
+// A view's error is a danger Notice now (components/ui.tsx); the name stays here for the views
+// that import it from this file.
+export { ErrorBanner } from './ui';
+
 export function parseList(text: string): string[] {
   return text.split(',').map((c) => c.trim()).filter(Boolean);
-}
-
-export function ErrorBanner({ error, hint }: { error: string; hint?: string }) {
-  if (!error) return null;
-  return (
-    <div className="banner banner-error">
-      {error}
-      {hint && <div className="banner-hint">{hint}</div>}
-    </div>
-  );
 }
 
 // A collapsible, pretty-printed JSON block for tool results and raw payloads.

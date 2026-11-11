@@ -5,9 +5,10 @@
 // beside it is the way in for the keyboard and screen readers, and the map repeats it for the
 // eye, so its markers are not tab stops: hovering or focusing a store's row lights its marker,
 // and clicking a marker focuses its row. Drawn only while the hub serves tiles (HubStatus.tiles).
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import { getStatus, tileImage } from '../hub';
+import { tileImage } from '../hub';
+import { useHubStatus } from '../hubStatus';
 import { MAX_ZOOM, MIN_ZOOM, fitStores, kmToPixels, tilesFor, toView } from '../mealplan/tiles';
 import type { LatLon } from '../mealplan/tiles';
 import { Icon } from './icons';
@@ -20,15 +21,10 @@ export interface MapStore {
   inRange: boolean;
 }
 
-// Whether the hub serves map tiles; off until it says so, and off without a hub.
+// Whether the hub serves map tiles; off until it says so, and off without a hub. From the
+// console's one hub status (hubStatus.tsx), not a call of its own.
 export function useTilesOn(): boolean {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    let live = true;
-    getStatus().then((s) => { if (live) setOn(Boolean(s.tiles)); }).catch(() => { if (live) setOn(false); });
-    return () => { live = false; };
-  }, []);
-  return on;
+  return Boolean(useHubStatus().status?.tiles);
 }
 
 export function StoreMap({ origin, stores, maxKm, hot, onHot, onPick }: {

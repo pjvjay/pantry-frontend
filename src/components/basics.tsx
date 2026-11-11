@@ -14,7 +14,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { HubError, geocode, getStatus } from '../hub';
+import { HubError, geocode } from '../hub';
+import { useHubStatus } from '../hubStatus';
 import {
   AREAS, BUDGET_PICKS, CURRENT_LOCATION, PRIVACY_NOTE, areaOf, areaSettings, geocodeErrorText, locationErrorText,
   locationSettings, perDayText, placeText, planSummary, refusalCode, searchProblem,
@@ -306,7 +307,9 @@ function WhereCard() {
   const mp = useMealPlan();
   const st = mp.state.draft.settings;
   const head = useId();
-  const [geocoder, setGeocoder] = useState(false);
+  // Address search needs the demo hub's geocoder (the console's one hub status says whether it
+  // has one); without it the rest still works.
+  const geocoder = Boolean(useHubStatus().status?.geocoder);
   const [q, setQ] = useState('');
   const [search, setSearch] = useState<Search>({ status: 'idle' });
   const [locating, setLocating] = useState(false);
@@ -314,11 +317,8 @@ function WhereCard() {
   const box = useRef<HTMLInputElement>(null);
   const ctl = useRef<AbortController | null>(null);
 
-  // Address search needs the demo hub's geocoder; without it the rest still works.
-  useEffect(() => {
-    getStatus().then((s) => setGeocoder(Boolean(s.geocoder))).catch(() => setGeocoder(false));
-    return () => ctl.current?.abort();
-  }, []);
+  // A search still on its way when the card goes is not answered.
+  useEffect(() => () => ctl.current?.abort(), []);
 
   const set = (patch: typeof st) => mp.dispatch({ type: 'setSettings', settings: patch });
 

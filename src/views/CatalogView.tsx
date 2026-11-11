@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+// Workshop › Catalog: the planner's own lookup (find_product), the whole catalog as a table, and a
+// product's offers, origin and evidence (get_product). The table comes from the pantry API and
+// works without the demo hub; the lookup and the details are MCP calls through the hub, so while
+// the hub is off they say so quietly here and the Workshop's one panel says why.
+import { useEffect, useId, useMemo, useState } from 'react';
 import { ErrorBanner, JsonView } from '../components/common';
+import { HubErrorBanner, Skeleton } from '../components/ui';
 import { getProducts, pantryTool } from '../hub';
+import { useHubStatus } from '../hubStatus';
 import type { Product } from '../types';
 import { Icon } from '../components/icons';
 
@@ -27,25 +33,34 @@ interface FindResult {
 }
 
 export default function CatalogView({ onLabel }: { onLabel: (productId: number) => void }) {
+  const hub = useHubStatus();
+  const hubOff = hub.state === 'refused' || hub.state === 'unreachable';
   const [products, setProducts] = useState<Product[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState('');
   const [category, setCategory] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [lookup, setLookup] = useState('');
   const [found, setFound] = useState<FindResult | null>(null);
-  const [error, setError] = useState('');
+  // the table's failure (the pantry API) and the lookup's or a product's (the hub), each shown
+  // where it happened
+  const [listError, setListError] = useState('');
+  const [lookupError, setLookupError] = useState('');
+  const [detailError, setDetailError] = useState('');
+  const offNote = useId();
 
   useEffect(() => {
-    getProducts().then(setProducts).catch((e: Error) => setError(e.message));
+    getProducts().then(setProducts).catch((e: Error) => setListError(e.message)).finally(() => setLoaded(true));
   }, []);
 
   useEffect(() => {
-    if (selected == null) return;
+    if (selected == null || hubOff) return;
     setDetail(null);
+    setDetailError('');
     pantryTool<ProductDetail>('get_product', { product_id: selected })
-      .then(setDetail).catch((e: Error) => setError(e.message));
-  }, [selected]);
+      .then(setDetail).catch((e: Error) => setDetailError(e.message));
+  }, [selected, hubOff]);
 
   const categories = useMemo(() => [...new Set(products.map((p) => p.category))].sort(), [products]);
   const shown = useMemo(() => {
@@ -55,11 +70,12 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
   }, [products, filter, category]);
 
   const runLookup = async () => {
-    setError('');
+    if (hubOff) return;
+    setLookupError('');
     try {
       setFound(await pantryTool<FindResult>('find_product', { query: lookup, limit: 5 }));
     } catch (e) {
-      setError((e as Error).message);
+      setLookupError((e as Error).message);
     }
   };
 
@@ -74,10 +90,12 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
             head noun, and <em>relaxed</em> means nothing matched well.
           </p>
           <form className="form-row" onSubmit={(e) => { e.preventDefault(); void runLookup(); }}>
-            <input value={lookup} onChange={(e) => setLookup(e.target.value)}
+            <input value={lookup} onChange={(e) => setLookup(e.target.value)} aria-label="Look up a product"
                    placeholder="penne, dark soy sauce, pene…" />
-            <button disabled={!lookup.trim()}>Look up</button>
+            <button disabled={!lookup.trim() || hubOff} aria-describedby={hubOff ? offNote : undefined}>Look up</button>
           </form>
+          {hubOff && <p id={offNote} className="muted">The lookup runs through the demo hub, which is off here.</p>}
+          <HubErrorBanner error={lookupError} />
           {found && (
             <div className="lookup">
               <div className="plan-meta">
@@ -106,7 +124,7 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
 
         <section className="panel">
           <div className="plan-header">
-            <h2>Catalog · {shown.length} of {products.length}</h2>
+            <h2>Catalog{loaded && !listError && <> · {shown.length} of {products.length}</>}</h2>
             <div className="form-row compact">
               <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="filter" />
               <select value={category} onChange={(e) => setCategory(e.target.value)}>
@@ -115,8 +133,10 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
               </select>
             </div>
           </div>
-          <ErrorBanner error={error} />
-          <div className="table-wrap tall">
+          <ErrorBanner error={listError && `The catalog could not be loaded: ${listError}`}
+                       hint="It comes from the pantry API: see Workshop › System." />
+          {!loaded && <Skeleton kind="row" count={8} label="Loading the catalog" />}
+          {loaded && !listError && <div className="table-wrap tall">
             <table>
               <thead>
                 <tr><th>Product</th><th>Category</th><th>Cheapest store</th><th className="num">Price</th></tr>
@@ -133,15 +153,18 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
                 ))}
               </tbody>
             </table>
-          </div>
+          </div>}
         </section>
       </div>
 
       <aside className="split-side">
         <section className="panel sticky">
-          {!selected && <p className="card-sub">Pick a product to see every store's offer, its origin and the evidence behind it (MCP <code>get_product</code>).</p>}
-          {selected && !detail && <p className="card-sub">Loading…</p>}
-          {detail && (
+          {hubOff ? (
+            <p className="card-sub">A product's offers, origin and evidence come from MCP <code>get_product</code> through the demo hub, which is off here.</p>
+          ) : !selected && <p className="card-sub">Pick a product to see every store's offer, its origin and the evidence behind it (MCP <code>get_product</code>).</p>}
+          {!hubOff && selected && !detail && !detailError && <p className="card-sub">Loading…</p>}
+          <HubErrorBanner error={detailError} />
+          {!hubOff && detail && (
             <>
               <h2>{detail.name}</h2>
               <p className="card-sub">{detail.brand} · {detail.unit_size} · {detail.category}/{detail.subcategory}

@@ -1,0 +1,120 @@
+/* The shared pieces (components/ui.tsx): Notice, OfflinePanel, EmptyState, Skeleton, Tag and the
+   toasts. Every tone says itself twice, in a colour and in an icon or words, so nothing rests on
+   colour alone; every pairing of words and fill here is one tests/tokens-contrast.test.ts checks. */
+
+/* ─── Notice: a soft fill, an edge in the tone, its icon, then the words ─────────────────── */
+.notice {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); align-items: start;
+  margin-top: var(--space-5); padding: var(--space-3) var(--space-4);
+  border: 1px solid transparent; border-left-width: 4px; border-radius: var(--radius-2);
+  color: var(--text); font-size: 14px; line-height: 1.45;
+}
+.notice-icon { display: inline-flex; padding-top: 1px; }
+.notice-body { min-width: 0; overflow-wrap: anywhere; }
+.notice-title { margin: 0; font-weight: 600; }
+.notice-text { margin: 0; }
+.notice-title + .notice-text { margin-top: 2px; }
+.notice-hint { margin: var(--space-1) 0 0; color: var(--muted); font-size: 13px; }
+.notice-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.notice-danger { background: var(--danger-soft); border-left-color: var(--danger); }
+.notice-danger .notice-icon { color: var(--danger-fg); }
+.notice-warn { background: var(--warn-soft); border-left-color: var(--warn); }
+.notice-warn .notice-icon { color: var(--warn); }
+.notice-info { background: var(--info-soft); border-left-color: var(--info); }
+.notice-info .notice-icon { color: var(--info); }
+.notice-success { background: var(--accent-soft); border-left-color: var(--accent); }
+.notice-success .notice-icon { color: var(--accent-soft-fg); }
+
+/* ─── OfflinePanel: the one panel a page shows while the demo hub is not there ───────────── */
+.offline {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-5); padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border); border-left: 4px solid var(--warn); border-radius: var(--radius-3);
+  background: var(--warn-soft); color: var(--text);
+}
+.offline-icon {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+  background: var(--panel); color: var(--warn);
+}
+.offline-body { min-width: 0; }
+.view .offline-title, .offline-title { margin: 0; font: var(--type-title); }
+.offline-off, .offline-works { margin: var(--space-1) 0 0; }
+.offline-works strong { font-weight: 600; }
+.offline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.offline-checked { margin: var(--space-2) 0 0; color: var(--muted); font-size: 13px; }
+.offline-checked:empty { display: none; }
+.offline-details { margin-top: var(--space-2); font-size: 13px; color: var(--muted); }
+.offline-details summary { cursor: pointer; width: fit-content; }
+.offline-details p { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .offline { grid-template-columns: minmax(0, 1fr); padding: var(--space-4); }
+  .offline-icon { width: 32px; height: 32px; }
+}
+
+/* ─── EmptyState: icon, where things stand, one cue, one way on ─────────────────────────── */
+.empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+  height: 100%; padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-3);
+  background: var(--panel); box-shadow: var(--shadow-1);
+}
+.empty-icon {
+  display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: var(--space-1);
+  border-radius: 50%; background: var(--accent-soft); color: var(--accent-soft-fg);
+}
+.view .empty-heading, .empty-heading { margin: 0; font: var(--type-title); }
+.empty-status { margin: 0; font-weight: 600; }
+.empty-cue { margin: 0 0 var(--space-2); color: var(--muted); font-size: 14px; }
+.empty .btn { margin-top: auto; }
+
+/* ─── Skeleton: grey shapes that breathe slowly; still under reduced motion ──────────────── */
+.skel-group { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+.skel-group-card { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.skel { display: block; border-radius: var(--radius-2); background: var(--surface-2);
+  animation: skel-breathe calc(var(--dur-3) * 5) var(--ease-standard) infinite alternate; }
+.skel-row { height: 20px; }
+.skel-row:nth-child(3n + 1) { width: 92%; }
+.skel-row:nth-child(3n) { width: 70%; }
+.skel-card { height: 140px; border-radius: var(--radius-3); }
+@keyframes skel-breathe { to { opacity: 0.5; } }
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; }
+}
+
+/* ─── Tag: a state in a glyph and words ──────────────────────────────────────────────────── */
+.tag {
+  display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px var(--space-2);
+  border-radius: var(--radius-1); font: 600 12px/16px var(--font-body); white-space: nowrap;
+}
+.tag .ico { flex: none; }
+.tag-done { background: var(--accent-soft); color: var(--accent-soft-fg); }
+.tag-progress, .tag-changed { background: var(--info-soft); color: var(--info); }
+.tag-next { background: var(--accent); color: var(--on-accent); }
+.tag-blocked, .tag-paused { background: var(--surface-2); color: var(--muted); }
+.tag-attention { background: var(--warn-soft); color: var(--warn); }
+
+/* ─── Toasts: above the bottom bar on a phone, low on the left on a wide screen ──────────── */
+.toasts {
+  position: fixed; z-index: 40; left: var(--space-4); right: var(--space-4);
+  bottom: calc(var(--bottom-nav-h, 0px) + var(--space-4));
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-2); pointer-events: none;
+}
+.toast {
+  pointer-events: auto; display: flex; align-items: center; gap: var(--space-2);
+  width: min(460px, 100%); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--border-ui); border-radius: var(--radius-2); background: var(--popover);
+  color: var(--text); box-shadow: var(--shadow-2);
+  animation: toast-in var(--dur-2) var(--ease-out);
+}
+.toast-text { flex: 1; margin: 0; font-size: 14px; }
+.toast-close { color: var(--muted); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+@media (min-width: 900px) {
+  .toasts { left: var(--space-6); right: auto; align-items: flex-start; }
+}
+
+/* Forced colours drop fills: the tones keep an edge, a tag its outline. */
+@media (forced-colors: active) {
+  .notice, .offline { border-color: CanvasText; }
+  .tag { border: 1px solid CanvasText; }
+  .toast { border-color: CanvasText; }
+}

@@ -1,0 +1,166 @@
+/* The shell (App.tsx, components/nav.tsx): the page's width, the header, the primary navigation
+   and the footer.
+
+   The primary navigation is a row under the header on a screen 900px or wider, and a bar fixed to
+   the bottom of a narrower one. --bottom-nav-h is the bar's height (0 where there is no bar), and
+   everything fixed or sticky at the bottom of the page keeps clear of it: the meal plan's action
+   bar (.mp-bar), the Assistant's message box (.chat-input), the toasts, the page's own bottom
+   padding, and the scroll that brings a focused control into view. */
+
+:root { --bottom-nav-h: 0px; }
+@media (max-width: 899.98px) {
+  :root { --bottom-nav-h: calc(56px + env(safe-area-inset-bottom, 0px)); }
+}
+html { scroll-padding-bottom: calc(var(--bottom-nav-h) + var(--space-4)); }
+
+.app { max-width: 1180px; margin: 0 auto; padding: var(--space-6) var(--space-4) calc(64px + var(--bottom-nav-h)); }
+
+/* The skip link: off screen until the keyboard reaches it, first thing on the page. */
+.skip-link {
+  position: absolute; left: var(--space-4); top: var(--space-2); z-index: 50;
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-2);
+  background: var(--popover); color: var(--text); box-shadow: var(--shadow-2);
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; }
+/* The page's main region takes focus from the skip link and after a page-wide change; the region
+   itself needs no ring (what is inside it shows its own). */
+.shell-main:focus { outline: none; }
+
+/* ─── Header: wordmark, status, theme, Workshop ───────────────────────────────────────────── */
+.shell-head { display: flex; align-items: center; gap: var(--space-3); }
+.wordmark { margin: 0; font: var(--type-page); }
+.wordmark-link {
+  display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text); text-decoration: none;
+  border-radius: var(--radius-1);
+}
+.wordmark-link .ico { color: var(--accent); }
+.wordmark-link:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.shell-head .status { margin-left: auto; }
+
+.ws-link {
+  display: inline-flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 0 var(--space-3);
+  border: 1px solid transparent; border-radius: var(--radius-2); color: var(--text);
+  font: 600 14px/1.25 var(--font-body); text-decoration: none;
+  transition: background-color var(--dur-1) var(--ease-standard), border-color var(--dur-1) var(--ease-standard);
+}
+.ws-link:hover { background: var(--surface-2); }
+/* In the Workshop: a filled, edged pill, so more than colour says where you are. */
+.ws-link[aria-current="page"] { background: var(--accent-soft); color: var(--accent-soft-fg); border-color: var(--accent); }
+
+/* ─── The status: one dot and its words; opened, a line per service ───────────────────────── */
+.status { position: relative; }
+.status-btn { border-radius: var(--radius-pill); gap: var(--space-2); }
+.status-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: var(--muted); }
+.status-dot-ok { background: var(--accent); }
+.status-dot-warn { background: var(--warn); }
+.status-dot-danger { background: var(--danger); }
+/* waiting for a first answer: an empty ring, not a colour that means something */
+.status-dot-muted { background: transparent; box-shadow: inset 0 0 0 2px var(--muted); }
+.status-chev { color: var(--muted); transition: transform var(--dur-1) var(--ease-standard); }
+.status-btn[aria-expanded="true"] .status-chev { transform: rotate(180deg); }
+
+.status-pop {
+  position: absolute; right: 0; top: calc(100% + var(--space-2)); z-index: 30;
+  width: min(360px, calc(100vw - 2 * var(--space-4))); padding: var(--space-4);
+  border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--popover);
+  box-shadow: var(--shadow-2); font-size: 14px;
+}
+.status-pop[hidden] { display: none; }
+.status-lines { display: grid; gap: var(--space-3); margin: 0; }
+.status-line dt { font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--muted); }
+.status-line dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.status-why { display: block; margin-top: 2px; color: var(--muted); font-size: 13px; }
+.status-foot { margin: var(--space-3) 0 0; padding-top: var(--space-3); border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+
+/* ─── Primary navigation ──────────────────────────────────────────────────────────────────── */
+.pnav-list { display: flex; margin: 0; padding: 0; list-style: none; }
+/* No border in the bar, but a transparent one rather than none: crossing the 900px breakpoint
+   (a tablet turned) then has nothing to fade from, instead of a grey line in the text's colour. */
+.pnav-link {
+  position: relative; display: flex; align-items: center; color: var(--muted); text-decoration: none;
+  border-bottom: 0 solid transparent;
+}
+.pnav-icon { display: grid; place-items: center; }
+.pnav-badge {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent);
+  font: 700 11px/1 var(--font-body); font-variant-numeric: tabular-nums;
+}
+
+/* Wide: one row under the header; the current place is underlined, heavier and in the accent. */
+@media (min-width: 900px) {
+  .pnav { margin-top: var(--space-4); border-bottom: 1px solid var(--border); }
+  .pnav-list { gap: var(--space-1); }
+  .pnav-link {
+    gap: var(--space-2); min-height: 44px; padding: 0 var(--space-4); margin-bottom: -1px;
+    border-bottom: 3px solid transparent; font: 600 15px/1 var(--font-body);
+    transition: color var(--dur-1) var(--ease-standard), border-color var(--dur-1) var(--ease-standard);
+  }
+  .pnav-link:hover { color: var(--text); border-bottom-color: var(--border-ui); }
+  .pnav-link[aria-current="page"] { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); }
+  .pnav-link:focus-visible { outline-offset: -2px; }
+  .pnav-badge { margin-left: -2px; }
+}
+
+/* Narrow: a bar along the bottom, each place an icon over its 11px name; the current one's icon
+   sits in a filled pill and its name is heavier. */
+@media (max-width: 899.98px) {
+  .pnav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; height: var(--bottom-nav-h);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border-top: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow-2);
+  }
+  .pnav-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); height: 56px; }
+  .pnav-link {
+    flex-direction: column; justify-content: center; gap: 2px; height: 100%;
+    font: 600 11px/14px var(--font-body);
+  }
+  .pnav-icon { width: 56px; height: 30px; border-radius: var(--radius-pill); transition: background-color var(--dur-1) var(--ease-standard); }
+  .pnav-link[aria-current="page"] { color: var(--text); font-weight: 700; }
+  .pnav-link[aria-current="page"] .pnav-icon { background: var(--accent-soft); color: var(--accent-soft-fg); }
+  .pnav-link:focus-visible { outline-offset: -4px; }
+  .pnav-badge { position: absolute; top: 4px; left: calc(50% + 8px); }
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────────────────────────── */
+.shell-foot { margin-top: var(--space-8); color: var(--muted); font-size: 13px; text-align: center; }
+
+/* ─── Narrow headers ──────────────────────────────────────────────────────────────────────── */
+/* Under 900px the theme menu shows its icons only (its words stay for screen readers and as each
+   face's tooltip), so a tablet's header keeps to one row; it may still wrap rather than overflow. */
+@media (max-width: 899.98px) {
+  .shell-head { flex-wrap: wrap; }
+  .shell-head .theme-word {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .shell-head .theme-face { padding: 0 8px; }
+}
+/* On a phone: the wordmark and the Workshop on one row (the Workshop as its icon, still named for
+   a screen reader), the status and the theme menu on the next. The wordmark takes the first row
+   but the Workshop's width, so the other two cannot fit beside it and wrap together. */
+@media (max-width: 640px) {
+  .app { padding-top: var(--space-4); }
+  .shell-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+  .wordmark { order: 1; flex: 1 1 calc(100% - 44px - var(--space-3)); min-width: 0; font-size: 24px; line-height: 30px; }
+  .ws-link { order: 2; width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .ws-link-word {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .shell-head .status { order: 3; margin-left: 0; }
+  .shell-head .theme-menu { order: 4; margin-left: auto; }
+  .status-pop { left: 0; right: auto; }
+}
+@media (pointer: coarse) {
+  .ws-link { min-height: 44px; }
+}
+
+/* Forced colours: the current place keeps an edge the system draws. */
+@media (forced-colors: active) {
+  .pnav-link[aria-current="page"] { border-bottom-color: Highlight; }
+  .pnav-link[aria-current="page"] .pnav-icon { outline: 2px solid Highlight; }
+  .ws-link[aria-current="page"] { border-color: Highlight; }
+  .status-dot { forced-color-adjust: none; }
+}

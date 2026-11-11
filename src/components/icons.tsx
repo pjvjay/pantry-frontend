@@ -15,9 +15,11 @@ export type IconName =
   | 'sun' | 'moon' | 'monitor'
   // directions and actions
   | 'chevron-left' | 'chevron-right' | 'chevron-down' | 'arrow-left' | 'arrow-right' | 'x' | 'plus' | 'minus'
-  | 'undo' | 'refresh' | 'copy' | 'printer' | 'external' | 'more' | 'grip' | 'play' | 'stop'
+  | 'undo' | 'refresh' | 'copy' | 'printer' | 'external' | 'more' | 'grip' | 'play' | 'stop' | 'pause'
   // states and marks
   | 'info' | 'circle-check' | 'circle-dashed' | 'circle-x' | 'dot' | 'exclaim' | 'star' | 'pushpin'
+  // a service that is not there: the demo hub, unplugged
+  | 'plug'
   // what a day's plan does: freeze, thaw, cook
   | 'snowflake' | 'droplet' | 'pan';
 
@@ -87,6 +89,7 @@ const PATHS: Record<IconName, ReactNode> = {
     <circle cx="9" cy="18" r="1.5" fill="currentColor" stroke="none" /><circle cx="15" cy="18" r="1.5" fill="currentColor" stroke="none" /></>,
   play: <path d="M8 5.5v13l10.5-6.5z" />,
   stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2" />,
+  pause: <path d="M9 6v12M15 6v12" />,
 
   info: <><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.8h.01" /></>,
   'circle-check': <><circle cx="12" cy="12" r="8.5" /><path d="M8.2 12.3l2.6 2.6 5-5.2" /></>,
@@ -96,6 +99,7 @@ const PATHS: Record<IconName, ReactNode> = {
   exclaim: <path d="M12 5.5v8.5M12 18.5h.01" />,
   star: <path d="M12 3.8l2.5 5.2 5.7.8-4.1 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4.1-4 5.7-.8z" />,
   pushpin: <><path d="M9 3.5h6l-1 5.5 3 3.5H7l3-3.5z" /><path d="M12 12.5V21" /></>,
+  plug: <><path d="M9 3.5V8M15 3.5V8" /><path d="M6.5 8h11v2.5a5.5 5.5 0 0 1-11 0z" /><path d="M12 16v4.5" /></>,
 
   snowflake: <><path d="M12 3v18M19.8 7.5L4.2 16.5M19.8 16.5L4.2 7.5" />
     <path d="M14.3 3.6L12 5.8 9.7 3.6M20.4 9.8l-3-.9.7-3.1M18.1 18.2l-.7-3.1 3-.9M9.7 20.4l2.3-2.2 2.3 2.2M3.6 14.2l3 .9-.7 3.1M5.9 5.8l.7 3.1-3 .9" /></>,

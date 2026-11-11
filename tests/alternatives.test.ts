@@ -324,7 +324,7 @@ test("a cart change told to the model is recorded in the chat in the shopper's w
 
 test("a card's link is drawn only when it leads to one of the console's tabs", () => {
   const week = [{ label: 'Open in Meal plan', href: '#/mealplan?from=week' }];
-  // before the Meal plan tab exists the link would land on the Overview and drop the chat
+  // a console without the meal plan would send the link to Home and away from the chat
   const now = ['overview', 'planner', 'assistant', 'catalog', 'provenance', 'mcp', 'simulations',
     'metrics', 'system'];
   assert.deepEqual(routedLinks(week, now), []);

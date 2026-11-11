@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ErrorBanner, JsonView } from '../components/common';
+import { JsonView } from '../components/common';
+import { HubErrorBanner } from '../components/ui';
 import { mcpCall, mcpCatalog, mcpPrompt, mcpRead, mcpTargets } from '../hub';
 import type { JsonSchema, McpCatalog, McpTarget, McpTool, ToolResult } from '../types';
 
@@ -110,7 +111,7 @@ function ToolForm({ target, tool }: { target: string; tool: McpTool }) {
         </div>
       </form>
       {!useRaw && <JsonView value={{ name: tool.name, arguments: args }} label="request" />}
-      <ErrorBanner error={error} />
+      <HubErrorBanner error={error} />
       {result && (
         <div className={`result ${result.is_error ? 'result-error' : 'result-ok'}`}>
           <div className="plan-meta">
@@ -163,7 +164,7 @@ function ResourcePanel({ target, catalog }: { target: string; catalog: McpCatalo
         <input className="grow" value={uri} onChange={(e) => setUri(e.target.value)} placeholder="pantry://recipes/tomato_penne" />
         <button disabled={!uri.trim()}>Read</button>
       </form>
-      <ErrorBanner error={error} />
+      <HubErrorBanner error={error} />
       {content !== null && <JsonView value={content} label={uri} open />}
     </div>
   );
@@ -200,7 +201,7 @@ function PromptPanel({ target, catalog }: { target: string; catalog: McpCatalog 
           <button>Render prompt</button>
         </form>
       )}
-      <ErrorBanner error={error} />
+      <HubErrorBanner error={error} />
       {result && result.messages.map((m, i) => (
         <div key={i} className="bubble bubble-agent"><div className="muted">{m.role}</div>
           <pre className="prompt-text">{m.content.text}</pre></div>
@@ -252,7 +253,7 @@ export default function McpView() {
       </section>
 
       {loading && <p className="muted">Connecting…</p>}
-      <ErrorBanner error={error && `The server refused or could not be reached: ${error}`}
+      <HubErrorBanner error={error && `The server refused or could not be reached: ${error}`}
                    hint={target === 'pantry-anon' ? 'This is the expected result: pantry requires a bearer token on /mcp when MCP_AUTH_TOKENS is set.' : undefined} />
 
       {catalog && (

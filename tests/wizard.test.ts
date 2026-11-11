@@ -4,9 +4,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  STEPS, alliesText, alliesToAdd, furthest, gate, moveCountry, nextBlock, originRules, originSettings, routeStep,
-  stepFromHash, stepHash, stepTitle, stepViews, wizardFacts,
+  STEPS, alliesText, alliesToAdd, furthest, gate, isPlanHash, moveCountry, nextBlock, originRules, originSettings,
+  routeStep, stepFromHash, stepHash, stepTitle, stepViews, wizardFacts,
 } from '../src/mealplan/wizard.ts';
+import { canonicalHash } from '../src/routes.ts';
 import { DEFAULT_ALLIES, DEFAULT_ORIGIN } from '../src/mealplan/model.ts';
 import type { WizardFacts } from '../src/mealplan/wizard.ts';
 import { add, planWith, run } from './helpers/mealplan.ts';
@@ -17,25 +18,47 @@ const RICE = 'starter:chicken_fried_rice';
 // A plan that can go all the way: meals, products checked, nothing unanswered, a trip approved.
 const READY: WizardFacts = { meals: 3, checking: [], failed: [], basket: 'ok', unanswered: 0, approved: 1 };
 
-test('six stages, each with its own address', () => {
+test('six stages, each with its own address under #/plan', () => {
   assert.deepEqual(STEPS.map((s) => s.name),
     ['Basics', 'Meals', 'Ingredients', 'Schedule', 'Shopping plan', 'Calendar']);
-  assert.equal(stepHash(3), '#/mealplan?step=3');
+  assert.equal(stepHash(3), '#/plan?step=3');
   assert.equal(stepTitle(5), 'Stage 5 of 6: Shopping plan');
-  for (const { n } of STEPS) assert.equal(stepFromHash(stepHash(n)), n);
+  for (const { n } of STEPS) {
+    assert.equal(stepFromHash(stepHash(n)), n);
+    // a stage's address is already the shell's own: it is never rewritten
+    assert.equal(canonicalHash(stepHash(n)), stepHash(n));
+  }
 });
 
 test('the address names a stage, or none; Google\'s return lands on Calendar', () => {
+  assert.equal(stepFromHash('#/plan'), null);
+  assert.equal(stepFromHash('#/plan?step=0'), null);
+  assert.equal(stepFromHash('#/plan?step=7'), null);
+  assert.equal(stepFromHash('#/plan?step=2.5'), null);
+  assert.equal(stepFromHash('#/plan?step=x'), null);
+  assert.equal(stepFromHash('#/workshop/planner?step=2'), null, 'another page');
+  assert.equal(stepFromHash('#/shop?step=2'), null, 'the shopping plan on its own is not a stage');
+  assert.equal(stepFromHash('#/plan?calendar=connected'), 6);
+  assert.equal(stepFromHash('#/plan?calendar=error&reason=access_denied'), 6);
+  assert.equal(stepFromHash('#/plan?step=2&calendar=denied'), 6);
+  assert.equal(stepFromHash('#plan?step=4'), 4);
+});
+
+test('the old #/mealplan address still names its stage, before and after the shell rewrites it', () => {
   assert.equal(stepFromHash('#/mealplan'), null);
-  assert.equal(stepFromHash('#/mealplan?step=0'), null);
-  assert.equal(stepFromHash('#/mealplan?step=7'), null);
-  assert.equal(stepFromHash('#/mealplan?step=2.5'), null);
-  assert.equal(stepFromHash('#/mealplan?step=x'), null);
-  assert.equal(stepFromHash('#/planner?step=2'), null, 'another tab');
-  assert.equal(stepFromHash('#/mealplan?calendar=connected'), 6);
-  assert.equal(stepFromHash('#/mealplan?calendar=error&reason=access_denied'), 6);
-  assert.equal(stepFromHash('#/mealplan?step=2&calendar=denied'), 6);
+  assert.equal(stepFromHash('#/mealplan?step=2'), 2);
   assert.equal(stepFromHash('#mealplan?step=4'), 4);
+  assert.equal(stepFromHash('#/mealplan?step=7'), null);
+  assert.equal(stepFromHash('#/planner?step=2'), null, 'the old Planner tab');
+  // Google's return to a hub that was handed the old address: Calendar either way
+  for (const old of ['#/mealplan?calendar=connected', '#/mealplan?calendar=error&reason=access_denied',
+    '#/mealplan?step=2&calendar=denied']) {
+    assert.equal(stepFromHash(old), 6, old);
+    assert.equal(stepFromHash(canonicalHash(old)), 6, canonicalHash(old));
+  }
+  assert.equal(stepFromHash(canonicalHash('#/mealplan?step=3')), 3);
+  assert.ok(isPlanHash('#/plan') && isPlanHash('#/mealplan?step=1') && isPlanHash('#/plan/'));
+  assert.ok(!isPlanHash('#/planner') && !isPlanHash('#/shop') && !isPlanHash('#/home') && !isPlanHash(''));
 });
 
 test('Meals needs a meal, Ingredients every product checked and answered, Calendar a trip', () => {
