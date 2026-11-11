@@ -1,9 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { JsonView, StatusDot } from '../components/common';
-import { HubErrorBanner } from '../components/ui';
+// Workshop › Simulations: mcp-sim's scenarios (a simulated shopper talking to an agent that uses the
+// pantry MCP tools), their last runs, the judge's verdict and the conversation, and the runner's
+// jobs. The runner sits behind the demo hub (/hub/sims/*); when it is not running the page says so
+// and offers nothing to run.
+//
+// "Run all" spends most of a day's free model quota, so it asks first, in place (InlineConfirm),
+// unless the preset is the dry run, which calls no model. Each scenario is a button that shows it
+// and a Run button beside it, so the keyboard can read a scenario without running it. Every state
+// (passed, failed, running, queued) is a tag: a glyph and words, never a coloured dot alone.
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { JsonView } from '../components/common';
+import { StateTag } from '../components/evidence';
+import { InlineConfirm } from '../components/InlineConfirm';
+import { TabList } from '../components/Tabs';
+import { HubErrorBanner, Skeleton } from '../components/ui';
 import Markdown from '../components/Markdown';
 import { simCancel, simJob, simPresets, simRun, simScenario, simScenarios, simStart, simTranscript } from '../hub';
 import { Icon } from '../components/icons';
+import { simStatus } from '../workshop';
 
 type Rec = Record<string, unknown>;
 const str = (v: unknown) => (v == null ? '' : String(v));
@@ -16,9 +29,8 @@ interface Verdict {
   checklist: Check[]; matches: Match[]; failure_reasons: string[]; flags: string[];
 }
 
-function statusTone(status: string) {
-  return status === 'passed' ? true : status === 'failed' ? false : null;
-}
+// A scenario's state from its last run: passed or failed, and never run when it has none.
+const scenarioState = (s: Rec) => simStatus((s.last_run as Rec | null) ? str(s.status) : 'never');
 
 function TranscriptView({ events }: { events: Rec[] }) {
   return (
@@ -35,7 +47,8 @@ function TranscriptView({ events }: { events: Rec[] }) {
         if (kind === 'tool_result') {
           return (
             <div key={i} className={`sim-event ${e.is_error ? 'sim-error' : ''}`}>
-              <code><Icon name="arrow-left" className="ico-inline" /><span className="sr-only">result of </span>{str(e.name)}</code> <span className="muted">{e.is_error ? 'error' : 'ok'} · {num(e.ms)} ms</span>
+              <code><Icon name="arrow-left" className="ico-inline" /><span className="sr-only">result of </span>{str(e.name)}</code>{' '}
+              <span className="muted">{e.is_error ? 'error' : 'ok'} · <span className="figures">{num(e.ms)} ms</span></span>
               <JsonView value={e.structured ?? e.text} label="result" />
             </div>
           );
@@ -69,12 +82,12 @@ function TranscriptView({ events }: { events: Rec[] }) {
 function VerdictView({ verdict }: { verdict: Verdict }) {
   return (
     <div>
-      <div className="plan-meta">
-        <span className={`chip ${verdict.passed ? 'chip-ok' : 'pill-bad'}`}>{verdict.passed ? 'passed' : 'failed'}</span>
-        <span className="chip">score {verdict.score.toFixed(2)}</span>
+      <p className="sim-verdict">
+        <StateTag state={simStatus(verdict.passed ? 'passed' : 'failed')} />
+        <span className="chip figures">score {verdict.score.toFixed(2)}</span>
         <span className="chip chip-muted">judge {verdict.judge_model} × {verdict.votes}</span>
         {verdict.flags.map((f) => <span key={f} className="chip chip-warn">{f}</span>)}
-      </div>
+      </p>
       <h4>Checklist (the judge)</h4>
       {verdict.checklist.length === 0 && <p className="muted">No judge ran for this transcript.</p>}
       <ul className="checklist">
@@ -88,19 +101,21 @@ function VerdictView({ verdict }: { verdict: Verdict }) {
       {verdict.matches.length > 0 && (
         <>
           <h4>Deterministic matcher (cannot be overruled)</h4>
-          <table className="origin-table">
-            <thead><tr><th>Path</th><th>Check</th><th>Expected</th><th>Actual</th><th /></tr></thead>
-            <tbody>
-              {verdict.matches.map((m, i) => (
-                <tr key={i}>
-                  <td><code>{m.path}</code></td><td>{m.op}</td>
-                  <td className="muted">{JSON.stringify(m.expected)}</td>
-                  <td className="muted">{JSON.stringify(m.actual).slice(0, 80)}</td>
-                  <td><Icon name={m.passed ? 'check' : 'x'} size={16} /><span className="sr-only">{m.passed ? 'passed' : 'failed'}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table className="origin-table">
+              <thead><tr><th>Path</th><th>Check</th><th>Expected</th><th>Actual</th><th><span className="sr-only">Result</span></th></tr></thead>
+              <tbody>
+                {verdict.matches.map((m, i) => (
+                  <tr key={i}>
+                    <td><code>{m.path}</code></td><td>{m.op}</td>
+                    <td className="muted">{JSON.stringify(m.expected)}</td>
+                    <td className="muted">{JSON.stringify(m.actual).slice(0, 80)}</td>
+                    <td><Icon name={m.passed ? 'check' : 'x'} size={16} /><span className="sr-only">{m.passed ? 'passed' : 'failed'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
       {verdict.failure_reasons.length > 0 && (
@@ -119,6 +134,7 @@ function ScenarioDetail({ name, runnerUrl, refreshKey }: { name: string; runnerU
   const [stem, setStem] = useState('');
   const [transcript, setTranscript] = useState<Rec | null>(null);
   const [error, setError] = useState('');
+  const tabsId = useId();
 
   // Every load is guarded by `alive`: switching scenarios mid-request must not let the old
   // scenario's answer (or a request mixing the new name with the old run id) land on this one.
@@ -163,63 +179,66 @@ function ScenarioDetail({ name, runnerUrl, refreshKey }: { name: string; runnerU
   const current = verdicts[stem.replace(/\.jsonl$/, '')];
   const currentRow = transcripts.find((t) => str(t.file) === stem);
   const dry = Boolean((run?.summary as Rec | undefined)?.dry_run) || current?.judge_model === 'dry-run';
+  const shownId = `${tabsId}-shown`;
   return (
-    <section className="panel">
+    <section className="panel" aria-labelledby={`${tabsId}-title`}>
       <HubErrorBanner error={error} />
       <div className="plan-header">
-        <h2>{str(sc.title) || name}</h2>
-        {last && <a href={`${runnerUrl}/#/${name}/${str(last.run_id)}`} target="_blank" rel="noreferrer">open in the runner<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>}
+        <h2 id={`${tabsId}-title`}>{str(sc.title) || name}</h2>
+        {last && <a href={`${runnerUrl}/#/${name}/${str(last.run_id)}`} target="_blank" rel="noreferrer">Open in the runner<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>}
       </div>
       <p className="card-sub">{str(sc.category)} · {name}</p>
+      {!scenario && !error && <Skeleton kind="row" count={4} label="Loading the scenario" />}
       {Boolean(sc.goal) && <p><strong>Goal:</strong> {str(sc.goal)}</p>}
       {Array.isArray(sc.expected_behavior) && (
         <details className="json"><summary>Expected behaviour ({(sc.expected_behavior as string[]).length})</summary>
           <ul>{(sc.expected_behavior as string[]).map((b) => <li key={b}>{b}</li>)}</ul></details>
       )}
-      {!last && <p className="muted">Never run. Pick a preset and press Run.</p>}
+      {scenario && !last && <p className="muted">Never run. Choose the models above and press Run beside it.</p>}
       {last && (
         <>
-          <div className="plan-meta">
-            <span className={`chip ${str(last.status) === 'passed' ? 'chip-ok' : 'pill-bad'}`}>{str(last.status)}</span>
-            <span className="chip">{num(last.passed)}/{num(last.runs)} runs passed</span>
-            <span className="chip chip-muted">{str(last.started_at).slice(0, 16).replace('T', ' ')} UTC · {Math.round(num(last.duration_s))}s</span>
+          <p className="sim-verdict">
+            <StateTag state={simStatus(str(last.status))} />
+            <span className="chip figures">{num(last.passed)} of {num(last.runs)} runs passed</span>
+            <span className="chip chip-muted figures">{str(last.started_at).slice(0, 16).replace('T', ' ')} UTC · {Math.round(num(last.duration_s))} s</span>
             {Object.entries((last.models as Rec) ?? {}).filter(([k]) => k !== 'allow_same_judge').map(([k, v]) => (
               <span key={k} className="chip chip-muted">{k}: {str(v)}</span>
             ))}
-          </div>
+          </p>
           {transcripts.length > 1 && (
-            <div className="subtabs">
-              {transcripts.map((t) => (
-                <button key={str(t.file)} className={`subtab ${stem === str(t.file) ? 'subtab-active' : ''}`}
-                        onClick={() => setStem(str(t.file))}>
-                  <StatusDot ok={t.passed as boolean | null} /> {str(t.stem)}
-                </button>
-              ))}
-            </div>
+            <TabList idBase={tabsId} label="Runs of this scenario" current={stem} onChange={setStem}
+                     controls={() => shownId} className="sim-runs"
+                     tabs={transcripts.map((t) => {
+                       const state = simStatus(t.passed === true ? 'passed' : t.passed === false ? 'failed' : 'never');
+                       return { key: str(t.file), label: <>{str(t.stem)} <StateTag state={state} /></> };
+                     })} />
           )}
-          {currentRow && (
-            <div className="plan-meta">
-              <span className={`chip ${str(currentRow.outcome) === 'completed' ? 'chip-muted' : 'pill-bad'}`}>
-                outcome: {str(currentRow.outcome)}
-              </span>
-              <span className="muted">{str(currentRow.reason)}</span>
-            </div>
-          )}
-          {dry && (
-            <p className="coverage-note">
-              A dry run calls no model: a scripted agent calls the planned tools in order and its
-              answer is the covering tool's raw result. There is no judge, so only the matcher and
-              the code observers grade it, and the per-product fields nested inside <code>items</code> are
-              expected misses. It proves the wiring, not the agent: choose a model preset for a real run.
-            </p>
-          )}
-          {current && <VerdictView verdict={current} />}
-          {transcript && (
-            <>
-              <h4>Conversation</h4>
-              <TranscriptView events={(transcript.events as Rec[]) ?? []} />
-            </>
-          )}
+          <div id={shownId} role={transcripts.length > 1 ? 'tabpanel' : undefined}
+               aria-labelledby={transcripts.length > 1 && stem ? `${tabsId}-tab-${stem}` : undefined}>
+            {currentRow && (
+              <p className="sim-verdict">
+                <span className={`chip ${str(currentRow.outcome) === 'completed' ? 'chip-muted' : 'pill-bad'}`}>
+                  outcome: {str(currentRow.outcome)}
+                </span>
+                <span className="muted">{str(currentRow.reason)}</span>
+              </p>
+            )}
+            {dry && (
+              <p className="coverage-note">
+                A dry run calls no model: a scripted agent calls the planned tools in order and its
+                answer is the covering tool's raw result. There is no judge, so only the matcher and
+                the code observers grade it, and the per-product fields nested inside <code>items</code> are
+                expected misses. It proves the wiring, not the agent: choose a model preset for a real run.
+              </p>
+            )}
+            {current && <VerdictView verdict={current} />}
+            {transcript && (
+              <>
+                <h4>Conversation</h4>
+                <TranscriptView events={(transcript.events as Rec[]) ?? []} />
+              </>
+            )}
+          </div>
         </>
       )}
     </section>
@@ -230,18 +249,21 @@ export default function SimulationsView() {
   const [presets, setPresets] = useState<Record<string, { label: string; models: Record<string, string> }>>({});
   const [runnerUrl, setRunnerUrl] = useState('');
   const [preset, setPreset] = useState('gemini');
-  const [scenarios, setScenarios] = useState<Rec[]>([]);
+  const [scenarios, setScenarios] = useState<Rec[] | null>(null);
   const [selected, setSelected] = useState('');
   const [job, setJob] = useState<Rec | null>(null);
   const [error, setError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [asking, setAsking] = useState(false);
   const poll = useRef<number | null>(null);
+  const runAll = useRef<HTMLButtonElement>(null);
+  const modelsId = useId();
 
   const load = useCallback(() => {
     simScenarios().then((d) => {
       setScenarios(d.scenarios);
       setSelected((s) => s || str(d.scenarios.find((x) => x.name === 'recipe-link-mala-chicken')?.name ?? d.scenarios[0]?.name));
-    }).catch((e: Error) => setError(e.message));
+    }).catch((e: Error) => { setScenarios([]); setError(e.message); });
   }, []);
 
   useEffect(() => {
@@ -269,8 +291,7 @@ export default function SimulationsView() {
 
   const start = async (names: string[] | 'all') => {
     setError('');
-    if (names === 'all' && preset !== 'dry'
-        && !window.confirm('Run every scenario? On the Gemini free tier this can use most of a day\'s quota.')) return;
+    setAsking(false);
     if (names !== 'all' && names.length === 1) setSelected(names[0]);   // show what is running
     try {
       const r = await simStart(names, preset);
@@ -281,26 +302,43 @@ export default function SimulationsView() {
     }
   };
 
-  const groups = scenarios.reduce<Record<string, Rec[]>>((acc, s) => {
+  const list = scenarios ?? [];
+  const groups = list.reduce<Record<string, Rec[]>>((acc, s) => {
     (acc[str(s.category)] ??= []).push(s);
     return acc;
   }, {});
-  const running = job && ['queued', 'running'].includes(str(job.status));
+  const running = Boolean(job && ['queued', 'running'].includes(str(job.status)));
+  const presetLabel = presets[preset]?.label ?? preset;
+  // a dry run calls no model, so it costs nothing and asks nothing
+  const askFirst = preset !== 'dry';
   return (
     <div className="view">
       <section className="panel">
         <div className="plan-header">
           <h2>Agent simulations (mcp-sim)</h2>
-          <div className="form-row compact">
-            <label>models
-              <select value={preset} onChange={(e) => setPreset(e.target.value)}>
-                {Object.entries(presets).map(([k, p]) => <option key={k} value={k}>{p.label}</option>)}
-              </select>
-            </label>
-            <button className="secondary" onClick={() => void start('all')} disabled={Boolean(running)}>Run all</button>
-            {runnerUrl && <a href={runnerUrl} target="_blank" rel="noreferrer">runner UI<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>}
+          <div className="form-row compact sim-controls">
+            <label htmlFor={modelsId}>Models</label>
+            <select id={modelsId} value={preset} onChange={(e) => setPreset(e.target.value)}>
+              {Object.entries(presets).map(([k, p]) => <option key={k} value={k}>{p.label}</option>)}
+            </select>
+            {!asking && (
+              <button ref={runAll} type="button" className="btn btn-secondary"
+                      disabled={running || list.length === 0}
+                      onClick={() => (askFirst ? setAsking(true) : void start('all'))}>
+                <Icon name="play" size={16} />Run all
+              </button>
+            )}
+            {runnerUrl && <a href={runnerUrl} target="_blank" rel="noreferrer">Runner UI<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>}
           </div>
         </div>
+        {asking && (
+          <InlineConfirm
+            className="sim-confirm"
+            question={`Run all ${list.length} scenarios with ${presetLabel}?`}
+            detail="Each one calls the models several times. On the Gemini free tier, all of them can use most of a day’s quota, which the deployed demo shares."
+            choices={[{ label: `Run all ${list.length}`, onClick: () => void start('all') }]}
+            onCancel={() => setAsking(false)} returnFocus={runAll} />
+        )}
         <p className="card-sub">
           Each scenario is a simulated shopper talking to an agent that uses the pantry MCP tools,
           graded by an independent judge, a deterministic matcher on the agent's final JSON, and
@@ -313,41 +351,55 @@ export default function SimulationsView() {
       <HubErrorBanner error={error} hint={error.includes('not reachable') ? 'Start the runner with the stack script (scripts/up.sh).' : undefined} />
 
       {job && (
-        <section className="panel">
+        <section className="panel" aria-labelledby="sim-job-title">
           <div className="plan-header">
-            <h3>Job {str(job.job_id)} · {str(job.status)}</h3>
-            {running && <button className="danger" onClick={() => void simCancel(str(job.job_id))}>Stop</button>}
-          </div>
-          <div className="plan-meta">
-            {((job.scenarios as Rec[]) ?? []).map((s) => (
-              <button key={str(s.name)} className="chip linkish-chip" onClick={() => setSelected(str(s.name))}>
-                {str(s.name)}: {str(s.status)}
+            <h3 id="sim-job-title" className="sim-job-title">Job <code>{str(job.job_id)}</code> <StateTag state={simStatus(str(job.status))} /></h3>
+            {running && (
+              <button type="button" className="btn btn-danger btn-sm" onClick={() => void simCancel(str(job.job_id))}>
+                <Icon name="stop" size={16} />Stop
               </button>
-            ))}
+            )}
           </div>
-          <pre className="log">{((job.log_tail as string[]) ?? []).slice(-14).join('\n')}</pre>
+          <ul className="sim-job-list">
+            {((job.scenarios as Rec[]) ?? []).map((s) => (
+              <li key={str(s.name)}>
+                <button type="button" className="linkish" onClick={() => setSelected(str(s.name))}>{str(s.name)}</button>
+                <StateTag state={simStatus(str(s.status))} />
+              </li>
+            ))}
+          </ul>
+          <pre className="log" tabIndex={0} aria-label="The runner's log, last lines">{((job.log_tail as string[]) ?? []).slice(-14).join('\n')}</pre>
         </section>
       )}
 
       <div className="split">
-        <aside className="split-side-left">
+        <aside className="split-side-left" aria-label="Scenarios">
+          {scenarios === null && <Skeleton kind="row" count={6} label="Loading the scenarios" />}
           {Object.entries(groups).map(([cat, items]) => (
             <div key={cat} className="sim-group">
-              <div className="timeline-heading">{cat}</div>
-              {items.map((s) => {
-                const last = s.last_run as Rec | null;
-                return (
-                  <div key={str(s.name)} className={`sim-row ${selected === s.name ? 'sim-row-active' : ''}`}
-                       onClick={() => setSelected(str(s.name))}>
-                    <StatusDot ok={statusTone(str(s.status))} />
-                    <div className="sim-row-text">
-                      <div>{str(s.title)}</div>
-                      <div className="muted">{last ? `${num(last.passed)}/${num(last.runs)} passed · ${str(last.started_at).slice(5, 16).replace('T', ' ')}` : 'never run'}</div>
-                    </div>
-                    <button className="mini" disabled={Boolean(running)} onClick={(e) => { e.stopPropagation(); void start([str(s.name)]); }}>Run</button>
-                  </div>
-                );
-              })}
+              <h3 className="timeline-heading">{cat}</h3>
+              <ul className="sim-list">
+                {items.map((s) => {
+                  const last = s.last_run as Rec | null;
+                  const name = str(s.name);
+                  return (
+                    <li key={name} className={`sim-row ${selected === name ? 'sim-row-active' : ''}`}>
+                      <button type="button" className="sim-pick" aria-current={selected === name || undefined}
+                              onClick={() => setSelected(name)}>
+                        <span className="sim-row-title">{str(s.title)}</span>
+                        <span className="sim-row-meta">
+                          <StateTag state={scenarioState(s)} />
+                          {last && <span className="muted figures">{num(last.passed)}/{num(last.runs)} · {str(last.started_at).slice(5, 16).replace('T', ' ')}</span>}
+                        </span>
+                      </button>
+                      <button type="button" className="btn btn-secondary btn-sm" disabled={running}
+                              aria-label={`Run ${str(s.title)}`} onClick={() => void start([name])}>
+                        Run
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           ))}
         </aside>

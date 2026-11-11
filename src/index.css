@@ -349,9 +349,7 @@ tr.row-active td { background: var(--accent-soft); }
 }
 .target span { font-size: 12px; color: var(--muted); }
 .target-active { border-color: var(--accent); background: var(--accent-soft); }
-.subtabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
-.subtab { margin: 0; background: var(--bg); color: var(--muted); border: 1px solid var(--border); padding: 5px 12px; }
-.subtab-active { color: var(--accent); border-color: var(--accent); }
+/* the explorer's tools, resources and prompts are a tab list: styles/workshop.css */
 .tool-list { list-style: none; margin: 0; padding: 0; max-height: 640px; overflow: auto; }
 .tool-item {
   margin: 0 0 2px; width: 100%; text-align: left; background: none; color: var(--text);
@@ -378,13 +376,7 @@ tr.row-active td { background: var(--accent-soft); }
 
 /* Simulations */
 .sim-group { margin-bottom: 14px; }
-.sim-row {
-  display: flex; gap: 8px; align-items: center; padding: 8px; border-radius: 8px; cursor: pointer;
-  border: 1px solid transparent; font-size: 13px;
-}
-.sim-row:hover { background: var(--panel); }
-.sim-row-active { background: var(--panel); border-color: var(--accent); }
-.sim-row-text { flex: 1; min-width: 0; }
+/* a scenario's row (its button and its Run): styles/workshop.css */
 .sim-transcript { display: flex; flex-direction: column; gap: 8px; }
 .sim-event { font-size: 13px; padding: 6px 10px; border-left: 3px solid var(--border); }
 .sim-error { border-left-color: var(--error-text); color: var(--error-text); }
@@ -403,7 +395,6 @@ tr.row-active td { background: var(--accent-soft); }
 .service-head { display: flex; gap: 8px; align-items: center; font-size: 14px; }
 .service-links { display: flex; gap: 12px; margin-top: 4px; }
 .mode-toggle { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
-.mode-on { box-shadow: 0 0 0 2px var(--accent-soft); }
 
 /* Overview */
 .arch { width: 100%; height: auto; margin-top: 10px; }
@@ -498,63 +489,10 @@ tr.row-active td { background: var(--accent-soft); }
 .metrics-table { font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .metrics-table td.msg { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
-.waterfall { display: flex; flex-direction: column; gap: 2px; font-size: 12px; margin: 10px 0; }
-.wf-row { display: grid; grid-template-columns: minmax(180px, 34%) 1fr 72px; gap: 8px; align-items: center; }
-.wf-label { text-align: left; background: none; border: none; color: var(--text); font: inherit; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 0; }
-.wf-kind { display: inline-block; min-width: 64px; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; margin-right: 6px; }
-.wf-track { position: relative; height: 12px; background: var(--bg); border-radius: 3px; }
-.wf-bar { position: absolute; top: 1px; bottom: 1px; border-radius: 3px; background: var(--muted); }
-.wf-turn { background: var(--border); }
-.wf-model { background: var(--sonnet); }
-.wf-tool { background: var(--accent); }
-.wf-gateway, .wf-gateway-tool { background: var(--haiku); }
-.wf-pantry-step { background: var(--warn); }
-.wf-pantry-llm { background: var(--gemini); }
-.wf-browser { background: var(--muted); opacity: 0.5; }
-.wf-observers { background: var(--gemini); }
-.wf-bad { outline: 2px solid var(--error-text); }
-.wf-dur { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
-.wf-detail { grid-column: 1 / -1; padding: 4px 0 8px 24px; }
-.wf-detail pre { white-space: pre-wrap; font-size: 11.5px; max-height: 260px; overflow: auto; margin: 4px 0; }
-@media (max-width: 640px) {
-  .wf-row { grid-template-columns: 1fr 56px; }
-  .wf-track { grid-column: 1 / -1; order: 3; }
-}
-
-/* the run view: one Assistant run from every system that saw it */
-.run-view .kpis { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-.kpi { display: flex; flex-direction: column; min-width: 96px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
-.kpi-v { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.kpi-k { font-size: 11.5px; color: var(--muted); }
-.run-message { font-style: italic; margin: 6px 0; }
-.row-gap { display: flex; gap: 8px; align-items: center; }
-.budget-bar { display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: var(--bg); }
-.budget-bar span { height: 100%; }
-.budget-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12.5px; }
-.budget-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
-.budget-read, .wf-seg-read { background: var(--sonnet); }
-.budget-write, .wf-seg-write { background: var(--accent); }
-.budget-queued, .wf-seg-queued { background: var(--error-text); }
-.budget-load, .wf-seg-load { background: var(--muted); }
-.budget-provider { background: var(--gemini); }
-.budget-tools { background: var(--warn); }
-.budget-gateway { background: var(--haiku); }
-.budget-observers { background: var(--border); }
-.budget-other { background: var(--muted); opacity: 0.4; }
-.wf-bar { display: flex; overflow: hidden; }
-.wf-seg { height: 100%; }
-.wf-seg-key { display: inline-block; width: 10px; height: 8px; border-radius: 2px; margin: 0 3px 0 8px; }
-.wf-scale { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; margin-bottom: 4px; }
-.wf-legend { font-size: 11.5px; margin-top: 6px; }
-.run-tool { border-top: 1px solid var(--border); padding: 10px 0; }
-.run-tool:first-child { border-top: none; }
-.run-card { margin: 8px 0 0 12px; padding: 8px 10px; border-left: 3px solid var(--border); }
-.run-card-head { margin-bottom: 4px; }
-.run-pre { white-space: pre-wrap; font-size: 11.5px; max-height: 320px; overflow: auto; margin: 4px 0; }
-.run-text { max-width: 860px; }
 .metrics-table.compact td, .metrics-table.compact th { padding: 3px 8px; font-size: 12.5px; }
-.row-bad td { color: var(--error-text); }
-.secondary-link { font-size: 13px; }
+.row-gap { display: flex; gap: 8px; align-items: center; }
+/* The waterfall, the time budget and the rest of a run's drawer (views/RunView.tsx, the waterfall
+   in components/flow.tsx) are in styles/workshop.css, with the chart colours they share. */
 
 /* --- Sheet (components/Sheet.tsx): a side panel docked right, a bottom sheet on phones ------ */
 .sheet {
