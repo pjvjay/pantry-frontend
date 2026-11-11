@@ -190,7 +190,7 @@ export function TripChip({ ctl, trip, keyMove = false }: { ctl: BoardCtl; trip: 
         </span>
       </button>
       {keyMove && movable && (
-        <button type="button" className="secondary mini mp-trip-move" aria-pressed={held}
+        <button type="button" className="btn btn-secondary btn-sm mp-trip-move" aria-pressed={held}
                 aria-label={held ? `Put the trip on ${dayLabel(trip.date)} down` : `Move the trip on ${dayLabel(trip.date)}`}
                 onClick={() => ctl.pick(payload)}>
           {held ? 'Moving…' : 'Move'}

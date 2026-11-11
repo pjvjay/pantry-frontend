@@ -238,6 +238,15 @@ export function MealsStage({ quickText, setQuickText, onChange }: {
   // "Paste a recipe": Quick add, further down, takes the text; focusing it brings it into view.
   const focusQuickAdd = () => document.getElementById('mp-quick-text')?.focus();
 
+  // Quick add can be focused before the recipes arrive (Home's "Try the example" opens the stage
+  // on it), and the recipes then push it down the page: brought back into view once they are in,
+  // if the keyboard is still there.
+  const loaded = c !== null;
+  useEffect(() => {
+    const field = document.getElementById('mp-quick-text');
+    if (loaded && field && document.activeElement === field) field.scrollIntoView({ block: 'center' });
+  }, [loaded]);
+
   return (
     <>
       <SetupStrip onChange={onChange} />

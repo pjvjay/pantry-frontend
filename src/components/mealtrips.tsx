@@ -1,6 +1,9 @@
-// The meal plan's Shopping plan stage and what hangs off it: each trip as a sheet with its cart
-// per store and its list to copy or print, the warnings with their fixes, what the data covers,
-// the day-by-day actions, and the Suggest cook days proposal as a diff to apply or dismiss.
+// The meal plan's Shop stage, its trips, and what hangs off them: each trip as a card (Shop this
+// trip once approved, Open list, Approve, Dismiss, Move) with Approve all over them, each trip as a
+// sheet with its cart per store and its list to copy or print, the warnings with their fixes, what
+// the data covers, the day-by-day actions, and the Suggest cook days proposal as a diff to apply
+// or dismiss. The stage's list for the whole period, "Check your plan" and the two ways to shop
+// are in components/shoplist.tsx.
 //
 // Code suggests trips; only the shopper approves, moves or dismisses them. An approved trip is
 // never rewritten: when edits change what it should carry it reads "Changed since approved"
@@ -10,18 +13,21 @@ import { createPortal } from 'react-dom';
 
 import { sizeInName } from '../alternatives';
 import {
-  costText, forMealsText, needText, packsText, priceDeltaText, shelfText, strategyOf, tripChipText, tripLook,
-  tripMoveDays, tripPriced, tripToCartSummary,
+  forMealsText, needText, packsText, priceDeltaText, shelfText, strategyOf, tripChipText, tripLook, tripMoveDays,
+  tripToCartSummary,
 } from '../mealplan/board';
 import {
   productNames, remedyLabel, remedyStep, tripMoveConsequence, warningRows, warningsFor,
 } from '../mealplan/consequences';
 import { dayLabel } from '../mealplan/dates';
 import { MAX_PACKS, STRATEGY_NAMES, approvedElsewhere, inWindow, windowDates, windowOf } from '../mealplan/model';
+import type { PlanEdit } from '../mealplan/model';
 import { tripLineKey, tripOptionsLabel } from '../mealplan/options';
+import { warningCountsText } from '../mealplan/shoplist';
 import { useMealPlan } from '../mealplan/store';
+import { hrefFor } from '../routes';
 import type {
-  MealSchedule, PlanAction, PlanCoverage, RemedyOp, Trip, TripLine, WarningCounts,
+  MealSchedule, PlanAction, PlanCoverage, RemedyOp, Trip, TripLine,
 } from '../types';
 import { CartCard, copyText } from './cart';
 import { SourceCredits } from './nutrition';
@@ -30,10 +36,12 @@ import { TripLineOptionsDialog } from './tripoptions';
 import { Icon } from './icons';
 import type { IconName } from './icons';
 import { TripMark } from './mealcal';
+import { useToast } from './ui';
 
-const counts = (c: WarningCounts) =>
-  [c.must_fix && `${c.must_fix} must fix`, c.should_fix && `${c.should_fix} should fix`, c.decide && `${c.decide} to decide`,
-    c.note && `${c.note} ${c.note === 1 ? 'note' : 'notes'}`].filter(Boolean).join(', ') || 'no warnings';
+// A trip card's "Shop this trip", which Done shopping in the store brings focus back to, and its
+// "Open list", which stays on the card whatever state the trip is in.
+export const shopTripSelector = (date: string) => `[data-shop-trip="${CSS.escape(date)}"]`;
+const openTripSelector = (date: string) => `[data-open-trip="${CSS.escape(date)}"]`;
 
 // ─── Trip sheet ──────────────────────────────────────────────
 
@@ -79,18 +87,18 @@ function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Tr
           {ln.store && <span className="muted"> at {ln.store}</span>}
         </span>
         {/* The chat cart's Options dialog, for this purchase (components/tripoptions.tsx). */}
-        <button type="button" className="secondary mini btn-ico mp-line-options" aria-haspopup="dialog"
+        <button type="button" className="btn btn-secondary btn-sm mp-line-options" aria-haspopup="dialog"
                 aria-label={tripOptionsLabel(ln)} data-trip-line={tripLineKey(trip.date, ln.product.id)}
                 onClick={() => onOptions(ln)}>Options<Icon name="chevron-right" size={14} /></button>
       </div>
       <div className="muted">{forMealsText(ln)}</div>
       <div className="mp-line-ctl">
         <span className="mp-stepper">
-          <button type="button" className="secondary mini btn-ico" aria-label={`One pack fewer of ${ln.product.name}`}
+          <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One pack fewer of ${ln.product.name}`}
                   disabled={ln.packs === null || ln.packs <= 1}
                   onClick={() => setPacks(Math.max(1, (ln.packs ?? 1) - 1))}><Icon name="minus" size={14} /></button>
           <span className={ln.packs === null ? 'cart-flag' : undefined}>{packsText(ln)}</span>
-          <button type="button" className="secondary mini btn-ico" aria-label={`One pack more of ${ln.product.name}`}
+          <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One pack more of ${ln.product.name}`}
                   disabled={(ln.packs ?? 0) >= MAX_PACKS}
                   onClick={() => setPacks(Math.min(MAX_PACKS, (ln.packs ?? 0) + 1))}><Icon name="plus" size={14} /></button>
           {yours && <button type="button" className="linkish" onClick={() => setPacks(null)}>use the computed count</button>}
@@ -171,27 +179,30 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
     <Sheet open onClose={onClose} title={`Shopping trip ${dayLabel(trip.date)}`}
            description={<>{STRATEGY_NAMES[strategy]} · <TripMark kind={look.kind} />{tripChipText(trip, elsewhere)}</>}
            footer={<>
-             <button type="button" className="secondary" onClick={() => void list.copy()}>
+             <button type="button" className="btn btn-secondary" onClick={() => void list.copy()}>
+               <Icon name="copy" size={16} />
                {list.copied === 'copied' ? 'Copied' : list.copied === 'failed' ? 'Copy failed' : 'Copy list'}
              </button>
-             <button type="button" className="secondary" onClick={list.print}>Print list</button>
+             <button type="button" className="btn btn-secondary" onClick={list.print}>
+               <Icon name="printer" size={16} />Print list
+             </button>
              {look.kind === 'suggested' && (
                <>
-                 <button type="button" className="secondary" onClick={() => act({ type: 'dismissTrip', date: trip.date }, true)}>Dismiss</button>
-                 <button type="button" disabled={!mp.schedule.current} onClick={() => {
+                 <button type="button" className="btn btn-secondary" onClick={() => act({ type: 'dismissTrip', date: trip.date }, true)}>Dismiss</button>
+                 <button type="button" className="btn btn-primary" disabled={!mp.schedule.current} onClick={() => {
                    const out = mp.approveTrip(trip, strategy);
                    if (!out.refused) onClose();
                  }}>{mp.schedule.current ? 'Approve' : 'Checking…'}</button>
                </>
              )}
              {elsewhere && (
-               <button type="button" disabled={!mp.schedule.current} onClick={() => {
+               <button type="button" className="btn btn-primary" disabled={!mp.schedule.current} onClick={() => {
                  const out = mp.approveTrip(trip, strategy, true);
                  if (!out.refused) onClose();
                }}>{mp.schedule.current ? 'Approve this list instead' : 'Checking…'}</button>
              )}
              {approvedOne && (
-               <button type="button" className="secondary" onClick={() => act({ type: 'unapproveTrip', date: trip.date })}>
+               <button type="button" className="btn btn-secondary" onClick={() => act({ type: 'unapproveTrip', date: trip.date })}>
                  Take the approval back
                </button>
              )}
@@ -211,7 +222,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
         <div className="mp-diff" role="group" aria-label="Changed since approved">
           <strong>Changed since you approved it:</strong>
           <ul>{trip.diff.text.map((t) => <li key={t}><code>{t}</code></li>)}</ul>
-          <button type="button" className="mini" disabled={!mp.schedule.current}
+          <button type="button" className="btn btn-primary btn-sm" disabled={!mp.schedule.current}
                   onClick={() => mp.approveTrip(trip, strategy)}>
             {mp.schedule.current ? 'Approve with these changes' : 'Checking…'}
           </button>
@@ -255,7 +266,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
               {others.map((x) => <option key={x} value={x}>{dayLabel(x)}</option>)}
             </select>
           </label>
-          <button type="button" className="secondary" disabled={!moveTo}
+          <button type="button" className="btn btn-secondary" disabled={!moveTo}
                   onClick={() => act({ type: 'moveTrip', from: trip.date, to: moveTo }, true)}>Move</button>
           {preview && (
             <p className={preview.level === 'warn' ? 'cart-flag' : 'muted'}>
@@ -313,7 +324,7 @@ export function WarningsPanel({ schedule, onAsk }: {
                 {w.remedies.length > 0 && (
                   <span className="mp-remedies">
                     {w.remedies.map((op, j) => (
-                      <button key={j} type="button" className="secondary mini" onClick={() => run(op)}>
+                      <button key={j} type="button" className="btn btn-secondary btn-sm" onClick={() => run(op)}>
                         {remedyLabel(op, mp.state, names)}
                       </button>
                     ))}
@@ -374,7 +385,7 @@ function MoveTo({ date }: { date: string }) {
           {days.map((x) => <option key={x} value={x}>{dayLabel(x)}</option>)}
         </select>
       </label>
-      <button type="button" className="secondary mini" disabled={!to} aria-label={`Move the trip on ${dayLabel(date)}`}
+      <button type="button" className="btn btn-secondary btn-sm" disabled={!to} aria-label={`Move the trip on ${dayLabel(date)}`}
               onClick={() => { mp.dispatch({ type: 'moveTrip', from: date, to }); setTo(''); }}>Move</button>
     </span>
   );
@@ -383,8 +394,13 @@ function MoveTo({ date }: { date: string }) {
 // A sign for each kind of action, beside the words that say it: shop, freeze, thaw, cook.
 const KIND_ICON: Record<PlanAction['kind'], IconName> = { shop: 'cart', freeze: 'snowflake', thaw: 'droplet', cook: 'pan' };
 
+// The trips of the strategy shown, each as a card: an approved one opens in the store from its
+// "Shop this trip"; a suggested one can be approved, dismissed or moved to another day. Approve
+// all approves every suggested trip at once, as one step Undo takes back. Then the days dismissed,
+// a trip added by hand, and what happens day by day.
 export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; onOpenTrip: (date: string) => void }) {
   const mp = useMealPlan();
+  const toast = useToast();
   const d = mp.state.draft;
   const strategy = d.prefs.strategy;
   const st = strategyOf(schedule, strategy);
@@ -398,59 +414,109 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
     for (const a of st?.actions ?? []) out.set(a.date, [...(out.get(a.date) ?? []), a]);
     return [...out.entries()];
   }, [st]);
+  const suggested = (st?.trips ?? []).filter((t) => tripLook(t, approvedElsewhere(d, t.date, strategy)).kind === 'suggested');
+
+  // Approved from its card: the Approve pressed is gone, and the trip's "Shop this trip" is where
+  // the shopper goes on from. That only appears once the schedule has answered for the plan as it
+  // is now (the card shows the trip as the answer has it), so focus waits on the card's Open list
+  // until then, and moves on only if nothing else has taken it meanwhile.
+  const [toShop, setToShop] = useState<{ date: string; parked: boolean } | null>(null);
+  useEffect(() => {
+    if (!toShop) return;
+    const go = document.querySelector<HTMLElement>(shopTripSelector(toShop.date));
+    const wait = document.querySelector<HTMLElement>(openTripSelector(toShop.date));
+    const here = document.activeElement;
+    // parked on Open list, and the shopper has moved on since: leave focus where they put it
+    if (toShop.parked && here && here !== document.body && here !== wait) {
+      setToShop(null);
+      return;
+    }
+    if (go) {
+      go.focus();
+      setToShop(null);
+    } else if (!toShop.parked) {
+      wait?.focus();
+      setToShop({ ...toShop, parked: true });
+    }
+  }, [toShop, schedule]);
+  const approve = (t: Trip, replace = false) => {
+    const out = mp.approveTrip(t, strategy, replace);
+    if (!out.refused) setToShop({ date: t.date, parked: false });
+  };
+
+  // Every suggested trip at once, as one step: said in a toast with its Undo, not twice.
+  const approveAll = () => {
+    const answer = mp.schedule.answer;
+    if (!answer || !mp.schedule.current || !suggested.length) return;
+    const before = d.trips.length;
+    const edits: PlanEdit[] = suggested.map((t) => ({ type: 'approveTrip', trip: t, strategy, rev: answer.rev }));
+    const out = mp.dispatch({ type: 'batch', edits }, { quiet: true });
+    if (out.refused) {
+      mp.announce(`Not done: ${out.refused}.`);
+      return;
+    }
+    const n = out.state.draft.trips.length - before;
+    toast.show({ text: n === suggested.length ? `Approved ${n} trips` : `Approved ${n} of ${suggested.length} trips`,
+      action: { label: 'Undo', onClick: mp.undo } });
+    // Approve all goes once nothing is left to approve: on to the first trip's Shop this trip
+    setToShop({ date: suggested[0].date, parked: false });
+  };
+
   return (
     <div className="mp-shop-panel">
-      <fieldset className="mp-strategy">
-        <legend>How to shop</legend>
-        {schedule.strategies.map((s) => (
-          <label key={s.name} className="check">
-            <input type="radio" name="mp-strategy" checked={strategy === s.name}
-                   onChange={() => mp.dispatch({ type: 'setPrefs', prefs: { strategy: s.name } })} />
-            {STRATEGY_NAMES[s.name]}{s.recommended ? ' (recommended)' : ''}
-            <span className="muted">
-              {' '}· {s.trips.length} {s.trips.length === 1 ? 'trip' : 'trips'}
-              {' '}· {costText(s.total_cost, s.total_is_floor, s.trips.some(tripPriced))}
-              {' '}· {counts(s.warning_counts)}
-            </span>
-          </label>
-        ))}
-      </fieldset>
       {!st?.trips.length && <p className="muted">No trips yet: trips appear once meals are on the calendar.</p>}
+      {suggested.length > 1 && (
+        <div className="mp-approve-all">
+          <button type="button" className="btn btn-primary" disabled={!mp.schedule.current} onClick={approveAll}>
+            <Icon name="check" size={16} />
+            {mp.schedule.current ? `Approve all ${suggested.length} trips` : 'Checking…'}
+          </button>
+          <p className="muted">Or approve them one at a time below. An approved trip is never rewritten.</p>
+        </div>
+      )}
       <ul className="mp-trip-list">
         {st?.trips.map((t) => {
           const elsewhere = approvedElsewhere(d, t.date, strategy);
           const look = tripLook(t, elsewhere);
+          const approved = look.kind === 'approved' || look.kind === 'review';
           return (
             <li key={t.id} className={`mp-trip-card mp-trip-${look.kind}`}>
-              <div>
+              <div className="mp-trip-card-head">
                 <strong>{dayLabel(t.date)}</strong> · <TripMark kind={look.kind} />{tripChipText(t, elsewhere)}
                 {priceDeltaText(t.price_delta) && <span className="cart-flag"> · {priceDeltaText(t.price_delta)}</span>}
               </div>
-              <div className="muted">{t.reason}</div>
+              <div className="muted mp-trip-reason">{t.reason}</div>
               {t.diff && t.diff.text.length > 0 && (
                 <div className="cart-flag">Changed since you approved it: {t.diff.text.join(', ')}</div>
               )}
               <div className="mp-trip-actions">
-                <button type="button" className="secondary mini" onClick={() => onOpenTrip(t.date)}>Open list</button>
+                {approved && (
+                  <a className="btn btn-primary btn-sm" href={hrefFor({ name: 'trip', date: t.date })} data-shop-trip={t.date}
+                     aria-label={`Shop the trip on ${dayLabel(t.date)}`}>
+                    <Icon name="bag" size={16} />Shop this trip
+                  </a>
+                )}
+                <button type="button" className="btn btn-secondary btn-sm" data-open-trip={t.date}
+                        onClick={() => onOpenTrip(t.date)}>Open list</button>
                 {look.kind === 'suggested' ? (
                   <>
-                    <button type="button" className="mini" disabled={!mp.schedule.current}
-                            onClick={() => mp.approveTrip(t, strategy)}>
+                    <button type="button" className="btn btn-primary btn-sm" disabled={!mp.schedule.current}
+                            onClick={() => approve(t)}>
                       {mp.schedule.current ? 'Approve' : 'Checking…'}
                     </button>
-                    <button type="button" className="secondary mini"
+                    <button type="button" className="btn btn-secondary btn-sm"
                             onClick={() => mp.dispatch({ type: 'dismissTrip', date: t.date })}>Dismiss</button>
                     <MoveTo date={t.date} />
                   </>
                 ) : (
                   <>
                     {look.kind === 'elsewhere' && (
-                      <button type="button" className="mini" disabled={!mp.schedule.current}
-                              onClick={() => mp.approveTrip(t, strategy, true)}>
+                      <button type="button" className="btn btn-primary btn-sm" disabled={!mp.schedule.current}
+                              onClick={() => approve(t, true)}>
                         {mp.schedule.current ? 'Approve this list instead' : 'Checking…'}
                       </button>
                     )}
-                    <button type="button" className="secondary mini"
+                    <button type="button" className="btn btn-ghost btn-sm"
                             onClick={() => mp.dispatch({ type: 'unapproveTrip', date: t.date })}>Take the approval back</button>
                   </>
                 )}
@@ -460,19 +526,19 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
         })}
         {elsewhereOnly.map((a) => (
           <li key={`approved-${a.date}`} className="mp-trip-card mp-trip-elsewhere">
-            <div>
+            <div className="mp-trip-card-head">
               <strong>{dayLabel(a.date)}</strong> · <Icon name="check" className="ico-inline" />Approved under {STRATEGY_NAMES[a.strategy]}
             </div>
-            <div className="muted">{STRATEGY_NAMES[strategy]} buys nothing on this day.</div>
+            <div className="muted mp-trip-reason">{STRATEGY_NAMES[strategy]} buys nothing on this day.</div>
             <div className="mp-trip-actions">
-              <button type="button" className="secondary mini"
+              <button type="button" className="btn btn-ghost btn-sm"
                       onClick={() => mp.dispatch({ type: 'unapproveTrip', date: a.date })}>Take the approval back</button>
             </div>
           </li>
         ))}
       </ul>
       {d.dismissed_dates.length > 0 && (
-        <p className="muted">
+        <p className="muted mp-dismissed">
           Dismissed: {d.dismissed_dates.filter((x) => inWindow(windowOf(d), x)).map((x) => (
             <button key={x} type="button" className="linkish" onClick={() => mp.dispatch({ type: 'restoreTrip', date: x })}>
               {dayLabel(x)} (restore)
@@ -488,7 +554,7 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
             {free.map((x) => <option key={x} value={x}>{dayLabel(x)}</option>)}
           </select>
         </label>
-        <button type="button" className="secondary mini" disabled={!addOn}
+        <button type="button" className="btn btn-secondary btn-sm" disabled={!addOn}
                 onClick={() => { mp.dispatch({ type: 'addTrip', date: addOn }); setAddOn(''); }}>Add trip</button>
       </div>
       {actionsByDate.length > 0 && (
@@ -553,8 +619,8 @@ export function CookDaysDiff() {
             </ul>
           )}
           <p className="muted">
-            Warnings under {STRATEGY_NAMES[mp.state.draft.prefs.strategy]}: {counts(proposal.warnings_before)} now,
-            {' '}{counts(proposal.warnings_after)} after.
+            Warnings under {STRATEGY_NAMES[mp.state.draft.prefs.strategy]}: {warningCountsText(proposal.warnings_before)} now,
+            {' '}{warningCountsText(proposal.warnings_after)} after.
           </p>
         </>
       )}

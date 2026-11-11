@@ -16,9 +16,12 @@
 //                        slots", drag and drop, Fill empty slots (done once by itself when every
 //                        meal waits in the tray), Suggest cook days, undo and the nutrition band
 //                        (components/mealcal.tsx, mealtray.tsx).
-//   5 Shop:              the week's trips as a strip to move them on, the trips code suggests, the
-//                        warnings and their fixes, the total against the budget
-//                        (components/mealtrips.tsx).
+//   5 Shop:              the goal first: "Check your plan" (the diet, the total against the
+//                        budget, the days, the stores, how to shop, each with a Change), then
+//                        "Your list" for the whole period with Copy and Print, then the trips:
+//                        the two ways to shop as tiles, the warnings and their fixes, the week
+//                        strip to move a trip on, and each trip to approve, dismiss or move, or,
+//                        approved, to shop in the store (components/shoplist.tsx, mealtrips.tsx).
 //   6 Calendar:          times and reminders, the events, the .ics and Google Calendar
 //                        (components/CalendarExport.tsx).
 // Where a stage opens and what stops Next are decided in mealplan/wizard.ts. The plan lives in
@@ -28,6 +31,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
+import { arrivalFor, arriveAt, arriving, clearArrival } from '../components/arrival';
 import { BasicsStage, PlanFile, ShoppingSettings } from '../components/basics';
 import { CalendarExport, TimingSettings, useTiming } from '../components/CalendarExport';
 import { IngredientsStage } from '../components/ingredients';
@@ -38,25 +42,26 @@ import { CookDaysDiff, CoverageChips, ShopPanel, TripSheet, WarningsPanel } from
 import { Icon } from '../components/icons';
 import { EXAMPLE_SENTENCE, FirstRunSheet, RecipeTray } from '../components/mealtray';
 import { PeriodBand, TargetsEditor } from '../components/nutrition';
-import { EmptyState, useToast } from '../components/ui';
+import { CheckPlan, StrategyTiles, YourList, strategyInputId } from '../components/shoplist';
+import { STORES_HEAD } from '../components/stores';
+import { EmptyState, Skeleton, useToast } from '../components/ui';
 import { usePointerDrag } from '../components/usePointerDrag';
 import { StageNav, Stepper } from '../components/wizard';
 import { autofillCount, readAutofilled, rememberAutofilled, spreadText } from '../mealplan/autofill';
 import type { SetupItem } from '../mealplan/basics';
-import { unansweredCount } from '../mealplan/basket';
-import { strategyOf, summaryLine, tripPriced } from '../mealplan/board';
-import { againstBudget } from '../mealplan/catalog';
+import { summaryLine } from '../mealplan/board';
 import { moveConsequence, tripMoveConsequence, warningsFor } from '../mealplan/consequences';
 import { addDays, dayLabel } from '../mealplan/dates';
 import { dropEdit, keyIntent, parseTarget } from '../mealplan/dnd';
 import type { DragEffect, DragPayload } from '../mealplan/dnd';
 import { planPictures } from '../mealplan/images';
-import { STRATEGY_NAMES, budgetOf, recipeTitle } from '../mealplan/model';
+import { recipeTitle } from '../mealplan/model';
 import type { PlanEdit } from '../mealplan/model';
 import { pinFix } from '../mealplan/options';
-import { useBasket, useMealPlan } from '../mealplan/store';
+import type { CheckItem } from '../mealplan/shoplist';
+import { useBasket, useMealPlan, usePlanFacts } from '../mealplan/store';
 import {
-  furthest, isPlanHash, nextBlock, routeStep, stepCaption, stepFromHash, stepHash, stepName, wizardFacts,
+  furthest, isPlanHash, nextBlock, routeStep, stepCaption, stepFromHash, stepHash, stepName,
 } from '../mealplan/wizard';
 import type { StepNo } from '../mealplan/wizard';
 import type { RemedyOp } from '../types';
@@ -79,6 +84,15 @@ const CHANGE_FOCUS: Record<SetupItem['key'], string[]> = {
   avoid: ['#su-avoid input'],
   where: ['#su-where input', '#su-where button'],
   days: ['#su-days input'],
+};
+
+// Where a Change in Shop's "Check your plan" goes: Set up at the answer, or Check ingredients at
+// its stores (which to use and how far to go). How to shop is on Shop itself (its tiles).
+const CHECK_TO: Record<Exclude<CheckItem['key'], 'strategy'>, { step: StepNo; focus: string[] }> = {
+  diet: { step: 1, focus: CHANGE_FOCUS.diet },
+  budget: { step: 1, focus: CHANGE_FOCUS.budget },
+  days: { step: 1, focus: CHANGE_FOCUS.when },
+  stores: { step: 3, focus: ['.fc-stores input[name="mp-km"]:checked', `#${STORES_HEAD}`] },
 };
 
 // The stage the shopper was on when they last left the plan, for opening it again in this page.
@@ -115,12 +129,14 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   const answer = schedule.answer;
   const hasRecipes = Object.keys(d.recipes).length > 0;
 
+  // What the page that opened this one asked of it, if anything (components/arrival.ts): focus on
+  // an answer (a Change in the shopping plan on its own), back on a trip (Done shopping), or the
+  // example in Quick add (Home's "Try the example").
+  const [arrival] = useState(() => arrivalFor(window.location.hash));
+
   // ─── Stages ──────────────────────────────────────────────
   const basket = useBasket(true);
-  const facts = useMemo(() => wizardFacts(state, mp.resolve.status === 'error', {
-    state: !hasRecipes || basket.current ? 'ok' : basket.status === 'error' ? 'error' : 'waiting',
-    unanswered: unansweredCount(basket.answer, state),
-  }), [state, mp.resolve.status, hasRecipes, basket.current, basket.status, basket.answer]);
+  const facts = usePlanFacts(basket);
   const factsRef = useRef(facts);
   factsRef.current = facts;
   const [planStep, setStep] = useState<StepNo>(() =>
@@ -187,6 +203,24 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   // A Change in Pick meals' setup strip: Set up, at that answer.
   const changeSetup = useCallback((key: SetupItem['key']) => go(1, CHANGE_FOCUS[key]), [go]);
 
+  // A Change in Shop's "Check your plan": the stage where it is set, at the answer. From the
+  // shopping plan on its own that is another page (the plan's own view opens), which takes the
+  // request as it opens. How to shop is the tiles further down this page.
+  const checkHref = (key: CheckItem['key']) => (key === 'strategy' ? null : stepHash(CHECK_TO[key].step));
+  const changeCheck = (key: CheckItem['key']) => {
+    if (key === 'strategy') {
+      document.getElementById(strategyInputId(strategy))?.focus();
+      return;
+    }
+    const to = CHECK_TO[key];
+    if (!shop) {
+      go(to.step, to.focus);
+      return;
+    }
+    arriveAt(stepHash(to.step), { focus: to.focus });
+    window.location.hash = stepHash(to.step);
+  };
+
   // ─── Schedule: the board and its gestures ────────────────
   const [held, setHeld] = useState<DragPayload | null>(null);
   const heldRef = useRef(held);
@@ -200,9 +234,11 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   const [targetsOpen, setTargetsOpen] = useState(false);
   // Place on days draws only the rows its meals use, unless the shopper asks for every slot.
   const [showAll, setShowAll] = useState(false);
-  const [quickText, setQuickText] = useState('');
-  // The first-run sheet belongs to the plan; the shopping plan says what it waits for instead.
-  const [firstRun, setFirstRun] = useState(() => !shop && d.rev === 0 && Object.keys(d.recipes).length === 0);
+  const [quickText, setQuickText] = useState(() => (arrival?.example ? EXAMPLE_SENTENCE : ''));
+  // The first-run sheet belongs to the plan; the shopping plan says what it waits for instead. A
+  // shopper sent here from Home has chosen already (Start planning, Try the example).
+  const [firstRun, setFirstRun] = useState(() => !shop && !arrival && d.rev === 0
+    && Object.keys(d.recipes).length === 0);
   // Where focus goes once the render that moved or put something down is on screen: the first of
   // these selectors that takes it, else the stage's heading, never the page. It is state, not a
   // ref, so it is used by the render it was asked for and by no later one: a leftover request
@@ -272,6 +308,22 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
     // folded away or gone: the stage's heading, so the keyboard carries on from the stage
     heading.current?.focus();
   }, [focusTo]);
+
+  // Opened with a request: focus where it asked (the example's Quick add, an answer in Set up, a
+  // trip's Shop this trip), else the heading, so the keyboard starts there and not at the top. A
+  // moment later, after the shell has brought a new page to its top (App.tsx), so the browser
+  // then scrolls what is focused into view.
+  useEffect(() => {
+    if (!arrival) return undefined;
+    clearArrival();
+    const targets = arrival.example ? ['#mp-quick-text'] : arrival.focus ?? [];
+    const id = window.setTimeout(() => {
+      const el = targets.map((sel) => document.querySelector<HTMLElement>(sel)).find((x) => x !== null);
+      (el ?? heading.current)?.focus();
+    }, 0);
+    return () => window.clearTimeout(id);
+    // once, as the view opens
+  }, []);
 
   // Tapping what is held puts it down; anything else is picked up instead.
   const pick = useCallback((p: DragPayload) => {
@@ -440,10 +492,6 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   const reach = furthest(facts);
   const shopWaits = shop && reach < SHOP_STEP ? nextBlock((SHOP_STEP - 1) as StepNo, facts) : null;
 
-  const st = strategyOf(answer, strategy);
-  const planTotal = st && st.trips.length
-    ? againstBudget(st.trips.some(tripPriced) ? st.total_cost : null, st.total_is_floor, budgetOf(d.prefs)) : null;
-
   return (
     <div className={`view mealplan${shop ? ' mealplan-shop' : ''}`} onKeyDown={onKeyDown}>
       {mp.loadProblem && (
@@ -454,13 +502,12 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
 
       {!shop && <Stepper step={step} facts={facts} />}
 
-      {/* every stage but the Shopping plan is cards, drawn on the page itself */}
-      <section className={`panel mp-stage${step !== 5 ? ' mp-stage-flat' : ''}`}
-               aria-labelledby="mp-stage-head">
+      {/* every stage is cards, drawn on the page itself */}
+      <section className="panel mp-stage mp-stage-flat" aria-labelledby="mp-stage-head">
         {shop ? (
           <div className="mp-shop-head">
             <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{SHOP_TITLE}</h2>
-            <a className="mp-shop-back" href={stepHash(reach)}>
+            <a className="mp-shop-back" href={stepHash(reach)} onClick={arriving(stepHash(reach))}>
               <Icon name="arrow-left" size={16} />Back to planning
             </a>
           </div>
@@ -537,27 +584,36 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
           <EmptyState icon="bag" className="mp-shop-waits"
                       status={`Not yet: ${shopWaits.text}.`}
                       cue="The shopping plan is made from the meals you pick and place on days: its trips, what to buy on each, and the total."
-                      action={{ label: `Go to ${stepName(shopWaits.step)}`, href: stepHash(shopWaits.step) }} />
+                      action={{ label: `Go to ${stepName(shopWaits.step)}`, href: stepHash(shopWaits.step),
+                        onClick: () => arriveAt(stepHash(shopWaits.step), {}) }} />
         )}
 
         {step === 5 && !shopWaits && (
           <>
             {statusLine}
-            {answer && <WeekStrip ctl={ctl} />}
-            {planTotal && (
-              <p className={`mp-total ${planTotal.over ? 'cart-flag' : ''}`}>
-                <strong>{STRATEGY_NAMES[strategy]}</strong> {planTotal.text}
-              </p>
-            )}
+            <CheckPlan hrefOf={checkHref} onChange={changeCheck} />
             {!answer ? (
-              <p className="muted">
-                {hasRecipes ? 'Trips appear once the plan has been checked.' : 'Trips appear once you pick some meals.'}
-              </p>
+              <>
+                {hasRecipes && schedule.status !== 'error' && <Skeleton kind="row" count={5} label="Working out your trips" />}
+                <p className="muted">
+                  {hasRecipes ? 'Trips appear once the plan has been checked.' : 'Trips appear once you pick some meals.'}
+                </p>
+              </>
             ) : (
               <>
-                <CoverageChips coverage={answer.coverage} />
-                <WarningsPanel schedule={answer} onAsk={onAsk} />
-                <ShopPanel schedule={answer} onOpenTrip={setTripSheet} />
+                <YourList schedule={answer} />
+                <section className="shop-card shop-trips" aria-labelledby="mp-trips-head">
+                  <h3 id="mp-trips-head" className="shop-card-title">Trips</h3>
+                  <StrategyTiles schedule={answer} />
+                  <WarningsPanel schedule={answer} onAsk={onAsk} />
+                  <WeekStrip ctl={ctl} />
+                  <ShopPanel schedule={answer} onOpenTrip={setTripSheet} />
+                </section>
+                {/* what the figures rest on, for whoever wants it, out of the way of shopping */}
+                <details className="mp-covers">
+                  <summary>What the data covers</summary>
+                  <CoverageChips coverage={answer.coverage} />
+                </details>
               </>
             )}
             <ShoppingSettings />

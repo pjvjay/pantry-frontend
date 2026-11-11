@@ -1,6 +1,7 @@
-// The meal plan's pictures: a recipe's (Meals, Ingredients, Schedule) and an ingredient's
-// product (Ingredients and its Options). Each is decorative, beside words that name the same
-// thing (alt=""), and loads lazily into a box of fixed shape, so nothing moves when it arrives.
+// The meal plan's pictures: a recipe's (Meals, Ingredients, Schedule, and the week's first meal
+// heading Home) and an ingredient's product (Ingredients and its Options, in-store mode). Each is
+// decorative, beside words that name the same thing (alt=""), and loads lazily into a box of
+// fixed shape, so nothing moves when it arrives.
 // A picture that is missing or fails to load falls back, never to a broken image: a product's
 // to the ingredient's name and then a placeholder, a recipe's to its meal's icon on a soft tint,
 // which also shows while the photo loads. Which source, and its credit, is decided in
@@ -18,14 +19,15 @@ export const SLOT_ICONS: Record<Slot, IconName> = { breakfast: 'cup', lunch: 'bo
 
 const addressOf = (p: PictureSource) => (p.via === 'wiki' ? wikiImage(p.title) : remoteImage(p.url));
 
-const ICON_SIZE = { card: 34, head: 22, thumb: 18 } as const;
+const ICON_SIZE = { hero: 56, card: 34, head: 22, thumb: 18 } as const;
 
-// size: 'card', a wide picture over a Meals card, with its credit on hover or focus; 'head', a
+// size: 'hero', the band across the top of Home, its placeholder a warm wash with the meal's
+// icon; 'card', a wide picture over a Meals card, with its credit on hover or focus; 'head', a
 // square beside a recipe's heading or in the tray; 'thumb', a small square on a meal's card.
 export function RecipePicture({ pic, slot, size }: {
   pic: PictureSource | null;
   slot: Slot;
-  size: 'card' | 'head' | 'thumb';
+  size: 'hero' | 'card' | 'head' | 'thumb';
 }) {
   const src = pic ? addressOf(pic) : null;
   // by address, so a recipe's new picture is tried afresh
@@ -41,7 +43,7 @@ export function RecipePicture({ pic, slot, size }: {
              onLoad={() => setLoaded(src)} onError={() => setFailed(src)} />
       )}
       {/* the credit of a decorative picture: shown, not read out */}
-      {ready && size === 'card' && pic && (
+      {ready && (size === 'card' || size === 'hero') && pic && (
         <span className="rpic-credit" aria-hidden="true"><span className="rpic-credit-k">Photo: </span>{pic.credit}</span>
       )}
     </span>

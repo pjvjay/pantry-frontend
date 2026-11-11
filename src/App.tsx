@@ -2,8 +2,7 @@
 //
 //   #/home          Home
 //   #/plan          the meal plan's six stages
-//   #/shop          the shopping plan on its own (#/shop/trip/<date>: one trip; it shows the
-//                   shopping plan until in-store mode exists)
+//   #/shop          the shopping plan on its own (#/shop/trip/<date>: one trip, in-store mode)
 //   #/ask           the Assistant
 //   #/workshop/…    the Workshop: the Catalog, Provenance, the MCP explorer, Simulations, Metrics,
 //                   System, the Planner lab and About
@@ -27,9 +26,10 @@ import AssistantView from './views/AssistantView';
 import HomeView from './views/HomeView';
 import WorkshopView from './views/WorkshopView';
 
-// The meal plan's views load when Plan or Shop is first opened; its plan and store are above
-// every page.
+// The meal plan's views load when Plan or Shop is first opened, in-store mode when a trip is; the
+// plan and its store are above every page.
 const MealPlanView = lazy(() => import('./views/MealPlanView'));
+const InStoreView = lazy(() => import('./views/InStoreView'));
 
 // The page the address names. An old or unknown address becomes the page's own in place
 // (replaceState: no history entry, and no hashchange, so what reads the hash after this reads
@@ -135,9 +135,14 @@ export default function App() {
                   <MealPlanView mode="plan" />
                 </Suspense>
               )}
-              {sectionOf(route) === 'shop' && (
+              {route.name === 'shop' && (
                 <Suspense fallback={<Loading what="the shopping plan" />}>
                   <MealPlanView mode="shop" />
+                </Suspense>
+              )}
+              {route.name === 'trip' && (
+                <Suspense fallback={<Loading what="your trip" />}>
+                  <InStoreView key={route.date} date={route.date} />
                 </Suspense>
               )}
               {assistantOpened && (

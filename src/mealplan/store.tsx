@@ -39,7 +39,7 @@ import {
   MEAL_PLAN_INBOX_KEY, RECIPES_KEY, forSelection, inboxEdit, readMyRecipes, takeInbox,
 } from '../myRecipes';
 import type { StorageLike } from '../myRecipes';
-import { basketKey } from './basket';
+import { basketKey, unansweredCount } from './basket';
 import { catalogRequest } from './catalog';
 import { todayIn } from './dates';
 import { historyStep, newPlan, recorded, redoPlan, undoPlan } from './model';
@@ -49,6 +49,8 @@ import { buildPreview, previewEdit } from './selectionPreview';
 import type { Preview } from './selectionPreview';
 import { canRedo, canUndo, startHistory } from './undo';
 import type { History } from './undo';
+import { wizardFacts } from './wizard';
+import type { WizardFacts } from './wizard';
 
 const SAVE_DELAY_MS = 300;
 const SCHEDULE_DELAY_MS = 400;
@@ -512,6 +514,18 @@ export function useBasket(active: boolean): KeyedCall<MealBasket> {
   const { draft } = state;
   const key = useMemo(() => (Object.keys(draft.recipes).length ? basketKey(draft) : null), [draft]);
   return useKeyedCall(active, key, (signal) => mealBasket(draft, signal));
+}
+
+// What the plan's gates are decided from (mealplan/wizard.ts): the plan, whether its products check
+// failed, and its ingredients as the basket answered for the plan as it is now. The plan's stages
+// and Home read the plan's state the same way.
+export function usePlanFacts(basket: KeyedCall<MealBasket>): WizardFacts {
+  const { state, resolve } = useMealPlan();
+  const hasRecipes = Object.keys(state.draft.recipes).length > 0;
+  return useMemo(() => wizardFacts(state, resolve.status === 'error', {
+    state: !hasRecipes || basket.current ? 'ok' : basket.status === 'error' ? 'error' : 'waiting',
+    unanswered: unansweredCount(basket.answer, state),
+  }), [state, resolve.status, hasRecipes, basket.current, basket.status, basket.answer]);
 }
 
 // The stores near the shopper, with what each sells of the plan's products, asked again whenever

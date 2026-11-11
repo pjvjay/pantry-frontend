@@ -1,16 +1,241 @@
-/* The shopping plan on its own (#/shop: views/MealPlanView.tsx in "shop" mode). Its heading sits
-   on one line with the way back to planning; while the plan cannot have a shopping plan yet, an
-   EmptyState says what it waits for. */
+/* Shop: the plan's Shop stage and the shopping plan on its own (#/shop: views/MealPlanView.tsx in
+   "shop" mode; components/shoplist.tsx and mealtrips.tsx), and in-store mode for one trip
+   (#/shop/trip/<date>: views/InStoreView.tsx).
 
+   Shop reads goal first, as cards on the page: "Check your plan" (a summary list, GOV.UK's check
+   answers), "Your list" (the whole period, trip by trip, each trip's lines by store section in
+   columns on a wide screen), then the trips (the two ways to shop as tiles, the warnings, the week
+   strip, the trip cards). In the store, one trip as big rows to tick, under a header that stays at
+   the top of the screen. */
+
+/* ─── The shopping plan on its own: its heading and the way back to planning ────────────────── */
 .mp-shop-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4); }
-.view .mp-shop-head h2 { margin: 0; }
+.view .mp-shop-head h2 { margin: 0; font: var(--type-page); }
 .mp-shop-back {
   display: inline-flex; align-items: center; gap: var(--space-1); font-size: 14px; font-weight: 600;
   text-decoration: none;
 }
 .mp-shop-back:hover { text-decoration: underline; }
 .mp-shop-back .ico { align-self: center; }
-.mp-shop-waits { margin-top: var(--space-2); height: auto; padding: var(--space-4) 0 0; border: none; box-shadow: none; background: none; }
+.mp-shop-waits { margin-top: var(--space-4); height: auto; }
+.mealplan-shop h2[tabindex="-1"]:focus { outline: none; }
+@media (max-width: 640px) {
+  .view .mp-shop-head h2 { font-size: 26px; line-height: 32px; }
+}
 @media (pointer: coarse) {
   .mp-shop-back { min-height: 44px; }
+}
+
+/* ─── Cards ──────────────────────────────────────────────────────────────────────────────── */
+.shop-card {
+  margin-top: var(--space-5); padding: var(--space-5);
+  border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--panel); box-shadow: var(--shadow-1);
+}
+.view .shop-card-title { margin: 0; font: var(--type-section); }
+@media (max-width: 640px) {
+  .shop-card { padding: var(--space-4); }
+}
+
+/* ─── Check your plan: what it is, its value and a note under it, Change ──────────────────── */
+.shop-check-list { margin: var(--space-3) 0 0; }
+.shop-check-row {
+  display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) auto; grid-template-areas: "key value change";
+  align-items: baseline; gap: var(--space-1) var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--border);
+}
+.shop-check-row:first-child { border-top: none; padding-top: var(--space-1); }
+.shop-check-key {
+  grid-area: key; font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--muted);
+}
+.shop-check-value {
+  grid-area: value; margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.shop-check-note { display: block; font-weight: 400; font-size: 13.5px; line-height: 1.4; color: var(--muted); }
+/* over the budget: said in words, with a sign and the warning's colour as well */
+.shop-check-over .shop-check-note { color: var(--warn); font-weight: 600; }
+.shop-check-warn { vertical-align: -2px; margin-right: var(--space-1); }
+.shop-check-change { grid-area: change; margin: 0; font-size: 14px; }
+.shop-check-change a, .shop-check-change .linkish { font-size: 14px; font-weight: 600; text-underline-offset: 2px; }
+@media (max-width: 640px) {
+  .shop-check-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "key change" "value value"; }
+}
+/* a fingertip's 44px for each Change, reaching out over the row's edges rather than growing it */
+@media (pointer: coarse) {
+  .shop-check-change a, .shop-check-change .linkish {
+    display: inline-flex; align-items: center; min-height: 44px; margin: -12px -8px; padding: 0 8px;
+  }
+}
+
+/* ─── Your list ──────────────────────────────────────────────────────────────────────────── */
+.shop-list-top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.shop-list-sum { margin: var(--space-1) 0 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.shop-list-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.shop-list-none { margin: var(--space-3) 0 0; font-size: 14px; }
+.shop-trip { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.shop-trip-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+.shop-trip-what { min-width: 0; }
+.view .shop-trip-title {
+  margin: 0; font: var(--type-title); letter-spacing: normal; text-transform: none; color: var(--text);
+}
+.shop-trip-stores { font-weight: 400; color: var(--muted); }
+.shop-trip-meta { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.shop-trip-state { font-weight: 600; color: var(--text); }
+.shop-trip-state-approved, .shop-trip-state-elsewhere { color: var(--accent-soft-fg); }
+.shop-trip-state-review { color: var(--warn); }
+/* The sections flow down newspaper columns on a wide screen, one under another on a phone. A
+   section stays whole in its column (the columns grow to fit the longest one rather than split it
+   from its name), and a line never breaks across two columns. */
+.shop-secs { columns: 3 280px; column-gap: var(--space-6); margin-top: var(--space-1); }
+.shop-sec { break-inside: avoid; }
+.view .shop-sec-name {
+  margin: 0; padding: var(--space-3) 0 var(--space-1); font: var(--type-label); letter-spacing: var(--label-tracking);
+  text-transform: uppercase; color: var(--muted); break-after: avoid;
+}
+.shop-lines { list-style: none; margin: 0; padding: 0; }
+/* a line: what to pick up and its price, then how many, what for and (on a trip to two stores)
+   where, in a quieter line under it */
+.shop-line {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 var(--space-3);
+  padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; line-height: 1.35; break-inside: avoid;
+}
+.shop-line:last-child { border-bottom: none; }
+.shop-line-name { font-weight: 600; overflow-wrap: anywhere; }
+.shop-line-price { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.shop-line-for { grid-column: 1 / -1; color: var(--muted); font-size: 12.5px; }
+.shop-line-qty { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.shop-line-unknown { color: var(--warn); font-size: 12.5px; }
+.shop-copy-box { width: 100%; font: 13px/1.5 var(--font-mono); resize: vertical; }
+
+/* ─── The trips: how to shop as two tiles, Approve all, the cards ────────────────────────── */
+.shop-strategy { min-width: 0; margin: var(--space-4) 0 0; padding: 0; border: none; }
+.shop-strategy-legend {
+  margin-bottom: var(--space-2); padding: 0; font: var(--type-label); letter-spacing: var(--label-tracking);
+  text-transform: uppercase; color: var(--muted);
+}
+.shop-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.shop-tile .tile-face { gap: 2px; padding: var(--space-3) var(--space-4); }
+.shop-tile-top { display: flex; align-items: center; gap: var(--space-2); }
+.shop-tile-top .tile-name { font-size: 15px; }
+.shop-tile-top .shop-tile-on { margin-left: auto; }
+.shop-tile-hint { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (max-width: 480px) {
+  .shop-tiles { grid-template-columns: minmax(0, 1fr); }
+}
+.shop-trips .mp-warnings { margin: var(--space-4) 0 var(--space-2); }
+.shop-trips .mp-strip { margin-top: var(--space-4); }
+.mp-approve-all { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-4); }
+.mp-approve-all p { margin: 0; font-size: 13px; }
+.shop-trips .mp-trip-list { gap: var(--space-3); margin: var(--space-4) 0; }
+.shop-trips .mp-trip-card { padding: var(--space-3) var(--space-4); border-radius: var(--radius-2); font-size: 14px; }
+.mp-trip-card-head { font-variant-numeric: tabular-nums; }
+.mp-trip-reason { margin-top: 2px; font-size: 13px; }
+.shop-trips .mp-trip-actions { gap: var(--space-2); margin-top: var(--space-3); }
+.shop-trips .mp-addtrip { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-3); }
+/* The trip sheet's status line carries the trip's state class, as the chips and cards do, for its
+   colour; their frame is not its own. */
+p.mp-trip-status { outline: none; border: 0; }
+.mp-covers { margin-top: var(--space-5); font-size: 13.5px; }
+.mp-covers > summary { cursor: pointer; font-weight: 600; width: fit-content; }
+.mp-covers .mp-coverage { margin-top: var(--space-2); }
+
+/* ─── A fingertip's 44px on Shop and in the trip sheet ───────────────────────────────────── */
+/* The buttons are .btn (44px under a coarse pointer, styles/buttons.css); these are the other
+   targets: the disclosures, the inline links, the selects and the freezer box. */
+@media (pointer: coarse) {
+  .mp-warn-group > summary, .mp-warn-all > summary, .mp-actions > summary, .mp-sources-wrap > summary,
+  .mp-settings > summary, .mp-covers > summary { padding-block: 12px; }
+  .mp-dismissed .linkish, .mp-line .linkish {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px;
+  }
+  .mp-line label.check, .mp-settings label.check { display: flex; min-height: 44px; }
+  .mp-settings input, .mp-settings select, dialog .form-row select { min-height: 44px; }
+  /* The cart card's own tick in a trip sheet (components/cart.tsx, kept by the other lane): as
+     big as its row allows without a label around it, with room to either side. A whole 44px
+     target needs that label, in cart.tsx. */
+  dialog.sheet .cart-item > input[type="checkbox"] { width: 28px; height: 28px; margin: 0 var(--space-1); }
+}
+
+/* ─── In-store mode ──────────────────────────────────────────────────────────────────────── */
+/* One column, a phone's width even on a wide screen: the list is read at arm's length. */
+.instore { max-width: 760px; margin: 0 auto; }
+.instore h2[tabindex="-1"]:focus { outline: none; }
+
+/* The header stays at the top of the screen (useKeepClear: a focused row never comes to rest
+   under it): back, the day and its stores, how many are in the basket and what they cost so far,
+   and a bar that fills as the basket does. */
+.is-head {
+  position: sticky; top: 0; z-index: 20;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "back heading tally" "bar bar bar";
+  align-items: center; gap: var(--space-1) var(--space-3);
+  margin: 0 calc(-1 * var(--space-4)); padding: var(--space-3) var(--space-4) 0;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+}
+.is-back { grid-area: back; }
+.is-heading { grid-area: heading; min-width: 0; }
+.view .is-title { margin: 0; font: var(--type-section); }
+.is-stores { margin: 2px 0 0; color: var(--muted); font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.is-tally {
+  grid-area: tally; display: flex; flex-direction: column; align-items: flex-end; margin: 0;
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.is-count { font: 600 20px/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
+.is-money { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.is-of { color: var(--muted); font-weight: 400; }
+.is-bar { grid-area: bar; display: block; height: 4px; margin: var(--space-2) calc(-1 * var(--space-4)) 0; background: var(--surface-2); }
+.is-bar-fill { display: block; height: 100%; background: var(--accent); transition: width var(--dur-2) var(--ease-standard); }
+
+.is-store { margin-top: var(--space-5); }
+.view .is-store-name { display: flex; align-items: center; gap: var(--space-2); margin: 0; font: var(--type-title); }
+.view .is-sec-name { margin: var(--space-4) 0 var(--space-2); }
+.is-rows { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.is-row {
+  border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--panel); box-shadow: var(--shadow-1);
+  transition: background-color var(--dur-1) var(--ease-standard);
+}
+/* the whole row is the check's label: one press anywhere on it */
+.is-hit {
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3);
+  min-height: 64px; padding: var(--space-2) var(--space-3); cursor: pointer;
+}
+.is-box { position: relative; display: grid; place-items: center; width: 32px; height: 32px; }
+.is-box input {
+  appearance: none; -webkit-appearance: none; display: block; width: 32px; height: 32px; margin: 0;
+  border: 2px solid var(--border-ui); border-radius: var(--radius-2); background: var(--panel); cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-standard), border-color var(--dur-1) var(--ease-standard);
+}
+.is-hit:hover .is-box input { border-color: var(--line-strong); }
+.is-box input:checked { background: var(--accent); border-color: var(--accent); }
+.is-box input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.is-tick { position: absolute; color: var(--on-accent); opacity: 0; pointer-events: none; transition: opacity var(--dur-1) var(--ease-standard); }
+.is-box input:checked + .is-tick { opacity: 1; }
+.is-what { display: flex; flex-direction: column; min-width: 0; }
+.is-name { font-size: 16px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.is-meta { color: var(--muted); font-size: 13px; line-height: 1.35; }
+.is-price { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.is-price-unknown { color: var(--warn); font-size: 13px; font-weight: 400; }
+/* in the basket: struck through, and quieter, as well as moved to the end */
+.is-row-on { background: var(--surface-2); box-shadow: none; }
+.is-row-on .is-name { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 2px; }
+.is-row-on .is-price { color: var(--muted); }
+.is-row-on .ppic { opacity: 0.6; }
+
+.is-basket { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 2px dashed var(--border-ui); }
+.view .is-basket-name { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); font: var(--type-title); }
+.is-basket-count { color: var(--muted); font-weight: 400; }
+.is-foot { display: grid; justify-items: center; gap: var(--space-3); margin-top: var(--space-6); text-align: center; }
+.is-done { min-width: min(100%, 320px); }
+.is-notes { max-width: 52ch; margin: 0; color: var(--muted); font-size: 13px; }
+.is-none { margin-top: var(--space-5); height: auto; }
+
+@media (max-width: 640px) {
+  .is-hit { gap: var(--space-2) 10px; padding: var(--space-2); }
+  .is-hit .ppic { width: 40px; height: 40px; }
+  .view .is-title { font-size: 20px; line-height: 26px; }
+  .is-done { width: 100%; }
+}
+
+/* Forced colours drop fills: the check keeps its edge, and a ticked one its mark. */
+@media (forced-colors: active) {
+  .is-box input { border-color: ButtonText; }
+  .is-box input:checked { background: Highlight; border-color: Highlight; }
+  .is-tick { color: HighlightText; }
 }

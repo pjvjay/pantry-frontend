@@ -1,19 +1,124 @@
-/* Home (views/HomeView.tsx), for now a welcome and the three ways in. */
+/* Home (views/HomeView.tsx). With a plan: a greeting band beside the first meal's picture, then
+   "This week" (the plan's steps as a task list, GOV.UK's pattern) with Continue, and beside it on
+   a wide screen the next trip and the Ask box. With none: one invitation to start. */
 
-.home-hero { margin-top: var(--space-7); }
 .view .home-title, .home-title { margin: 0; font: var(--type-page); }
-.home-lede { margin: var(--space-3) 0 0; max-width: 62ch; color: var(--muted); font-size: 16px; line-height: 1.55; }
-.home-ways {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--space-4);
-  margin: var(--space-6) 0 0; padding: 0; list-style: none;
+.home-lede { margin: var(--space-3) 0 0; max-width: 60ch; color: var(--muted); font-size: 16px; line-height: 1.55; }
+
+/* ─── No plan yet: the invitation, and beside it how it goes ─────────────────────────────── */
+.home-start {
+  display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: center; gap: var(--space-6) var(--space-7);
+  margin-top: var(--space-6); padding: var(--space-7);
+  border: 1px solid var(--border); border-radius: var(--radius-4); box-shadow: var(--shadow-1);
+  background: linear-gradient(160deg, var(--accent-soft), var(--panel) 60%);
 }
-.home-ways > li { display: flex; }
-.home-ways .empty { width: 100%; }
-.home-how { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-6) 0 0; color: var(--muted); }
-@media (pointer: coarse) {
-  .home-how a { display: inline-flex; align-items: center; min-height: 44px; }
+.home-start-main { min-width: 0; }
+.home-start-ways { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-6); }
+.home-build { padding: 0 var(--space-6); font-size: 16px; }
+/* building: it cannot be pressed again, but it is working, not switched off */
+.home-build[aria-disabled="true"] { opacity: 1; cursor: progress; background: var(--accent-hover); }
+.home-build-clock { font-weight: 400; font-variant-numeric: tabular-nums; }
+.home-start-about { margin: var(--space-3) 0 0; max-width: 62ch; color: var(--muted); font-size: 13px; }
+.home-start-steps {
+  display: grid; gap: var(--space-4); margin: 0; padding: var(--space-5); list-style: none;
+  border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--panel);
+}
+.home-start-steps li {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-3);
+  color: var(--muted); font-size: 14px; line-height: 1.45;
+}
+.home-start-steps .ico {
+  box-sizing: content-box; padding: var(--space-2); border-radius: 50%; background: var(--accent-soft); color: var(--accent-soft-fg);
+}
+.home-start-steps strong { color: var(--text); }
+@media (max-width: 899.98px) {
+  .home-start { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
-  .home-hero { margin-top: var(--space-5); }
+  .home-start { margin-top: var(--space-5); padding: var(--space-5) var(--space-4); }
+  .home-start-ways { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+  .home-start-ways .btn { width: 100%; }
+  .home-start-steps { padding: var(--space-4); }
+}
+
+/* ─── The greeting band ──────────────────────────────────────────────────────────────────── */
+.home-band {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 36%); align-items: stretch;
+  margin-top: var(--space-6); overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius-4); background: var(--panel); box-shadow: var(--shadow-1);
+}
+.home-band-text { display: flex; flex-direction: column; justify-content: center; padding: var(--space-6) var(--space-7); }
+.home-when { margin: var(--space-2) 0 0; color: var(--muted); font-size: 16px; font-variant-numeric: tabular-nums; }
+.home-weeks { white-space: nowrap; }
+/* the picture, or a warm wash with the meal's icon while it loads and when there is none */
+.rpic-hero {
+  width: 100%; height: 100%; min-height: 168px;
+  background: linear-gradient(135deg, var(--warn-soft), var(--accent-soft)); color: var(--warn);
+}
+.rpic-hero .rpic-none .ico { opacity: 0.5; }
+
+/* ─── This week, the next trip and Ask ───────────────────────────────────────────────────── */
+.home-grid {
+  display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: start;
+  gap: var(--space-5); margin-top: var(--space-5);
+}
+.home-side { display: grid; gap: var(--space-5); }
+.home-card {
+  padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-3);
+  background: var(--panel); box-shadow: var(--shadow-1);
+}
+.view .home-card-title { margin: 0 0 var(--space-3); font: var(--type-section); }
+
+/* each step one row: its name (a link to the stage, the whole row its target), what it has made,
+   and its state in a tag on the right */
+.home-steps { margin: 0; padding: 0; list-style: none; }
+.home-step {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  gap: var(--space-1) var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--border);
+}
+.home-step:first-child { border-top: none; }
+.home-step-what { display: flex; flex-direction: column; min-width: 0; }
+.home-step-name { font-size: 15px; font-weight: 600; }
+a.home-step-name { text-underline-offset: 3px; }
+a.home-step-name::after { content: ''; position: absolute; inset: 0; }
+a.home-step-name:hover { text-decoration-thickness: 2px; }
+.home-step-produces { color: var(--muted); font-size: 13.5px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.home-step .tag { justify-self: end; }
+.home-continue { margin-top: var(--space-4); }
+
+.home-trip-when { margin: 0; font: var(--type-title); }
+.home-trip-day { color: var(--muted); font-weight: 400; }
+.home-trip-stores { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-2) 0 0; font-size: 14px; }
+.home-trip-stores .ico { flex: none; margin-top: 1px; color: var(--muted); }
+.home-trip-meta { margin: var(--space-1) 0 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.home-trip-state { display: inline-flex; align-items: center; gap: var(--space-1); font-weight: 600; color: var(--text); }
+.home-trip-approved, .home-trip-elsewhere { color: var(--accent-soft-fg); }
+.home-trip-review { color: var(--warn); }
+.home-trip-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.home-trip-note { margin: var(--space-3) 0 0; color: var(--muted); font-size: 13px; }
+
+.home-ask-label { display: block; margin-bottom: var(--space-2); color: var(--muted); font-size: 14px; }
+.home-ask-row { display: flex; gap: var(--space-2); }
+.home-ask-input { flex: 1; min-width: 0; min-height: 36px; }
+.home-ask-off { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-3) 0 0; color: var(--muted); font-size: 13px; }
+.home-ask-off .ico { flex: none; margin-top: 1px; color: var(--warn); }
+
+.home-how { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-6) 0 0; color: var(--muted); }
+
+@media (max-width: 899.98px) {
+  .home-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .home-band { grid-template-columns: minmax(0, 1fr); margin-top: var(--space-5); }
+  /* the picture as a strip over the words; it says nothing the words do not, so the order is moot */
+  .home-band .rpic-hero { order: -1; min-height: 0; aspect-ratio: 16 / 6; }
+  .home-band-text { padding: var(--space-4) var(--space-4) var(--space-5); }
   .view .home-title, .home-title { font-size: 26px; line-height: 32px; }
+  .home-card { padding: var(--space-4); }
+  .home-continue { width: 100%; }
+  .home-trip-actions .btn { flex: 1 1 auto; }
+}
+@media (pointer: coarse) {
+  .home-how a { display: inline-flex; align-items: center; min-height: 44px; }
+  .home-ask-input { min-height: 44px; }
 }

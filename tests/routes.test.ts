@@ -118,7 +118,7 @@ test('the navigation knows its place for each page, and the browser tab says whe
   assert.equal(titleFor({ name: 'home' }), 'Home · Pantry Planner');
   assert.equal(titleFor({ name: 'ask' }), 'Ask · Pantry Planner');
   assert.equal(titleFor({ name: 'workshop', tab: 'planner' }), 'Planner lab · Workshop · Pantry Planner');
-  assert.equal(titleFor({ name: 'trip', date: '2026-11-12' }), 'Trip on 2026-11-12 · Shop · Pantry Planner');
+  assert.equal(titleFor({ name: 'trip', date: '2026-11-12' }), 'Trip on Thu 12 Nov · Shop · Pantry Planner');
   assert.deepEqual(WORKSHOP_TABS.map((t) => t.label),
     ['Catalog', 'Provenance', 'MCP explorer', 'Simulations', 'Metrics', 'System', 'Planner lab', 'About']);
 });
@@ -127,7 +127,7 @@ test('arriving at a page says its name and where it sits, in words a screen read
   assert.equal(arrivalFor({ name: 'ask' }), 'Ask');
   assert.equal(arrivalFor({ name: 'plan', query: 'step=2' }), 'Plan');
   assert.equal(arrivalFor({ name: 'workshop', tab: 'system' }), 'System, Workshop');
-  assert.equal(arrivalFor({ name: 'trip', date: '2026-11-12' }), 'Trip on 2026-11-12, Shop');
+  assert.equal(arrivalFor({ name: 'trip', date: '2026-11-12' }), 'Trip on Thu 12 Nov, Shop');
   // the same page as the title, without the console's name or the separators
   for (const route of [{ name: 'home' }, { name: 'shop' }, { name: 'workshop', tab: 'mcp' }] as const) {
     assert.equal(`${arrivalFor(route).replace(', ', ' · ')} · Pantry Planner`, titleFor(route));

@@ -21,7 +21,7 @@
 // (history.replaceState, never a new history entry), so Back never lands on the old one; a view
 // that reads its own query from the hash reads it the same way under either.
 
-import { isCivilDate } from './mealplan/dates.ts';
+import { dayLabel, isCivilDate } from './mealplan/dates.ts';
 
 export type Section = 'home' | 'plan' | 'shop' | 'ask' | 'workshop';
 
@@ -139,13 +139,14 @@ export const sectionOf = (route: Route): Section => (route.name === 'trip' ? 'sh
 export const workshopLabel = (tab: WorkshopTab): string =>
   WORKSHOP_TABS.find((t) => t.id === tab)?.label ?? tab;
 
-// The page, then where it sits: ['Planner lab', 'Workshop'], ['Ask'].
+// The page, then where it sits: ['Planner lab', 'Workshop'], ['Ask'], ['Trip on Fri 13 Nov', 'Shop']
+// (a day as people say it, which a screen reader reads as words, not as digits and dashes).
 function placeParts(route: Route): string[] {
   switch (route.name) {
     case 'workshop':
       return [workshopLabel(route.tab), 'Workshop'];
     case 'trip':
-      return [`Trip on ${route.date}`, 'Shop'];
+      return [`Trip on ${isCivilDate(route.date) ? dayLabel(route.date) : route.date}`, 'Shop'];
     default:
       return [PRIMARY.find((p) => p.section === route.name)?.label ?? 'Home'];
   }
