@@ -392,3 +392,19 @@ test('compare with your pick: the plan\'s pick, then the two best others; nothin
   assert.deepEqual(compareColumns(ranking([shallots, celery])).map((c) => c.yours), [false, false]);
   assert.deepEqual(compareColumns(ranking([pick])), []);
 });
+
+test('compare with your pick: a column names the store its price is from, where the trip buys it', () => {
+  // The hub's cart ranking (Ask): the lowest price in range is GreenLeaf's, but the best trip
+  // buys at Pantry Mart Downtown, and the price shown is Pantry Mart's. The store beside it must be
+  // Pantry Mart's too, as the row's own store line says, never GreenLeaf beside Pantry Mart's price.
+  const pick = row({ rank: 1, current: true });
+  const other = row({ rank: 2, product_id: 38, product: 'Ground Beef Regular', trip: null,
+    offer: { store: 'ValueFoods East Van', price: 5.49, distance_km: 4.1, on_trip: false } });
+  const cols = compareColumns(ranking([other, pick]));
+  assert.deepEqual(cols.map((c) => [c.yours, c.price, c.store]), [
+    [true, '$7.95 a pack', 'Pantry Mart Downtown, 0.2 km'],
+    // no trip worked out for the row: its cheapest offer, price and store alike
+    [false, '$5.49 a pack', 'ValueFoods East Van, 4.1 km'],
+  ]);
+  assert.ok(storeText(pick).startsWith('Pantry Mart Downtown, 0.2 km, where your best trip buys it'));
+});

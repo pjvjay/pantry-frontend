@@ -173,13 +173,16 @@ export const COMPARE_ROWS: readonly { key: 'price' | 'unit' | 'size' | 'store' |
 ];
 
 function compareColumn(it: RankedAlternative): CompareColumn {
-  const o = it.offer;
+  // The store the price is from: where the row's trip buys it, as packPrice prices it, else the
+  // cheapest offer in range. The two differ when the best trip skips the cheapest store (a cart in
+  // Ask, often), and one store's name beside another store's price would be untrue.
+  const at = it.trip?.buys_at ?? it.offer;
   return {
     productId: it.product_id, name: nameWithSize(it.product, it.size), yours: it.current, grade: rowGrade(it),
     price: `${money(packPrice(it))} a pack${it.packs > 1 ? ` · ${it.packs} packs` : ''}`,
     unit: it.unit_price != null && it.unit_basis ? `${money(it.unit_price)} / ${it.unit_basis}` : 'unknown',
     size: it.size?.trim() || 'unknown',
-    store: o.store ? `${o.store}${o.distance_km != null ? `, ${o.distance_km.toFixed(1)} km` : ''}` : 'catalog price',
+    store: at.store ? `${at.store}${at.distance_km != null ? `, ${at.distance_km.toFixed(1)} km` : ''}` : 'catalog price',
     origin: altOrigin(it.origin).text,
   };
 }
