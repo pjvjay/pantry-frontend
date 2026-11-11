@@ -12,8 +12,8 @@
 //
 // The meal plan opens the same dialog on a trip line (components/tripoptions.tsx): it passes
 // `load` (pantry-api's ranking for the line, over REST, no hub), the trip's words, and a
-// description naming the recipe lines the purchase covers. The wizard's Ingredients stage opens
-// it on an ingredient across the whole plan, in the plan's words.
+// description naming the recipe lines the purchase covers. The wizard's Check ingredients stage
+// opens it on an ingredient across the whole plan, in the plan's words.
 //
 // pantry matches products by meaning: the rows are under its groups (Same item, Works instead,
 // Looser match), each with its reasons on one line; what a hard rule keeps out (it adds an

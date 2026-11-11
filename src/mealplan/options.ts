@@ -7,7 +7,7 @@
 // each of those lines, as one undo step, and the plan is re-scheduled with no model call. Nothing
 // here works a fact out: names, amounts and totals are shown as the server gave them.
 //
-// The wizard's Ingredients stage opens the same dialog on an ingredient, with no trip: the
+// The wizard's Check ingredients stage opens the same dialog on an ingredient, with no trip: the
 // ranking then covers every line in the plan that buys the product, with no trip cost, and the
 // words say which recipes a choice changes rather than which trip. An ingredient the plan buys
 // nothing for is asked by its recipe line instead (line mode, below): its rows are what could
@@ -199,6 +199,6 @@ export function nothingText(ingredient: string, c: { outOfReach: OutOfReachRow[]
   ].filter(Boolean);
   const or = why.length < 2 ? why.join('') : `${why.slice(0, -1).join(', ')} or ${why[why.length - 1]}`;
   const what = why.length ? `every product for it is ${or} (below)` : 'no store in reach sells a product for it';
-  return `Nothing can be chosen for ${ingredient} as your plan stands: ${what}. Go back to Meals for other `
+  return `Nothing can be chosen for ${ingredient} as your plan stands: ${what}. Go back to Pick meals for other `
     + 'recipes, or skip it.';
 }

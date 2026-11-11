@@ -52,15 +52,15 @@ test('snacks: two a day, so 28 in two weeks', () => {
   assert.equal(fullText(slotRoom(planWith(7).draft, 'snack'), 7), 'All 14 snacks this week are planned');
 });
 
-test('a meal switched off in Basics has no places, and says how to get them', () => {
+test('a meal switched off in Set up has no places, and says how to get them', () => {
   let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 2));
   s = run(s, { type: 'setPrefs', prefs: { slots_on: ['breakfast', 'lunch', 'dinner'] } });
   assert.deepEqual(roomOf(s.draft).map((r) => r.slot), ['breakfast', 'lunch', 'dinner']);
   assert.equal(slotRoom(s.draft, 'snack').capacity, 0);
-  assert.equal(addStop(s.draft, 'snack', 0), 'You plan no snacks: turn Snack on in Basics');
+  assert.equal(addStop(s.draft, 'snack', 0), 'You plan no snacks: turn Snack on in Set up');
   s = run(s, { type: 'setPrefs', prefs: { slots_on: ['breakfast', 'lunch'] } });
   assert.equal(slotRoom(s.draft, 'dinner').meals, 2, 'the meals stay, waiting');
-  assert.equal(addStop(s.draft, 'dinner', 2), 'You plan no dinners: turn Dinner on in Basics');
+  assert.equal(addStop(s.draft, 'dinner', 2), 'You plan no dinners: turn Dinner on in Set up');
 });
 
 test('the engine’s own limits stay behind the room', () => {

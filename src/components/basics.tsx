@@ -1,16 +1,19 @@
-// The wizard's Basics stage: how long the plan runs and from when, the budget for that period,
-// the diet and what it avoids (every plan is for one person for now), where its food may come
-// from, where the shopper is, and when they shop. Every answer is saved in the plan (prefs and settings) as
-// it is given. A form card for each, and beside them on a wide screen a "Your plan" card that
-// sums the answers up and stays in view. Also here: the shopping settings the Shopping plan
-// stage shows, and the plan's file actions.
+// The wizard's Set up stage, which is optional (every answer has a default, and Pick meals opens
+// by restating them, each with a Change back to its card here): how long the plan runs and from
+// when, the budget for that period, the diet and what it avoids (every plan is for one person for
+// now), where its food may come from, where the shopper is and how far they go, and when they
+// shop. Every answer is saved in the plan (prefs and settings) as it is given. A form card for
+// each (its id is where a Change lands), and beside them on a wide screen a "Your plan" card that
+// sums the answers up and stays in view. Also here: the shopping settings the Shop stage shows,
+// and the plan's file actions.
 //
 // Where the household shops and the origin rules decide which products are in range, so a
 // change clears the recipes' products and checks them again (a model call on a live
 // deployment): a number is saved once the shopper is done with it, never per keystroke. An
 // address is searched through the demo hub (OpenStreetMap) only when the shopper asks, never as
-// they type, and is kept in this browser only. Which stores, and how far, is chosen in
-// Ingredients. The decisions are in mealplan/basics.ts.
+// they type, and is kept in this browser only. How far they go is asked here and again beside
+// the stores in Check ingredients, where each store can be turned off. The decisions are in
+// mealplan/basics.ts.
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
@@ -28,6 +31,7 @@ import {
 import type { NumberRule, Slot } from '../mealplan/model';
 import { exportFileName } from '../mealplan/persist';
 import { useMealPlan } from '../mealplan/store';
+import { distanceChoices, distanceLabel } from '../mealplan/stores';
 import { alliesToAdd, moveCountry, originRules, originSettings } from '../mealplan/wizard';
 import type { OriginRules } from '../mealplan/wizard';
 import type { Diet, GeocodeResult } from '../types';
@@ -106,7 +110,7 @@ function WhenCard() {
     setAsk(out.refused && /outside the new dates/.test(out.refused) ? { start, days, reason: out.refused } : null);
   };
   return (
-    <FormCard icon="calendar" title="When" help="One or two weeks, from the day you choose." headId={head}>
+    <FormCard icon="calendar" title="When" help="One or two weeks, from the day you choose." headId={head} id="su-when">
       <div className="fc-row">
         <Segmented name="mp-period" labelledBy={head} value={d.days}
                    options={[{ value: 7, label: '1 week' }, { value: 14, label: '2 weeks' }]}
@@ -124,11 +128,13 @@ function WhenCard() {
       {ask && (
         <div className="banner banner-update">
           Not changed: {ask.reason}.{' '}
-          <button type="button" className="mini" onClick={() => {
-            mp.dispatch({ type: 'setWindow', start_date: ask.start, days: ask.days, unplaceOutside: true });
-            setAsk(null);
-          }}>Change it and send them back to the tray</button>{' '}
-          <button type="button" className="secondary mini" onClick={() => setAsk(null)}>Keep the dates</button>
+          <span className="fc-actions">
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => {
+              mp.dispatch({ type: 'setWindow', start_date: ask.start, days: ask.days, unplaceOutside: true });
+              setAsk(null);
+            }}>Change it and send them back to the tray</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAsk(null)}>Keep the dates</button>
+          </span>
         </div>
       )}
     </FormCard>
@@ -160,7 +166,7 @@ function BudgetCard() {
     if (r.value !== budget) mp.dispatch({ type: 'setPrefs', prefs: { budget: r.value } });
   };
   return (
-    <FormCard icon="wallet" title="Budget" headId={head}
+    <FormCard icon="wallet" title="Budget" headId={head} id="su-budget"
               help={`Groceries for the whole ${d.days === 7 ? 'week' : `${d.days} days`}; leave it empty for none.`}>
       <div className="fc-row">
         <label className="money">
@@ -186,7 +192,7 @@ function BudgetCard() {
       </div>
       {problem ? <p id={why} className="cart-flag fc-note">Not saved: {problem}.</p>
         : budget !== null && <p className="fc-note"><strong>{perDayText(budget, d.days)}</strong>
-          <span className="muted"> · Meals stops an Add that would pass it</span></p>}
+          <span className="muted"> · Pick meals stops an Add that would pass it</span></p>}
     </FormCard>
   );
 }
@@ -198,8 +204,8 @@ function DietCard() {
   const head = useId();
   const diet = dietOf(mp.state.draft.prefs);
   return (
-    <FormCard icon="sprout" title="Diet" help="Recipes that do not fit are hidden in Meals." headId={head}
-              className="fc-wide">
+    <FormCard icon="sprout" title="Diet" help="Recipes that do not fit are hidden in Pick meals." headId={head}
+              className="fc-wide" id="su-diet">
       <div className="tiles" role="radiogroup" aria-labelledby={head}>
         {DIETS.map((x) => (
           <Tile key={x} name="mp-diet" checked={diet === x} icon={DIET_TILES[x].icon} label={DIET_LABELS[x]}
@@ -217,7 +223,7 @@ function AvoidCard() {
   return (
     <FormCard icon="ban" title="Leave out"
               help="Health Canada's priority allergens, with gluten and sulphites. Recipes with any of these are hidden, and Options never offers a product that has one."
-              headId={head}>
+              headId={head} id="su-avoid">
       <div className="chips" role="group" aria-labelledby={head}>
         {AVOID_TAGS.filter((t) => AVOID_CHOICES.includes(t) || avoid.includes(t)).map((t) => (
           <ToggleChip key={t} checked={avoid.includes(t)}
@@ -282,12 +288,12 @@ function OriginCard() {
                 {missing.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
-            <button type="button" className="secondary mini" disabled={!add}
+            <button type="button" className="btn btn-secondary btn-sm" disabled={!add}
                     onClick={() => { save({ ...r, allies: [...r.allies, add] }); setAdding(''); }}>Add to the end</button>
           </>
         )}
         {r.allies.join('|') !== DEFAULT_ALLIES.join('|') && (
-          <button type="button" className="linkish" onClick={() => save({ ...r, allies: [...DEFAULT_ALLIES] })}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => save({ ...r, allies: [...DEFAULT_ALLIES] })}>
             Use the default list and order
           </button>
         )}
@@ -307,6 +313,7 @@ function WhereCard() {
   const mp = useMealPlan();
   const st = mp.state.draft.settings;
   const head = useId();
+  const kmHead = useId();
   // Address search needs the demo hub's geocoder (the console's one hub status says whether it
   // has one); without it the rest still works.
   const geocoder = Boolean(useHubStatus().status?.geocoder);
@@ -372,8 +379,8 @@ function WhereCard() {
   const results = search.status === 'ok' ? search.results : [];
 
   return (
-    <FormCard icon="pin" title="Where you are" headId={head} className="fc-wide"
-              help="Only roughly: it finds the stores near you, which you choose in Ingredients.">
+    <FormCard icon="pin" title="Where you are" headId={head} className="fc-wide" id="su-where"
+              help="Only roughly: it finds the stores near you. Which of them the plan uses is chosen in Check ingredients.">
       <p className="fc-place"><Icon name="pin" size={16} /> <strong>{placeText(st)}</strong></p>
       {geocoder && (
         <form className="search" role="search" aria-label="Search an address" onSubmit={find}>
@@ -381,7 +388,7 @@ function WhereCard() {
           <input ref={box} className="search-input" value={q} maxLength={200} autoComplete="street-address"
                  placeholder="Street, place or postcode" aria-label="Address"
                  onChange={(e) => setQ(e.target.value)} />
-          <button type="submit" className="mini" disabled={search.status === 'busy'}>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={search.status === 'busy'}>
             {search.status === 'busy' ? 'Searching…' : 'Search'}
           </button>
         </form>
@@ -404,7 +411,7 @@ function WhereCard() {
         </div>
       )}
       <div className="fc-row">
-        <button type="button" className="secondary mini btn-ico" onClick={locate} disabled={locating}>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={locate} disabled={locating}>
           <Icon name="locate" size={16} />{locating ? 'Finding you…' : 'Use my current location'}
         </button>
         {st.address === CURRENT_LOCATION && <span className="muted">to four decimals, about 10 m</span>}
@@ -419,6 +426,10 @@ function WhereCard() {
           </label>
         ))}
       </div>
+      <p id={kmHead} className="fc-sub">How far you go</p>
+      <Segmented name="su-km" labelledBy={kmHead} value={st.max_km ?? null}
+                 options={distanceChoices(st.max_km).map((v) => ({ value: v, label: distanceLabel(v) }))}
+                 onChange={(v) => set({ max_km: v })} />
       <p className="fc-privacy">{PRIVACY_NOTE}</p>
     </FormCard>
   );
@@ -432,7 +443,7 @@ function DaysCard() {
   const head = useId();
   return (
     <FormCard icon="cart" title="Shop on" help="Trips are suggested only on these days." headId={head}
-              className="fc-wide">
+              className="fc-wide" id="su-days">
       <div className="chips" role="group" aria-labelledby={head}>
         {WEEKDAYS.map((w, i) => (
           <ToggleChip key={w} plain checked={p.shop_weekdays.includes(i)}
@@ -508,7 +519,7 @@ export function BasicsStage() {
   );
 }
 
-// The freshness and storage settings, on the Shopping plan stage.
+// The freshness and storage settings, on the Shop stage.
 export function ShoppingSettings() {
   const mp = useMealPlan();
   const p = mp.state.draft.prefs;
@@ -560,11 +571,11 @@ export function PlanFile() {
 
   return (
     <div className="mp-toolbar mp-file">
-      <button type="button" className="secondary mini" onClick={exportPlan}>Export plan (.json)</button>
-      <button type="button" className="secondary mini" onClick={() => input.current?.click()}>Import plan</button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={exportPlan}>Export plan (.json)</button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => input.current?.click()}>Import plan</button>
       <input ref={input} type="file" accept="application/json,.json" hidden
              onChange={(e) => void importPlan(e.target.files?.[0])} />
-      <button type="button" className="secondary mini" onClick={mp.clear}>Clear the plan</button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={mp.clear}>Clear the plan</button>
       {problem && <span className="cart-flag" role="alert">{problem}</span>}
     </div>
   );

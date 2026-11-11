@@ -9,17 +9,19 @@ import { Icon } from './icons';
 import type { IconName } from './icons';
 
 // One group of questions: an icon, a title, one line of help, then the controls. headId names
-// the card for the controls inside (aria-labelledby).
-export function FormCard({ icon, title, help, headId, children, className }: {
+// the card for the controls inside (aria-labelledby). id: where a link elsewhere can send the
+// shopper (Pick meals' "Change" for this answer).
+export function FormCard({ icon, title, help, headId, children, className, id }: {
   icon: IconName;
   title: string;
   help?: ReactNode;
   headId: string;
   children: ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
-    <section className={className ? `fc ${className}` : 'fc'} aria-labelledby={headId}>
+    <section id={id} className={className ? `fc ${className}` : 'fc'} aria-labelledby={headId}>
       <div className="fc-head">
         <span className="fc-icon"><Icon name={icon} /></span>
         <div>

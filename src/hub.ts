@@ -143,7 +143,9 @@ export interface WeekOptions {
   preference?: string[];
 }
 
-export const planWeekWith = (o: WeekOptions) => json<WeekPlan>(`${API}/plan/week`, post(o));
+// signal: the caller can stop waiting (Build a week for me, when its page goes).
+export const planWeekWith = (o: WeekOptions, signal?: AbortSignal) =>
+  json<WeekPlan>(`${API}/plan/week`, { ...post(o), signal });
 
 export const planRecipeWith = (slug: string, exclude: string[], preference: string[],
                                location: { lat: number | null; lon: number | null; max_km: number | null } = { lat: null, lon: null, max_km: null }) => {

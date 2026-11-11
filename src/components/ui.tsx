@@ -19,6 +19,9 @@
 //   Toasts        a short confirmation in one polite live region above the bottom bar, with at
 //                 most one action (Undo); it goes after about 6 s unless hovered or focused.
 //                 useToast().show({ text, action }) from anywhere under ToastProvider.
+//   Spinner       a small turning ring beside the words of something under way ("Building your
+//                 week… 0:04"); the words say it, the ring is decoration, and it holds still under
+//                 reduced motion.
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FocusEvent, ReactNode } from 'react';
 
@@ -346,4 +349,11 @@ function Toast({ toast, dismiss }: { toast: ToastItem; dismiss: (id: number) => 
       </button>
     </div>
   );
+}
+
+// ─── Spinner ─────────────────────────────────────────────────
+
+// Beside words that say what is under way, never instead of them.
+export function Spinner({ size = 16 }: { size?: number }) {
+  return <span className="spinner" style={{ width: size, height: size }} aria-hidden="true" />;
 }

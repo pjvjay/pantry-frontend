@@ -90,7 +90,7 @@ export function PeriodBand({ period, coverage, onTargets, targetCount }: {
         {band.parts.map((p, i) => <span key={p}>{i > 0 && ' · '}{p}</span>)}
         {band.badge && <> <DemoBadge /></>}
       </span>
-      <button type="button" className="secondary mini" onClick={onTargets}>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={onTargets}>
         {targetCount ? `Daily targets (${targetCount})` : 'Daily targets'}
       </button>
       {period?.note && <span className="sr-only">{period.note}</span>}

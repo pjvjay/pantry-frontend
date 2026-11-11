@@ -3,8 +3,8 @@
 //
 // The wizard's Meals stage: recipe cards by meal from /mealplan/catalog, and the budget bar
 // over them. The selection is priced as trips buy it, in whole packs: each product once, enough
-// packs for every chosen meal that uses it (packCost), so the bar is close to what Ingredients
-// and the Shopping plan will show. A card says what one more meal adds to that, which may be
+// packs for every chosen meal that uses it (packCost), so the bar is close to what Check
+// ingredients and Shop will show. A card says what one more meal adds to that, which may be
 // nothing when the packs already chosen cover it. A cost nobody knows is unknown, never 0: a
 // total that leaves an ingredient out is "at least", and an Add whose cost is unknown is never
 // stopped by the budget. "about $3.20 a meal" (pantry-api's share-of-the-pack estimate) stays on
@@ -28,7 +28,7 @@ const listOf = (parts: string[]) => (parts.length < 2 ? parts.join('')
 
 // The request for the plan as it is: the household, its diet and avoid-tags, where it shops
 // and its origin rules, the slots it plans, the shopper's own recipes, and the products the
-// shopper chose in Ingredients (pins), so a card costs what the plan will buy.
+// shopper chose in Check ingredients (pins), so a card costs what the plan will buy.
 export function catalogRequest(d: MealPlanDraft, mine: readonly RecipeDoc[]): CatalogRequest {
   const own = mine.slice(0, MAX_OWN).map(docRef);
   return {

@@ -1,13 +1,13 @@
 // Pure module: no React, DOM or import.meta.env, and sibling imports name their .ts file, so
 // node --test runs it as it is (tests/pure-modules.test.ts checks all of this).
 //
-// The wizard's Ingredients stage: every chosen recipe's ingredients as the plan would buy them
+// The wizard's Check ingredients stage: every chosen recipe's ingredients as the plan would buy them
 // (/mealplan/basket), each with its product, the store and how far it is, the price, where it is
 // from and its labels. Nothing is worked out here: a fact the basket does not give is unknown.
 // An ingredient the plan cannot buy nearby is said so, with why (only products from a country
 // the plan leaves out, none stocked, none within the distance, only at stores the shopper
-// turned off: then turning one back on is an answer too), and needs an answer before
-// Schedule: other meals (back to Meals), another product (its Options), or "skip this
+// turned off: then turning one back on is an answer too), and needs an answer before Place on
+// days: other meals (back to Pick meals), another product (its Options), or "skip this
 // ingredient".
 import { nameWithSize } from '../alternatives.ts';
 import { excludedWords } from './catalog.ts';
@@ -34,7 +34,7 @@ function stable(x: unknown): string {
 
 // What the basket depends on: the recipes and their servings, how many meals each has (and
 // for how many), the products resolved and pinned, where the household shops and the budget.
-// Not where the meals sit: moving one on Schedule does not ask for the basket again.
+// Not where the meals sit: moving one on Place on days does not ask for the basket again.
 export function basketKey(d: MealPlanDraft): string {
   return stable({
     recipes: Object.fromEntries(Object.entries(d.recipes).map(([k, r]) => [k, r.servings ?? null])),

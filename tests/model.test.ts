@@ -38,7 +38,7 @@ test('a new plan starts tomorrow, empty, for one person, with the defaults', () 
   assert.deepEqual(s.draft.meals, []);
   // shopping within 5 km, so Ingredients names stores near the shopper
   assert.equal(s.draft.settings.max_km, 5);
-  // the wizard's Basics: no budget, any diet, nothing avoided, US products left out, Canada first
+  // the wizard's Set up: no budget, any diet, nothing avoided, US products left out, Canada first
   assert.equal(budgetOf(s.draft.prefs), null);
   assert.equal(dietOf(s.draft.prefs), 'any');
   assert.deepEqual(avoidOf(s.draft.prefs), []);
@@ -255,7 +255,7 @@ test('a budget, a diet and avoid-tags are settings, checked as pantry-api checks
   assert.deepEqual(avoidOf(s.draft.prefs), ['dairy', 'soy'], 'kept in a fixed order');
   s = run(s, { type: 'setPrefs', prefs: { avoid: ['mustard', 'sesame', 'shellfish', 'peanuts', 'sulphites'] } });
   assert.deepEqual(avoidOf(s.draft.prefs), ['peanuts', 'sesame', 'shellfish', 'mustard', 'sulphites'],
-    'Health Canada\'s priority allergens, in the order Basics shows them');
+    'Health Canada\'s priority allergens, in the order Set up shows them');
   assert.match(refusal(s, { type: 'setPrefs', prefs: { budget: 0 } }), /budget/);
   assert.match(refusal(s, { type: 'setPrefs', prefs: { budget: 10000.01 } }), /budget/);
   assert.match(refusal(s, { type: 'setPrefs', prefs: { diet: 'keto' as never } }), /diet/);

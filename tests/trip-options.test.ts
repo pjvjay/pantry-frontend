@@ -270,10 +270,10 @@ test('"Turn it back on": the stores it is sold at that the shopper turned off', 
 test('nothing to choose: said plainly, with what there is and the row’s own answers', () => {
   assert.equal(nothingText('yellow onion', { outOfReach: [offRow], held: [held] }),
     'Nothing can be chosen for yellow onion as your plan stands: every product for it is sold only at stores you '
-    + 'turned off or held back by your origin rule (below). Go back to Meals for other recipes, or skip it.');
+    + 'turned off or held back by your origin rule (below). Go back to Pick meals for other recipes, or skip it.');
   assert.equal(nothingText('saffron', { outOfReach: [], held: [] }),
     'Nothing can be chosen for saffron as your plan stands: no store in reach sells a product for it. Go back to '
-    + 'Meals for other recipes, or skip it.');
+    + 'Pick meals for other recipes, or skip it.');
   assert.match(nothingText('hen', { outOfReach: [farRow, noneRow], held: [] }),
     /every product for it is sold only beyond your distance or stocked at no store \(below\)/);
 });

@@ -1,0 +1,177 @@
+/* The meal plan's frame and its first stages (views/MealPlanView.tsx): the stage heading, the
+   setup strip and the ways in on Pick meals, Place on days' tools, and Back and Next. The stages'
+   older rules are in index.css ("Meal plan", "Meal plan wizard", "Form pieces"); these come after
+   them and win where both speak. */
+
+/* ─── The stage heading ──────────────────────────────────────────────────────────────────── */
+/* The stage's name, in the display face, with the quiet "Step 2 of 6" over it (inside the
+   heading, so a screen reader hears both). Focus is put on it by script when the stage changes
+   (tabindex -1), so the keyboard and a screen reader start there; it is not a control and draws
+   no ring. Every real control keeps its own. */
+.view .mp-stage-title {
+  display: flex; flex-direction: column; gap: var(--space-1); margin: 0 0 var(--space-4);
+  font: var(--type-page);
+}
+.mp-stage-step {
+  font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--muted);
+}
+.mealplan h2[tabindex="-1"]:focus, .mealplan h2[tabindex="-1"]:focus-visible { outline: none; }
+@media (max-width: 640px) {
+  .view .mp-stage-title { font-size: 26px; line-height: 32px; }
+}
+
+/* Set up says it is optional, under its name in the progress indicator. */
+.mp-step-opt { display: block; font: 400 11px/14px var(--font-body); color: var(--muted); }
+
+/* Set up's own answers to a question it asks back (When: "send them back to the tray?") */
+.fc-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+
+/* ─── Pick meals: the setup restated ─────────────────────────────────────────────────────── */
+/* A card of short cells: what each answer is, its value and a note under it, and Change at the
+   cell's top right. Two to a row on a phone, three on a tablet, all six in one row on a wide
+   screen. */
+.mp-setup {
+  margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4) var(--space-4);
+  border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--panel); box-shadow: var(--shadow-1);
+}
+.view .mp-setup-head {
+  margin: 0 0 var(--space-3); font: var(--type-label); letter-spacing: var(--label-tracking);
+  text-transform: uppercase; color: var(--muted);
+}
+.mp-setup-list {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); margin: 0;
+}
+@media (min-width: 600px) { .mp-setup-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .mp-setup-list { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.mp-setup-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "key change" "value value";
+  align-items: baseline; column-gap: var(--space-2); min-width: 0;
+}
+.mp-setup-key { grid-area: key; color: var(--muted); font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; }
+.mp-setup-value { grid-area: value; margin: var(--space-1) 0 0; font-weight: 600; font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
+.mp-setup-note { display: block; font-weight: 400; font-size: 12.5px; line-height: 18px; color: var(--muted); }
+.mp-setup-change { grid-area: change; margin: 0; font-size: 13px; line-height: 16px; }
+.mp-setup-change a { font-weight: 600; text-underline-offset: 2px; }
+@media (max-width: 599.98px) {
+  /* compact on a phone: the cells closer, the notes smaller */
+  .mp-setup { padding: var(--space-3); }
+  .mp-setup-list { gap: var(--space-3); }
+  .mp-setup-value { font-size: 13.5px; line-height: 19px; }
+  .mp-setup-note { font-size: 12px; line-height: 16px; }
+}
+/* A fingertip's 44px for each Change, reaching out over the cell's edges rather than making the
+   cells taller. */
+@media (pointer: coarse) {
+  .mp-setup-change a { display: inline-flex; align-items: center; min-height: 44px; margin: -14px -8px; padding: 0 8px; }
+}
+
+/* ─── Pick meals: the ways in ────────────────────────────────────────────────────────────── */
+.mp-ways { margin: 0 0 var(--space-5); }
+.mp-ways-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.mp-build { padding: 0 var(--space-6); font-size: 16px; }
+/* building: it cannot be pressed again, but it is working, not switched off, so it keeps its
+   colour; the turning ring and the time say what is going on */
+.mp-ways .mp-build[aria-disabled="true"] { opacity: 1; cursor: progress; background: var(--accent-hover); }
+.mp-build-clock, .mp-wnav-clock { font-variant-numeric: tabular-nums; font-weight: 400; }
+.mp-ways-about { margin: var(--space-2) 0 0; color: var(--muted); font-size: 13px; }
+.mp-ways-note { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-3) 0 0; font-size: 13.5px; }
+.mp-ways-note .ico { flex: none; margin-top: 2px; color: var(--info); }
+.mp-ways-problem { margin-top: var(--space-3); }
+@media (max-width: 640px) {
+  /* the one big call across the screen, the other two side by side under it */
+  .mp-ways-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .mp-ways-row .btn { width: 100%; padding: 0 var(--space-3); }
+  .mp-ways-row .mp-build { grid-column: 1 / -1; }
+}
+
+/* ─── Place on days: the tools over the board ────────────────────────────────────────────── */
+/* The tray's Hide is for a phone, where the tray sits over the board; beside it on a wide screen,
+   it never folds (index.css), whatever .btn would show. */
+@media (min-width: 1024px) { .mp-side .mp-side-fold { display: none; } }
+.mp-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.mp-tools-toggle { margin-left: auto; }
+/* pressed: every slot shows; a filled edge as well as the tick, so not colour alone */
+.mp-tools .btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-soft-fg); border-color: var(--accent); }
+.mp-empty-place .btn { margin-top: var(--space-2); }
+
+/* ─── Back and Next ──────────────────────────────────────────────────────────────────────── */
+/* A bar that stays at the bottom of the screen while the stage scrolls under it, above the phone's
+   bottom navigation, and sits at the end of the stage once that is reached. It reports how far it
+   reaches (useKeepClear), so focus never comes to rest under it and the toasts rise above it.
+   Back on the left, Next on the right, and between them what Next waits for or why it cannot
+   be used; on a phone those words go over the two buttons. */
+.mp-wnav {
+  position: sticky; bottom: calc(var(--bottom-nav-h, 0px) + var(--space-3)); z-index: 15;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "back why next";
+  align-items: center; gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-6); padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--panel); box-shadow: var(--shadow-2);
+}
+/* while something is picked up the Moving bar stands in its place (components/mealcal.tsx) */
+.mp-wnav[hidden] { display: none; }
+.mp-wnav-back { grid-area: back; }
+.mp-wnav-next { grid-area: next; justify-self: end; }
+.mp-wnav-why { grid-area: why; margin: 0; font-size: 13px; line-height: 18px; text-align: right; }
+.mp-wnav-next { min-width: 0; max-width: 100%; }
+.mp-wnav-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Waiting on an answer: the accent's soft fill with a slow sweep along its foot, and the time it
+   has waited; still pressable, to move on by itself when the answer is in. */
+.mp-wnav .mp-wnav-wait { position: relative; overflow: hidden; background: var(--accent-soft); color: var(--accent-soft-fg); border-color: var(--accent); }
+.mp-wnav .mp-wnav-wait:hover { background: var(--accent-soft); }
+.mp-wnav-wait::after {
+  content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 3px; border-radius: 2px;
+  background: var(--accent); animation: mp-wait-sweep 1.6s var(--ease-standard) infinite;
+}
+@keyframes mp-wait-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) {
+  .mp-wnav-wait::after { animation: none; width: 100%; opacity: 0.45; }
+}
+/* pressed while it waits: it will move on by itself; a solid foot says so */
+.mp-wnav-queued::after { opacity: 1; }
+
+@media (max-width: 640px) {
+  .mp-wnav {
+    grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "why why" "back next";
+    margin-top: var(--space-5);
+  }
+  .mp-wnav-next { justify-self: stretch; }
+  .mp-wnav .btn { padding: 0 var(--space-3); }
+  .mp-wnav-why { text-align: left; }
+  /* "Back" alone: the stage it goes to stays for screen readers */
+  .mp-wnav-to {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+}
+/* The narrowest phones: Back as its arrow (its name stays for screen readers), so Next keeps room
+   for "Checking ingredients… 0:04". */
+@media (max-width: 380px) {
+  .mp-wnav-back { min-width: 44px; }
+  .mp-wnav-back > span {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+}
+
+/* ─── A fingertip's 44px on Set up, Pick meals and Place on days ─────────────────────────── */
+/* The buttons are .btn (44px under a coarse pointer, styles/buttons.css); these are the other
+   targets on the three stages: chips, segments, quick picks, fields, summaries and the board's
+   own buttons. */
+@media (pointer: coarse) {
+  .qpick { min-height: 44px; }
+  .cchip-btn { width: 44px; height: 44px; }
+  .tchip > span { min-height: 44px; }
+  .seg-opt span { display: flex; align-items: center; justify-content: center; min-height: 44px; }
+  .search-input { min-height: 44px; }
+  .mp-step-link { min-width: 44px; }
+  .geo-pick { min-height: 44px; align-items: center; }
+  .fc-input, .mp-inline select { min-height: 44px; }
+  .switch { min-height: 44px; }
+  details.mp-section > summary, .mp-hidden summary, .mp-add summary, .mp-nutrition summary { padding-block: 12px; }
+  .mp-qchip .linkish, .mp-recipe .linkish { min-height: 44px; padding: 0 4px; }
+  .mp-slot-target { min-height: 44px; }
+  .mp-side .mp-slot-target { min-height: 44px; }
+  .mp-period button, .mp-proposal button { min-height: 44px; }
+  .mp-move-opts .check { min-height: 44px; }
+}

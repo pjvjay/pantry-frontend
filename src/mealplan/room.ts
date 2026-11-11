@@ -3,8 +3,8 @@
 //
 // Room for meals: how many of each meal the plan's days hold, and how many its meals take. A day
 // holds one breakfast, one lunch, one dinner and two snacks (CAPACITY), and only the meals
-// planned in Basics; every recipe's meals of a kind count, on a day or in the tray. Meals stops
-// a recipe's + and Add once every place for its meal is taken, and says why in words, so the
+// planned in Set up; every recipe's meals of a kind count, on a day or in the tray. Pick meals
+// stops a recipe's + and Add once every place for its meal is taken, and says why in words, so the
 // counts never run ahead of the calendar. The engine's own limits (MAX_WANTED a recipe,
 // MAX_MEALS a plan) stay behind it as the last stop.
 import { CAPACITY, MAX_MEALS, MAX_WANTED, SLOTS, SLOT_LABELS } from './model.ts';
@@ -14,7 +14,7 @@ import type { Meal, MealPlanDraft } from '../types.ts';
 export interface SlotRoom {
   slot: Slot;
   label: string;
-  on: boolean;                     // one of the meals planned (Basics)
+  on: boolean;                     // one of the meals planned (Set up)
   capacity: number;                // days × what a day holds; 0 for a meal not planned
   meals: number;                   // the plan's meals of this kind, placed or in the tray
   filled: number;                  // meals, at most capacity
@@ -60,7 +60,7 @@ export function fullText(r: SlotRoom, days: number): string {
 // the recipe's count now (0 before it is in the plan).
 export function addStop(d: MealPlanDraft, slot: Slot, wanted: number): string | null {
   const r = slotRoom(d, slot);
-  if (!r.on) return `You plan no ${NOUNS[slot][1]}: turn ${r.label} on in Basics`;
+  if (!r.on) return `You plan no ${NOUNS[slot][1]}: turn ${r.label} on in Set up`;
   if (!r.free) return fullText(r, d.days);
   if (wanted >= MAX_WANTED) return `A recipe has at most ${MAX_WANTED} meals`;
   if (d.meals.length >= MAX_MEALS) return `A plan holds at most ${MAX_MEALS} meals`;

@@ -1,4 +1,4 @@
-// The Ingredients stage's "Your stores": how far the shopper goes from where they are, and the
+// Check ingredients' "Your stores": how far the shopper goes from where they are, and the
 // stores near them, nearest first, each with its address (a "demo store" chip when they are the
 // demo's own), its distance, how many of the plan's products it sells, and a switch to turn it
 // off (the plan then buys nothing there). A new distance checks the recipes' products again; a
@@ -57,7 +57,7 @@ export function StoresPanel({ stores }: { stores: KeyedCall<MealStores> }) {
 
   return (
     <FormCard icon="store" title="Your stores" headId={STORES_HEAD} className="fc-stores"
-              help={`Near ${placeText(st)} (Basics). Turn a store off and the plan buys nothing there.`}>
+              help={`Near ${placeText(st)} (Set up). Turn a store off and the plan buys nothing there.`}>
       <div className={map ? 'stores-body stores-body-map' : 'stores-body'}>
         <div className="stores-side">
           <p id={kmHead} className="fc-sub">How far you go</p>

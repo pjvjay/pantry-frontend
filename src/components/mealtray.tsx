@@ -4,9 +4,10 @@
 // alias or by spelling is a one-tap question. Each recipe in the plan has a count (a count is
 // one meal: every plan is for one person for now), a slot, and its meals still waiting in
 // the tray. A recipe that does not say how many it serves asks the shopper, and the answer is
-// labelled as theirs. The wizard shows Quick add in Meals, beside the recipe cards, and the tray
-// on Schedule, as the sidebar beside the board.
+// labelled as theirs. The wizard shows Quick add in Pick meals, below the recipe cards (its "Paste
+// a recipe" goes there), and the tray on Place on days, as the sidebar beside the board.
 import { useEffect, useId, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 
 import { getRecipes } from '../api';
 import { trayRows } from '../mealplan/board';
@@ -49,21 +50,21 @@ function QuickChip({ item, index, household, onDecide }: {
       </div>
       {item.state === 'confirm' && !decided && item.match && (
         <div className="mp-qchip-actions">
-          <button type="button" className="mini" onClick={() => onDecide(index, { use: item.match?.recipe_key ?? '' })}>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => onDecide(index, { use: item.match?.recipe_key ?? '' })}>
             Use {item.match.title}
           </button>
-          <button type="button" className="secondary mini" onClick={() => onDecide(index, 'reject')}>Not this</button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onDecide(index, 'reject')}>Not this</button>
         </div>
       )}
       {item.state === 'choose' && !decided && (
         <div className="mp-qchip-actions">
           {item.candidates.map((c) => (
-            <button key={c.recipe_key} type="button" className="secondary mini"
+            <button key={c.recipe_key} type="button" className="btn btn-secondary btn-sm"
                     onClick={() => onDecide(index, { use: c.recipe_key })}>
               {c.title} <span className="muted">({c.label})</span>
             </button>
           ))}
-          <button type="button" className="secondary mini" onClick={() => onDecide(index, 'reject')}>None of these</button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onDecide(index, 'reject')}>None of these</button>
         </div>
       )}
       {decided && item.state !== 'unmatched' && (
@@ -104,6 +105,9 @@ export function QuickAdd({ text, setText }: { text: string; setText: (t: string)
     });
   };
 
+  // Added: the preview and its button go, so focus goes back to the empty field (the live
+  // region says what was added) rather than falling to the page.
+  const field = useRef<HTMLInputElement>(null);
   const add = () => {
     if (!preview) return;
     const out = mp.acceptPreview(preview);
@@ -111,6 +115,7 @@ export function QuickAdd({ text, setText }: { text: string; setText: (t: string)
     if (out.outcome && !out.outcome.refused) {
       setPreview(null);
       setText('');
+      field.current?.focus();
     }
   };
 
@@ -122,9 +127,9 @@ export function QuickAdd({ text, setText }: { text: string; setText: (t: string)
         <label className="mp-quick-label" htmlFor="mp-quick-text">Quick add</label>
         <div className="search mp-quick-row">
           <span className="search-ico"><Icon name="sparkle" size={18} /></span>
-          <input id="mp-quick-text" className="search-input" value={text} onChange={(e) => setText(e.target.value)}
+          <input id="mp-quick-text" ref={field} className="search-input" value={text} onChange={(e) => setText(e.target.value)}
                  maxLength={8000} placeholder={EXAMPLE_SENTENCE} autoComplete="off" />
-          <button type="submit" className="mini" disabled={!text.trim() || status === 'reading'}>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!text.trim() || status === 'reading'}>
             {status === 'reading' ? 'Reading…' : 'Read'}
           </button>
         </div>
@@ -147,10 +152,10 @@ export function QuickAdd({ text, setText }: { text: string; setText: (t: string)
           {preview.warnings.map((w) => <p key={w} className="cart-flag">{w}</p>)}
           {problems.map((p) => <p key={p} className="cart-flag">Not added: {p}</p>)}
           <div className="mp-trip-actions">
-            <button type="button" disabled={!going.length} onClick={add}>
+            <button type="button" className="btn btn-primary" disabled={!going.length} onClick={add}>
               {going.length ? `Add ${going.reduce((t, a) => t + a.count, 0)} meals to the plan` : 'Nothing to add yet'}
             </button>
-            <button type="button" className="secondary" onClick={() => setPreview(null)}>Discard</button>
+            <button type="button" className="btn btn-secondary" onClick={() => setPreview(null)}>Discard</button>
             {ask > 0 && <span className="muted">{ask} still to answer; unanswered ones are left out</span>}
           </div>
         </div>
@@ -174,7 +179,7 @@ export function ServingsPrompt({ recipeKey, title }: { recipeKey: string; title:
       <label htmlFor={`mp-servings-${recipeKey}`}>How many does {title} serve?</label>
       <input id={`mp-servings-${recipeKey}`} inputMode="numeric" value={value} size={4}
              onChange={(e) => setValue(e.target.value)} aria-describedby={`mp-servings-why-${recipeKey}`} />
-      <button type="submit" className="mini" disabled={!ok}>Save</button>
+      <button type="submit" className="btn btn-primary btn-sm" disabled={!ok}>Save</button>
       <div id={`mp-servings-why-${recipeKey}`} className="muted">
         The recipe does not say. Until you answer, its amounts, packs and nutrition stay unknown.
       </div>
@@ -212,18 +217,20 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
             <span style={{ width: `${row.wanted ? Math.min(100, Math.round((row.placed / row.wanted) * 100)) : 0}%` }} />
           </span>
         </div>
-        <button type="button" className="mp-recipe-remove" aria-label={`Remove ${row.title} from the plan`}
+        <button type="button" className="btn btn-ghost btn-sm btn-icon mp-recipe-remove" aria-label={`Remove ${row.title} from the plan`}
                 title="Remove from the plan" onClick={() => mp.dispatch({ type: 'removeRecipe', key: row.key })}><Icon name="x" size={16} /></button>
       </div>
       <div className="mp-recipe-ctl">
         <span className="mp-stepper">
-          <button type="button" className="secondary mini btn-ico" aria-label={`One ${row.title} meal fewer`}
+          <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One ${row.title} meal fewer`}
                   disabled={row.wanted <= 0}
-                  onClick={() => mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted - 1 })}><Icon name="minus" size={14} /></button>
+                  onClick={() => mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted - 1 })}><Icon name="minus" size={16} /></button>
           <output aria-label={`${row.title} meals`}>{row.wanted}</output>
-          <button type="button" className="secondary mini btn-ico" aria-label={`One ${row.title} meal more`}
+          {/* data-tray-more: where focus lands when one of its meals is taken out of the plan */}
+          <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One ${row.title} meal more`}
+                  data-tray-more={row.key}
                   aria-disabled={full ? true : undefined} aria-describedby={full ? `mp-full-${row.key}` : undefined}
-                  onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted + 1 }); }}><Icon name="plus" size={14} /></button>
+                  onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted + 1 }); }}><Icon name="plus" size={16} /></button>
         </span>
         <label className="mp-inline">
           as
@@ -272,8 +279,8 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
 
 // ─── Adding recipes ──────────────────────────────────────────
 
-// The starters, the library and My recipes as plain lists: the wizard's Meals stage falls back
-// to these when the catalog cannot be had.
+// The starters, the library and My recipes as plain lists: the wizard's Pick meals stage falls
+// back to these when the catalog cannot be had.
 export function AddRecipes() {
   const mp = useMealPlan();
   const d = mp.state.draft;
@@ -284,9 +291,9 @@ export function AddRecipes() {
   }, []);
   const inPlan = (key: string) => Boolean(d.recipes[key]);
   const addButton = (key: string, onAdd: () => void, name: string) => (
-    <button type="button" className="secondary mini btn-ico" disabled={inPlan(key)} onClick={onAdd}
+    <button type="button" className="btn btn-secondary btn-sm" disabled={inPlan(key)} onClick={onAdd}
             aria-label={inPlan(key) ? `${name} is in the plan` : `Add ${name}`}>
-      {inPlan(key) ? 'in the plan' : <><Icon name="plus" size={14} />Add</>}
+      {inPlan(key) ? 'in the plan' : <><Icon name="plus" size={16} />Add</>}
     </button>
   );
   return (
@@ -334,7 +341,7 @@ export function AddRecipes() {
 
 // ─── The tray ────────────────────────────────────────────────
 
-// The Schedule stage's sidebar, a sprint board's backlog: the plan's recipes, each with its
+// Place on days' sidebar, a sprint board's backlog: the plan's recipes, each with its
 // picture, how many of its meals are placed, and the ones still to place as cards to drag onto
 // the board, tap or pick up from the keyboard. The whole sidebar is the tray's drop target, so a
 // meal dragged back anywhere on it goes back. Beside the board on a wide screen, where it stays
@@ -356,7 +363,7 @@ export function RecipeTray({ ctl, emptyText }: { ctl: BoardCtl; emptyText: strin
           <Icon name="list" size={18} />Recipes
           {rows.length > 0 && <span className="mp-side-count">{toPlace ? `${toPlace} to place` : 'all placed'}</span>}
         </h3>
-        <button type="button" className="secondary mini mp-side-fold" aria-expanded={open} aria-controls={body}
+        <button type="button" className="btn btn-secondary btn-sm mp-side-fold" aria-expanded={open} aria-controls={body}
                 onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
       </div>
       {target && ctl.held && (
@@ -374,23 +381,26 @@ export function RecipeTray({ ctl, emptyText }: { ctl: BoardCtl; emptyText: strin
 
 // ─── First run ───────────────────────────────────────────────
 
-export function FirstRunSheet({ open, onClose, onExample }: {
+// returnFocus: where focus goes when it closes. Opened as the page loads, it has no opener to
+// give focus back to, and the page itself is no place to leave the keyboard.
+export function FirstRunSheet({ open, onClose, onExample, returnFocus }: {
   open: boolean;
   onClose: () => void;
   onExample: () => void;
+  returnFocus?: RefObject<HTMLElement | null>;
 }) {
   return (
-    <Sheet open={open} onClose={onClose} title="Plan meals for a week or two"
+    <Sheet open={open} onClose={onClose} title="Plan meals for a week or two" returnFocus={returnFocus}
            footer={<>
-             <button type="button" className="secondary" onClick={onClose}>Start with an empty plan</button>
-             <button type="button" onClick={() => { onExample(); onClose(); }}>Try the example</button>
+             <button type="button" className="btn btn-secondary" onClick={onClose}>Start with an empty plan</button>
+             <button type="button" className="btn btn-primary" onClick={() => { onExample(); onClose(); }}>Try the example</button>
            </>}>
       <ol className="mp-firstrun">
-        <li><strong>Basics</strong>: one or two weeks, a budget, your diet and where your food comes from.</li>
-        <li><strong>Meals</strong>: add breakfasts, lunches and dinners; the budget bar says what is left. A count is one meal.</li>
-        <li><strong>Ingredients</strong>: what each recipe buys, where, for how much and from which country; choose another product or skip one nobody nearby sells.</li>
-        <li><strong>Schedule</strong> meals on days: drag a meal's grip, tap a meal and then a slot, use its More menu, or the keyboard (Enter to pick up, Tab to a slot, Enter to place).</li>
-        <li><strong>Shopping plan</strong>: code suggests the fewest trips that keep each item within its cited storage time. You approve, move or dismiss each one; an approved trip is never rewritten.</li>
+        <li><strong>Set up</strong>, if you like: one or two weeks, a budget, your diet and where your food comes from. Every answer has a default.</li>
+        <li><strong>Pick meals</strong>: build a week of dinners in one go, or add breakfasts, lunches and dinners yourself; the budget bar says what is left. A count is one meal.</li>
+        <li><strong>Check ingredients</strong>: what each recipe buys, where, for how much and from which country; choose another product or skip one nobody nearby sells.</li>
+        <li><strong>Place on days</strong>: your meals are spread over the days for you the first time; move one by dragging its grip, tapping it and then a slot, its More menu, or the keyboard (Enter to pick up, Tab to a slot, Enter to place).</li>
+        <li><strong>Shop</strong>: code suggests the fewest trips that keep each item within its cited storage time. You approve, move or dismiss each one; an approved trip is never rewritten.</li>
         <li><strong>Calendar</strong>: the trips and cook days, with times and reminders, as a file or in Google Calendar.</li>
       </ol>
       <p>The example reads: <q>{EXAMPLE_SENTENCE}</q></p>

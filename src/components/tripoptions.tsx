@@ -8,7 +8,7 @@
 // the dialog and changes nothing, and otherwise that answer is shown at once. Focus then returns
 // to the trip line that now buys the chosen product.
 //
-// With no date (the wizard's Ingredients stage) the dialog is for an ingredient across the whole
+// With no date (the wizard's Check ingredients stage) the dialog is for an ingredient across the whole
 // plan: the ranking has no trip cost, the words name the recipes a choice changes, and focus
 // returns to the ingredient it was opened from (returnTo). An ingredient the plan buys nothing
 // for is asked by its recipe line (line mode): "Options for X: nothing chosen yet", the rows that
@@ -34,7 +34,7 @@ import { AlternativesDialog } from './alternatives';
 import { ProductPicture } from './pictures';
 
 // A recipe line with no product, opened in line mode, and the row's own answers for the sheet
-// when nothing can be chosen: back to Meals, skip it or need it after all, and Your stores.
+// when nothing can be chosen: back to Pick meals, skip it or need it after all, and Your stores.
 export interface LineAsk {
   recipeKey: string;
   lineNo: number;
@@ -170,7 +170,7 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
       <p>{nothingText(ingredient, choices)}</p>
       <div className="alt-nothing-actions">
         {!line.skipped && (
-          <button type="button" className="secondary mini" onClick={() => { onClose(); line.onMeals(); }}>Back to meals</button>
+          <button type="button" className="secondary mini" onClick={() => { onClose(); line.onMeals(); }}>Back to Pick meals</button>
         )}
         <button type="button" className="secondary mini"
                 onClick={() => mp.dispatch({ type: 'skipLine', recipeKey: line.recipeKey, lineNo: line.lineNo,

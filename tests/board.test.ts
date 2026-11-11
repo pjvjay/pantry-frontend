@@ -28,6 +28,13 @@ test('cells hold their meals, the tray holds the rest, and empty rows can be hid
   assert.deepEqual(shownSlots(s, true), ['dinner']);
   assert.deepEqual(shownSlots(s, false), ['breakfast', 'lunch', 'dinner', 'snack']);
   assert.deepEqual(shownSlots(planWith(7), true), ['breakfast', 'lunch', 'dinner', 'snack']);
+  // nothing placed yet: the rows the tray's meals go to, so each has somewhere to land
+  const waiting = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 2), add('mango_milkshake', 'Mango Milkshake', 1, 'snack'));
+  assert.deepEqual(shownSlots(waiting, true), ['dinner', 'snack']);
+  // a slot switched off draws no row even when a meal is in it
+  const off = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1, 'lunch')),
+    { type: 'setPrefs', prefs: { slots_on: ['breakfast', 'dinner'] } });
+  assert.deepEqual(shownSlots(off, true), ['breakfast', 'dinner'], 'none of them used: every slot switched on');
 });
 
 test('a trip chip says its state in words, not colour alone, and "at least" for a floor', () => {

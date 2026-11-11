@@ -98,9 +98,12 @@
 .tag-attention { background: var(--warn-soft); color: var(--warn); }
 
 /* ─── Toasts: above the bottom bar on a phone, low on the left on a wide screen ──────────── */
+/* Above whatever else lies along the bottom of the screen too (the meal plan's Back and Next, its
+   Moving bar, the Assistant's message box: --bottom-cover, components/useKeepClear.ts), so a
+   toast never hides the control it is about or the one that comes next. */
 .toasts {
   position: fixed; z-index: 40; left: var(--space-4); right: var(--space-4);
-  bottom: calc(var(--bottom-nav-h, 0px) + var(--space-4));
+  bottom: calc(max(var(--bottom-nav-h, 0px), var(--bottom-cover, 0px)) + var(--space-4));
   display: flex; flex-direction: column; align-items: center; gap: var(--space-2); pointer-events: none;
 }
 .toast {
@@ -115,6 +118,17 @@
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 @media (min-width: 900px) {
   .toasts { left: var(--space-6); right: auto; align-items: flex-start; }
+}
+
+/* ─── Spinner: a ring with a gap, turning; still under reduced motion ────────────────────── */
+.spinner {
+  display: inline-block; flex: none; box-sizing: border-box; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent;
+  animation: spinner-turn 0.9s linear infinite;
+}
+@keyframes spinner-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
 }
 
 /* Forced colours drop fills: the tones keep an edge, a tag its outline. */

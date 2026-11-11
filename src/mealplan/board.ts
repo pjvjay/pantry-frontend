@@ -45,12 +45,14 @@ export function mealsByCell(s: MealPlanState): Map<string, Meal[]> {
   return out;
 }
 
-// The slot rows a day card draws. With hideEmpty, a slot that holds no meal on any day is left
-// out, unless it is the only one switched on.
+// The slot rows a day card draws: every slot switched on, or with hideEmpty (Place on days'
+// default) only the slots the plan's meals are in, on a day or waiting in the tray, so a meal
+// waiting always has its row to go to and three dinners draw seven Dinner rows, not twenty-eight.
+// With no meals at all, every slot switched on.
 export function shownSlots(s: MealPlanState, hideEmpty: boolean): Slot[] {
   const on = s.draft.prefs.slots_on;
   if (!hideEmpty) return [...on];
-  const used = new Set(s.draft.meals.filter((m) => m.date !== null).map((m) => m.slot));
+  const used = new Set(s.draft.meals.map((m) => m.slot));
   const shown = on.filter((sl) => used.has(sl));
   return shown.length ? shown : [...on];
 }
@@ -81,7 +83,7 @@ export function tripsByDate(st: StrategyResult | undefined): Map<CivilDate, Trip
   return new Map((st?.trips ?? []).map((t) => [t.date, t]));
 }
 
-// How many meals are cooked each day of the plan (the Shopping plan's week strip).
+// How many meals are cooked each day of the plan (Shop's week strip).
 export function mealsByDay(d: MealPlanDraft): Map<CivilDate, number> {
   const out = new Map(windowDates(windowOf(d)).map((x) => [x, 0]));
   for (const m of d.meals) if (m.date !== null && out.has(m.date)) out.set(m.date, (out.get(m.date) ?? 0) + 1);
@@ -236,11 +238,13 @@ export interface WeekDinner {
   name: string;
 }
 
-// A week of dinners from the Planner as meals: one dinner a day from the plan's first day, in
-// the week's order. 'replace' starts a new plan from tomorrow; 'add' keeps the plan and puts
+// A week of dinners from the week planner as meals: one dinner a day from the plan's first day,
+// in the week's order. 'replace' starts a new plan from tomorrow; 'add' keeps the plan and puts
 // each dinner on the first free dinner, or in the tray when none is free. One edit for undo.
+// added: the dinners that went in; problems: why any did not (the plan's recipe limit, say).
 export function weekEdit(s: MealPlanState, dinners: WeekDinner[], mode: 'replace' | 'add',
-  today: CivilDate, id: string): { edit: PlanEdit; said: string; trayed: number } | { refused: string } {
+  today: CivilDate, id: string)
+  : { edit: PlanEdit; said: string; trayed: number; added: number; problems: string[] } | { refused: string } {
   if (!dinners.length) return { refused: 'the week has no dinners' };
   let next = mode === 'replace'
     ? newPlan(today, id, dinners.length > 7 ? 14 : 7)
@@ -281,7 +285,7 @@ export function weekEdit(s: MealPlanState, dinners: WeekDinner[], mode: 'replace
     + `${mode === 'replace' ? 'in a new plan' : 'added to your plan'}`
     + `${trayed ? `; ${trayed} wait in the tray` : ''}.`
     + `${problems.length ? ` Not added: ${problems.join('; ')}.` : ''}`;
-  return { edit: { type: 'replace', state: next }, said, trayed };
+  return { edit: { type: 'replace', state: next }, said, trayed, added: dinners.length - problems.length, problems };
 }
 
 // The slot's name, for headings: 'Dinner'.

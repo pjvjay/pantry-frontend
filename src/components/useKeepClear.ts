@@ -1,6 +1,7 @@
 // The bars that stay on screen over the page, at its top or its bottom: the meal plan's budget bar
-// (stuck at the top while the meals scroll under it), its action bar while something is being
-// moved, and the Assistant's message box (stuck above the bottom bar). When the keyboard moves
+// (stuck at the top while the meals scroll under it), its Back and Next (stuck above the bottom
+// bar), its action bar while something is being moved, and the Assistant's message box (stuck
+// above the bottom bar). The toasts rise above the deepest of them too. When the keyboard moves
 // focus, the browser scrolls the control into view clear of the page's scroll-padding and no
 // further, so without this a control could come to rest under one of them, out of sight.
 //

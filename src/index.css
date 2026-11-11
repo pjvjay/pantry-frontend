@@ -939,7 +939,8 @@ tr.row-active td { background: var(--accent-soft); }
 
 .mp-move-opts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .mp-stepper { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
-.mp-stepper button { min-width: 28px; min-height: 28px; }
+/* (a .btn has its own size, 44px under a coarse pointer) */
+.mp-stepper button:not(.btn) { min-width: 28px; min-height: 28px; }
 .mp-stepper output { min-width: 1.5em; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
 .mp-move-day { margin-bottom: 8px; }
 .mp-move-date { font-size: 12px; font-weight: 600; color: var(--muted); }
@@ -1147,15 +1148,9 @@ a.mp-step-link:hover .mp-step-name { color: var(--text); }
 .mp-step-closed .mp-step-link { opacity: 0.55; cursor: default; }
 
 .mp-stage { margin-top: 16px; }
-.mp-stage > h2:focus { outline: none; }
-.mp-stage > h2:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* the stage's heading, Back and Next: styles/plan.css */
 .mp-behind { margin: 4px 0 10px; }
 .mp-total { margin: 6px 0; font-size: 14px; font-variant-numeric: tabular-nums; }
-.mp-wnav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 16px; }
-.mp-wnav button { min-height: 40px; }
-.mp-wnav-next { margin-left: auto; }
-.mp-wnav-next[aria-disabled="true"] { opacity: 0.55; cursor: default; }
-.mp-wnav-why { flex-basis: 100%; margin: 0; text-align: right; font-size: 13px; }
 
 /* Meals: the budget bar stays at the top of the page while the cards scroll under it */
 .mp-budget {
@@ -1310,8 +1305,6 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
   }
   /* between words only: "Shopping plan" on two lines, never "Shoppin g" */
   .mp-step-current .mp-step-name { font-size: 12px; overflow-wrap: normal; }
-  .mp-wnav button { flex: 1 1 auto; }
-  .mp-wnav-why { text-align: left; }
   .mp-budget { padding: 6px 10px; }
   .mp-budget-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -1319,8 +1312,7 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
   .mp-step-link { min-height: 44px; }
   .mp-ing-open { min-height: 44px; }
   .mp-ing-go { opacity: 1; }
-  .cchip-btn { width: 36px; height: 36px; }
-  .tchip > span, .seg-opt span { min-height: 40px; display: inline-flex; align-items: center; }
+  /* the chips' and segments' 44px are in styles/plan.css: their own rules come later in this file */
 }
 
 /* --- Form pieces (components/fields.tsx): cards, segments, tiles, chips, switches ------------

@@ -1,4 +1,4 @@
-// The wizard's Ingredients stage: for every chosen recipe, each ingredient as the plan would buy
+// The wizard's Check ingredients stage: for every chosen recipe, each ingredient as the plan would buy
 // it (/mealplan/basket): the product, the store and how far it is, the price, where it is from
 // and its labels, with the basket's total next to the budget. Choosing an ingredient opens its
 // Options across the whole plan (components/tripoptions.tsx with no trip): the products that
@@ -6,8 +6,8 @@
 // that buys it, as one undo step.
 //
 // An ingredient the plan cannot buy nearby says why (only products from a country the plan
-// leaves out, none stocked, none within the distance), and Schedule waits until each one has an
-// answer: other meals (back to Meals), another product (its Options), or "skip this ingredient"
+// leaves out, none stocked, none within the distance), and Place on days waits until each one has
+// an answer: other meals (back to Pick meals), another product (its Options), or "skip this ingredient"
 // (the recipe goes without it). The words are in mealplan/basket.ts.
 import { useId, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
@@ -88,7 +88,7 @@ function Line({ l, title, onOptions, onMeals, onStores }: { l: LineView; title: 
           {!l.skipped && l.kind === 'stores_off' && (
             <button type="button" className="secondary mini" onClick={onStores}>Turn a store back on</button>
           )}
-          {!l.skipped && <button type="button" className="secondary mini" onClick={onMeals}>Back to meals</button>}
+          {!l.skipped && <button type="button" className="secondary mini" onClick={onMeals}>Back to Pick meals</button>}
           {!l.skipped && (
             <button type="button" className="secondary mini" aria-haspopup="dialog" onClick={open}>
               {l.productId === null ? 'Choose a product' : 'Another product'}
@@ -236,9 +236,9 @@ export function IngredientsStage({ basket, onMeals }: { basket: KeyedCall<MealBa
             </span>
           ))}
           For each, choose another product, skip it
-          {view.unanswered.some((l) => l.kind === 'stores_off') && ', turn a store back on'}, or go back to Meals for
+          {view.unanswered.some((l) => l.kind === 'stores_off') && ', turn a store back on'}, or go back to Pick meals for
           other recipes.{' '}
-          <button type="button" className="secondary mini" onClick={onMeals}>Back to meals</button>
+          <button type="button" className="secondary mini" onClick={onMeals}>Back to Pick meals</button>
         </div>
       )}
 

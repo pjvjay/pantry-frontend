@@ -1,33 +1,38 @@
 // Pure module: no React, DOM or import.meta.env, and sibling imports name their .ts file, so
 // node --test runs it as it is (tests/pure-modules.test.ts checks all of this).
 //
-// The meal plan as six stages with a progress indicator: Basics, Meals, Ingredients, Schedule,
-// Shopping plan and Calendar. The stage is in the address (#/plan?step=1..6), so the browser's
+// The meal plan as six stages with a progress indicator, each named for what the shopper does
+// there: Set up (optional: every answer has a default), Pick meals, Check ingredients, Place on
+// days, Shop and Calendar. The stage is in the address (#/plan?step=1..6), so the browser's
 // Back goes to the stage before and a stage can be bookmarked; Google's return from its consent
 // page (#/plan?calendar=...) lands on Calendar. The plan's old address, #/mealplan, is read the
 // same way: the shell rewrites it (routes.ts), and this module accepts it too, so a stage asked
 // for under the old name is never lost on the way.
 //
 // Moving on from a stage needs what the later ones work from, its gate:
-//   2 Meals: at least one meal;
-//   3 Ingredients: every recipe's products checked, and every ingredient the plan cannot buy
-//     nearby answered (back to Meals for another recipe, another product, or "skip this ingredient");
-//   5 Shopping plan: at least one approved trip, which the Calendar exports.
-// A gate is ok, pending (an answer is on its way: Next waits for it, but the stages after it
-// stay reachable) or blocked, with the words Next shows. An edit that blocks an earlier gate
-// never moves the shopper off the stage they are on: the stepper and Next say what to fix.
+//   2 Pick meals: at least one meal;
+//   3 Check ingredients: every recipe's products checked, and every ingredient the plan cannot
+//     buy nearby answered (back to Pick meals for another recipe, another product, or "skip this
+//     ingredient");
+//   5 Shop: at least one approved trip, which the Calendar exports.
+// A gate is ok, pending (an answer is on its way: Next waits for it, shows how long it has been
+// waiting, and moves on by itself once the answer is in if the shopper pressed it; the stages
+// after it stay reachable) or blocked, with the words Next shows. An edit that blocks an earlier
+// gate never moves the shopper off the stage they are on: the stepper and Next say what to fix.
 import { DEFAULT_ALLIES, EXCLUDED_BY_DEFAULT, PREFERRED_FIRST, USABLE_RESOLVE, recipeTitle } from './model.ts';
 import type { MealPlanState } from './model.ts';
 import type { PlanSettings } from '../types.ts';
 
 export type StepNo = 1 | 2 | 3 | 4 | 5 | 6;
 
-export const STEPS: readonly { n: StepNo; name: string }[] = [
-  { n: 1, name: 'Basics' },
-  { n: 2, name: 'Meals' },
-  { n: 3, name: 'Ingredients' },
-  { n: 4, name: 'Schedule' },
-  { n: 5, name: 'Shopping plan' },
+// optional: the stage can be passed by without a visit (Set up: every answer has a default, and
+// Pick meals restates them with a way back to each).
+export const STEPS: readonly { n: StepNo; name: string; optional?: boolean }[] = [
+  { n: 1, name: 'Set up', optional: true },
+  { n: 2, name: 'Pick meals' },
+  { n: 3, name: 'Check ingredients' },
+  { n: 4, name: 'Place on days' },
+  { n: 5, name: 'Shop' },
   { n: 6, name: 'Calendar' },
 ];
 
@@ -38,8 +43,12 @@ export const isStep = (n: unknown): n is StepNo =>
 
 export const stepName = (n: StepNo): string => STEPS[n - 1].name;
 
-// "Stage 2 of 6: Meals", the stage heading.
-export const stepTitle = (n: StepNo): string => `Stage ${n} of ${LAST_STEP}: ${stepName(n)}`;
+export const isOptional = (n: StepNo): boolean => STEPS[n - 1].optional === true;
+
+// The quiet line over a stage's heading, which is the stage's name: "Step 2 of 6", and
+// "Step 1 of 6 · optional" for Set up.
+export const stepCaption = (n: StepNo): string =>
+  `Step ${n} of ${LAST_STEP}${isOptional(n) ? ' · optional' : ''}`;
 
 // Where a stage lives: '#/plan?step=3'.
 export const stepHash = (n: StepNo): string => `#/plan?step=${n}`;
@@ -118,10 +127,12 @@ export function gate(n: StepNo, f: WizardFacts): Gate {
     case 3:
       if (f.failed.length) {
         return { step: n, state: 'blocked', text: `The products for ${listOf(f.failed)} could not be `
-          + `checked: try again, or take ${f.failed.length === 1 ? 'it' : 'them'} out in Meals` };
+          + `checked: try again, or take ${f.failed.length === 1 ? 'it' : 'them'} out in Pick meals` };
       }
       if (f.checking.length) {
-        return { step: n, state: 'pending', text: `Checking the products for ${listOf(f.checking)}…` };
+        // by name for one or two; a count for more, which Next's bar can still show on one line
+        const which = f.checking.length > 2 ? `${f.checking.length} recipes` : listOf(f.checking);
+        return { step: n, state: 'pending', text: `Checking the products for ${which}…` };
       }
       if (f.basket === 'waiting') return { step: n, state: 'pending', text: 'Checking the ingredients…' };
       if (f.basket === 'error') {
@@ -158,13 +169,26 @@ export function furthest(f: WizardFacts): StepNo {
   return n;
 }
 
-// The stage to show. With none asked: where the shopper was last in this page, else Basics for
-// a plan with no recipes and Schedule for one that has them (the Assistant's "Open in Meal plan"
-// asks for Schedule itself). Never further than the plan allows.
+// The stage to show. With none asked: where the shopper was last in this page, else Pick meals
+// for a plan with no recipes (Set up is optional: its defaults are restated at the top of Pick
+// meals, each with a way back to it) and Place on days for one that has them (the Assistant's
+// "Open in Meal plan" asks for it itself). Never further than the plan allows.
 export function routeStep(asked: StepNo | null, f: WizardFacts, last: StepNo | null,
   hasRecipes: boolean): StepNo {
-  const want = asked ?? last ?? (hasRecipes ? 4 : 1);
+  const want = asked ?? last ?? (hasRecipes ? 4 : 2);
   return Math.min(want, furthest(f)) as StepNo;
+}
+
+// What Next says while it waits on a pending gate, before the time it has waited: the gate's own
+// words are longer ("Checking the products for Dal…") and stay under the button.
+export function waitWords(g: Gate): string {
+  return g.step === 3 ? 'Checking ingredients…' : 'Checking…';
+}
+
+// A wait as a clock reads it: "0:04", "1:15", "12:00".
+export function clockText(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 // One stage in the progress indicator. done: before the current one; attention: a done stage
@@ -172,6 +196,7 @@ export function routeStep(asked: StepNo | null, f: WizardFacts, last: StepNo | n
 export interface StepView {
   n: StepNo;
   name: string;
+  optional: boolean;
   state: 'done' | 'current' | 'ahead';
   reachable: boolean;
   attention: string | null;
@@ -179,10 +204,10 @@ export interface StepView {
 
 export function stepViews(current: StepNo, f: WizardFacts): StepView[] {
   const reach = furthest(f);
-  return STEPS.map(({ n, name }) => {
+  return STEPS.map(({ n, name, optional }) => {
     const g = gate(n, f);
     return {
-      n, name,
+      n, name, optional: optional === true,
       state: n < current ? 'done' : n === current ? 'current' : 'ahead',
       reachable: n <= reach,
       attention: n < current && g.state === 'blocked' ? g.text : null,
@@ -190,9 +215,9 @@ export function stepViews(current: StepNo, f: WizardFacts): StepView[] {
   });
 }
 
-// ─── Basics: the origin rules ────────────────────────────────
+// ─── Set up: the origin rules ────────────────────────────────
 
-// The plan's origin rules as Basics shows them: leave out United States products (the one hard
+// The plan's origin rules as Set up shows them: leave out United States products (the one hard
 // rule), prefer Canada, then the other countries in the shopper's order. Countries excluded
 // some other way (the Assistant, an imported plan) are kept as they are.
 export interface OriginRules {

@@ -304,9 +304,9 @@ export function ActionBar({ ctl, onCancel, onTray }: { ctl: BoardCtl; onCancel: 
       )}
       <span className="mp-bar-actions">
         {p.kind === 'meal' && meal?.date && (
-          <button type="button" className="secondary mini" onClick={onTray}>Back to tray</button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onTray}>Back to tray</button>
         )}
-        <button type="button" className="secondary mini" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onCancel}>Cancel</button>
       </span>
     </div>
   );
@@ -336,6 +336,11 @@ export function DragGhost({ ctl, ghostRef, preview }: {
 
 // The ⋯ menu: every cell the meal could go to, each with what it would mean for freshness
 // (a preview from the last answer), plus its servings, its pin, and its nutrition receipt.
+//
+// The sheet stays mounted while the board is shown, closed when no meal is asked for, so it
+// leaves the way every sheet does: it slides out showing what it showed, and focus goes back to
+// the ⋯ that opened it. After a move that ⋯ is gone with the chip's old place; the view then
+// focuses the chip where it landed (or, for a meal taken out, its recipe's "one meal more").
 export function MoveSheet({ ctl, mealId, onClose }: {
   ctl: BoardCtl;
   mealId: string | null;
@@ -350,18 +355,18 @@ export function MoveSheet({ ctl, mealId, onClose }: {
     for (const c of choices) out.set(c.date, [...(out.get(c.date) ?? []), c]);
     return [...out.entries()];
   }, [choices]);
-  if (!meal) return null;
+  if (!meal) return <Sheet open={false} onClose={onClose} title="">{null}</Sheet>;
   const t = title(ctl, meal);
   const go = (e: PlanEdit) => {
     dispatch(e);
     onClose();
   };
   return (
-    <Sheet open={Boolean(meal)} onClose={onClose} title={`Move ${t}`}
+    <Sheet open onClose={onClose} title={`Move ${t}`}
            description={meal.date && meal.slot ? `Now: ${SLOT_LABELS[meal.slot]}, ${dayLabel(meal.date)}` : 'Now: in the tray'}
            footer={<>
-             {meal.date && <button type="button" className="secondary" onClick={() => go({ type: 'unplace', mealId: meal.id })}>Back to tray</button>}
-             <button type="button" className="danger" onClick={() => go({ type: 'remove', mealId: meal.id })}>Remove this meal</button>
+             {meal.date && <button type="button" className="btn btn-secondary" onClick={() => go({ type: 'unplace', mealId: meal.id })}>Back to tray</button>}
+             <button type="button" className="btn btn-danger" onClick={() => go({ type: 'remove', mealId: meal.id })}>Remove this meal</button>
            </>}>
       <div className="mp-move-opts">
         {meal.date && (

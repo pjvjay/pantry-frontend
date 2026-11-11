@@ -39,9 +39,9 @@ export const DIETS: readonly Diet[] = ['any', 'pescatarian', 'vegetarian', 'vega
 export const DIET_LABELS: Record<Diet, string> = {
   any: 'Anything', pescatarian: 'Pescatarian', vegetarian: 'Vegetarian', vegan: 'Vegan',
 };
-// The allergens Basics offers to leave out: Health Canada's priority allergens, with gluten
+// The allergens Set up offers to leave out: Health Canada's priority allergens, with gluten
 // sources and sulphites. AVOID_TAGS adds 'nuts', which a plan saved before peanuts and tree nuts
-// were split may hold; Basics shows it only while it is chosen.
+// were split may hold; Set up shows it only while it is chosen.
 export const AVOID_CHOICES: readonly AvoidTag[] = ['peanuts', 'tree_nuts', 'sesame', 'dairy', 'egg', 'fish',
   'shellfish', 'soy', 'gluten', 'mustard', 'sulphites'];
 export const AVOID_TAGS: readonly AvoidTag[] = [...AVOID_CHOICES, 'nuts'];
@@ -67,8 +67,9 @@ export const DEFAULT_ORIGIN: Required<Pick<PlanSettings, 'exclude_origin' | 'pre
   exclude_origin: [EXCLUDED_BY_DEFAULT],
   preference: [PREFERRED_FIRST, ...DEFAULT_ALLIES],
 };
-// A new plan shops within 5 km, so Ingredients names a store near the shopper rather than the
-// cheapest one across town; every demo ingredient is sold within it. Basics changes it.
+// A new plan shops within 5 km, so Check ingredients names a store near the shopper rather than
+// the cheapest one across town; every demo ingredient is sold within it. Set up and Check
+// ingredients change it.
 export const DEFAULT_MAX_KM = 5;
 
 // One meal per slot over at most two weeks: 14 days × 4 slots holds 56 meals.
@@ -139,7 +140,7 @@ export function parseCellKey(key: string): { date: CivilDate; slot: Slot } | nul
 //   spread: the meals whose date the server chose rather than the shopper. Lowering a count
 //     takes these off before refusing to touch a meal the shopper put somewhere.
 //   skipped: recipe lines the shopper agreed to do without when no store nearby sells them
-//     (lineKey), the Ingredients stage's "skip this ingredient". Absent from older plans.
+//     (lineKey), Check ingredients' "skip this ingredient". Absent from older plans.
 export interface MealPlanState {
   draft: MealPlanDraft;
   titles: Record<string, string>;

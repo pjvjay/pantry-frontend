@@ -51,7 +51,7 @@ test('a clear warning when no store is in range, or every one there is off', () 
   const far = { lat: 43.65, lon: -79.38, address: 'Toronto', max_km: 2 };
   const none = storesView({ v: 1, products_total: 3, stores: [store(1, 'Pantry Mart Downtown', 3350, { in_range: false })] }, far);
   assert.equal(none.warning, 'No store within 2 km of Toronto. The demo\'s stores are all in Vancouver: choose a longer '
-    + 'distance, or a Vancouver area in Basics. The nearest is Pantry Mart Downtown, 3350 km away.');
+    + 'distance, or a Vancouver area in Set up. The nearest is Pantry Mart Downtown, 3350 km away.');
   assert.equal(storesLine(none, far), 'No stores within 2 km');
   const allOff = storesView({ ...ANSWER, stores: ANSWER.stores.map((s) => ({ ...s, off: true })) }, { max_km: 5 });
   assert.match(allOff.warning ?? '', /^Every store in range is turned off/);

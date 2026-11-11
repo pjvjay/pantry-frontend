@@ -1,21 +1,26 @@
-// The meal plan (#/plan?step=1..6): six stages under a progress indicator, with Back and Next
-// under each. The same view, in "shop" mode, is the shopping plan on its own (#/shop): stage 5
-// with no stepper, a way back to planning, and, while the plan cannot have a shopping plan yet,
-// what it is waiting for and the stage that gives it.
-//   1 Basics:        the period, the budget, the diet and origin rules, where and when to shop
-//                    (components/basics.tsx). Every plan is for one person for now.
-//   2 Meals:         recipe cards by meal under a budget bar; Quick add, import and the
-//                    shopper's own recipes (components/mealcards.tsx).
-//   3 Ingredients:   each recipe's ingredients as the plan would buy them, and an answer for
-//                    each one no store nearby sells (components/ingredients.tsx).
-//   4 Schedule:      the 7 or 14 day calendar beside the recipes to place (the tray, as a sprint
-//                    board's backlog), drag and drop, Fill empty slots, Suggest cook days, undo
-//                    and the nutrition band (components/mealcal.tsx, mealtray.tsx).
-//   5 Shopping plan: the week's trips as a strip to move them on, the trips code suggests, the
-//                    warnings and their fixes, the total against the budget
-//                    (components/mealtrips.tsx).
-//   6 Calendar:      times and reminders, the events, the .ics and Google Calendar
-//                    (components/CalendarExport.tsx).
+// The meal plan (#/plan?step=1..6): six stages under a progress indicator, each headed by what
+// the shopper does there with a quiet "Step 2 of 6" over it, and Back and Next in a bar along the
+// bottom of the screen. The same view, in "shop" mode, is the shopping plan on its own (#/shop):
+// stage 5 with no stepper, a way back to planning, and, while the plan cannot have a shopping
+// plan yet, what it is waiting for and the stage that gives it.
+//   1 Set up:            optional: the period, the budget, the diet and origin rules, where and
+//                        when to shop (components/basics.tsx). Every plan is for one person for
+//                        now. A plan with no recipes opens on Pick meals instead.
+//   2 Pick meals:        the setup restated with a Change for each answer, "Build a week for me",
+//                        then recipe cards by meal under a budget bar; Quick add, import and the
+//                        shopper's own recipes (components/mealcards.tsx).
+//   3 Check ingredients: each recipe's ingredients as the plan would buy them, and an answer for
+//                        each one no store nearby sells (components/ingredients.tsx).
+//   4 Place on days:     the 7 or 14 day calendar beside the recipes to place (the tray, as a
+//                        sprint board's backlog), only the rows the meals use unless "Show all
+//                        slots", drag and drop, Fill empty slots (done once by itself when every
+//                        meal waits in the tray), Suggest cook days, undo and the nutrition band
+//                        (components/mealcal.tsx, mealtray.tsx).
+//   5 Shop:              the week's trips as a strip to move them on, the trips code suggests, the
+//                        warnings and their fixes, the total against the budget
+//                        (components/mealtrips.tsx).
+//   6 Calendar:          times and reminders, the events, the .ics and Google Calendar
+//                        (components/CalendarExport.tsx).
 // Where a stage opens and what stops Next are decided in mealplan/wizard.ts. The plan lives in
 // MealPlanProvider (above every page, so it survives moving between them) and is saved in this
 // browser only. Every change re-runs /mealplan/schedule, which is pure: no model call, and the
@@ -33,9 +38,11 @@ import { CookDaysDiff, CoverageChips, ShopPanel, TripSheet, WarningsPanel } from
 import { Icon } from '../components/icons';
 import { EXAMPLE_SENTENCE, FirstRunSheet, RecipeTray } from '../components/mealtray';
 import { PeriodBand, TargetsEditor } from '../components/nutrition';
-import { EmptyState } from '../components/ui';
+import { EmptyState, useToast } from '../components/ui';
 import { usePointerDrag } from '../components/usePointerDrag';
 import { StageNav, Stepper } from '../components/wizard';
+import { autofillCount, readAutofilled, rememberAutofilled, spreadText } from '../mealplan/autofill';
+import type { SetupItem } from '../mealplan/basics';
 import { unansweredCount } from '../mealplan/basket';
 import { strategyOf, summaryLine, tripPriced } from '../mealplan/board';
 import { againstBudget } from '../mealplan/catalog';
@@ -49,7 +56,7 @@ import type { PlanEdit } from '../mealplan/model';
 import { pinFix } from '../mealplan/options';
 import { useBasket, useMealPlan } from '../mealplan/store';
 import {
-  furthest, isPlanHash, nextBlock, routeStep, stepFromHash, stepHash, stepName, stepTitle, wizardFacts,
+  furthest, isPlanHash, nextBlock, routeStep, stepCaption, stepFromHash, stepHash, stepName, wizardFacts,
 } from '../mealplan/wizard';
 import type { StepNo } from '../mealplan/wizard';
 import type { RemedyOp } from '../types';
@@ -60,20 +67,48 @@ const inText = (el: EventTarget | null) =>
 // A meal's chip, on the board or in the tray, and a day's trip chip (mealcal.tsx).
 const mealChipSelector = (mealId: string) => `[data-meal="${CSS.escape(mealId)}"] .mp-chip-main`;
 const tripChipSelector = (date: string) => `[data-trip="${CSS.escape(date)}"] .mp-trip-main`;
+// A recipe's "one meal more" in the tray, where a meal taken out of the plan leaves focus.
+const trayMoreSelector = (key: string) => `[data-tray-more="${CSS.escape(key)}"]`;
+
+// What a Change in Pick meals' setup strip focuses in Set up: the answer's own control (the chosen
+// one of a group), so the keyboard is where the change is made.
+const CHANGE_FOCUS: Record<SetupItem['key'], string[]> = {
+  when: ['#su-when input:checked'],
+  budget: ['#su-budget input'],
+  diet: ['#su-diet input:checked'],
+  avoid: ['#su-avoid input'],
+  where: ['#su-where input', '#su-where button'],
+  days: ['#su-days input'],
+};
 
 // The stage the shopper was on when they last left the plan, for opening it again in this page.
 let lastStep: StepNo | null = null;
+
+// Plans Place on days has filled by itself in this page, beside the ones remembered in the
+// browser (mealplan/autofill.ts): a browser that will not store the list still fills a plan once.
+const filledHere = new Set<string>();
+
+// localStorage, or null where the browser will not hand it over.
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 // plan: the six stages at #/plan. shop: the shopping plan on its own at #/shop, which is stage 5
 // with no stepper and no Back or Next, and never moves the address or the plan's stage.
 export type MealPlanMode = 'plan' | 'shop';
 
-// The stage the shopping plan is.
+// The stage the shopping plan is, and what it is called on its own.
 const SHOP_STEP: StepNo = 5;
+const SHOP_TITLE = 'Shopping plan';
 
 export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode }) {
   const shop = mode === 'shop';
   const mp = useMealPlan();
+  const toast = useToast();
   const { state, schedule } = mp;
   const d = state.draft;
   const strategy = d.prefs.strategy;
@@ -93,8 +128,9 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   const step: StepNo = shop ? SHOP_STEP : planStep;
   const stepRef = useRef(step);
   stepRef.current = step;
-  // Where focus goes once the next stage is drawn, instead of its heading.
-  const focusNext = useRef<string | null>(null);
+  // Where focus goes once the next stage is drawn, instead of its heading: the first of these
+  // selectors that finds something.
+  const focusNext = useRef<string[] | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const shown = useRef<StepNo | null>(null);
 
@@ -137,15 +173,19 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
       return;
     }
     shown.current = step;
-    const target = focusNext.current ? document.querySelector<HTMLElement>(focusNext.current) : null;
+    const target = (focusNext.current ?? []).map((sel) => document.querySelector<HTMLElement>(sel))
+      .find((el) => el !== null) ?? null;
     focusNext.current = null;
     (target ?? heading.current)?.focus();
   }, [step]);
 
-  const go = useCallback((n: StepNo, focus: string | null = null) => {
-    focusNext.current = focus;
+  const go = useCallback((n: StepNo, focus: string | string[] | null = null) => {
+    focusNext.current = focus === null ? null : typeof focus === 'string' ? [focus] : focus;
     window.location.hash = stepHash(n);
   }, []);
+
+  // A Change in Pick meals' setup strip: Set up, at that answer.
+  const changeSetup = useCallback((key: SetupItem['key']) => go(1, CHANGE_FOCUS[key]), [go]);
 
   // ─── Schedule: the board and its gestures ────────────────
   const [held, setHeld] = useState<DragPayload | null>(null);
@@ -158,14 +198,16 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   // a product whose Options open with the trip sheet (a warning's open_options remedy)
   const [tripOptions, setTripOptions] = useState<number | null>(null);
   const [targetsOpen, setTargetsOpen] = useState(false);
-  const [hideEmpty, setHideEmpty] = useState(false);
+  // Place on days draws only the rows its meals use, unless the shopper asks for every slot.
+  const [showAll, setShowAll] = useState(false);
   const [quickText, setQuickText] = useState('');
   // The first-run sheet belongs to the plan; the shopping plan says what it waits for instead.
   const [firstRun, setFirstRun] = useState(() => !shop && d.rev === 0 && Object.keys(d.recipes).length === 0);
-  // Where focus goes once the render that moved or put something down is on screen. It is
-  // state, not a ref, so it is used by the render it was asked for and by no later one: a
-  // leftover request would pull focus out of whatever the shopper is typing in next.
-  const [focusTo, setFocusTo] = useState<{ selector: string } | null>(null);
+  // Where focus goes once the render that moved or put something down is on screen: the first of
+  // these selectors that takes it, else the stage's heading, never the page. It is state, not a
+  // ref, so it is used by the render it was asked for and by no later one: a leftover request
+  // would pull focus out of whatever the shopper is typing in next.
+  const [focusTo, setFocusTo] = useState<{ selectors: string[] } | null>(null);
   const timing = useTiming(d.prefs.slots_on);
 
   // Nothing stays held on another stage.
@@ -178,12 +220,17 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   }, [d.meals, state]);
 
   // A meal moved, to a slot or back to the tray: focus it where it landed, so the keyboard
-  // carries on from there instead of from the page.
+  // carries on from there instead of from the page. A meal taken out of the plan (its Move
+  // sheet's Remove) leaves focus on its recipe's "one meal more" in the tray.
   const apply = useCallback((edit: PlanEdit | null) => {
     if (!edit) return;
+    const before = edit.type === 'remove' ? mp.state.draft.meals.find((m) => m.id === edit.mealId) : undefined;
     const out = mp.dispatch(edit);
-    if (!out.refused && (edit.type === 'place' || edit.type === 'unplace')) {
-      setFocusTo({ selector: mealChipSelector(edit.mealId) });
+    if (out.refused) return;
+    if (edit.type === 'place' || edit.type === 'unplace') {
+      setFocusTo({ selectors: [mealChipSelector(edit.mealId)] });
+    } else if (edit.type === 'remove' && before) {
+      setFocusTo({ selectors: [trayMoreSelector(before.recipe_key)] });
     }
   }, [mp]);
 
@@ -216,7 +263,14 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   useEffect(() => { syncSaved(); }, [syncSaved]);
 
   useEffect(() => {
-    if (focusTo) document.querySelector<HTMLElement>(focusTo.selector)?.focus();
+    if (!focusTo) return;
+    for (const sel of focusTo.selectors) {
+      const el = document.querySelector<HTMLElement>(sel);
+      el?.focus();
+      if (el && document.activeElement === el) return;
+    }
+    // folded away or gone: the stage's heading, so the keyboard carries on from the stage
+    heading.current?.focus();
   }, [focusTo]);
 
   // Tapping what is held puts it down; anything else is picked up instead.
@@ -235,7 +289,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
     if (!held) return;
     setHeld(null);
     mp.announce('Move cancelled.');
-    setFocusTo({ selector: held.kind === 'meal' ? mealChipSelector(held.mealId) : tripChipSelector(held.date) });
+    setFocusTo({ selectors: [held.kind === 'meal' ? mealChipSelector(held.mealId) : tripChipSelector(held.date)] });
   }, [held, mp]);
 
   const dropOn = useCallback((key: string) => {
@@ -260,7 +314,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
     state, schedule: answer, strategy, held, drag, grip, pick, dropOn, dispatch: apply,
     openMeal: (id) => { setHeld(null); setMealSheet(id); },
     openTrip: (t) => setTripSheet(t.date),
-    atRisk, hideEmpty, pictures,
+    atRisk, hideEmpty: !showAll, pictures,
   };
 
   // What dropping here would mean, for the ghost: a preview from the last answer.
@@ -299,6 +353,27 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
     const out = mp.dispatch({ type: 'fillEmpty' });
     if (!out.refused) heading.current?.focus();
   };
+
+  // Place on days fills itself once: opened on a plan whose meals all wait in the tray, it spreads
+  // them over the empty slots (the same edit as Fill empty slots), says so in a toast with an
+  // Undo, and remembers the plan so it never does it again; an Undo stays undone, and coming back
+  // does not fill it a second time. The plan as it is now is read from a ref: the effect runs on
+  // entering the stage (or another plan arriving on it), not on every edit.
+  const planNow = useRef(state);
+  planNow.current = state;
+  useEffect(() => {
+    if (shop || step !== 4) return;
+    const storage = browserStorage();
+    const plan = planNow.current;
+    const n = autofillCount(plan, [...readAutofilled(storage), ...filledHere]);
+    if (!n) return;
+    filledHere.add(plan.draft.id);
+    rememberAutofilled(storage, plan.draft.id);
+    const out = mp.dispatch({ type: 'fillEmpty' }, { quiet: true });
+    if (out.refused) return;
+    toast.show({ text: spreadText(n, plan.draft.days), action: { label: 'Undo', onClick: mp.undo } });
+    // the stage and the plan are what it runs on; mp and toast are the same throughout
+  }, [step, d.id, shop]);
 
   // Every remedy that is not an edit lands here (consequences.remedyStep), so none is a button
   // that does nothing.
@@ -339,7 +414,9 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   // taken off from here, so the plan is never stuck on it.
   const fix = schedule.status === 'error' ? pinFix(schedule.errorCode ?? null, schedule.errorDetail) : null;
   const placedAny = d.meals.some((m) => m.date !== null);
-  const trayCount = d.meals.filter((m) => m.date === null).length;
+  // Meals held in the tray, which Fill empty slots would spread. Once it has run they wait unpinned
+  // for the schedule to place them, and filling again would do nothing.
+  const trayCount = d.meals.filter((m) => m.date === null && m.pinned).length;
   const statusLine = (
     <p className="mp-status" aria-live="off">
       <span>{summaryLine(state, answer)} · {dayLabel(d.start_date)} to {dayLabel(addDays(d.start_date, d.days - 1))}</span>
@@ -382,13 +459,18 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
                aria-labelledby="mp-stage-head">
         {shop ? (
           <div className="mp-shop-head">
-            <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{stepName(SHOP_STEP)}</h2>
+            <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{SHOP_TITLE}</h2>
             <a className="mp-shop-back" href={stepHash(reach)}>
               <Icon name="arrow-left" size={16} />Back to planning
             </a>
           </div>
         ) : (
-          <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{stepTitle(step)}</h2>
+          // the stage's name is the heading, in the display face; the quiet line over it is part
+          // of it, so a screen reader arriving on a stage hears "Step 2 of 6, Pick meals"
+          <h2 id="mp-stage-head" className="mp-stage-title" ref={heading} tabIndex={-1}>
+            <span className="mp-stage-step">{stepCaption(step)}<span className="sr-only">,</span></span>
+            {stepName(step)}
+          </h2>
         )}
         {behind && (
           <p className="banner banner-update mp-behind">
@@ -404,27 +486,36 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
           </>
         )}
 
-        {step === 2 && <MealsStage quickText={quickText} setQuickText={setQuickText} />}
+        {step === 2 && <MealsStage quickText={quickText} setQuickText={setQuickText} onChange={changeSetup} />}
 
         {step === 3 && <IngredientsStage basket={basket} onMeals={() => go(2)} />}
 
         {step === 4 && (
           <>
-            <div className="mp-toolbar">
-              <button type="button" className="secondary mini" disabled={!mp.canUndo} onClick={mp.undo}>Undo</button>
-              <button type="button" className="secondary mini" disabled={!mp.canRedo} onClick={mp.redo}>Redo</button>
-              <button type="button" className="mini" disabled={!trayCount} onClick={fill}>Fill empty slots</button>
-              <button type="button" className="secondary mini" disabled={!placedAny || mp.cookDays.status === 'checking'}
-                      onClick={mp.proposeCookDays}>Suggest cook days</button>
-              <label className="check mp-inline">
-                <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} />
-                hide empty rows
-              </label>
+            <div className="mp-tools" role="group" aria-label="Arrange the days">
+              <button type="button" className="btn btn-secondary btn-sm" disabled={!mp.canUndo} onClick={mp.undo}>
+                <Icon name="undo" size={16} />Undo
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={!mp.canRedo} onClick={mp.redo}>
+                <Icon name="redo" size={16} />Redo
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={!trayCount} onClick={fill}>
+                Fill empty slots
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm"
+                      disabled={!placedAny || mp.cookDays.status === 'checking'} onClick={mp.proposeCookDays}>
+                Suggest cook days
+              </button>
+              {/* a toggle: pressed, every slot switched on in Set up draws its row */}
+              <button type="button" className="btn btn-ghost btn-sm mp-tools-toggle" aria-pressed={showAll}
+                      onClick={() => setShowAll(!showAll)}>
+                <Icon name={showAll ? 'check' : 'list'} size={16} />Show all slots
+              </button>
             </div>
             {statusLine}
             {/* a sprint board: the recipes to place beside the calendar, both in view */}
             <div className="sched">
-              <RecipeTray ctl={ctl} emptyText="No meals yet: add some in Meals." />
+              <RecipeTray ctl={ctl} emptyText="No meals yet: add some in Pick meals." />
               <section className="sched-board" aria-label="Calendar">
                 <PeriodBand period={answer?.period_nutrition} coverage={answer?.coverage.nutrition}
                             onTargets={() => setTargetsOpen(true)}
@@ -432,7 +523,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
                 <CookDaysDiff />
                 {trayCount > 0 && !placedAny && (
                   <div className="mp-empty mp-empty-place">
-                    <button type="button" onClick={fill}>Fill empty slots for me</button>
+                    <button type="button" className="btn btn-primary" onClick={fill}>Fill empty slots for me</button>
                     <p className="muted">or drag a meal onto a day, or tap a meal then a slot</p>
                   </div>
                 )}
@@ -488,7 +579,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
         )}
       </section>
 
-      {!shop && <StageNav step={step} facts={facts} go={go} onBlocked={mp.announce} />}
+      {!shop && <StageNav step={step} facts={facts} go={go} say={mp.announce} hidden={held !== null} />}
 
       {(step === 4 || (step === 5 && !shopWaits)) && (
         <>
@@ -501,7 +592,8 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
                  onClose={() => { setTripSheet(null); setTripOptions(null); }} />
       <TargetsEditor open={targetsOpen} onClose={() => setTargetsOpen(false)} targets={d.nutrition_targets}
                      onSave={(t) => mp.dispatch({ type: 'setTargets', targets: t }).refused} />
-      <FirstRunSheet open={firstRun} onClose={() => setFirstRun(false)} onExample={() => {
+      {/* opened on arrival, it has no opener to give focus back to: the stage's heading takes it */}
+      <FirstRunSheet open={firstRun} returnFocus={heading} onClose={() => setFirstRun(false)} onExample={() => {
         setQuickText(EXAMPLE_SENTENCE);
         if (step === 2) window.setTimeout(() => document.getElementById('mp-quick-text')?.focus(), 0);
         else go(2, '#mp-quick-text');

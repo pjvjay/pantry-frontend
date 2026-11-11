@@ -3,9 +3,9 @@
 
    The primary navigation is a row under the header on a screen 900px or wider, and a bar fixed to
    the bottom of a narrower one. --bottom-nav-h is the bar's height (0 where there is no bar), and
-   everything fixed or sticky at the bottom of the page keeps clear of it: the meal plan's action
-   bar (.mp-bar), the Assistant's message box (.chat-input), the toasts and the page's own bottom
-   padding.
+   everything fixed or sticky at the bottom of the page keeps clear of it: the meal plan's Back and
+   Next (.mp-wnav) and its action bar (.mp-bar), the Assistant's message box (.chat-input), the
+   toasts and the page's own bottom padding.
 
    The scroll that brings a focused control into view keeps clear of all of them too. The bars that
    lie over the page report how far they reach into the screen from its top or bottom edge

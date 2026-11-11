@@ -560,9 +560,9 @@ export function CookDaysDiff() {
       )}
       <div className="mp-trip-actions">
         {proposal && proposal.ops.length > 0 && (
-          <button type="button" onClick={() => mp.applyCookDays()}>Apply</button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => mp.applyCookDays()}>Apply</button>
         )}
-        <button type="button" className="secondary" onClick={mp.dismissCookDays}>Dismiss</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={mp.dismissCookDays}>Dismiss</button>
       </div>
     </section>
   );

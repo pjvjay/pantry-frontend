@@ -1,12 +1,13 @@
 // Pure module: no React, DOM or import.meta.env, and sibling imports name their .ts file, so
 // node --test runs it as it is (tests/pure-modules.test.ts checks all of this).
 //
-// The wizard's Basics stage, decided without the browser: where the shopper is (an address
+// The wizard's Set up stage, decided without the browser: where the shopper is (an address
 // searched through the demo hub, the device's location, or one of the demo's Vancouver areas)
-// and the words around the search; the stores near it are chosen later, in Ingredients
+// and the words around the search; the stores near it are chosen later, in Check ingredients
 // (stores.ts). The point is what counts (lat, lon); the address only names it. With no point
 // the server's own reference point, downtown Vancouver, is used. Also here: the budget's quick
-// picks and daily figure, and the "Your plan" summary beside the form.
+// picks and daily figure, the "Your plan" summary beside the form, and the same answers as the
+// strip at the top of Pick meals (setupStrip).
 import { addDays, dayLabel } from './dates.ts';
 import { AVOID_LABELS, DIET_LABELS, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf } from './model.ts';
 import { originRules } from './wizard.ts';
@@ -125,7 +126,7 @@ export interface SummaryRow {
   note?: string;
 }
 
-// The "Your plan" card: each answer in Basics in a few words.
+// The "Your plan" card: each answer in Set up in a few words.
 export function planSummary(d: MealPlanDraft): SummaryRow[] {
   const budget = budgetOf(d.prefs);
   const avoid = avoidOf(d.prefs);
@@ -145,5 +146,45 @@ export function planSummary(d: MealPlanDraft): SummaryRow[] {
     { key: 'where', label: 'Where you are', value: placeText(st) },
     { key: 'days', label: 'Shop on', value: weekdaysText(d.prefs.shop_weekdays) },
     { key: 'meals', label: 'Meals', value: slots.join(', ') },
+  ];
+}
+
+// ─── The strip at the top of Pick meals ──────────────────────
+
+// Set up is optional, so Pick meals opens by restating what it holds, as GOV.UK's "check your
+// answers" does: each answer with a Change that goes back to its card in Set up. `change` finishes
+// "Change" for a screen reader, which hears the link out of the row it sits in ("Change the
+// budget"). `key` names the card: the view focuses it.
+export interface SetupItem {
+  key: 'when' | 'budget' | 'diet' | 'avoid' | 'where' | 'days';
+  label: string;
+  value: string;
+  note?: string;
+  change: string;
+}
+
+const weeksText = (days: number) => (days === 7 ? '1 week' : days === 14 ? '2 weeks' : `${days} days`);
+
+// A day that never breaks across lines ("Thu 12 Nov"), so a narrow cell wraps at the dash.
+const unbroken = (text: string) => text.replace(/ /g, '\u00a0');
+
+export function setupStrip(d: MealPlanDraft): SetupItem[] {
+  const budget = budgetOf(d.prefs);
+  const avoid = avoidOf(d.prefs);
+  const st = d.settings;
+  const off = st.stores_off?.length ?? 0;
+  return [
+    { key: 'when', label: 'When',
+      value: `${unbroken(dayLabel(d.start_date))} – ${unbroken(dayLabel(addDays(d.start_date, d.days - 1)))}`,
+      note: weeksText(d.days), change: 'the dates' },
+    { key: 'budget', label: 'Budget', value: budget === null ? 'No budget' : money(budget),
+      ...(budget === null ? {} : { note: perDayText(budget, d.days) }), change: 'the budget' },
+    { key: 'diet', label: 'Diet', value: DIET_LABELS[dietOf(d.prefs)], change: 'the diet' },
+    { key: 'avoid', label: 'Leave out', value: avoid.length ? avoid.map((t) => AVOID_LABELS[t]).join(', ') : 'Nothing',
+      change: 'what to leave out' },
+    { key: 'where', label: 'Where', value: placeText(st),
+      note: st.max_km == null ? 'stores at any distance' : `stores within ${st.max_km} km`, change: 'where you are' },
+    { key: 'days', label: 'Shop on', value: weekdaysText(d.prefs.shop_weekdays),
+      ...(off ? { note: `${off} ${off === 1 ? 'store' : 'stores'} turned off` } : {}), change: 'the shopping days' },
   ];
 }

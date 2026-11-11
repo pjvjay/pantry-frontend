@@ -21,7 +21,9 @@ export type IconName =
   // a service that is not there: the demo hub, unplugged
   | 'plug'
   // what a day's plan does: freeze, thaw, cook
-  | 'snowflake' | 'droplet' | 'pan';
+  | 'snowflake' | 'droplet' | 'pan'
+  // the meal plan's ways in and its board (phase 2)
+  | 'redo' | 'link' | 'clipboard';
 
 const PATHS: Record<IconName, ReactNode> = {
   calendar: <><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></>,
@@ -105,6 +107,11 @@ const PATHS: Record<IconName, ReactNode> = {
     <path d="M14.3 3.6L12 5.8 9.7 3.6M20.4 9.8l-3-.9.7-3.1M18.1 18.2l-.7-3.1 3-.9M9.7 20.4l2.3-2.2 2.3 2.2M3.6 14.2l3 .9-.7 3.1M5.9 5.8l.7 3.1-3 .9" /></>,
   droplet: <path d="M12 3.5s-6 6.6-6 10.8a6 6 0 0 0 12 0C18 10.1 12 3.5 12 3.5z" />,
   pan: <><circle cx="9.5" cy="12.5" r="6.5" /><circle cx="9.5" cy="12.5" r="2.2" /><path d="M16 12.5h5.5" /></>,
+
+  redo: <><path d="M15 14.5l4.5-4.5L15 5.5" /><path d="M19.5 10H10a5.5 5.5 0 0 0 0 11h3" /></>,
+  link: <><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2" /></>,
+  clipboard: <><rect x="5" y="4.5" width="14" height="16.5" rx="2.5" /><rect x="9" y="3" width="6" height="3.5" rx="1" />
+    <path d="M8.5 11h7M8.5 14.5h7M8.5 18h4" /></>,
 };
 
 // className adds to "ico": "ico-inline" sits the icon in a line of text, sized to the text.

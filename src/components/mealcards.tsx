@@ -1,12 +1,15 @@
-// The wizard's Meals stage: recipes to add, as cards in Breakfast, Lunch and Dinner sections
-// (Snack collapsed), from /mealplan/catalog for the household's diet, avoid-tags and area. A
-// card says the recipe's diet, what one more meal of it adds to the plan's cost, and what cannot
-// be bought nearby (and whether only the origin rule stops it); Add and the count stepper put
-// meals in the plan. A budget bar stays at the top while the page scrolls: the budget, the
-// estimated spend, what is left, and the slots filled. An Add that would pass the budget cannot
-// be pressed and says by how much; recipes that do not fit the diet are counted under "n hidden
-// by your diet". Quick add, Import a recipe and the shopper's own recipes stay below, as other
-// ways to add.
+// The wizard's Pick meals stage. It opens with the setup restated (SummaryStrip.tsx: each answer
+// with a Change back to Set up, which is optional) and three ways in: "Build a week for me" (the
+// week planner's dinners for the plan's days, as one edit with an Undo: useBuildWeek.ts), "From a
+// link" (recipe import) and "Paste a recipe" (Quick add, below). Then recipes to add, as cards
+// in Breakfast, Lunch and Dinner sections (Snack collapsed), from /mealplan/catalog for the
+// household's diet, avoid-tags and area. A card says the recipe's diet, what one more meal of it
+// adds to the plan's cost, and what cannot be bought nearby (and whether only the origin rule
+// stops it); Add and the count stepper put meals in the plan. A budget bar stays at the top while
+// the page scrolls: the budget, the estimated spend, what is left, and the slots filled. An Add
+// that would pass the budget cannot be pressed and says by how much; recipes that do not fit the
+// diet are counted under "n hidden by your diet". Quick add, Import a recipe and the shopper's
+// own recipes stay below, as other ways to add.
 //
 // The spend is the selection in whole packs, as trips buy it, so it is close to what Ingredients
 // and the Shopping plan show. The arithmetic is in mealplan/catalog.ts.
@@ -19,15 +22,21 @@ import {
 } from '../mealplan/catalog';
 import type { Pick, Spend } from '../mealplan/catalog';
 import { recipePicture } from '../mealplan/images';
+import type { SetupItem } from '../mealplan/basics';
 import { budgetOf, docRef, mealsOf, recipeTitle } from '../mealplan/model';
 import type { PlanEdit } from '../mealplan/model';
 import { addStop } from '../mealplan/room';
 import { useCatalog, useMealPlan } from '../mealplan/store';
+import { clockText } from '../mealplan/wizard';
 import type { CatalogRecipe } from '../types';
 import { ImportSheet } from './ImportSheet';
 import { AddRecipes, QuickAdd } from './mealtray';
 import { RecipePicture } from './pictures';
 import { Icon } from './icons';
+import { SetupStrip } from './SummaryStrip';
+import { Notice, Spinner } from './ui';
+import type { NoticeAction } from './ui';
+import { useBuildWeek } from './useBuildWeek';
 import { useKeepClear } from './useKeepClear';
 
 // ─── The budget bar ──────────────────────────────────────────
@@ -100,15 +109,15 @@ function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend
       <div className="mp-card-ctl">
         {inPlan ? (
           <span className="mp-stepper">
-            <button type="button" className="secondary mini btn-ico" aria-label={`One ${r.title} meal fewer`}
+            <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One ${r.title} meal fewer`}
                     disabled={inPlan.wanted <= 0}
-                    onClick={() => mp.dispatch({ type: 'setWanted', key: r.key, wanted: inPlan.wanted - 1 })}><Icon name="minus" size={14} /></button>
+                    onClick={() => mp.dispatch({ type: 'setWanted', key: r.key, wanted: inPlan.wanted - 1 })}><Icon name="minus" size={16} /></button>
             <output aria-label={`${r.title} meals`}>{meals}</output>
-            <button type="button" className="secondary mini btn-ico" aria-label={`One ${r.title} meal more`}
-                    data-more={r.key} {...addProps}><Icon name="plus" size={14} /></button>
+            <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One ${r.title} meal more`}
+                    data-more={r.key} {...addProps}><Icon name="plus" size={16} /></button>
           </span>
         ) : (
-          <button type="button" className="mini btn-ico" aria-label={`Add ${r.title}`} {...addProps}><Icon name="plus" size={14} />Add</button>
+          <button type="button" className="btn btn-primary btn-sm" aria-label={`Add ${r.title}`} {...addProps}><Icon name="plus" size={16} />Add</button>
         )}
         {(full || blocked) && (
           <span id={overId} className="mp-card-over">
@@ -132,9 +141,69 @@ function Hidden({ list }: { list: CatalogRecipe[] }) {
   );
 }
 
+// ─── The ways in ─────────────────────────────────────────────
+
+// Three ways to put meals in the plan, above the recipes: the week planner picks a week of
+// dinners (one press, one Undo), a recipe from a link, or Quick add for a pasted list of dishes.
+// While the week is being built its button says so, with how long it has taken, and cannot be
+// pressed again; if nothing could be added, a notice says why and points to the other ways.
+function WaysIn({ onLink, onPaste, onChange }: {
+  onLink: () => void;
+  onPaste: () => void;
+  onChange: (key: SetupItem['key']) => void;
+}) {
+  const mp = useMealPlan();
+  const week = useBuildWeek();
+  const about = useId();
+  const days = mp.state.draft.days;
+  const p = week.problem;
+  // after "Paste a recipe", the way on that fits why it failed
+  const second: NoticeAction | null = !p ? null
+    : p.code === 'budget_infeasible' ? { label: 'Change the budget', onClick: () => onChange('budget') }
+      : p.code === 'none_fit' ? { label: 'Change the diet', onClick: () => onChange('diet') }
+        : p.code === 'unreachable' ? { label: 'Try again', icon: 'refresh', onClick: week.build } : null;
+  return (
+    <section className="mp-ways" aria-label="Ways to add meals">
+      <div className="mp-ways-row">
+        <button type="button" className="btn btn-primary btn-lg mp-build" aria-describedby={about}
+                aria-disabled={week.running || undefined} onClick={week.build}>
+          {week.running ? (
+            <>
+              <Spinner size={18} />Building your week…
+              <span className="mp-build-clock" aria-hidden="true">{clockText(week.elapsed)}</span>
+            </>
+          ) : <><Icon name="sparkle" size={18} />Build a week for me</>}
+        </button>
+        <button type="button" className="btn btn-secondary btn-lg" aria-haspopup="dialog" onClick={onLink}>
+          <Icon name="link" size={18} />From a link
+        </button>
+        <button type="button" className="btn btn-secondary btn-lg" onClick={onPaste}>
+          <Icon name="clipboard" size={18} />Paste a recipe
+        </button>
+      </div>
+      <p id={about} className="mp-ways-about">
+        Dinners from the recipe library for your {days} days, within your budget and diet. One Undo takes them out again.
+      </p>
+      {week.note && <p className="mp-ways-note"><Icon name="info" size={16} />{week.note}</p>}
+      {p && (
+        <Notice tone="danger" title="Could not build a week" className="mp-ways-problem"
+                hint="Paste a recipe or a list of dishes instead, or add meals from the recipes below."
+                actions={[{ label: 'Paste a recipe', icon: 'clipboard', onClick: onPaste }, ...(second ? [second] : [])]}>
+          {p.text}
+        </Notice>
+      )}
+    </section>
+  );
+}
+
 // ─── The stage ───────────────────────────────────────────────
 
-export function MealsStage({ quickText, setQuickText }: { quickText: string; setQuickText: (t: string) => void }) {
+// onChange: a Change in the setup strip, which goes back to that answer in Set up.
+export function MealsStage({ quickText, setQuickText, onChange }: {
+  quickText: string;
+  setQuickText: (t: string) => void;
+  onChange: (key: SetupItem['key']) => void;
+}) {
   const mp = useMealPlan();
   const catalog = useCatalog(true);
   const [importing, setImporting] = useState(false);
@@ -166,8 +235,13 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
     if (left) mp.announce(`${out.said} ${left}`);
   };
 
+  // "Paste a recipe": Quick add, further down, takes the text; focusing it brings it into view.
+  const focusQuickAdd = () => document.getElementById('mp-quick-text')?.focus();
+
   return (
     <>
+      <SetupStrip onChange={onChange} />
+      <WaysIn onLink={() => setImporting(true)} onPaste={focusQuickAdd} onChange={onChange} />
       <BudgetBar spend={spend} pending={!c} />
       {c && spend.unknown.length > 0 && (
         <p className="muted">Not in the estimate (cost unknown): {spend.unknown.join(', ')}.</p>
@@ -176,7 +250,7 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
       {catalog.status === 'error' && (
         <div className="banner banner-error" role="alert">
           The recipes could not be loaded: {catalog.error}{' '}
-          <button type="button" className="mini" onClick={catalog.retry}>Try again</button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={catalog.retry}>Try again</button>
           <div className="banner-hint">The lists below still add recipes, without estimates.</div>
         </div>
       )}
@@ -227,15 +301,15 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
                 <li key={k}>
                   <span>{title} <span className="muted">· cost not estimated</span></span>
                   <span className="mp-stepper">
-                    <button type="button" className="secondary mini btn-ico" aria-label={`One ${title} meal fewer`}
+                    <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One ${title} meal fewer`}
                             disabled={r.wanted <= 0}
-                            onClick={() => mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted - 1 })}><Icon name="minus" size={14} /></button>
+                            onClick={() => mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted - 1 })}><Icon name="minus" size={16} /></button>
                     <output aria-label={`${title} meals`}>{mealsOf(mp.state.draft, k).length}</output>
-                    <button type="button" className="secondary mini btn-ico" aria-label={`One ${title} meal more`}
+                    <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One ${title} meal more`}
                             aria-disabled={full ? true : undefined} aria-describedby={full ? `mp-full-${k}` : undefined}
-                            onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted + 1 }); }}><Icon name="plus" size={14} /></button>
-                    <button type="button" className="linkish" aria-label={`Remove ${title} from the plan`}
-                            onClick={() => mp.dispatch({ type: 'removeRecipe', key: k })}>remove</button>
+                            onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted + 1 }); }}><Icon name="plus" size={16} /></button>
+                    <button type="button" className="btn btn-ghost btn-sm" aria-label={`Remove ${title} from the plan`}
+                            onClick={() => mp.dispatch({ type: 'removeRecipe', key: k })}>Remove</button>
                     {full && <span id={`mp-full-${k}`} className="mp-card-full">{full}.</span>}
                   </span>
                 </li>
@@ -249,7 +323,7 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
         <h3 id="mp-more-head" className="mp-section-head">Other ways to add</h3>
         <QuickAdd text={quickText} setText={setQuickText} />
         <div className="mp-toolbar mp-file">
-          <button type="button" className="secondary mini" aria-haspopup="dialog"
+          <button type="button" className="btn btn-secondary btn-sm" aria-haspopup="dialog"
                   onClick={() => setImporting(true)}>Import a recipe…</button>
         </div>
         {c ? (

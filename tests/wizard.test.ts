@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  STEPS, alliesText, alliesToAdd, furthest, gate, isPlanHash, moveCountry, nextBlock, originRules, originSettings,
-  routeStep, stepFromHash, stepHash, stepTitle, stepViews, wizardFacts,
+  STEPS, alliesText, alliesToAdd, clockText, furthest, gate, isOptional, isPlanHash, moveCountry, nextBlock,
+  originRules, originSettings, routeStep, stepCaption, stepFromHash, stepHash, stepViews, waitWords, wizardFacts,
 } from '../src/mealplan/wizard.ts';
 import { canonicalHash } from '../src/routes.ts';
 import { DEFAULT_ALLIES, DEFAULT_ORIGIN } from '../src/mealplan/model.ts';
@@ -18,11 +18,14 @@ const RICE = 'starter:chicken_fried_rice';
 // A plan that can go all the way: meals, products checked, nothing unanswered, a trip approved.
 const READY: WizardFacts = { meals: 3, checking: [], failed: [], basket: 'ok', unanswered: 0, approved: 1 };
 
-test('six stages, each with its own address under #/plan', () => {
+test('six stages, each named for what the shopper does there, with its own address under #/plan', () => {
   assert.deepEqual(STEPS.map((s) => s.name),
-    ['Basics', 'Meals', 'Ingredients', 'Schedule', 'Shopping plan', 'Calendar']);
+    ['Set up', 'Pick meals', 'Check ingredients', 'Place on days', 'Shop', 'Calendar']);
   assert.equal(stepHash(3), '#/plan?step=3');
-  assert.equal(stepTitle(5), 'Stage 5 of 6: Shopping plan');
+  // the heading is the name; the line over it says where it is, and that Set up can be skipped
+  assert.equal(stepCaption(5), 'Step 5 of 6');
+  assert.equal(stepCaption(1), 'Step 1 of 6 · optional');
+  assert.deepEqual(STEPS.filter((s) => isOptional(s.n)).map((s) => s.n), [1]);
   for (const { n } of STEPS) {
     assert.equal(stepFromHash(stepHash(n)), n);
     // a stage's address is already the shell's own: it is never rewritten
@@ -61,15 +64,18 @@ test('the old #/mealplan address still names its stage, before and after the she
   assert.ok(!isPlanHash('#/planner') && !isPlanHash('#/shop') && !isPlanHash('#/home') && !isPlanHash(''));
 });
 
-test('Meals needs a meal, Ingredients every product checked and answered, Calendar a trip', () => {
-  assert.equal(gate(1, { ...READY, meals: 0 }).state, 'ok', 'Basics needs nothing');
+test('Pick meals needs a meal, Check ingredients every product checked and answered, Calendar a trip', () => {
+  assert.equal(gate(1, { ...READY, meals: 0 }).state, 'ok', 'Set up needs nothing');
   assert.deepEqual(gate(2, { ...READY, meals: 0 }), { step: 2, state: 'blocked', text: 'Add at least one meal' });
   assert.deepEqual(gate(3, { ...READY, checking: ['Pepperoni Pizza'] }),
     { step: 3, state: 'pending', text: 'Checking the products for Pepperoni Pizza…' });
+  assert.equal(gate(3, { ...READY, checking: ['Dal', 'Pepperoni Pizza'] }).text,
+    'Checking the products for Dal and Pepperoni Pizza…');
+  assert.equal(gate(3, { ...READY, checking: ['A', 'B', 'C', 'D'] }).text, 'Checking the products for 4 recipes…');
   assert.equal(gate(3, { ...READY, basket: 'waiting' }).state, 'pending');
   assert.match(gate(3, { ...READY, basket: 'error' }).text, /could not be checked: try again/);
   assert.equal(gate(3, { ...READY, failed: ['Pepperoni Pizza', 'Dal'] }).text,
-    'The products for Pepperoni Pizza and Dal could not be checked: try again, or take them out in Meals');
+    'The products for Pepperoni Pizza and Dal could not be checked: try again, or take them out in Pick meals');
   assert.equal(gate(3, { ...READY, unanswered: 2 }).text,
     'Answer 2 ingredients the plan cannot buy nearby: another product, skip it, or other meals');
   assert.equal(gate(3, { ...READY, unanswered: 1 }).state, 'blocked');
@@ -80,9 +86,9 @@ test('Meals needs a meal, Ingredients every product checked and answered, Calend
 });
 
 test('Next is stopped by the first gate not passed up to the stage, a later edit included', () => {
-  assert.equal(nextBlock(1, { ...READY, meals: 0 }), null, 'Basics moves on with no meals');
+  assert.equal(nextBlock(1, { ...READY, meals: 0 }), null, 'Set up moves on with no meals');
   assert.equal(nextBlock(2, { ...READY, meals: 0 })?.text, 'Add at least one meal');
-  // on Schedule, after taking every meal out
+  // on Place on days, after taking every meal out
   assert.equal(nextBlock(4, { ...READY, meals: 0 })?.step, 2);
   assert.equal(nextBlock(3, { ...READY, basket: 'waiting' })?.state, 'pending');
   assert.equal(nextBlock(4, { ...READY, approved: 0 }), null);
@@ -99,8 +105,10 @@ test('a stage is reachable when no gate before it is blocked; pending ones do no
 });
 
 test('a stage opens where asked, else where the shopper was, else by the plan; never too far', () => {
-  assert.equal(routeStep(null, { ...READY, meals: 0 }, null, false), 1, 'a new plan starts at Basics');
-  assert.equal(routeStep(null, READY, null, true), 4, 'a plan with recipes opens on Schedule');
+  assert.equal(routeStep(null, { ...READY, meals: 0 }, null, false), 2,
+    'a new plan starts at Pick meals: Set up is optional');
+  assert.equal(routeStep(1, { ...READY, meals: 0 }, null, false), 1, 'Set up is still there when asked for');
+  assert.equal(routeStep(null, READY, null, true), 4, 'a plan with recipes opens on Place on days');
   assert.equal(routeStep(null, READY, 2, true), 2, 'back where the shopper was');
   assert.equal(routeStep(6, READY, 2, true), 6);
   assert.equal(routeStep(6, { ...READY, approved: 0 }, null, true), 5, 'no approved trip, no Calendar');
@@ -111,6 +119,7 @@ test('a stage opens where asked, else where the shopper was, else by the plan; n
 test('the progress indicator: done, current and ahead, and a done stage an edit has since undone', () => {
   const views = stepViews(4, { ...READY, approved: 0 });
   assert.deepEqual(views.map((v) => v.state), ['done', 'done', 'done', 'current', 'ahead', 'ahead']);
+  assert.deepEqual(views.map((v) => v.optional), [true, false, false, false, false, false]);
   assert.deepEqual(views.map((v) => v.reachable), [true, true, true, true, true, false]);
   assert.ok(views.every((v) => v.attention === null));
   const undone = stepViews(4, { ...READY, unanswered: 1 });
@@ -159,4 +168,16 @@ test('the allies reorder one place at a time, and a removed one can be added bac
   assert.deepEqual(moveCountry(list, 'Peru', 1), list);
   assert.deepEqual(alliesToAdd(DEFAULT_ALLIES.filter((c) => c !== 'Japan' && c !== 'Spain')), ['Spain', 'Japan']);
   assert.deepEqual(alliesToAdd(DEFAULT_ALLIES), []);
+});
+
+test('Next waiting on a pending gate says so in a few words, with the time it has waited', () => {
+  const checking = nextBlock(3, { ...READY, checking: ['Dal'] });
+  assert.equal(checking?.state, 'pending');
+  assert.equal(waitWords(checking!), 'Checking ingredients…');
+  assert.equal(waitWords(gate(3, { ...READY, basket: 'waiting' })), 'Checking ingredients…');
+  assert.equal(clockText(0), '0:00');
+  assert.equal(clockText(4.9), '0:04');
+  assert.equal(clockText(75), '1:15');
+  assert.equal(clockText(720), '12:00');
+  assert.equal(clockText(-3), '0:00');
 });

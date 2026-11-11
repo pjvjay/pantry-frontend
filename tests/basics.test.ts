@@ -1,11 +1,12 @@
-// The wizard's Basics: where the shopper is (an address, the device's location, a demo area),
-// the words around the search, the budget's figures and the "Your plan" summary.
+// The wizard's Set up: where the shopper is (an address, the device's location, a demo area),
+// the words around the search, the budget's figures, the "Your plan" summary and the strip that
+// restates it at the top of Pick meals.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
   AREAS, BUDGET_PICKS, CURRENT_LOCATION, PRIVACY_NOTE, areaOf, areaSettings, geocodeErrorText, locationErrorText,
-  locationSettings, perDayText, placeText, planSummary, refusalCode, searchProblem, weekdaysText,
+  locationSettings, perDayText, placeText, planSummary, refusalCode, searchProblem, setupStrip, weekdaysText,
 } from '../src/mealplan/basics.ts';
 import { sameArea, step } from '../src/mealplan/model.ts';
 import { add, planWith, run } from './helpers/mealplan.ts';
@@ -68,7 +69,7 @@ test('the hub\'s refusal code is read from {code, message} or from the code alon
   assert.equal(refusalCode(null), null);
 });
 
-test('"Your plan" sums Basics up in a few words', () => {
+test('"Your plan" sums Set up up in a few words', () => {
   let s = planWith(7);
   let rows = Object.fromEntries(planSummary(s.draft).map((r) => [r.key, r]));
   assert.deepEqual(rows.when, { key: 'when', label: 'When', value: 'Fri 9 Oct – Thu 15 Oct', note: '1 week' });
@@ -88,7 +89,7 @@ test('"Your plan" sums Basics up in a few words', () => {
   assert.equal(rows.diet.value, 'Vegan');
   assert.equal(rows.avoid.value, 'soy, nuts (peanuts and tree nuts)', 'an older plan\'s nuts reads as both');
   assert.equal(rows.origin.value, 'US products allowed');
-  assert.equal(rows.where.value, 'Kitsilano', 'the location only: stores are chosen in Ingredients');
+  assert.equal(rows.where.value, 'Kitsilano', 'the location only: stores are chosen in Check ingredients');
   assert.equal(rows.days.value, 'Weekends');
   assert.equal(rows.meals.value, 'Dinner');
 });
@@ -99,4 +100,34 @@ test('the budget\'s quick picks and its figure a day; shop days in words', () =>
   assert.equal(weekdaysText([0, 1, 2, 3, 4]), 'Weekdays');
   assert.equal(weekdaysText([5, 0, 2]), 'Mon, Wed and Sat');
   assert.equal(weekdaysText([3]), 'Thu');
+});
+
+test('Pick meals restates Set up: each answer, and what its Change says to a screen reader', () => {
+  let s = planWith(7);
+  let items = setupStrip(s.draft);
+  assert.deepEqual(items.map((x) => x.key), ['when', 'budget', 'diet', 'avoid', 'where', 'days']);
+  assert.deepEqual(items.map((x) => [x.label, x.value, x.note ?? null]), [
+    // each day kept on one line, so a narrow cell wraps at the dash
+    ['When', 'Fri\u00a09\u00a0Oct – Thu\u00a015\u00a0Oct', '1 week'],
+    ['Budget', 'No budget', null],
+    ['Diet', 'Anything', null],
+    ['Leave out', 'Nothing', null],
+    ['Where', 'Downtown Vancouver', 'stores within 5 km'],
+    ['Shop on', 'Every day', null],
+  ]);
+  assert.deepEqual(items.map((x) => x.change), ['the dates', 'the budget', 'the diet', 'what to leave out',
+    'where you are', 'the shopping days']);
+  s = run(s, { type: 'setPrefs', prefs: { budget: 90, diet: 'vegetarian', avoid: ['peanuts', 'sesame'], shop_weekdays: [5, 6] } },
+    { type: 'setSettings', settings: { ...areaSettings(AREAS[1]), max_km: null, stores_off: [3, 7] } },
+    { type: 'setWindow', start_date: s.draft.start_date, days: 14 });
+  items = setupStrip(s.draft);
+  const by = Object.fromEntries(items.map((x) => [x.key, x]));
+  assert.deepEqual([by.when.value.replace(/\u00a0/g, ' '), by.when.note], ['Fri 9 Oct – Thu 22 Oct', '2 weeks']);
+  assert.deepEqual([by.budget.value, by.budget.note], ['$90.00', 'about $6.43 a day']);
+  assert.equal(by.diet.value, 'Vegetarian');
+  assert.equal(by.avoid.value, 'peanuts, sesame');
+  assert.deepEqual([by.where.value, by.where.note], ['Kitsilano', 'stores at any distance']);
+  assert.deepEqual([by.days.value, by.days.note], ['Weekends', '2 stores turned off']);
+  assert.equal(setupStrip(run(s, { type: 'setSettings', settings: { stores_off: [3] } }).draft)[5].note,
+    '1 store turned off');
 });

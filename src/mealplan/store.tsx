@@ -18,7 +18,8 @@
 // - My recipes: read from pantry.recipes.v1, and the recipes recipe import sent with "Add to
 //   meal plan" (pantry.mealplan.inbox.v1) join the tray, on load, when another tab saves, and
 //   when the Meal plan view opens (syncSaved; a save in this same page fires no storage event).
-// - Announcements: one polite live region, rendered here, for every edit and refusal.
+// - Announcements: one polite live region, rendered here, for every edit and refusal, except an
+//   edit dispatched quiet, which its caller says in a toast with an Undo (one place, not two).
 // - The wizard's catalog, basket and stores (useCatalog, useBasket, useStores): asked from the
 //   view that shows them, only while it does, whenever what they depend on changes (300 ms after the last
 //   change), and kept for that request: a stage opened again shows its answer with no call.
@@ -72,9 +73,15 @@ export interface ProposalView {
   error: string | null;
 }
 
+// quiet: the caller says what happened itself (a toast whose Undo takes the edit back), so the
+// live region does not say it a second time.
+export interface DispatchOptions {
+  quiet?: boolean;
+}
+
 export interface MealPlanApi {
   state: MealPlanState;
-  dispatch: (e: PlanEdit) => Outcome;
+  dispatch: (e: PlanEdit, opts?: DispatchOptions) => Outcome;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -168,14 +175,14 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
     setHistory(next);
   }, []);
 
-  const dispatch = useCallback((e: PlanEdit): Outcome => {
+  const dispatch = useCallback((e: PlanEdit, opts?: DispatchOptions): Outcome => {
     const { history: next, outcome } = historyStep(historyRef.current, e);
     if (next !== historyRef.current) {
       if (recorded(e)) holdSave.current = false;
       commit(next);
     }
     const text = outcome.refused ? `Not done: ${outcome.refused}.` : outcome.said;
-    if (text) announce(text);
+    if (text && !opts?.quiet) announce(text);
     return outcome;
   }, [announce, commit]);
 

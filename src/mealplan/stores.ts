@@ -1,7 +1,7 @@
 // Pure module: no React, DOM or import.meta.env, and sibling imports name their .ts file, so
 // node --test runs it as it is (tests/pure-modules.test.ts checks all of this).
 //
-// The Ingredients stage's "Your stores": how far the shopper goes from where they are (Basics),
+// Check ingredients' "Your stores": how far the shopper goes from where they are (Set up),
 // and the stores near them from /mealplan/stores, nearest first, each with its distance, how
 // many of the plan's products it sells, and whether the shopper turned it off. The distance
 // decides which products are in range (a change checks the products again); a store turned off
@@ -47,7 +47,7 @@ export function storesView(a: MealStores, st: PlanSettings): StoresView {
     const within = st.max_km == null ? 'at any distance' : `within ${distanceLabel(st.max_km)}`;
     const nearest = farther[0] ? ` The nearest is ${farther[0].name}, ${kmText(farther[0].distance_km)} away.` : '';
     warning = `No store ${within} of ${placeText(st)}. The demo's stores are all in Vancouver: choose a longer `
-      + `distance, or a Vancouver area in Basics.${nearest}`;
+      + `distance, or a Vancouver area in Set up.${nearest}`;
   } else if (!on) {
     warning = 'Every store in range is turned off, so the plan can buy nothing: turn one back on.';
   }
