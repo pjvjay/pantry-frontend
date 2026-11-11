@@ -262,12 +262,12 @@ function OriginCard() {
             {/* aria-disabled, not disabled: at either end the button keeps focus after a move */}
             <button type="button" className="cchip-btn" aria-label={`Move ${c} earlier`}
                     aria-disabled={i === 0 || undefined}
-                    onClick={() => i > 0 && save({ ...r, allies: moveCountry(r.allies, c, -1) })}>‹</button>
+                    onClick={() => i > 0 && save({ ...r, allies: moveCountry(r.allies, c, -1) })}><Icon name="chevron-left" size={16} /></button>
             <button type="button" className="cchip-btn" aria-label={`Move ${c} later`}
                     aria-disabled={i === r.allies.length - 1 || undefined}
-                    onClick={() => i < r.allies.length - 1 && save({ ...r, allies: moveCountry(r.allies, c, 1) })}>›</button>
+                    onClick={() => i < r.allies.length - 1 && save({ ...r, allies: moveCountry(r.allies, c, 1) })}><Icon name="chevron-right" size={16} /></button>
             <button type="button" className="cchip-btn" aria-label={`Take ${c} off the list`}
-                    onClick={() => save({ ...r, allies: r.allies.filter((x) => x !== c) })}>×</button>
+                    onClick={() => save({ ...r, allies: r.allies.filter((x) => x !== c) })}><Icon name="x" size={14} /></button>
           </li>
         ))}
         {!r.allies.length && <li className="muted">No other countries.</li>}

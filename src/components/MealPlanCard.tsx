@@ -12,6 +12,7 @@ import { dayLabel } from '../mealplan/dates';
 import { useMealPlan } from '../mealplan/store';
 import { stepHash } from '../mealplan/wizard';
 import type { PlanCardData } from '../types';
+import { Icon } from './icons';
 
 const SLOT_SHORT: Record<string, string> = { breakfast: 'B', lunch: 'L', dinner: 'D', snack: 'S' };
 
@@ -36,7 +37,7 @@ function Strip({ plan }: { plan: ChatMealPlan }) {
                 </span>
               ))}
             </span>
-            {d.trip && <span className="mpc-trip" aria-hidden="true" title={`Suggested trip: ${tripText(d.trip)}`}>🛒</span>}
+            {d.trip && <span className="mpc-trip" aria-hidden="true" title={`Suggested trip: ${tripText(d.trip)}`}><Icon name="cart" size={14} /></span>}
           </li>
         );
       })}

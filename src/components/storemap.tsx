@@ -104,9 +104,9 @@ export function StoreMap({ origin, stores, maxKm, hot, onHot, onPick }: {
         )}
         <div className="smap-zoom">
           <button type="button" aria-label="Zoom in" disabled={!view || view.zoom >= MAX_ZOOM}
-                  onClick={() => setZoomed({ key: fitKey, by: by + 1 })}>+</button>
+                  onClick={() => setZoomed({ key: fitKey, by: by + 1 })}><Icon name="plus" size={16} /></button>
           <button type="button" aria-label="Zoom out" disabled={!view || view.zoom <= MIN_ZOOM}
-                  onClick={() => setZoomed({ key: fitKey, by: by - 1 })}>−</button>
+                  onClick={() => setZoomed({ key: fitKey, by: by - 1 })}><Icon name="minus" size={16} /></button>
           <button type="button" aria-label="Show every store" title="Show every store" disabled={by === 0}
                   onClick={() => setZoomed({ key: fitKey, by: 0 })}><Icon name="locate" size={16} /></button>
         </div>

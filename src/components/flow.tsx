@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { ingredientImage, remoteImage } from '../hub';
 import type { Evals, PlanConfidence, Span, Trace } from '../types';
+import { Icon } from './icons';
 
 const pct = (v: number | null | undefined) => (v == null ? '–' : `${Math.round(v * 100)}%`);
 export const dur = (ms: number | null | undefined) => {
@@ -85,13 +86,14 @@ export function EvalCard({ evals, traceId }: { evals: Evals; traceId?: string })
       <div className="eval-head">
         <ConfidenceBadge value={evals.answer_confidence} label="answer confidence" />
         <span className="muted">{evals.passed} of {evals.total} checks passed</span>
-        {traceId && <a href={`#/metrics?trace=${traceId}`} title="Everything recorded about this run, from every system">run details ↗</a>}
+        {traceId && <a href={`#/metrics?trace=${traceId}`} title="Everything recorded about this run, from every system">run details<Icon name="arrow-right" className="ico-inline ico-end" /></a>}
       </div>
       <div className="eval-checks">
         {evals.checks.map((c) => (
           <span key={c.name} className={`eval-check ${c.passed ? 'eval-pass' : 'eval-fail'}`}
                 title={c.detail || (c.passed ? 'passed' : 'failed')}>
-            {c.passed ? '✓' : '✗'} {c.name.replace(/_/g, ' ')}
+            <Icon name={c.passed ? 'check' : 'x'} className="ico-inline" />
+            <span className="sr-only">{c.passed ? 'passed: ' : 'failed: '}</span>{c.name.replace(/_/g, ' ')}
           </span>
         ))}
       </div>

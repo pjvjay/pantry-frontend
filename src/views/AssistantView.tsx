@@ -23,6 +23,7 @@ import type {
   AgentEvent, AgentOptions, CartLine, CartSummary, Evals, LlmCallTrace, PlanCardData, RecipeDoc,
   RecipeImportEvent, SwapResult,
 } from '../types';
+import { Icon } from '../components/icons';
 
 const SUGGESTIONS = [
   'I want to make https://omnivorescookbook.com/mala-chicken/ this week. What should I buy at stores within 5 km of downtown, what does it cost, and what won’t I find?',
@@ -180,7 +181,10 @@ function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
     <>
     <details className={`toolcard toolcard-${state}`}>
       <summary>
-        <span className="toolcard-icon">{state === 'running' ? '⋯' : state === 'error' ? '✗' : '✓'}</span>
+        <span className="toolcard-icon">
+          <Icon name={state === 'running' ? 'circle-dashed' : state === 'error' ? 'circle-x' : 'circle-check'} size={16} />
+          <span className="sr-only">{state === 'running' ? 'running: ' : state === 'error' ? 'failed: ' : 'done: '}</span>
+        </span>
         <code className="toolcard-name">{item.name}</code>
         {item.byHub && <span className="chip chip-muted">called by the hub</span>}
         <span className="toolcard-args">{JSON.stringify(item.arguments).slice(0, 140)}</span>
@@ -368,7 +372,9 @@ export default function AssistantView({ routes = NO_ROUTES }: { routes?: readonl
 
   useEffect(() => {
     if (keepScroll.current) { keepScroll.current = false; return; }
-    bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    // With reduced motion the transcript jumps to the newest line instead of gliding to it.
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    bottom.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'end' });
   }, [items]);
 
   // A local model starts reading its instructions as soon as it is chosen: by the time the

@@ -9,6 +9,7 @@ import { useId } from 'react';
 
 import { LAST_STEP, nextBlock, stepHash, stepName, stepViews } from '../mealplan/wizard';
 import type { StepNo, WizardFacts } from '../mealplan/wizard';
+import { Icon } from './icons';
 
 export function Stepper({ step, facts }: { step: StepNo; facts: WizardFacts }) {
   const views = stepViews(step, facts);
@@ -19,7 +20,9 @@ export function Stepper({ step, facts }: { step: StepNo; facts: WizardFacts }) {
           const waits = v.reachable ? null : nextBlock((v.n - 1) as StepNo, facts)?.text ?? null;
           const said = v.attention ? `, needs attention: ${v.attention}`
             : v.state === 'done' ? ', done' : waits ? `, not yet: ${waits}` : '';
-          const mark = v.state === 'done' ? (v.attention ? '!' : '✓') : String(v.n);
+          const mark = v.state === 'done'
+            ? <Icon name={v.attention ? 'exclaim' : 'check'} size={16} strokeWidth={2.6} />
+            : String(v.n);
           const body = (
             <>
               <span className="mp-step-mark" aria-hidden="true">{mark}</span>
@@ -60,15 +63,15 @@ export function StageNav({ step, facts, go, onBlocked }: {
   return (
     <div className="mp-wnav">
       {step > 1 && (
-        <button type="button" className="secondary" onClick={() => go(back)}>
-          <span aria-hidden="true">← </span>Back: {stepName(back)}
+        <button type="button" className="secondary btn-ico" onClick={() => go(back)}>
+          <Icon name="arrow-left" size={16} />Back: {stepName(back)}
         </button>
       )}
       {step < LAST_STEP && (
-        <button type="button" className="mp-wnav-next" aria-disabled={block ? true : undefined}
+        <button type="button" className="mp-wnav-next btn-ico" aria-disabled={block ? true : undefined}
                 aria-describedby={block ? why : undefined}
                 onClick={() => (block ? onBlocked(`Not yet: ${block.text}.`) : go(next))}>
-          Next: {stepName(next)}<span aria-hidden="true"> →</span>
+          Next: {stepName(next)}<Icon name="arrow-right" size={16} />
         </button>
       )}
       {block && (

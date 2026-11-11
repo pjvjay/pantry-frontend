@@ -69,7 +69,7 @@ function Line({ l, title, onOptions, onMeals, onStores }: { l: LineView; title: 
       </span>
       <span className="mp-ing-side">
         {l.available && <span className="mp-ing-price">{l.price}</span>}
-        <span className="mp-ing-go" aria-hidden="true">Options ›</span>
+        <span className="mp-ing-go" aria-hidden="true">Options<Icon name="chevron-right" size={14} /></span>
       </span>
     </>
   );

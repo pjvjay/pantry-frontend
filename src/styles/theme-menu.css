@@ -1,0 +1,38 @@
+/* The theme menu (components/ThemeMenu.tsx): three radios drawn as one segmented control. The real
+   input lies transparent over each face, so a click, a tap, the keyboard and a screen reader all
+   reach it. The chosen face is raised and edged, with its icon in the accent: more than a colour
+   says which one is on. On a phone the words hide (they stay for screen readers). */
+.theme-menu {
+  display: inline-flex; gap: 2px; min-width: 0; margin: 0; padding: 3px;
+  border: 1px solid var(--border-ui); border-radius: var(--radius-pill); background: var(--surface-2);
+}
+.theme-opt { position: relative; display: block; }
+.theme-opt input {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer;
+}
+.theme-face {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px;
+  padding: 0 10px; border-radius: var(--radius-pill); color: var(--muted); font-size: 13px; font-weight: 600;
+  transition: background-color var(--dur-1) var(--ease-standard), color var(--dur-1) var(--ease-standard),
+    box-shadow var(--dur-1) var(--ease-standard);
+}
+.theme-opt:hover .theme-face { color: var(--text); }
+.theme-opt input:checked + .theme-face {
+  background: var(--panel); color: var(--text); box-shadow: var(--shadow-1), inset 0 0 0 1px var(--border-ui);
+}
+.theme-opt input:checked + .theme-face .ico { color: var(--accent); }
+.theme-opt input:focus-visible + .theme-face { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .theme-word {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .theme-face { padding: 0 8px; }
+}
+@media (pointer: coarse) {
+  .theme-face { min-width: 44px; min-height: 44px; }
+}
+@media (forced-colors: active) {
+  .theme-opt input:checked + .theme-face { outline: 2px solid Highlight; outline-offset: -2px; }
+}

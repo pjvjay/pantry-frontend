@@ -27,6 +27,7 @@ import type { CatalogRecipe } from '../types';
 import { ImportSheet } from './ImportSheet';
 import { AddRecipes, QuickAdd } from './mealtray';
 import { RecipePicture } from './pictures';
+import { Icon } from './icons';
 
 // ─── The budget bar ──────────────────────────────────────────
 
@@ -42,7 +43,7 @@ function BudgetBar({ spend, pending }: { spend: Spend; pending: boolean }) {
       <dl className="mp-budget-figures">
         <div><dt>Budget</dt><dd>{t.budget}</dd></div>
         <div><dt>Estimated</dt><dd>{t.spent}</dd></div>
-        <div><dt>Remaining</dt><dd className={over ? 'cart-flag' : undefined}>{over && <span aria-hidden="true">⚠ </span>}{t.remaining}</dd></div>
+        <div><dt>Remaining</dt><dd className={over ? 'cart-flag' : undefined}>{over && <Icon name="alert" className="ico-inline" />}{t.remaining}</dd></div>
         <div><dt>Slots</dt><dd>{t.slots}</dd></div>
       </dl>
       {bar.budget !== null && (
@@ -95,15 +96,15 @@ function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend
       <div className="mp-card-ctl">
         {inPlan ? (
           <span className="mp-stepper">
-            <button type="button" className="secondary mini" aria-label={`One ${r.title} meal fewer`}
+            <button type="button" className="secondary mini btn-ico" aria-label={`One ${r.title} meal fewer`}
                     disabled={inPlan.wanted <= 0}
-                    onClick={() => mp.dispatch({ type: 'setWanted', key: r.key, wanted: inPlan.wanted - 1 })}>−</button>
+                    onClick={() => mp.dispatch({ type: 'setWanted', key: r.key, wanted: inPlan.wanted - 1 })}><Icon name="minus" size={14} /></button>
             <output aria-label={`${r.title} meals`}>{meals}</output>
-            <button type="button" className="secondary mini" aria-label={`One ${r.title} meal more`}
-                    data-more={r.key} {...addProps}>+</button>
+            <button type="button" className="secondary mini btn-ico" aria-label={`One ${r.title} meal more`}
+                    data-more={r.key} {...addProps}><Icon name="plus" size={14} /></button>
           </span>
         ) : (
-          <button type="button" className="mini" aria-label={`Add ${r.title}`} {...addProps}>+ Add</button>
+          <button type="button" className="mini btn-ico" aria-label={`Add ${r.title}`} {...addProps}><Icon name="plus" size={14} />Add</button>
         )}
         {(full || blocked) && (
           <span id={overId} className="mp-card-over">
@@ -133,7 +134,7 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
   const mp = useMealPlan();
   const catalog = useCatalog(true);
   const [importing, setImporting] = useState(false);
-  // An Add turns the card's button into a count: focus goes to its "+", not the page.
+  // An Add turns the card's button into a count: focus goes to its plus ("one meal more"), not the page.
   const [focusMore, setFocusMore] = useState<{ key: string } | null>(null);
   useEffect(() => {
     if (focusMore) document.querySelector<HTMLElement>(`[data-more="${CSS.escape(focusMore.key)}"]`)?.focus();
@@ -222,13 +223,13 @@ export function MealsStage({ quickText, setQuickText }: { quickText: string; set
                 <li key={k}>
                   <span>{title} <span className="muted">· cost not estimated</span></span>
                   <span className="mp-stepper">
-                    <button type="button" className="secondary mini" aria-label={`One ${title} meal fewer`}
+                    <button type="button" className="secondary mini btn-ico" aria-label={`One ${title} meal fewer`}
                             disabled={r.wanted <= 0}
-                            onClick={() => mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted - 1 })}>−</button>
+                            onClick={() => mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted - 1 })}><Icon name="minus" size={14} /></button>
                     <output aria-label={`${title} meals`}>{mealsOf(mp.state.draft, k).length}</output>
-                    <button type="button" className="secondary mini" aria-label={`One ${title} meal more`}
+                    <button type="button" className="secondary mini btn-ico" aria-label={`One ${title} meal more`}
                             aria-disabled={full ? true : undefined} aria-describedby={full ? `mp-full-${k}` : undefined}
-                            onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted + 1 }); }}>+</button>
+                            onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: k, wanted: r.wanted + 1 }); }}><Icon name="plus" size={14} /></button>
                     <button type="button" className="linkish" aria-label={`Remove ${title} from the plan`}
                             onClick={() => mp.dispatch({ type: 'removeRecipe', key: k })}>remove</button>
                     {full && <span id={`mp-full-${k}`} className="mp-card-full">{full}.</span>}

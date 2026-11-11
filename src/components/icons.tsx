@@ -1,11 +1,25 @@
-// The meal plan's small line icons: 24-unit strokes in currentColor, so they take the text's
-// colour in light and dark alike. Always beside words, never instead of them: aria-hidden.
+// The console's small line icons: 24-unit strokes in currentColor, so they take the text's colour
+// in light and dark alike, and render the same on every system (an emoji or a symbol character
+// does not). Decorative by default (aria-hidden): an icon sits beside words that say the same, or
+// inside a control whose aria-label does. Where an icon stands alone for a state, pair it with
+// words for screen readers (a .sr-only span) or a label.
 import type { ReactNode } from 'react';
 
 export type IconName =
   | 'calendar' | 'wallet' | 'plate' | 'fish' | 'sprout' | 'leaf' | 'ban' | 'globe' | 'pin' | 'cart'
   | 'utensils' | 'clock' | 'bell' | 'search' | 'locate' | 'store' | 'check' | 'sparkle' | 'list' | 'cup' | 'bowl'
-  | 'apple' | 'alert' | 'map';
+  | 'apple' | 'alert' | 'map'
+  // the shell and its places
+  | 'home' | 'plan' | 'bag' | 'chat' | 'wrench' | 'settings' | 'user'
+  // the theme menu
+  | 'sun' | 'moon' | 'monitor'
+  // directions and actions
+  | 'chevron-left' | 'chevron-right' | 'chevron-down' | 'arrow-left' | 'arrow-right' | 'x' | 'plus' | 'minus'
+  | 'undo' | 'refresh' | 'copy' | 'printer' | 'external' | 'more' | 'grip' | 'play' | 'stop'
+  // states and marks
+  | 'info' | 'circle-check' | 'circle-dashed' | 'circle-x' | 'dot' | 'exclaim' | 'star' | 'pushpin'
+  // what a day's plan does: freeze, thaw, cook
+  | 'snowflake' | 'droplet' | 'pan';
 
 const PATHS: Record<IconName, ReactNode> = {
   calendar: <><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></>,
@@ -38,12 +52,65 @@ const PATHS: Record<IconName, ReactNode> = {
     <path d="M12 8c0-2.2.9-3.8 2.8-4.8" /></>,
   alert: <><path d="M10.3 4.4a2 2 0 0 1 3.4 0l7.4 12.8a2 2 0 0 1-1.7 3H4.6a2 2 0 0 1-1.7-3z" /><path d="M12 9.5v4.2M12 16.8h.01" /></>,
   map: <><path d="M3.5 6.5l5.5-2.5 6 2.5 5.5-2.5v13.5L15 20l-6-2.5-5.5 2.5z" /><path d="M9 4v13.5M15 6.5V20" /></>,
+
+  home: <><path d="M3.5 11L12 4l8.5 7" /><path d="M5.5 9.5V20h13V9.5" /><path d="M10 20v-5.5h4V20" /></>,
+  plan: <><rect x="4.5" y="4.5" width="15" height="16.5" rx="2.5" /><rect x="9" y="3" width="6" height="3.5" rx="1" />
+    <path d="M8.5 12.5l2 2 4.5-4.5M8.5 17.5h7" /></>,
+  bag: <><path d="M5.5 8h13l-.9 11.2a1.5 1.5 0 0 1-1.5 1.3H7.9a1.5 1.5 0 0 1-1.5-1.3z" /><path d="M9 10V7a3 3 0 0 1 6 0v3" /></>,
+  chat: <path d="M4.5 6.5A2.5 2.5 0 0 1 7 4h10a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 17 16h-6l-4.5 4v-4H7a2.5 2.5 0 0 1-2.5-2.5z" />,
+  wrench: <path d="M17.1 4.5A5 5 0 0 0 10.5 11.2L5.7 16a1.6 1.6 0 0 0 2.3 2.3l4.8-4.8A5 5 0 0 0 19.5 6.9L17 9.4l-2.4-2.4z" />,
+  settings: <><path d="M10 5.3l.6-2.4h2.8l.6 2.4 1.3.5 2.1-1.2 2 2-1.2 2.1.5 1.3 2.4.6v2.8l-2.4.6-.5 1.3 1.2 2.1-2 2-2.1-1.2-1.3.5-.6 2.4h-2.8l-.6-2.4-1.3-.5-2.1 1.2-2-2 1.2-2.1-.5-1.3-2.4-.6v-2.8l2.4-.6.5-1.3-1.2-2.1 2-2 2.1 1.2z" />
+    <circle cx="12" cy="12" r="3" /></>,
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" /></>,
+
+  sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" /></>,
+  moon: <path d="M19.5 14.5A8 8 0 1 1 9.5 4.5a6.5 6.5 0 0 0 10 10z" />,
+  monitor: <><rect x="3" y="4.5" width="18" height="12" rx="2" /><path d="M8.5 20.5h7M12 16.5v4" /></>,
+
+  'chevron-left': <path d="M14.5 6l-6 6 6 6" />,
+  'chevron-right': <path d="M9.5 6l6 6-6 6" />,
+  'chevron-down': <path d="M6 9.5l6 6 6-6" />,
+  'arrow-left': <path d="M19.5 12h-15M10.5 6l-6 6 6 6" />,
+  'arrow-right': <path d="M4.5 12h15M13.5 6l6 6-6 6" />,
+  x: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
+  undo: <><path d="M9 14.5L4.5 10 9 5.5" /><path d="M4.5 10H14a5.5 5.5 0 0 1 0 11h-3" /></>,
+  refresh: <><path d="M20 11.5A8 8 0 0 0 5.6 7" /><path d="M4 12.5A8 8 0 0 0 18.4 17" /><path d="M5 3v4h4M19 21v-4h-4" /></>,
+  copy: <><rect x="8.5" y="8.5" width="12" height="12" rx="2" /><path d="M15.5 8.5v-3a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3" /></>,
+  printer: <><path d="M7 9V3.5h10V9" /><rect x="3.5" y="9" width="17" height="8" rx="2" /><path d="M7 14.5h10V21H7z" /></>,
+  external: <><path d="M13.5 4.5h6v6M19.5 4.5L11 13" /><path d="M17.5 13.5v4a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h4" /></>,
+  more: <><circle cx="5.5" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+    <circle cx="18.5" cy="12" r="1.6" fill="currentColor" stroke="none" /></>,
+  grip: <><circle cx="9" cy="6" r="1.5" fill="currentColor" stroke="none" /><circle cx="15" cy="6" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="9" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="15" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="9" cy="18" r="1.5" fill="currentColor" stroke="none" /><circle cx="15" cy="18" r="1.5" fill="currentColor" stroke="none" /></>,
+  play: <path d="M8 5.5v13l10.5-6.5z" />,
+  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2" />,
+
+  info: <><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.8h.01" /></>,
+  'circle-check': <><circle cx="12" cy="12" r="8.5" /><path d="M8.2 12.3l2.6 2.6 5-5.2" /></>,
+  'circle-dashed': <circle cx="12" cy="12" r="8.5" strokeDasharray="3.3 3.38" />,
+  'circle-x': <><circle cx="12" cy="12" r="8.5" /><path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6" /></>,
+  dot: <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />,
+  exclaim: <path d="M12 5.5v8.5M12 18.5h.01" />,
+  star: <path d="M12 3.8l2.5 5.2 5.7.8-4.1 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4.1-4 5.7-.8z" />,
+  pushpin: <><path d="M9 3.5h6l-1 5.5 3 3.5H7l3-3.5z" /><path d="M12 12.5V21" /></>,
+
+  snowflake: <><path d="M12 3v18M19.8 7.5L4.2 16.5M19.8 16.5L4.2 7.5" />
+    <path d="M14.3 3.6L12 5.8 9.7 3.6M20.4 9.8l-3-.9.7-3.1M18.1 18.2l-.7-3.1 3-.9M9.7 20.4l2.3-2.2 2.3 2.2M3.6 14.2l3 .9-.7 3.1M5.9 5.8l.7 3.1-3 .9" /></>,
+  droplet: <path d="M12 3.5s-6 6.6-6 10.8a6 6 0 0 0 12 0C18 10.1 12 3.5 12 3.5z" />,
+  pan: <><circle cx="9.5" cy="12.5" r="6.5" /><circle cx="9.5" cy="12.5" r="2.2" /><path d="M16 12.5h5.5" /></>,
 };
 
-export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+// className adds to "ico": "ico-inline" sits the icon in a line of text, sized to the text.
+export function Icon({ name, size = 20, strokeWidth = 1.8, className }: {
+  name: IconName; size?: number; strokeWidth?: number; className?: string;
+}) {
   return (
-    <svg className="ico" viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
-         strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <svg className={className ? `ico ${className}` : 'ico'} viewBox="0 0 24 24" width={size} height={size}
+         fill="none" stroke="currentColor"
+         strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
       {PATHS[name]}
     </svg>
   );

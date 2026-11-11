@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ErrorBanner, JsonView } from '../components/common';
 import { getProducts, pantryTool } from '../hub';
 import type { Product } from '../types';
+import { Icon } from '../components/icons';
 
 interface Offer { store: string; price: number; distance_km: number }
 interface Evidence {
@@ -179,7 +180,10 @@ export default function CatalogView({ onLabel }: { onLabel: (productId: number) 
                   ))}
                 </ul>
               )}
-              <p className="muted">{detail.review_count} reviews{detail.avg_rating != null && ` · ★ ${detail.avg_rating.toFixed(1)}`}</p>
+              <p className="muted">
+                {detail.review_count} reviews
+                {detail.avg_rating != null && <> · <Icon name="star" className="ico-inline" /><span className="sr-only">rated </span>{detail.avg_rating.toFixed(1)}</>}
+              </p>
               <button onClick={() => onLabel(detail.id)}>Submit a label reading…</button>
               <JsonView value={detail} label="raw get_product result" />
             </>

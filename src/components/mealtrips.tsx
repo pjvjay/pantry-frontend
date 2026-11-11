@@ -27,6 +27,9 @@ import { CartCard, copyText } from './cart';
 import { SourceCredits } from './nutrition';
 import { Sheet } from './Sheet';
 import { TripLineOptionsDialog } from './tripoptions';
+import { Icon } from './icons';
+import type { IconName } from './icons';
+import { TripMark } from './mealcal';
 
 const counts = (c: WarningCounts) =>
   [c.must_fix && `${c.must_fix} must fix`, c.should_fix && `${c.should_fix} should fix`, c.decide && `${c.decide} to decide`,
@@ -76,20 +79,20 @@ function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Tr
           {ln.store && <span className="muted"> at {ln.store}</span>}
         </span>
         {/* The chat cart's Options dialog, for this purchase (components/tripoptions.tsx). */}
-        <button type="button" className="secondary mini mp-line-options" aria-haspopup="dialog"
+        <button type="button" className="secondary mini btn-ico mp-line-options" aria-haspopup="dialog"
                 aria-label={tripOptionsLabel(ln)} data-trip-line={tripLineKey(trip.date, ln.product.id)}
-                onClick={() => onOptions(ln)}>Options ›</button>
+                onClick={() => onOptions(ln)}>Options<Icon name="chevron-right" size={14} /></button>
       </div>
       <div className="muted">{forMealsText(ln)}</div>
       <div className="mp-line-ctl">
         <span className="mp-stepper">
-          <button type="button" className="secondary mini" aria-label={`One pack fewer of ${ln.product.name}`}
+          <button type="button" className="secondary mini btn-ico" aria-label={`One pack fewer of ${ln.product.name}`}
                   disabled={ln.packs === null || ln.packs <= 1}
-                  onClick={() => setPacks(Math.max(1, (ln.packs ?? 1) - 1))}>−</button>
+                  onClick={() => setPacks(Math.max(1, (ln.packs ?? 1) - 1))}><Icon name="minus" size={14} /></button>
           <span className={ln.packs === null ? 'cart-flag' : undefined}>{packsText(ln)}</span>
-          <button type="button" className="secondary mini" aria-label={`One pack more of ${ln.product.name}`}
+          <button type="button" className="secondary mini btn-ico" aria-label={`One pack more of ${ln.product.name}`}
                   disabled={(ln.packs ?? 0) >= MAX_PACKS}
-                  onClick={() => setPacks(Math.min(MAX_PACKS, (ln.packs ?? 0) + 1))}>+</button>
+                  onClick={() => setPacks(Math.min(MAX_PACKS, (ln.packs ?? 0) + 1))}><Icon name="plus" size={14} /></button>
           {yours && <button type="button" className="linkish" onClick={() => setPacks(null)}>use the computed count</button>}
         </span>
         {need && <span className="muted">{need}</span>}
@@ -194,7 +197,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
              )}
            </>}>
       <p className={`mp-trip-status mp-trip-${look.kind}`}>
-        {look.mark && <span aria-hidden="true">{look.mark} </span>}{look.word}
+        <TripMark kind={look.kind} />{look.word}
         {look.kind === 'approved' && <span className="muted"> · code will not rewrite this list</span>}
       </p>
       {elsewhere && (
@@ -296,7 +299,7 @@ export function WarningsPanel({ schedule, onAsk }: {
     <div className="mp-warnings">
       {groups.map(([level, rows]) => (
         <details key={level} open={level !== 'note'} className={`mp-warn-group mp-warn-${level}`}>
-          <summary>{level === 'must_fix' ? '⚠ ' : ''}{LEVEL_NAMES[level]} ({rows.length})</summary>
+          <summary>{level === 'must_fix' && <Icon name="alert" className="ico-inline" />}{LEVEL_NAMES[level]} ({rows.length})</summary>
           <ul>
             {rows.map(({ warning: w, text, products, count }, i) => (
               <li key={`${w.code}-${i}`}>
@@ -377,7 +380,8 @@ function MoveTo({ date }: { date: string }) {
   );
 }
 
-const KIND_MARK: Record<PlanAction['kind'], string> = { shop: '🛒', freeze: '❄', thaw: '↘', cook: '🍳' };
+// A sign for each kind of action, beside the words that say it: shop, freeze, thaw, cook.
+const KIND_ICON: Record<PlanAction['kind'], IconName> = { shop: 'cart', freeze: 'snowflake', thaw: 'droplet', cook: 'pan' };
 
 export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; onOpenTrip: (date: string) => void }) {
   const mp = useMealPlan();
@@ -457,7 +461,7 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
         {elsewhereOnly.map((a) => (
           <li key={`approved-${a.date}`} className="mp-trip-card mp-trip-elsewhere">
             <div>
-              <strong>{dayLabel(a.date)}</strong> · <span aria-hidden="true">✓ </span>Approved under {STRATEGY_NAMES[a.strategy]}
+              <strong>{dayLabel(a.date)}</strong> · <Icon name="check" className="ico-inline" />Approved under {STRATEGY_NAMES[a.strategy]}
             </div>
             <div className="muted">{STRATEGY_NAMES[strategy]} buys nothing on this day.</div>
             <div className="mp-trip-actions">
@@ -497,7 +501,7 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
                 <ul>
                   {acts.map((a, i) => (
                     <li key={i}>
-                      <span aria-hidden="true">{KIND_MARK[a.kind]} </span>{a.text}
+                      <Icon name={KIND_ICON[a.kind]} className="ico-inline" />{a.text}
                       {a.basis === 'cited' && <span className="muted"> · cited ({a.rule_ids.join(', ')})</span>}
                       {a.basis === 'your_setting' && <span className="muted"> · your setting</span>}
                     </li>

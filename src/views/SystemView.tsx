@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ErrorBanner, JsonView, StatusDot } from '../components/common';
 import { getRuntime, getStatus, setRuntime } from '../hub';
 import type { HubStatus, RuntimeSettings } from '../types';
+import { Icon } from '../components/icons';
 
 const MODEL_ROLES: [string, string][] = [
   ['nl2sql', 'recipe parser'],
@@ -102,7 +103,7 @@ export default function SystemView() {
               {s.runtime && <div className="muted">planner LLM: {s.runtime.demo_mode ? 'demo mode' : s.runtime.models.selector_default}</div>}
               <div className="service-links">
                 {Object.entries(s.links ?? {}).map(([label, href]) => (
-                  <a key={label} href={href} target="_blank" rel="noreferrer">{label} ↗</a>
+                  <a key={label} href={href} target="_blank" rel="noreferrer">{label}<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>
                 ))}
               </div>
             </div>

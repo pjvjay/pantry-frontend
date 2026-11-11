@@ -35,6 +35,8 @@ import { DayNutritionLine, MealEnergy, RecipeNutrition } from './nutrition';
 import { RecipePicture } from './pictures';
 import { Sheet } from './Sheet';
 import type { DragView } from './usePointerDrag';
+import { Icon } from './icons';
+import type { TripLook } from '../mealplan/board';
 
 // Everything the board needs from the view that owns the plan and the gesture.
 export interface BoardCtl {
@@ -159,6 +161,14 @@ export function ShopRow({ ctl, date, trip, keyMove = false }: { ctl: BoardCtl; d
   );
 }
 
+// The sign beside a trip's state word (tripLook in mealplan/board.ts), so the state is never said
+// by colour alone: a tick when approved (here or under the other strategy), a warning when it has
+// changed since; a suggested trip has none.
+export function TripMark({ kind }: { kind: TripLook['kind'] }) {
+  if (kind === 'suggested') return null;
+  return <Icon name={kind === 'review' ? 'alert' : 'check'} className="ico-inline" />;
+}
+
 export function TripChip({ ctl, trip, keyMove = false }: { ctl: BoardCtl; trip: Trip; keyMove?: boolean }) {
   const elsewhere = approvedElsewhere(ctl.state.draft, trip.date, ctl.strategy);
   const look = tripLook(trip, elsewhere);
@@ -171,7 +181,7 @@ export function TripChip({ ctl, trip, keyMove = false }: { ctl: BoardCtl; trip: 
       {movable && <span className="mp-grip" aria-hidden="true" title="Drag to another day's Shop row" {...ctl.grip(payload)} />}
       <button type="button" className="mp-trip-main" onClick={() => ctl.openTrip(trip)}
               aria-label={`Shopping trip ${dayLabel(trip.date)}: ${tripChipText(trip, elsewhere)}. Open the list.`}>
-        <span className="mp-trip-word">{look.mark && <span aria-hidden="true">{look.mark} </span>}{look.word}</span>
+        <span className="mp-trip-word"><TripMark kind={look.kind} />{look.word}</span>
         <span className="mp-trip-cost">
           {costText(trip.total_cost, trip.total_is_floor, tripPriced(trip), '≥ ')} · {trip.lines.length}
           {trip.lines.length === 1 ? ' item' : ' items'}
@@ -262,14 +272,14 @@ export function MealChip({ ctl, meal, inTray = false }: { ctl: BoardCtl; meal: M
                 + `. ${held ? 'Picked up: choose a slot, or Escape' : 'Pick up to move'}`}>
         <span className="mp-chip-title">{t}</span>
         <span className="mp-chip-meta">
-          {risk && <span className="mp-mark-warn" aria-hidden="true" title="A freshness problem: see Must fix">⚠</span>}
-          {meal.pinned && meal.date && <span aria-hidden="true" title="Pinned: Suggest cook days leaves it">📌</span>}
+          {risk && <span className="mp-mark-warn" aria-hidden="true" title="A freshness problem: see Must fix"><Icon name="alert" size={13} /></span>}
+          {meal.pinned && meal.date && <span aria-hidden="true" title="Pinned: Suggest cook days leaves it"><Icon name="pushpin" size={13} /></span>}
           {servings && <span>{servings.slice(3)}</span>}
         </span>
       </button>
       <span className="mp-chip-nut"><MealEnergy n={n} /></span>
       <button type="button" className="mp-chip-more" onClick={() => ctl.openMeal(meal.id)}
-              aria-label={`More for ${t}: move, servings, nutrition`}>⋯</button>
+              aria-label={`More for ${t}: move, servings, nutrition`}><Icon name="more" size={18} /></button>
     </div>
   );
 }
@@ -368,7 +378,7 @@ export function MoveSheet({ ctl, mealId, onClose }: {
                     onClick={() => go({ type: 'place', mealId: meal.id, date: c.date, slot: c.slot,
                       swapWith: c.swapWith ?? undefined })}>
               <span className="mp-move-slot">
-                {c.consequence.level === 'warn' && <span aria-hidden="true">⚠ </span>}
+                {c.consequence.level === 'warn' && <Icon name="alert" className="ico-inline" />}
                 {SLOT_LABELS[c.slot]}{c.swapWith && !c.blocked ? ' (swap)' : ''}
               </span>
               <span className="mp-move-why" title={c.consequence.lines.join(' ')}>

@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { cartLineKey, isPinned, lineNotes, optionsLabel } from '../alternatives';
 import type { CartLine, CartSummary, LeftOut } from '../types';
 import { IngredientImage } from './flow';
+import { Icon } from './icons';
 
 // What a swap button does: put a request in the message box, for the shopper to send or edit.
 export const AskContext = createContext<(text: string) => void>(() => {});
@@ -167,7 +168,7 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
               aria-disabled={actions.busy || undefined}
               onClick={() => { if (!actions.busy) actions.open(cardRef, l, mine); }}>
         {body}
-        <span className="cart-item-more" aria-hidden="true">Options ›</span>
+        <span className="cart-item-more" aria-hidden="true">Options<Icon name="chevron-right" size={14} /></span>
       </button>
     );
   };
@@ -191,7 +192,7 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
       </div>
       {originAsked && share != null && (
         <div className={`cart-origin ${summary.origin_status === 'verified' ? 'cart-origin-ok' : 'cart-origin-warn'}`}>
-          {summary.origin_status === 'verified' ? '✓ ' : ''}Origin checked for {Math.round(share * 100)}% of what you spend
+          {summary.origin_status === 'verified' && <><Icon name="check" className="ico-inline" /><span className="sr-only">Verified: </span></>}Origin checked for {Math.round(share * 100)}% of what you spend
         </div>
       )}
 

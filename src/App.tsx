@@ -1,6 +1,8 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { getHealth } from './api';
 import { getRuntime } from './hub';
+import { Icon } from './components/icons';
+import { ThemeMenu } from './components/ThemeMenu';
 import { MealPlanProvider } from './mealplan/store';
 import type { Health, RuntimeSettings } from './types';
 import AssistantView from './views/AssistantView';
@@ -123,13 +125,16 @@ export default function App() {
     <div className="app">
       <header>
         <div>
-          <h1>🥫 Pantry Planner</h1>
+          <h1 className="wordmark"><Icon name="cart" size={28} />Pantry Planner</h1>
           <p className="tagline">
             Agentic grocery planning over MCP —{' '}
             <a href="https://github.com/pjvjay/pantry-platform" target="_blank" rel="noreferrer">how this runs</a>
           </p>
         </div>
-        <HealthChips health={health} runtime={runtime} />
+        <div className="header-tools">
+          <HealthChips health={health} runtime={runtime} />
+          <ThemeMenu />
+        </div>
       </header>
       <nav className="tabs">
         {TABS.map((t) => (

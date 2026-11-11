@@ -1,0 +1,236 @@
+/* Pantry Planner's design tokens: every colour, type role, space, radius, shadow and duration the
+   console uses is named here once, and the rest of the CSS refers to these names, never to a raw
+   value. Imported before index.css (main.tsx), so every rule can use them.
+
+   The theme has three states. With nothing saved the page follows the system's light or dark
+   setting; the theme menu sets <html data-theme="light"> or "dark" (saved in localStorage as
+   pantry.theme.v1), and a chosen theme wins over the system's. So the dark set is written twice:
+   once under the system's dark preference unless the shopper chose light, once for a chosen dark.
+   Any other rule that differs by theme follows the same pattern, or the menu cannot switch it.
+
+   Contrast is decided here, not checked later: tests/tokens-contrast.test.ts reads this file and
+   fails when a documented pair falls under its WCAG ratio, in either set. Words (--text, --muted,
+   --warn, --accent-soft-fg, --danger-fg, --on-accent, links in --accent) need 4.5:1 on the
+   surfaces they sit on; edges the shopper must see (--border-ui, --line-strong, the --accent focus
+   ring) need 3:1 against --panel and --bg. */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces: warm paper; --popover is one step lighter, for what floats over the page. */
+  --bg: #f6f3ee;
+  --panel: #fffdf9;
+  --surface-2: #efeae2;
+  --popover: #ffffff;
+
+  /* Words. --faint is decorative only (a placeholder's icon, a rule): never the only carrier of
+     something the shopper has to read. */
+  --text: #221f1a;
+  --muted: #5f5a52;
+  --faint: #8a847a;
+
+  /* Lines, in three strengths. --border divides and edges cards, faint on purpose (1.2:1);
+     --border-ui is the edge of a control (inputs, tiles, secondary buttons), the one thing that
+     says a field is there, so it holds 3:1; --line-strong marks what must stand out, such as a
+     drop zone or the selected row. */
+  --border: #e6e0d6;
+  --border-ui: #928a7f;
+  --line-strong: #6f685d;
+
+  /* The accent, kept from the first console. Text in the accent on --accent-soft is 4.4:1, under
+     AA for small words, so a tag or chip on --accent-soft writes in --accent-soft-fg. */
+  --accent: #0d7d62;
+  --accent-hover: #0a6a53;
+  --accent-soft: #e3f3ec;
+  --accent-soft-fg: #0a5f4a;
+  --on-accent: #ffffff;
+  --accent-ring: rgb(13 125 98 / 0.22);
+  --focus: var(--accent);
+
+  /* Status roles: a colour per meaning, always with a word or a sign beside it. */
+  --success: #0d7d62;
+  --success-soft: #e3f3ec;
+  --warn: #9a4b00;
+  --warn-soft: #fbf0e2;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+  --danger-fg: #8e1a12;
+  --on-danger: #ffffff;
+  --info: #1d4ed8;
+  --info-soft: #eaf0fd;
+  /* the old names, for the rules not yet moved */
+  --error-bg: var(--danger-soft);
+  --error-text: var(--danger-fg);
+
+  /* The models' colours, for the Workshop's traces and charts only. */
+  --haiku: #0e7490;
+  --haiku-soft: #ecfeff;
+  --sonnet: #6d28d9;
+  --sonnet-soft: #f5f3ff;
+  --gemini: #1d4ed8;
+  --gemini-soft: #eff6ff;
+
+  /* The stores map. Its tiles are drawn light in either theme, so the white rings and shadows
+     that lift a marker off them stay the same in dark. */
+  --map-you: #2563eb;
+  --map-off: #8a847a;
+  --map-ring: #ffffff;
+  --map-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+
+  /* Fixed pieces: a switch's knob, and the scrim under words laid over a photo. */
+  --knob: #ffffff;
+  --knob-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  --scrim: rgb(0 0 0 / 0.6);
+  --on-scrim: #ffffff;
+
+  /* Type. The body is the system's own face; the display face (Fraunces, from Google Fonts in
+     index.html) is for the page and section headings and the wordmark only. Without it, Georgia
+     takes its place: delete the stylesheet link in index.html to turn it off.
+     Each role is a whole `font` value: `font: var(--type-title)`. The shorthand also resets
+     font-variant-numeric, so a rule that needs tabular figures sets them after it. */
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --type-label: 600 12px/16px var(--font-body);      /* with .label: uppercase, tracked, muted */
+  --type-compact: 400 13px/18px var(--font-body);    /* tables, meta lines, tool summaries */
+  --type-body: 400 15px/22px var(--font-body);
+  --type-title: 600 17px/24px var(--font-body);      /* card, panel and sheet titles */
+  --type-section: 600 22px/28px var(--font-display); /* section and stage headings */
+  --type-page: 600 30px/36px var(--font-display);    /* the page's one heading, the wordmark */
+  --label-tracking: 0.04em;
+
+  /* Space: a 4px ladder. Card padding 16, panel padding 20; gaps 8, 12 or 16; sections 24 or 32. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+
+  /* Shape. A radius nested inside padding is the outer radius minus the padding. */
+  --radius-1: 6px;     /* inputs, tags, chips */
+  --radius-2: 10px;    /* buttons, list rows, tool cards */
+  --radius-3: 14px;    /* cards and panels */
+  --radius-4: 20px;    /* sheets and the hero */
+  --radius-pill: 999px;
+  --radius: var(--radius-2);
+  --radius-lg: var(--radius-3);
+
+  /* Elevation. --shadow-1 lifts a card at rest, in light only; --shadow-2 is for what floats
+     over the page: sheets, toasts, the drag ghost, the action bar. */
+  --shadow-1: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.07);
+  --shadow-2: 0 6px 20px rgb(16 24 40 / 0.09);
+
+  /* Motion. Short for small things (hover, focus, a tick), longer for what moves across the
+     screen; things arrive on --ease-out, leave faster on --ease-in, and change in place on
+     --ease-standard. Every transition and animation uses these, so reduced motion (below) is one
+     swap. --dur-progress is a progress bar keeping time with its one-second clock. */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --dur-exit: 160ms;
+  --dur-progress: 1s;
+  --ease-out: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-in: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease: var(--ease-standard);
+}
+
+/* Dark: elevation by lightening (bg < panel < surface-2 < popover), warm rather than blue. The
+   accent is light here, so the words on it are dark. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #15130f;
+    --panel: #1e1b16;
+    --surface-2: #27231d;
+    --popover: #2f2a23;
+    --text: #ede8df;
+    --muted: #a8a194;
+    --faint: #7a7367;
+    --border: #332e26;
+    --border-ui: #746d61;
+    --line-strong: #8a8275;
+    --accent: #34d399;
+    --accent-hover: #5ee0b0;
+    --accent-soft: #12261f;
+    --accent-soft-fg: #6ee7b7;
+    --on-accent: #0b1f17;
+    --accent-ring: rgb(52 211 153 / 0.28);
+    --success: #34d399;
+    --success-soft: #12261f;
+    --warn: #fbbf24;
+    --warn-soft: #332710;
+    --danger: #f97066;
+    --danger-soft: #3a1a18;
+    --danger-fg: #fca5a5;
+    --on-danger: #2a0b08;
+    --info: #93c5fd;
+    --info-soft: #172033;
+    --haiku: #22d3ee;
+    --haiku-soft: #0e2a30;
+    --sonnet: #a78bfa;
+    --sonnet-soft: #221a33;
+    --gemini: #93c5fd;
+    --gemini-soft: #172033;
+    --map-you: #60a5fa;
+    --map-off: #7a7367;
+    --shadow-1: none;
+    --shadow-2: 0 8px 24px rgb(0 0 0 / 0.45);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #15130f;
+  --panel: #1e1b16;
+  --surface-2: #27231d;
+  --popover: #2f2a23;
+  --text: #ede8df;
+  --muted: #a8a194;
+  --faint: #7a7367;
+  --border: #332e26;
+  --border-ui: #746d61;
+  --line-strong: #8a8275;
+  --accent: #34d399;
+  --accent-hover: #5ee0b0;
+  --accent-soft: #12261f;
+  --accent-soft-fg: #6ee7b7;
+  --on-accent: #0b1f17;
+  --accent-ring: rgb(52 211 153 / 0.28);
+  --success: #34d399;
+  --success-soft: #12261f;
+  --warn: #fbbf24;
+  --warn-soft: #332710;
+  --danger: #f97066;
+  --danger-soft: #3a1a18;
+  --danger-fg: #fca5a5;
+  --on-danger: #2a0b08;
+  --info: #93c5fd;
+  --info-soft: #172033;
+  --haiku: #22d3ee;
+  --haiku-soft: #0e2a30;
+  --sonnet: #a78bfa;
+  --sonnet-soft: #221a33;
+  --gemini: #93c5fd;
+  --gemini-soft: #172033;
+  --map-you: #60a5fa;
+  --map-off: #7a7367;
+  --shadow-1: none;
+  --shadow-2: 0 8px 24px rgb(0 0 0 / 0.45);
+}
+
+/* Reduced motion: every duration is zero, so nothing slides or fades; changes simply appear.
+   A looping animation must also stop here by name (animation: none), since a zero-length loop
+   would flicker. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0ms;
+    --dur-2: 0ms;
+    --dur-3: 0ms;
+    --dur-exit: 0ms;
+    --dur-progress: 0ms;
+  }
+}

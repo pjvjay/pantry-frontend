@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBanner, JsonView, StatusDot } from '../components/common';
 import Markdown from '../components/Markdown';
 import { simCancel, simJob, simPresets, simRun, simScenario, simScenarios, simStart, simTranscript } from '../hub';
+import { Icon } from '../components/icons';
 
 type Rec = Record<string, unknown>;
 const str = (v: unknown) => (v == null ? '' : String(v));
@@ -28,12 +29,12 @@ function TranscriptView({ events }: { events: Rec[] }) {
           return <div key={i} className="bubble bubble-agent"><Markdown text={str(e.text)} /></div>;
         }
         if (kind === 'tool_call') {
-          return <div key={i} className="sim-event"><code>→ {str(e.name)}</code> <span className="muted">{JSON.stringify(e.arguments).slice(0, 160)}</span></div>;
+          return <div key={i} className="sim-event"><code><Icon name="arrow-right" className="ico-inline" /><span className="sr-only">call </span>{str(e.name)}</code> <span className="muted">{JSON.stringify(e.arguments).slice(0, 160)}</span></div>;
         }
         if (kind === 'tool_result') {
           return (
             <div key={i} className={`sim-event ${e.is_error ? 'sim-error' : ''}`}>
-              <code>← {str(e.name)}</code> <span className="muted">{e.is_error ? 'error' : 'ok'} · {num(e.ms)} ms</span>
+              <code><Icon name="arrow-left" className="ico-inline" /><span className="sr-only">result of </span>{str(e.name)}</code> <span className="muted">{e.is_error ? 'error' : 'ok'} · {num(e.ms)} ms</span>
               <JsonView value={e.structured ?? e.text} label="result" />
             </div>
           );
@@ -78,7 +79,7 @@ function VerdictView({ verdict }: { verdict: Verdict }) {
       <ul className="checklist">
         {verdict.checklist.map((c, i) => (
           <li key={i} className={c.passed ? 'ok' : 'bad'}>
-            <span>{c.passed ? '✓' : '✗'}</span> {c.item}
+            <span><Icon name={c.passed ? 'check' : 'x'} className="ico-inline" /><span className="sr-only">{c.passed ? 'passed:' : 'failed:'}</span></span> {c.item}
             <div className="muted">{c.evidence}</div>
           </li>
         ))}
@@ -94,7 +95,7 @@ function VerdictView({ verdict }: { verdict: Verdict }) {
                   <td><code>{m.path}</code></td><td>{m.op}</td>
                   <td className="muted">{JSON.stringify(m.expected)}</td>
                   <td className="muted">{JSON.stringify(m.actual).slice(0, 80)}</td>
-                  <td>{m.passed ? '✓' : '✗'}</td>
+                  <td><Icon name={m.passed ? 'check' : 'x'} size={16} /><span className="sr-only">{m.passed ? 'passed' : 'failed'}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -166,7 +167,7 @@ function ScenarioDetail({ name, runnerUrl, refreshKey }: { name: string; runnerU
       <ErrorBanner error={error} />
       <div className="plan-header">
         <h2>{str(sc.title) || name}</h2>
-        {last && <a href={`${runnerUrl}/#/${name}/${str(last.run_id)}`} target="_blank" rel="noreferrer">open in the runner ↗</a>}
+        {last && <a href={`${runnerUrl}/#/${name}/${str(last.run_id)}`} target="_blank" rel="noreferrer">open in the runner<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>}
       </div>
       <p className="card-sub">{str(sc.category)} · {name}</p>
       {Boolean(sc.goal) && <p><strong>Goal:</strong> {str(sc.goal)}</p>}
@@ -296,7 +297,7 @@ export default function SimulationsView() {
               </select>
             </label>
             <button className="secondary" onClick={() => void start('all')} disabled={Boolean(running)}>Run all</button>
-            {runnerUrl && <a href={runnerUrl} target="_blank" rel="noreferrer">runner UI ↗</a>}
+            {runnerUrl && <a href={runnerUrl} target="_blank" rel="noreferrer">runner UI<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>}
           </div>
         </div>
         <p className="card-sub">

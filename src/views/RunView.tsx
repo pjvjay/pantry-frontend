@@ -4,6 +4,7 @@ import { EvalCard, Reasoning, Waterfall, dur, modelSegments } from '../component
 import Markdown from '../components/Markdown';
 import { runDetail } from '../hub';
 import type { BurrRun, GatewayTrace, RunDetail, Span } from '../types';
+import { Icon } from '../components/icons';
 
 // One Assistant run as every system saw it, on one page and one clock:
 //   the hub's trace: the turn, the observers, each model step (tokens, cache, queued, reading,
@@ -145,7 +146,7 @@ function BurrCard({ b, toolStart }: { b: BurrRun; toolStart: number }) {
     <div className="run-card">
       <div className="run-card-head">
         <strong>pantry (Burr)</strong> <code>{b.app_id}</code>{' '}
-        <a href={b.ui_url} target="_blank" rel="noreferrer">open in the Burr UI ↗</a>
+        <a href={b.ui_url} target="_blank" rel="noreferrer">open in the Burr UI<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>
       </div>
       {b.note && <p className="muted">{b.note}</p>}
       {b.steps.length > 0 && (
@@ -266,7 +267,7 @@ export default function RunView({ id, onClose }: { id: string; onClose: () => vo
         <div className="plan-header">
           <h2>Run {t.id}</h2>
           <div className="row-gap">
-            <a className="secondary-link" href={`/hub/runs/${encodeURIComponent(t.id)}`} target="_blank" rel="noreferrer">JSON ↗</a>
+            <a className="secondary-link" href={`/hub/runs/${encodeURIComponent(t.id)}`} target="_blank" rel="noreferrer">JSON<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span></a>
             <button type="button" className="secondary" onClick={onClose}>Back to metrics</button>
           </div>
         </div>

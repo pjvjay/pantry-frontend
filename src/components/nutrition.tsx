@@ -14,6 +14,7 @@ import type {
   ScheduleSource,
 } from '../types';
 import { Sheet } from './Sheet';
+import { Icon } from './icons';
 
 export function DemoBadge() {
   return <span className="nut-badge" title={DEMO_TITLE}>demo amounts</span>;
@@ -66,7 +67,7 @@ export function DayNutritionLine({ day, coverage, targets }: {
       {line.chip && <span className="muted"> · {line.status}</span>}
       {verdicts.map((v) => (
         <div key={v.key} className={v.level === 'warn' ? 'nut-target-warn' : 'muted'}>
-          {v.level === 'warn' ? '⚠ ' : ''}{v.text}
+          {v.level === 'warn' && <><Icon name="alert" className="ico-inline" /><span className="sr-only">Warning: </span></>}{v.text}
         </div>
       ))}
     </div>

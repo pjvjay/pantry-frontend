@@ -42,7 +42,7 @@ function QuickChip({ item, index, household, onDecide }: {
   return (
     <li className={`mp-qchip mp-qchip-${item.state}${item.decision === 'reject' ? ' mp-qchip-off' : ''}`}>
       <div>
-        {using && <span aria-hidden="true">✓ </span>}
+        {using && <Icon name="check" className="ico-inline" />}
         {chipText(item, household)}
         {using && <span className="muted"> · {countLine(item.count, household)}</span>}
         {!item.countStated && item.state !== 'unmatched' && <span className="muted"> · no count given, so 1</span>}
@@ -213,17 +213,17 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
           </span>
         </div>
         <button type="button" className="mp-recipe-remove" aria-label={`Remove ${row.title} from the plan`}
-                title="Remove from the plan" onClick={() => mp.dispatch({ type: 'removeRecipe', key: row.key })}>×</button>
+                title="Remove from the plan" onClick={() => mp.dispatch({ type: 'removeRecipe', key: row.key })}><Icon name="x" size={16} /></button>
       </div>
       <div className="mp-recipe-ctl">
         <span className="mp-stepper">
-          <button type="button" className="secondary mini" aria-label={`One ${row.title} meal fewer`}
+          <button type="button" className="secondary mini btn-ico" aria-label={`One ${row.title} meal fewer`}
                   disabled={row.wanted <= 0}
-                  onClick={() => mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted - 1 })}>−</button>
+                  onClick={() => mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted - 1 })}><Icon name="minus" size={14} /></button>
           <output aria-label={`${row.title} meals`}>{row.wanted}</output>
-          <button type="button" className="secondary mini" aria-label={`One ${row.title} meal more`}
+          <button type="button" className="secondary mini btn-ico" aria-label={`One ${row.title} meal more`}
                   aria-disabled={full ? true : undefined} aria-describedby={full ? `mp-full-${row.key}` : undefined}
-                  onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted + 1 }); }}>+</button>
+                  onClick={() => { if (!full) mp.dispatch({ type: 'setWanted', key: row.key, wanted: row.wanted + 1 }); }}><Icon name="plus" size={14} /></button>
         </span>
         <label className="mp-inline">
           as
@@ -284,9 +284,9 @@ export function AddRecipes() {
   }, []);
   const inPlan = (key: string) => Boolean(d.recipes[key]);
   const addButton = (key: string, onAdd: () => void, name: string) => (
-    <button type="button" className="secondary mini" disabled={inPlan(key)} onClick={onAdd}
+    <button type="button" className="secondary mini btn-ico" disabled={inPlan(key)} onClick={onAdd}
             aria-label={inPlan(key) ? `${name} is in the plan` : `Add ${name}`}>
-      {inPlan(key) ? 'in the plan' : '+ Add'}
+      {inPlan(key) ? 'in the plan' : <><Icon name="plus" size={14} />Add</>}
     </button>
   );
   return (
@@ -389,7 +389,7 @@ export function FirstRunSheet({ open, onClose, onExample }: {
         <li><strong>Basics</strong>: one or two weeks, a budget, your diet and where your food comes from.</li>
         <li><strong>Meals</strong>: add breakfasts, lunches and dinners; the budget bar says what is left. A count is one meal.</li>
         <li><strong>Ingredients</strong>: what each recipe buys, where, for how much and from which country; choose another product or skip one nobody nearby sells.</li>
-        <li><strong>Schedule</strong> meals on days: drag a meal's grip, tap a meal and then a slot, use its ⋯ menu, or the keyboard (Enter to pick up, Tab to a slot, Enter to place).</li>
+        <li><strong>Schedule</strong> meals on days: drag a meal's grip, tap a meal and then a slot, use its More menu, or the keyboard (Enter to pick up, Tab to a slot, Enter to place).</li>
         <li><strong>Shopping plan</strong>: code suggests the fewest trips that keep each item within its cited storage time. You approve, move or dismiss each one; an approved trip is never rewritten.</li>
         <li><strong>Calendar</strong>: the trips and cook days, with times and reminders, as a file or in Google Calendar.</li>
       </ol>

@@ -1,0 +1,64 @@
+/* Buttons: one .btn, a variant for what it does and a size for where it sits.
+
+     .btn-primary    the step forward on a screen: the accent's fill
+     .btn-secondary  another way on: the panel's fill and a control's edge
+     .btn-ghost      a quiet action among others: no fill until the pointer is on it
+     .btn-danger     removes or resets something: the danger fill
+
+   Sizes: the default is 36px tall; .btn-sm (28px) for dense rows; .btn-lg (44px) for the one call
+   to action on a screen; .btn-icon a square for an icon alone, which then needs an aria-label.
+   Under a coarse pointer every button is at least 44px tall, a fingertip.
+   A .btn never has an outer margin: whatever holds it spaces it. It works on an <a> as well, for a
+   link that looks like an action. A bare <button> (index.css) still looks like .btn-primary at its
+   old size, so a view nobody has moved to these classes keeps working. */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: 36px; margin: 0; padding: 0 var(--space-4);
+  border: 1px solid transparent; border-radius: var(--radius-2);
+  font: 600 14px/1.25 var(--font-body); text-align: center; text-decoration: none; white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-standard), border-color var(--dur-1) var(--ease-standard),
+    color var(--dur-1) var(--ease-standard), transform var(--dur-1) var(--ease-standard);
+}
+.btn .ico { flex: none; }
+
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:not(:disabled, [aria-disabled="true"]):hover { background: var(--accent-hover); }
+
+.btn-secondary { background: var(--panel); color: var(--text); border-color: var(--border-ui); }
+.btn-secondary:not(:disabled, [aria-disabled="true"]):hover { background: var(--surface-2); border-color: var(--line-strong); }
+
+.btn-ghost { background: transparent; color: var(--text); }
+.btn-ghost:not(:disabled, [aria-disabled="true"]):hover { background: var(--surface-2); }
+
+.btn-danger { background: var(--danger); color: var(--on-danger); }
+.btn-danger:not(:disabled, [aria-disabled="true"]):hover { background: var(--danger-fg); }
+
+.btn-sm { min-height: 28px; padding: 0 var(--space-3); font-size: 13px; gap: var(--space-1); }
+.btn-lg { min-height: 44px; padding: 0 var(--space-5); font-size: 15px; }
+.btn-icon { width: 36px; padding: 0; }
+.btn-icon.btn-sm { width: 28px; }
+.btn-icon.btn-lg { width: 44px; }
+
+/* Not now: dimmed, and nothing answers the pointer. A button that says why it waits keeps focus
+   (aria-disabled), so its reason can be read. */
+.btn:disabled, .btn[aria-disabled="true"] { opacity: 0.55; cursor: default; }
+
+/* A press sinks a little; with reduced motion it does not move at all. */
+@media (prefers-reduced-motion: no-preference) {
+  .btn:not(:disabled, [aria-disabled="true"]):active { transform: scale(0.98); }
+}
+
+@media (pointer: coarse) {
+  .btn, .btn-sm { min-height: 44px; }
+  .btn-icon, .btn-icon.btn-sm { width: 44px; }
+  .btn-lg { min-height: 48px; }
+  .btn-icon.btn-lg { width: 48px; }
+}
+
+/* Forced colours drop fills, so every button keeps an edge in the system's button colour. */
+@media (forced-colors: active) {
+  .btn { border-color: ButtonText; }
+  .btn:disabled, .btn[aria-disabled="true"] { color: GrayText; border-color: GrayText; }
+}

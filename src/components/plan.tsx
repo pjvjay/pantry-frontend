@@ -13,6 +13,7 @@ import type {
   WeekPlan,
 } from '../types';
 import { IngredientImage } from './flow';
+import { Icon } from './icons';
 
 export const modelShort = (model: string) =>
   model.includes('haiku') ? 'haiku'
@@ -93,7 +94,7 @@ export function BurrLink({ run }: { run?: string }) {
   return (
     <a className="burr-link" href={`${BURR_UI_URL}/project/pantry-planner/null/${encodeURIComponent(run)}`}
       target="_blank" rel="noreferrer" title="Open this plan call's step-by-step trace in the Burr UI">
-      Burr trace ↗
+      Burr trace<Icon name="external" className="ico-inline ico-end" /> <span className="sr-only">(opens in a new tab)</span>
     </a>
   );
 }
@@ -137,7 +138,10 @@ export function PlanTimeline({ steps, heading }: { steps: StepResult[]; heading:
       {steps.map((s) => (
         <details key={s.step_id} className={`step step-${s.outcome}`}>
           <summary>
-            <span className="step-icon">{s.outcome === 'aborted' ? '✗' : '✓'}</span>
+            <span className="step-icon">
+              <Icon name={s.outcome === 'aborted' ? 'x' : 'check'} size={14} strokeWidth={2.4} />
+              <span className="sr-only">{s.outcome === 'aborted' ? 'aborted: ' : 'done: '}</span>
+            </span>
             <span className="step-name">{s.step_id}</span>
             <span className="step-title">{stepTitle(s)}</span>
             <span className="step-label">{s.label}</span>
@@ -208,7 +212,7 @@ export function AbortAlert({ execution }: { execution: PlanExecution }) {
     <section className="panel">
       <div className="alert-card">
         <div className="alert-title">
-          ✗ {GATE_TITLES[alert.code] ?? alert.code} <span className="chip chip-warn">{alert.stage}</span>
+          <Icon name="circle-x" size={18} />{GATE_TITLES[alert.code] ?? alert.code} <span className="chip chip-warn">{alert.stage}</span>
         </div>
         <p className="alert-message">{alert.message}</p>
         <ul className="alert-details">
@@ -224,7 +228,7 @@ export function AbortAlert({ execution }: { execution: PlanExecution }) {
           ))}
         </ul>
       </div>
-      <PlanTimeline steps={execution.steps} heading="Query plan (aborted at the ✗ step):" />
+      <PlanTimeline steps={execution.steps} heading="Query plan (aborted at the step marked with an X):" />
     </section>
   );
 }
