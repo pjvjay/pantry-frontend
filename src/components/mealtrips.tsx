@@ -8,12 +8,16 @@
 // Code suggests trips; only the shopper approves, moves or dismisses them. An approved trip is
 // never rewritten: when edits change what it should carry it reads "Changed since approved"
 // with the diff, and a price change shows as a delta (demo prices) without changing its state.
+// Approve stays Approve while the trips are worked out again after an edit: pressed then, it
+// waits for the new answer and approves from it only a list the shopper saw (mealplan/store.tsx).
+// A trip's state is a Tag (matchmarks.tsx TripTag); the sheet's total is the groceries, and its cart
+// card's, titled so, the groceries and travel.
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { sizeInName } from '../alternatives';
 import {
-  forMealsText, needText, packsText, priceDeltaText, shelfText, strategyOf, tripChipText, tripLook, tripMoveDays,
+  costText, forMealsText, needText, packsText, priceDeltaText, shelfText, strategyOf, tripLook, tripMoveDays, tripPriced,
   tripToCartSummary,
 } from '../mealplan/board';
 import {
@@ -21,7 +25,6 @@ import {
 } from '../mealplan/consequences';
 import { dayLabel } from '../mealplan/dates';
 import { MAX_PACKS, STRATEGY_NAMES, approvedElsewhere, inWindow, windowDates, windowOf } from '../mealplan/model';
-import type { PlanEdit } from '../mealplan/model';
 import { tripLineKey, tripOptionsLabel } from '../mealplan/options';
 import { warningCountsText } from '../mealplan/shoplist';
 import { useMealPlan } from '../mealplan/store';
@@ -35,8 +38,8 @@ import { Sheet } from './Sheet';
 import { TripLineOptionsDialog } from './tripoptions';
 import { Icon } from './icons';
 import type { IconName } from './icons';
-import { TripMark } from './mealcal';
-import { useToast } from './ui';
+import { TripTag } from './matchmarks';
+import { Notice, useToast } from './ui';
 
 // A trip card's "Shop this trip", which Done shopping in the store brings focus back to, and its
 // "Open list", which stays on the card whatever state the trip is in.
@@ -67,6 +70,12 @@ function useListActions(text: string) {
   return { copied, copy, print };
 }
 
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+// A storage time cited from a source is plain; one that follows the shopper's setting or is not
+// known says so with a sign.
+const SHELF_CLASS = { cited: 'muted', yours: 'mp-unknown', unknown: 'mp-unknown' } as const;
+
 function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Trip; allowFreezer: boolean;
   onOptions: (ln: TripLine) => void }) {
   const { dispatch, state } = useMealPlan();
@@ -76,14 +85,16 @@ function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Tr
   const setPacks = (packs: number | null) =>
     dispatch({ type: 'setPacks', date: trip.date, productId: ln.product.id, packs });
   const yours = ln.packs_basis === 'your_setting';
+  const delta = priceDeltaText(ln.price_delta);
   return (
     <li className="mp-line">
       <div className="mp-line-head">
         <strong>{ln.product.name}</strong>
-        {ln.product.demo_product && <span className="chip chip-warn" title="A synthetic product added for the demo starters">demo</span>}
+        {/* a few products are the demo's own: a quiet word, since it differs from line to line */}
+        {ln.product.demo_product && <span className="muted" title="A synthetic product added for the demo starters">demo product</span>}
         {!sizeInName(ln.product.name, ln.product.unit_size) && <span className="muted">{ln.product.unit_size}</span>}
         <span className="mp-line-price">
-          {ln.price === null ? <span className="cart-flag">price unknown</span> : `$${ln.price.toFixed(2)}`}
+          {ln.price === null ? <span className="mp-unknown"><Icon name="help" size={13} />price unknown</span> : `$${ln.price.toFixed(2)}`}
           {ln.store && <span className="muted"> at {ln.store}</span>}
         </span>
         {/* The chat cart's Options dialog, for this purchase (components/tripoptions.tsx). */}
@@ -97,11 +108,11 @@ function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Tr
           <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One pack fewer of ${ln.product.name}`}
                   disabled={ln.packs === null || ln.packs <= 1}
                   onClick={() => setPacks(Math.max(1, (ln.packs ?? 1) - 1))}><Icon name="minus" size={14} /></button>
-          <span className={ln.packs === null ? 'cart-flag' : undefined}>{packsText(ln)}</span>
+          <span className={ln.packs === null ? 'mp-unknown' : undefined}>{packsText(ln)}</span>
           <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One pack more of ${ln.product.name}`}
                   disabled={(ln.packs ?? 0) >= MAX_PACKS}
                   onClick={() => setPacks(Math.min(MAX_PACKS, (ln.packs ?? 0) + 1))}><Icon name="plus" size={14} /></button>
-          {yours && <button type="button" className="linkish" onClick={() => setPacks(null)}>use the computed count</button>}
+          {yours && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPacks(null)}>Use the computed count</button>}
         </span>
         {need && <span className="muted">{need}</span>}
         {ln.leftover_qty !== null && ln.need_uom && (
@@ -109,29 +120,32 @@ function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Tr
             {Math.round(ln.leftover_qty)} {ln.need_uom} left over{ln.leftover_until && ` (keeps until ${dayLabel(ln.leftover_until)})`}
           </span>
         )}
-        <button type="button" className="linkish" onClick={() => setPacks(0)}>leave off this trip</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPacks(0)}>Leave off this trip</button>
       </div>
-      <div className={shelf.level === 'cited' ? 'muted' : 'cart-flag'}>
+      <div className={SHELF_CLASS[shelf.level]}>
+        {shelf.level !== 'cited' && <Icon name="help" size={13} />}
         {shelf.text}
         {ln.shelf_life.url && <> · <a href={ln.shelf_life.url} target="_blank" rel="noreferrer">source</a></>}
         {ln.shelf_life.note && shelf.level !== 'cited' && <span className="muted" title={ln.shelf_life.note}> (why)</span>}
       </div>
       {ln.storage !== 'pantry' && allowFreezer && (
-        <label className="check">
-          <input type="checkbox" checked={ln.freeze_on_arrival || ln.storage === 'freezer'}
-                 onChange={(e) => dispatch({ type: 'setStorage', productId: ln.product.id,
-                   storage: e.target.checked ? 'freezer' : 'fridge' })} />
-          Freeze on arrival
+        <div className="mp-line-freeze">
+          <label className="check">
+            <input type="checkbox" checked={ln.freeze_on_arrival || ln.storage === 'freezer'}
+                   onChange={(e) => dispatch({ type: 'setStorage', productId: ln.product.id,
+                     storage: e.target.checked ? 'freezer' : 'fridge' })} />
+            Freeze on arrival
+          </label>
           {String(ln.product.id) in overrides && (
-            <button type="button" className="linkish"
+            <button type="button" className="btn btn-ghost btn-sm"
                     onClick={() => dispatch({ type: 'setStorage', productId: ln.product.id, storage: null })}>
-              let the plan choose
+              Let the plan choose
             </button>
           )}
-        </label>
+        </div>
       )}
-      {!ln.stocked && <div className="cart-flag">No store in range stocks it now.</div>}
-      {priceDeltaText(ln.price_delta) && <div className="cart-flag">Price changed: {priceDeltaText(ln.price_delta)}</div>}
+      {!ln.stocked && <p className="mp-note-warn"><Icon name="alert" size={14} />No store in range stocks it now.</p>}
+      {delta && <p className="mp-note"><Icon name="refresh" size={14} />Price changed: {delta}</p>}
     </li>
   );
 }
@@ -174,10 +188,17 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
     const out = mp.dispatch(e);
     if (close && !out.refused) onClose();
   };
+  const approve = (replace = false) => {
+    const out = mp.approveTrip(trip, strategy, replace);
+    if (!out.refused) onClose();
+  };
   const delta = priceDeltaText(trip.price_delta);
+  // the groceries alone, named so: the cart card below adds the travel, under its own title
+  const groceries = costText(trip.total_cost, trip.total_is_floor, tripPriced(trip));
   return (
     <Sheet open onClose={onClose} title={`Shopping trip ${dayLabel(trip.date)}`}
-           description={<>{STRATEGY_NAMES[strategy]} · <TripMark kind={look.kind} />{tripChipText(trip, elsewhere)}</>}
+           description={[STRATEGY_NAMES[strategy], plural(trip.stores.length, 'store', 'stores'),
+             `groceries ${groceries}`, plural(trip.lines.length, 'item', 'items')].join(' · ')}
            footer={<>
              <button type="button" className="btn btn-secondary" onClick={() => void list.copy()}>
                <Icon name="copy" size={16} />
@@ -189,17 +210,11 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
              {look.kind === 'suggested' && (
                <>
                  <button type="button" className="btn btn-secondary" onClick={() => act({ type: 'dismissTrip', date: trip.date }, true)}>Dismiss</button>
-                 <button type="button" className="btn btn-primary" disabled={!mp.schedule.current} onClick={() => {
-                   const out = mp.approveTrip(trip, strategy);
-                   if (!out.refused) onClose();
-                 }}>{mp.schedule.current ? 'Approve' : 'Checking…'}</button>
+                 <button type="button" className="btn btn-primary" onClick={() => approve()}>Approve</button>
                </>
              )}
              {elsewhere && (
-               <button type="button" className="btn btn-primary" disabled={!mp.schedule.current} onClick={() => {
-                 const out = mp.approveTrip(trip, strategy, true);
-                 if (!out.refused) onClose();
-               }}>{mp.schedule.current ? 'Approve this list instead' : 'Checking…'}</button>
+               <button type="button" className="btn btn-primary" onClick={() => approve(true)}>Approve this list instead</button>
              )}
              {approvedOne && (
                <button type="button" className="btn btn-secondary" onClick={() => act({ type: 'unapproveTrip', date: trip.date })}>
@@ -207,9 +222,9 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
                </button>
              )}
            </>}>
-      <p className={`mp-trip-status mp-trip-${look.kind}`}>
-        <TripMark kind={look.kind} />{look.word}
-        {look.kind === 'approved' && <span className="muted"> · code will not rewrite this list</span>}
+      <p className="mp-trip-status">
+        <TripTag look={look} />
+        {look.kind === 'approved' && <span className="muted">Code will not rewrite this list.</span>}
       </p>
       {elsewhere && (
         <p>
@@ -222,15 +237,14 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
         <div className="mp-diff" role="group" aria-label="Changed since approved">
           <strong>Changed since you approved it:</strong>
           <ul>{trip.diff.text.map((t) => <li key={t}><code>{t}</code></li>)}</ul>
-          <button type="button" className="btn btn-primary btn-sm" disabled={!mp.schedule.current}
-                  onClick={() => mp.approveTrip(trip, strategy)}>
-            {mp.schedule.current ? 'Approve with these changes' : 'Checking…'}
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => mp.approveTrip(trip, strategy)}>
+            Approve with these changes
           </button>
         </div>
       )}
-      {delta && <p className="cart-flag">Trip total: {delta}</p>}
+      {delta && <p className="mp-note"><Icon name="refresh" size={14} />Groceries: {delta}</p>}
       {trip.not_stocked.length > 0 && (
-        <p className="cart-flag">Not stocked within range: {trip.not_stocked.join(', ')}</p>
+        <p className="mp-note-warn"><Icon name="alert" size={14} />Not stocked within range: {trip.not_stocked.join(', ')}</p>
       )}
       <CartCard summary={tripToCartSummary(trip)} copyButton={false} />
       <h4>Each item</h4>
@@ -244,13 +258,13 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
       {trip.dismissed.length > 0 && (
         <>
           <h4>Left off this trip by you</h4>
-          <ul className="mp-lines">
+          <ul className="mp-lines mp-left-off">
             {trip.dismissed.map((p) => (
               <li key={p.id}>
-                {p.name}{' '}
-                <button type="button" className="linkish"
+                {p.name}
+                <button type="button" className="btn btn-ghost btn-sm" aria-label={`Put ${p.name} back on this trip`}
                         onClick={() => mp.dispatch({ type: 'setPacks', date: trip.date, productId: p.id, packs: null })}>
-                  put it back
+                  Put it back
                 </button>
               </li>
             ))}
@@ -268,11 +282,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
           </label>
           <button type="button" className="btn btn-secondary" disabled={!moveTo}
                   onClick={() => act({ type: 'moveTrip', from: trip.date, to: moveTo }, true)}>Move</button>
-          {preview && (
-            <p className={preview.level === 'warn' ? 'cart-flag' : 'muted'}>
-              Preview: {preview.lines.join(' ')}
-            </p>
-          )}
+          {preview && <MovePreview level={preview.level} lines={preview.lines} />}
         </div>
       )}
       <p className="muted">Store hours not checked. {mp.schedule.answer?.synthetic_notice}</p>
@@ -280,6 +290,16 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
       {/* a modal on top of this one; its focus comes back to the trip line */}
       {optionsDialog}
     </Sheet>
+  );
+}
+
+// What moving a trip would do to freshness, from the last answer: a sign when it warns.
+function MovePreview({ level, lines }: { level: string; lines: string[] }) {
+  const warn = level === 'warn';
+  return (
+    <p className={warn ? 'mp-note-warn' : 'muted'}>
+      {warn && <Icon name="alert" size={14} />}Preview: {lines.join(' ')}
+    </p>
   );
 }
 
@@ -341,30 +361,30 @@ export function WarningsPanel({ schedule, onAsk }: {
 
 // ─── Coverage ────────────────────────────────────────────────
 
-export function CoverageChips({ coverage }: { coverage: PlanCoverage }) {
+// What the figures rest on, as a short list in "What the data covers": each fact in words, a sign
+// beside those that leave something unclaimed (no cited storage time, an amount not known,
+// nutrition not computed).
+export function CoverageList({ coverage }: { coverage: PlanCoverage }) {
   const c = coverage;
+  const items: { text: string; title?: string; gap: boolean }[] = [
+    { text: `Storage time cited for ${c.freshness_cited} of ${c.products} products`,
+      title: 'Storage times quoted from a cited source', gap: false },
+    ...(c.freshness_your_setting > 0 ? [{ text: `${c.freshness_your_setting} follow your buy-ahead setting`,
+      title: 'No cited time: your buy-ahead setting limits them', gap: true }] : []),
+    ...(c.freshness_unknown > 0 ? [{ text: `${c.freshness_unknown} with no storage time`,
+      title: 'Shelf-stable or frozen with no cited time: no limit is claimed', gap: true }] : []),
+    { text: `Amounts known for ${c.amounts_known} of ${c.needs} needs`, gap: c.amounts_known < c.needs },
+    { text: `Nutrition ${c.nutrition === 'computed' ? 'computed' : c.nutrition === 'not_deployed' ? 'not deployed' : 'unknown'}`,
+      gap: c.nutrition !== 'computed' },
+  ];
   return (
-    <div className="mp-coverage" aria-label="What the data covers">
-      <span className="chip" title="Storage times quoted from a cited source">
-        storage time cited for {c.freshness_cited} of {c.products} products
-      </span>
-      {c.freshness_your_setting > 0 && (
-        <span className="chip chip-warn" title="No cited time: your buy-ahead setting limits them">
-          {c.freshness_your_setting} follow your buy-ahead setting
-        </span>
-      )}
-      {c.freshness_unknown > 0 && (
-        <span className="chip chip-warn" title="Shelf-stable or frozen with no cited time: no limit is claimed">
-          {c.freshness_unknown} with no storage time
-        </span>
-      )}
-      <span className={`chip ${c.amounts_known < c.needs ? 'chip-warn' : ''}`}>
-        amounts known for {c.amounts_known} of {c.needs} needs
-      </span>
-      <span className={`chip ${c.nutrition === 'computed' ? '' : 'chip-warn'}`}>
-        nutrition {c.nutrition === 'computed' ? 'computed' : c.nutrition === 'not_deployed' ? 'not deployed' : 'unknown'}
-      </span>
-    </div>
+    <ul className="mp-coverage" aria-label="What the data covers">
+      {items.map((x) => (
+        <li key={x.text} title={x.title}>
+          <Icon name={x.gap ? 'help' : 'check'} size={14} />{x.text}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -380,7 +400,7 @@ function MoveTo({ date }: { date: string }) {
     <span className="mp-move-to">
       <label className="fc-field fc-inline">
         <span className="fc-label">Move to</span>
-        <select className="fc-input fc-input-sm" value={to} onChange={(e) => setTo(e.target.value)}>
+        <select className="fc-input-sm" value={to} onChange={(e) => setTo(e.target.value)}>
           <option value="">a day…</option>
           {days.map((x) => <option key={x} value={x}>{dayLabel(x)}</option>)}
         </select>
@@ -444,32 +464,33 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
     if (!out.refused) setToShop({ date: t.date, parked: false });
   };
 
-  // Every suggested trip at once, as one step: said in a toast with its Undo, not twice.
+  // Every suggested trip at once, as one step: said in a toast with its Undo, not twice. While the
+  // trips are being worked out again it waits for the answer, as each Approve does, and the toast
+  // comes when the trips are approved (the plan's live region names any it could not approve).
   const approveAll = () => {
-    const answer = mp.schedule.answer;
-    if (!answer || !mp.schedule.current || !suggested.length) return;
+    if (!suggested.length) return;
     const before = d.trips.length;
-    const edits: PlanEdit[] = suggested.map((t) => ({ type: 'approveTrip', trip: t, strategy, rev: answer.rev }));
-    const out = mp.dispatch({ type: 'batch', edits }, { quiet: true });
+    const waiting = !mp.schedule.current;
+    const said = (n: number) => toast.show({
+      text: n === suggested.length ? `Approved ${n} trips` : `Approved ${n} of ${suggested.length} trips`,
+      action: { label: 'Undo', onClick: mp.undo } });
+    const out = mp.approveTrips(suggested, strategy, said);
     if (out.refused) {
       mp.announce(`Not done: ${out.refused}.`);
       return;
     }
-    const n = out.state.draft.trips.length - before;
-    toast.show({ text: n === suggested.length ? `Approved ${n} trips` : `Approved ${n} of ${suggested.length} trips`,
-      action: { label: 'Undo', onClick: mp.undo } });
+    if (!waiting) said(out.state.draft.trips.length - before);
     // Approve all goes once nothing is left to approve: on to the first trip's Shop this trip
     setToShop({ date: suggested[0].date, parked: false });
   };
 
   return (
-    <div className="mp-shop-panel">
+    <div>
       {!st?.trips.length && <p className="muted">No trips yet: trips appear once meals are on the calendar.</p>}
       {suggested.length > 1 && (
         <div className="mp-approve-all">
-          <button type="button" className="btn btn-primary" disabled={!mp.schedule.current} onClick={approveAll}>
-            <Icon name="check" size={16} />
-            {mp.schedule.current ? `Approve all ${suggested.length} trips` : 'Checking…'}
+          <button type="button" className="btn btn-primary" onClick={approveAll}>
+            <Icon name="check" size={16} />Approve all {suggested.length} trips
           </button>
           <p className="muted">Or approve them one at a time below. An approved trip is never rewritten.</p>
         </div>
@@ -479,15 +500,23 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
           const elsewhere = approvedElsewhere(d, t.date, strategy);
           const look = tripLook(t, elsewhere);
           const approved = look.kind === 'approved' || look.kind === 'review';
+          const delta = priceDeltaText(t.price_delta);
           return (
-            <li key={t.id} className={`mp-trip-card mp-trip-${look.kind}`}>
-              <div className="mp-trip-card-head">
-                <strong>{dayLabel(t.date)}</strong> · <TripMark kind={look.kind} />{tripChipText(t, elsewhere)}
-                {priceDeltaText(t.price_delta) && <span className="cart-flag"> · {priceDeltaText(t.price_delta)}</span>}
+            <li key={t.id} className="card mp-trip-card">
+              <div className="card-head">
+                <div>
+                  <h4 className="card-title">{dayLabel(t.date)}</h4>
+                  <p className="card-sub mp-trip-card-sub">
+                    {[plural(t.stores.length, 'store', 'stores'), costText(t.total_cost, t.total_is_floor, tripPriced(t)),
+                      plural(t.lines.length, 'item', 'items')].join(' · ')}
+                  </p>
+                </div>
+                <TripTag look={look} />
               </div>
-              <div className="muted mp-trip-reason">{t.reason}</div>
+              <p className="muted mp-trip-reason">{t.reason}</p>
+              {delta && <p className="mp-note"><Icon name="refresh" size={14} />{delta}</p>}
               {t.diff && t.diff.text.length > 0 && (
-                <div className="cart-flag">Changed since you approved it: {t.diff.text.join(', ')}</div>
+                <p className="mp-note-warn"><Icon name="alert" size={14} />Changed since you approved it: {t.diff.text.join(', ')}</p>
               )}
               <div className="mp-trip-actions">
                 {approved && (
@@ -500,10 +529,7 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
                         onClick={() => onOpenTrip(t.date)}>Open list</button>
                 {look.kind === 'suggested' ? (
                   <>
-                    <button type="button" className="btn btn-primary btn-sm" disabled={!mp.schedule.current}
-                            onClick={() => approve(t)}>
-                      {mp.schedule.current ? 'Approve' : 'Checking…'}
-                    </button>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => approve(t)}>Approve</button>
                     <button type="button" className="btn btn-secondary btn-sm"
                             onClick={() => mp.dispatch({ type: 'dismissTrip', date: t.date })}>Dismiss</button>
                     <MoveTo date={t.date} />
@@ -511,9 +537,8 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
                 ) : (
                   <>
                     {look.kind === 'elsewhere' && (
-                      <button type="button" className="btn btn-primary btn-sm" disabled={!mp.schedule.current}
-                              onClick={() => approve(t, true)}>
-                        {mp.schedule.current ? 'Approve this list instead' : 'Checking…'}
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => approve(t, true)}>
+                        Approve this list instead
                       </button>
                     )}
                     <button type="button" className="btn btn-ghost btn-sm"
@@ -525,11 +550,14 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
           );
         })}
         {elsewhereOnly.map((a) => (
-          <li key={`approved-${a.date}`} className="mp-trip-card mp-trip-elsewhere">
-            <div className="mp-trip-card-head">
-              <strong>{dayLabel(a.date)}</strong> · <Icon name="check" className="ico-inline" />Approved under {STRATEGY_NAMES[a.strategy]}
+          <li key={`approved-${a.date}`} className="card mp-trip-card">
+            <div className="card-head">
+              <div>
+                <h4 className="card-title">{dayLabel(a.date)}</h4>
+                <p className="card-sub">{STRATEGY_NAMES[strategy]} buys nothing on this day.</p>
+              </div>
+              <TripTag look={{ kind: 'elsewhere', word: `Approved under ${STRATEGY_NAMES[a.strategy]}` }} />
             </div>
-            <div className="muted mp-trip-reason">{STRATEGY_NAMES[strategy]} buys nothing on this day.</div>
             <div className="mp-trip-actions">
               <button type="button" className="btn btn-ghost btn-sm"
                       onClick={() => mp.dispatch({ type: 'unapproveTrip', date: a.date })}>Take the approval back</button>
@@ -538,18 +566,20 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
         ))}
       </ul>
       {d.dismissed_dates.length > 0 && (
-        <p className="muted mp-dismissed">
-          Dismissed: {d.dismissed_dates.filter((x) => inWindow(windowOf(d), x)).map((x) => (
-            <button key={x} type="button" className="linkish" onClick={() => mp.dispatch({ type: 'restoreTrip', date: x })}>
-              {dayLabel(x)} (restore)
+        <div className="mp-dismissed">
+          <span className="muted">Dismissed:</span>
+          {d.dismissed_dates.filter((x) => inWindow(windowOf(d), x)).map((x) => (
+            <button key={x} type="button" className="btn btn-ghost btn-sm" aria-label={`Restore the trip on ${dayLabel(x)}`}
+                    onClick={() => mp.dispatch({ type: 'restoreTrip', date: x })}>
+              {dayLabel(x)}: restore
             </button>
           ))}
-        </p>
+        </div>
       )}
       <div className="fc-row mp-addtrip">
         <label className="fc-field fc-inline">
           <span className="fc-label">Add a trip on</span>
-          <select className="fc-input" value={addOn} onChange={(e) => setAddOn(e.target.value)}>
+          <select value={addOn} onChange={(e) => setAddOn(e.target.value)}>
             <option value="">choose a day</option>
             {free.map((x) => <option key={x} value={x}>{dayLabel(x)}</option>)}
           </select>
@@ -600,10 +630,10 @@ export function CookDaysDiff() {
   };
   const where = (p: { date: string | null; slot: string }) => (p.date ? `${dayLabel(p.date)} ${p.slot}` : 'the tray');
   return (
-    <section className="mp-proposal" aria-label="Suggested cook days">
-      <h3>Suggested cook days</h3>
+    <section className="card mp-proposal" aria-label="Suggested cook days">
+      <h3 className="card-title">Suggested cook days</h3>
       {status === 'checking' && <p className="muted">Working out fresher days…</p>}
-      {status === 'error' && <p className="banner banner-error">Could not suggest cook days: {error}</p>}
+      {status === 'error' && <Notice tone="danger" title="Could not suggest cook days">{error}</Notice>}
       {proposal && (
         <>
           {proposal.ops.length === 0 ? (

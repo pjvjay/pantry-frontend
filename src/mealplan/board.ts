@@ -185,7 +185,11 @@ export function lineWarn(ln: TripLine): string | undefined {
 
 // A trip as the chat's cart card draws a plan: one group per store in the trip's order, each
 // line with its meals and anything unknown about it. The total is the known prices (the
-// trip's own total_cost) plus the trip's travel, and "at least" when a price is unknown.
+// trip's own total_cost) plus the trip's travel, and "at least" when a price is unknown. The
+// card's title says so ("Groceries and travel"), since the trip sheet over it gives the
+// groceries alone: the two totals then read as what they are.
+export const CART_TITLE = 'Groceries and travel';
+
 export function tripToCartSummary(t: Trip): CartSummary {
   const lines: CartLine[] = t.lines.map((ln) => ({
     ingredient: ln.product.name,
@@ -201,13 +205,64 @@ export function tripToCartSummary(t: Trip): CartSummary {
   }));
   const travel = t.recommended?.travel_cost;
   return {
-    recipe_name: `Shopping trip ${dayLabel(t.date)}`,
+    recipe_name: CART_TITLE,
     lines,
     total_cost: t.total_cost ?? undefined,
     total_is_floor: t.total_is_floor,
     trip: { stores: t.stores, basket_cost: t.total_cost ?? undefined, travel_cost: travel,
       total_cost: t.total_cost === null ? null : t.total_cost + (travel ?? 0) },
   };
+}
+
+// ─── Approving while the plan is checked again ───────────────
+
+// An Approve pressed while the trips were being worked out again after an edit: the day, the
+// list the shopper saw (its fingerprint), under which way to shop, and whether it takes the place
+// of the day's approval under the other one.
+export interface QueuedApproval {
+  date: CivilDate;
+  fingerprint: string;
+  strategy: TripStrategy;
+  replace: boolean;
+}
+
+// What the queued approvals come to once the answer for the plan as it is now is in. A trip whose
+// list is still the one the shopper saw (the same fingerprint) is approved from the new answer,
+// under its rev, which the reducer's revision gate asks for; one whose list changed meanwhile is
+// not approved, since that would approve a list nobody has looked at, and is named so the shopper
+// can look again; one the new answer no longer has is dropped and named too.
+export function queuedApprovals(queue: readonly QueuedApproval[], answer: MealSchedule)
+  : { edits: PlanEdit[]; changed: CivilDate[]; gone: CivilDate[] } {
+  const edits: PlanEdit[] = [];
+  const changed: CivilDate[] = [];
+  const gone: CivilDate[] = [];
+  for (const q of queue) {
+    const t = strategyOf(answer, q.strategy)?.trips.find((x) => x.date === q.date);
+    if (!t) gone.push(q.date);
+    else if (t.fingerprint !== q.fingerprint) changed.push(q.date);
+    else if (t.status !== 'approved' || q.replace) {
+      edits.push({ type: 'approveTrip', trip: t, strategy: q.strategy, rev: answer.rev, replace: q.replace });
+    }
+  }
+  return { edits, changed, gone };
+}
+
+const andList = (xs: readonly string[]) => (xs.length < 3 ? xs.join(' and ')
+  : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
+// What the plan's live region says of the queued approvals it could not make: a trip whose list
+// changed meanwhile, to look at and approve again, and a day the plan has no trip on now. A day
+// the shopper dismissed meanwhile needs no word: they did it themselves.
+export function queuedMissText(changed: readonly CivilDate[], gone: readonly CivilDate[],
+  dismissed: readonly CivilDate[]): string {
+  const missed = changed.map(dayLabel);
+  const lost = gone.filter((x) => !dismissed.includes(x)).map(dayLabel);
+  const one = missed.length === 1;
+  return [
+    missed.length ? `Not approved: the ${one ? 'trip' : 'trips'} on ${andList(missed)} changed while the plan was `
+      + `checked; look at ${one ? 'it' : 'them'}, then approve.` : '',
+    lost.length ? `Not approved: the plan has no trip on ${andList(lost).replace(/ and ([^,]*)$/, ' or $1')} now.` : '',
+  ].filter(Boolean).join(' ');
 }
 
 // ─── Summary ─────────────────────────────────────────────────

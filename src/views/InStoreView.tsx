@@ -1,8 +1,13 @@
 // In-store mode (#/shop/trip/<date>): one trip's list, for a phone in the shop. A header that
 // stays at the top of the screen says which day and stores and how far along the trip is ("7 of
 // 12 · $38.40 of $52.00"); under it the lines to pick up, by store and then by section, each one
-// row with a big check; a line ticked is struck through and moves to "In the basket" at the end,
-// and "Done shopping" goes back to the shopping plan.
+// row with a big check (two to a row on a wide screen); a line ticked shows it where it was, ticked
+// and "In the basket", for a moment, then moves to "In the basket" at the end, struck through; and
+// "Done shopping" goes back to the shopping plan, at this trip in Your list.
+//
+// Where pantry-api cannot be reached (a shop's signal), the list opens from the offline copy this
+// browser kept of the trip as last approved (mealplan/offline.ts), with when it was made; the
+// fresh answer takes over the moment it comes.
 //
 // The trip is the one the plan's last schedule answer has on that day, under the strategy the
 // shopper chose (the same list as the shopping plan's). The ticks are kept in this browser beside
@@ -22,6 +27,7 @@ import { arriving } from '../components/arrival';
 import { Icon } from '../components/icons';
 import { ProductPicture } from '../components/pictures';
 import { EmptyState, Notice, Skeleton } from '../components/ui';
+import { copiedAt, offlineTrip, readOffline } from '../mealplan/offline';
 import { useKeepClear } from '../components/useKeepClear';
 import { useTicks } from '../components/useTicks';
 import { useWakeLock } from '../components/useWakeLock';
@@ -38,10 +44,29 @@ const SHOP = hrefFor({ name: 'shop' });
 // A row's place on the page, for focus to come back to it after it moves.
 const rowSelector = (key: string) => `[data-row="${CSS.escape(key)}"] input`;
 
-function Row({ row, on, onToggle }: { row: ShopRow; on: boolean; onToggle: (row: ShopRow, on: boolean) => void }) {
+// localStorage, or null where the browser will not hand it over.
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+// How long a line just ticked stays where it was, ticked, before it moves to the basket: long
+// enough to see what the tick did, short enough not to be in the way.
+const SETTLE_MS = 900;
+
+// How long the list may show from the offline copy, while the answer is on its way, before it
+// says so: a normal answer takes about half a second, and the line would only flash.
+const SLOW_MS = 1500;
+
+// settling: just ticked, still shown in its place with "In the basket" before it moves there.
+function Row({ row, on, settling = false, onToggle }: { row: ShopRow; on: boolean; settling?: boolean;
+  onToggle: (row: ShopRow, on: boolean) => void }) {
   const meta = [row.amount, row.forText, ...row.notes].filter(Boolean).join(' · ');
   return (
-    <li className={`is-row${on ? ' is-row-on' : ''}`} data-row={row.key}>
+    <li className={`is-row${on ? ' is-row-on' : ''}${settling ? ' is-row-settling' : ''}`} data-row={row.key}>
       {/* one label is the whole row, a fingertip's target; the checkbox is named by all of it */}
       <label className="is-hit">
         <span className="is-box">
@@ -52,6 +77,7 @@ function Row({ row, on, onToggle }: { row: ShopRow; on: boolean; onToggle: (row:
         <span className="is-what">
           <span className="is-name">{row.name}</span>
           {meta && <span className="is-meta">{meta}</span>}
+          {settling && <span className="is-moved" aria-hidden="true"><Icon name="bag" size={14} />In the basket</span>}
         </span>
         <span className={`is-price${row.price === null ? ' is-price-unknown' : ''}`}>{row.priceText}</span>
       </label>
@@ -64,11 +90,33 @@ export default function InStoreView({ date }: { date: string }) {
   const d = mp.state.draft;
   const schedule = mp.schedule;
   const answer = schedule.answer;
-  const trip = strategyOf(answer, d.prefs.strategy)?.trips.find((t) => t.date === date) ?? null;
+  const fresh = strategyOf(answer, d.prefs.strategy)?.trips.find((t) => t.date === date) ?? null;
+  // With no answer yet (on its way, or pantry-api out of reach), the trip as this browser last kept
+  // it, if that copy is of the plan as it is now; a fresh answer always takes over.
+  const copy = useMemo(() => (answer ? null : readOffline(browserStorage())), [answer === null, d.id, d.rev]);
+  const copied = answer ? null : offlineTrip(copy, d, date);
+  const trip = fresh ?? copied;
+  // the copy says it is one at once when the plan could not be checked, and once the answer is
+  // slow to come (a shop's signal), but not for the moment a normal answer takes
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    if (!copied || schedule.status === 'error') return undefined;
+    const id = window.setTimeout(() => setSlow(true), SLOW_MS);
+    return () => window.clearTimeout(id);
+  }, [copied !== null, schedule.status]);
   const days = useMemo(() => windowDates(windowOf(d)), [d.start_date, d.days]);
   const ticks = useTicks(d.id, date, days);
+  // lines just ticked, still shown in their place for a moment (SETTLE_MS) before they move
+  const [settling, setSettling] = useState<number[]>([]);
+  const timers = useRef(new Map<number, number>());
+  useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
   const tickKey = ticks.ticked.join(',');
+  const settlingKey = settling.join(',');
+  // what the header counts (every tick) and how the list is drawn (a settling line still in place)
   const view = useMemo(() => (trip ? instoreView(trip, ticks.ticked) : null), [trip, tickKey]);
+  const drawn = useMemo(() => (trip ? instoreView(trip, ticks.ticked.filter((x) => !settling.includes(x))) : null),
+    [trip, tickKey, settlingKey]);
   const wake = useWakeLock(trip !== null);
   const keepClear = useKeepClear('top');
   const heading = useRef<HTMLHeadingElement>(null);
@@ -89,19 +137,31 @@ export default function InStoreView({ date }: { date: string }) {
     setFocusTo(null);
   }, [focusTo, view]);
 
-  // Back to the shopping plan with the keyboard on this trip's own "Shop this trip" (an approved
-  // trip has one: components/mealtrips.tsx), else on the plan's heading.
-  const back = arriving(SHOP, { focus: [`[data-shop-trip="${date}"]`] });
+  // Back to the shopping plan, at this trip in Your list near its top (its heading takes the
+  // keyboard: components/shoplist.tsx), not at its card at the far end of the page; else at the
+  // trip's own "Shop this trip" (components/mealtrips.tsx), else the plan's heading.
+  const back = arriving(SHOP, { focus: [`#shop-trip-${date}`, `[data-shop-trip="${date}"]`] });
 
   const toggle = (row: ShopRow, on: boolean) => {
-    if (!trip || !view) return;
+    if (!trip || !view || !drawn) return;
     if (on) {
-      // the row that takes this one's place, else the one before it, else the list is done
-      const order = view.toGet.flatMap((g) => g.sections.flatMap((s) => s.rows));
+      // the row that takes this one's place, else the one before it, else the list is done (rows
+      // still settling are on their way out, so not where the keyboard goes)
+      const order = drawn.toGet.flatMap((g) => g.sections.flatMap((s) => s.rows))
+        .filter((r) => r.key === row.key || !settling.includes(r.productId));
       const i = order.findIndex((r) => r.key === row.key);
       const next = order[i + 1] ?? order[i - 1];
       setFocusTo(next ? next.key : 'done');
+      // seen where it was, ticked, for a moment; then on to the basket
+      setSettling((now) => [...now.filter((x) => x !== row.productId), row.productId]);
+      window.clearTimeout(timers.current.get(row.productId));
+      timers.current.set(row.productId, window.setTimeout(() => {
+        timers.current.delete(row.productId);
+        setSettling((now) => now.filter((x) => x !== row.productId));
+      }, SETTLE_MS));
     } else {
+      window.clearTimeout(timers.current.get(row.productId));
+      setSettling((now) => now.filter((x) => x !== row.productId));
       setFocusTo(row.key);
     }
     ticks.set(row.productId, on);
@@ -112,7 +172,7 @@ export default function InStoreView({ date }: { date: string }) {
   const day = dayLabel(date);
   const inPlan = inWindow(windowOf(d), date);
   const hasRecipes = Object.keys(d.recipes).length > 0;
-  const loading = !answer && hasRecipes && schedule.status !== 'error';
+  const loading = !answer && !copied && hasRecipes && schedule.status !== 'error';
   const ticked = new Set(ticks.ticked);
   const pct = view && view.total ? Math.round((view.done / view.total) * 100) : 0;
   const severalStores = (view?.toGet.length ?? 0) > 1 || (view?.stores.length ?? 0) > 1;
@@ -140,9 +200,22 @@ export default function InStoreView({ date }: { date: string }) {
         )}
       </header>
 
+      {copied && copy && (slow || schedule.status === 'error') && (
+        <p className="is-offline">
+          <Icon name="plug" size={16} />
+          <span>
+            Offline copy from {copiedAt(copy.at, new Date())}
+            {schedule.status === 'error' ? ': the plan could not be checked just now.' : '.'}
+          </span>
+          {schedule.status === 'error' && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={mp.recheck}>Try again</button>
+          )}
+        </p>
+      )}
+
       {loading && <Skeleton kind="row" count={8} label="Loading your trip" />}
 
-      {!answer && schedule.status === 'error' && (
+      {!answer && !copied && schedule.status === 'error' && (
         <Notice tone="danger" title="Your trip could not be loaded"
                 actions={[{ label: 'Try again', icon: 'refresh', onClick: mp.recheck }, { label: 'Back to the shopping plan', href: SHOP }]}>
           {schedule.error}
@@ -156,16 +229,19 @@ export default function InStoreView({ date }: { date: string }) {
                     action={{ label: 'Back to the shopping plan', href: SHOP }} />
       )}
 
-      {trip && view && (
+      {trip && view && drawn && (
         <>
-          {view.toGet.map((g) => (
+          {drawn.toGet.map((g) => (
             <section key={g.store} className="is-store" aria-label={g.store}>
               {severalStores && <h3 className="is-store-name"><Icon name="store" size={18} />{g.store}</h3>}
               {g.sections.map((s) => (
-                <div key={s.name} className="is-sec">
+                <div key={s.name}>
                   <h4 className="is-sec-name">{s.name}</h4>
                   <ul className="is-rows">
-                    {s.rows.map((r) => <Row key={r.key} row={r} on={false} onToggle={toggle} />)}
+                    {s.rows.map((r) => (
+                      <Row key={r.key} row={r} on={ticked.has(r.productId)} settling={settling.includes(r.productId)}
+                           onToggle={toggle} />
+                    ))}
                   </ul>
                 </div>
               ))}
@@ -178,13 +254,13 @@ export default function InStoreView({ date }: { date: string }) {
             </Notice>
           )}
 
-          {view.basket.length > 0 && (
+          {drawn.basket.length > 0 && (
             <section className="is-basket" aria-labelledby="is-basket-head">
               <h3 id="is-basket-head" className="is-basket-name">
                 <Icon name="bag" size={18} />In the basket <span className="is-basket-count">({view.basket.length})</span>
               </h3>
               <ul className="is-rows">
-                {view.basket.map((r) => <Row key={r.key} row={r} on={ticked.has(r.productId)} onToggle={toggle} />)}
+                {drawn.basket.map((r) => <Row key={r.key} row={r} on={ticked.has(r.productId)} onToggle={toggle} />)}
               </ul>
             </section>
           )}

@@ -97,10 +97,12 @@
 .tag-blocked, .tag-paused { background: var(--surface-2); color: var(--muted); }
 .tag-attention { background: var(--warn-soft); color: var(--warn); }
 
-/* ─── Toasts: above the bottom bar on a phone, low on the left on a wide screen ──────────── */
+/* ─── Toasts: above the bottom bar on a phone, low in the middle on a wide screen ─────────── */
 /* Above whatever else lies along the bottom of the screen too (the meal plan's Back and Next, its
    Moving bar, the Assistant's message box: --bottom-cover, components/useKeepClear.ts), so a
-   toast never hides the control it is about or the one that comes next. */
+   toast never hides the control it is about or the one that comes next. On a wide screen it is
+   narrow and in the middle, over the bar's quiet centre, where it covers the least of a page
+   whose words and controls start at the left. */
 .toasts {
   position: fixed; z-index: 40; left: var(--space-4); right: var(--space-4);
   bottom: calc(max(var(--bottom-nav-h, 0px), var(--bottom-cover, 0px)) + var(--space-4));
@@ -119,7 +121,7 @@
 .toast-close { color: var(--muted); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 @media (min-width: 900px) {
-  .toasts { left: var(--space-6); right: auto; align-items: flex-start; }
+  .toast { width: min(380px, 100%); }
 }
 
 /* ─── Spinner: a ring with a gap, turning; still under reduced motion ────────────────────── */

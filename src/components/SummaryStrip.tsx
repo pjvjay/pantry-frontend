@@ -3,8 +3,10 @@
 // they go, the days they shop), each with a Change that goes back to it in Set up, focused there,
 // so the keyboard is where the change is made. Set up is optional: for most shoppers this strip
 // is where they see what the plan assumes (a week from tomorrow, no budget, anything) before
-// they start. A grid of short cells, two to a row on a phone; the words are in
-// mealplan/basics.ts (setupStrip).
+// they start. A grid of short cells, two to a row on a phone, each reading down: what it is, the
+// answer, and that answer's own Change under it (never at the cell's far edge, where it would sit
+// against the next cell and read as part of it); the words are in mealplan/basics.ts
+// (setupStrip).
 import type { MouseEvent } from 'react';
 
 import { setupStrip } from '../mealplan/basics';
@@ -23,12 +25,12 @@ export function SetupStrip({ onChange }: { onChange: (key: SetupItem['key']) => 
     onChange(key);
   };
   return (
-    <section className="mp-setup" aria-labelledby="mp-setup-head">
+    <section className="card mp-setup" aria-labelledby="mp-setup-head">
       <h3 id="mp-setup-head" className="mp-setup-head">Your setup</h3>
       <dl className="mp-setup-list">
         {items.map((x) => (
           <div key={x.key} className="mp-setup-item">
-            <dt className="mp-setup-key">{x.label}</dt>
+            <dt className="label">{x.label}</dt>
             <dd className="mp-setup-value">
               {x.value}
               {x.note && <span className="mp-setup-note">{x.note}</span>}

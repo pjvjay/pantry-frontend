@@ -9,7 +9,7 @@
 //   StrategyTiles   the two ways to shop as two tiles, each with its trips and total.
 //
 // The words and the grouping are in mealplan/shoplist.ts; the trips, their warnings and the trip
-// sheet in components/mealtrips.tsx.
+// sheet in components/mealtrips.tsx. Each part is a card on the page (styles/card.css).
 import { useMemo, useRef, useState } from 'react';
 import type { MouseEvent, RefObject } from 'react';
 
@@ -18,12 +18,13 @@ import { periodText } from '../mealplan/home';
 import { STRATEGY_NAMES } from '../mealplan/model';
 import { checkPlan, listCountText, listOf, listText, periodList, strategyTiles } from '../mealplan/shoplist';
 import type { CheckItem, TripList } from '../mealplan/shoplist';
+import { readShopping, tickedOn } from '../mealplan/shopping';
 import { useMealPlan } from '../mealplan/store';
 import { hrefFor } from '../routes';
 import type { MealSchedule } from '../types';
 import { copyText } from './cart';
 import { Icon } from './icons';
-import { TripMark } from './mealcal';
+import { TripTag } from './matchmarks';
 import { Sheet } from './Sheet';
 import { useToast } from './ui';
 
@@ -47,7 +48,7 @@ export function CheckPlan({ hrefOf, onChange }: {
     onChange(key);
   };
   return (
-    <section className="shop-card shop-check" aria-labelledby="shop-check-head">
+    <section className="card shop-card" aria-labelledby="shop-check-head">
       <h3 id="shop-check-head" className="shop-card-title">Check your plan</h3>
       <dl className="shop-check-list">
         {items.map((x) => {
@@ -64,7 +65,7 @@ export function CheckPlan({ hrefOf, onChange }: {
               </dd>
               <dd className="shop-check-change">
                 {href ? <a href={href} onClick={(e) => follow(e, x.key)}>{words}</a>
-                  : <button type="button" className="linkish" onClick={() => onChange(x.key)}>{words}</button>}
+                  : <button type="button" className="shop-check-link" onClick={() => onChange(x.key)}>{words}</button>}
               </dd>
             </div>
           );
@@ -97,28 +98,41 @@ function printText(text: string) {
   window.setTimeout(done, 1000);
 }
 
-function TripBlock({ list }: { list: TripList }) {
+// localStorage, or null where the browser will not hand it over.
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+// One trip of the list: its day and stores, its state, how far the shopper got with it in the store
+// (the ticks, kept beside the plan: mealplan/shopping.ts), and its lines by section. Its heading
+// is where Done shopping in the store brings the keyboard back to.
+function TripBlock({ list, ticked }: { list: TripList; ticked: readonly number[] }) {
   const approved = list.look.kind === 'approved' || list.look.kind === 'review';
   const head = `shop-trip-${list.date}`;
+  const has = new Set(ticked);
+  const inBasket = list.sections.reduce((t, s) => t + s.rows.filter((r) => has.has(r.productId)).length, 0);
   return (
     <section className="shop-trip" aria-labelledby={head}>
       <div className="shop-trip-head">
         <div className="shop-trip-what">
-          <h4 id={head} className="shop-trip-title">
+          <h4 id={head} className="shop-trip-title" tabIndex={-1}>
             {list.day}
             {list.stores.length > 0 && <span className="shop-trip-stores"> · {listOf(list.stores)}</span>}
           </h4>
           <p className="shop-trip-meta">
-            <span className={`shop-trip-state shop-trip-state-${list.look.kind}`}>
-              <TripMark kind={list.look.kind} />{list.look.word}
-            </span>
-            {' '}· {list.items} {list.items === 1 ? 'item' : 'items'} · {list.cost}
+            <TripTag look={list.look} />
+            <span>{list.items} {list.items === 1 ? 'item' : 'items'} · {list.cost}</span>
+            {inBasket > 0 && <span>{inBasket === list.items ? 'All in the basket' : `${inBasket} of ${list.items} in the basket`}</span>}
           </p>
         </div>
         {approved && (
-          <a className="btn btn-primary btn-sm shop-trip-go" href={hrefFor({ name: 'trip', date: list.date })}
+          <a className="btn btn-primary btn-sm" href={hrefFor({ name: 'trip', date: list.date })}
              aria-label={`Shop the trip on ${list.day}`}>
-            <Icon name="bag" size={16} />Shop this trip
+            <Icon name="bag" size={16} />{inBasket > 0 && inBasket < list.items ? 'Carry on shopping' : 'Shop this trip'}
           </a>
         )}
       </div>
@@ -173,6 +187,8 @@ export function YourList({ schedule }: { schedule: MealSchedule }) {
   const d = mp.state.draft;
   const st = strategyOf(schedule, d.prefs.strategy);
   const lists = useMemo(() => periodList(st, d), [st, d]);
+  // the basket each trip has in the store, read as the list opens (Done shopping comes back here)
+  const shopping = useMemo(() => readShopping(browserStorage()), [d.id]);
   // the list's text, when the clipboard would not take it
   const [manual, setManual] = useState<string | null>(null);
   const copyButton = useRef<HTMLButtonElement>(null);
@@ -189,7 +205,7 @@ export function YourList({ schedule }: { schedule: MealSchedule }) {
     else setManual(t);
   };
   return (
-    <section className="shop-card shop-list" aria-labelledby="shop-list-head">
+    <section className="card shop-card" aria-labelledby="shop-list-head">
       <div className="shop-list-top">
         <div>
           <h3 id="shop-list-head" className="shop-card-title">Your list</h3>
@@ -206,7 +222,7 @@ export function YourList({ schedule }: { schedule: MealSchedule }) {
           </div>
         )}
       </div>
-      {lists.length ? lists.map((l) => <TripBlock key={l.date} list={l} />)
+      {lists.length ? lists.map((l) => <TripBlock key={l.date} list={l} ticked={tickedOn(shopping, d.id, l.date)} />)
         : <p className="muted shop-list-none">No trips yet: trips appear once meals are on days.</p>}
       <CopySheet text={manual} onClose={() => setManual(null)} back={copyButton} />
     </section>
@@ -227,7 +243,7 @@ export function StrategyTiles({ schedule }: { schedule: MealSchedule }) {
     <fieldset className="shop-strategy">
       <legend className="shop-strategy-legend">How to shop</legend>
       <div className="shop-tiles">
-        {strategyTiles(schedule).map((t) => (
+        {strategyTiles(schedule, mp.state.draft.trips).map((t) => (
           <label key={t.name} className="tile shop-tile">
             <input type="radio" name="mp-strategy" id={strategyInputId(t.name)} checked={strategy === t.name}
                    onChange={() => mp.dispatch({ type: 'setPrefs', prefs: { strategy: t.name } })} />

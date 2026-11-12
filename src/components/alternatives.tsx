@@ -33,9 +33,11 @@ import {
 import type { CompareColumn } from '../alternatives';
 import { agentAlternatives } from '../hub';
 import type { AlternativeRanking, CartLine, RankedAlternative } from '../types';
+import { Icon } from './icons';
 import { EvidenceMark, MatchTag } from './matchmarks';
 import { ProductPicture } from './pictures';
 import { Sheet } from './Sheet';
+import { Notice } from './ui';
 
 // The line the dialog is open for: the card's plan (ref) and the cart line.
 export interface OptionsTarget {
@@ -57,9 +59,9 @@ function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; act
   const grade = rowGrade(item);
   const origin = altOrigin(item.origin);
   return (
-    <li className={`alt-row${item.current ? ' alt-row-current' : ''}`}>
-      <ProductPicture product={item.product} ingredient={ingredient} />
-      <div className="alt-main">
+    <li className={`card-row alt-row${item.current ? ' alt-row-current' : ''}`}>
+      <span className="card-pic"><ProductPicture product={item.product} ingredient={ingredient} /></span>
+      <div>
         <div className="alt-name">
           <span className="alt-rank">#{item.rank}</span> <strong>{item.product}</strong>
           {brandSize && <span className="muted"> {brandSize}</span>}
@@ -80,7 +82,7 @@ function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; act
         {summary && <p className="alt-summary">{summary}</p>}
         {chips.length > 0 && (
           <ul className="alt-chips" aria-label="Reasons">
-            {chips.map((r) => <li key={r.code} className={`alt-chip alt-tone-${r.tone}`}>{r.text}</li>)}
+            {chips.map((r) => <li key={r.code} className={`chip alt-tone-${r.tone}`}>{r.text}</li>)}
           </ul>
         )}
         {item.reasons.length > chips.length && (
@@ -260,16 +262,16 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
       ) : undefined}
       footer={ranking?.data_note ? <p className="alt-data-note">{ranking.data_note}</p> : undefined}
     >
-      {blocked && <p id={blockedId} className="alt-blocked">{blocked}</p>}
-      {notice && <p className="alt-blocked" role="note">{notice}</p>}
-      {swapError && <div className="banner banner-error alt-error" role="alert">{swapError}</div>}
-      {error && <div className="banner banner-error alt-error" role="alert">{error}</div>}
+      {blocked && <p id={blockedId} className="alt-blocked"><Icon name="alert" size={14} />{blocked}</p>}
+      {notice && <p className="alt-blocked" role="note"><Icon name="alert" size={14} />{notice}</p>}
+      {swapError && <Notice tone="danger" className="alt-error">{swapError}</Notice>}
+      {error && <Notice tone="danger" className="alt-error">{error}</Notice>}
 
       {!ranking && !error && (
         <>
           <p className="muted" role="status">Loading the options for {ingredient}…</p>
           <ul className="alt-list" aria-hidden="true">
-            {[0, 1, 2].map((i) => <li key={i} className="alt-row alt-skeleton" />)}
+            {[0, 1, 2].map((i) => <li key={i} className="skel alt-skeleton" />)}
           </ul>
         </>
       )}
@@ -319,7 +321,7 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
           )}
 
           {kept.length > 0 && (
-            <details className="alt-held alt-kept">
+            <details className="alt-held">
               <summary>Not offered ({kept.length})</summary>
               <ul className="alt-held-list">
                 {kept.map(({ item, text }) => (

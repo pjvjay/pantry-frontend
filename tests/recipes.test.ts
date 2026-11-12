@@ -385,7 +385,7 @@ test('a saved doc is the reviewed one: title trimmed, lines byte for byte', () =
   assert.ok(saved.lines.every((l: RecipeLine) => l.confirmed));
 });
 
-test('"Add to meal plan" saves the recipe and names it once in the meal plan\'s inbox', () => {
+test('"Add to your plan" saves the recipe and names it once in the meal plan\'s inbox', () => {
   const store = new Memory();
   const now = '2026-10-08T21:00:00.000Z';
   assert.deepEqual(addToMealPlan(store, pageDoc(), ID, now), { ok: true, key: `my:${ID}`, already: false });

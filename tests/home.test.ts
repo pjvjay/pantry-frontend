@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  basketCounts, firstRecipe, greeting, homeTasks, nextTrip, periodText, pickedText,
+  basketCounts, firstRecipe, greeting, homeTasks, nextTrip, periodText, pickedText, planHeading,
 } from '../src/mealplan/home.ts';
 import type { BasketCounts, HomeTasks } from '../src/mealplan/home.ts';
 import { eventsSignature } from '../src/mealplan/exported.ts';
@@ -212,6 +212,26 @@ test('the next trip: the first from today, approved or not, with its day, stores
   assert.deepEqual([later?.date, later?.when, later?.look.kind], [D(4), 'Tue 13 Oct', 'approved']);
   assert.equal(nextTrip(s, answer, D(5)), null, 'every trip is behind us');
   assert.equal(nextTrip(s, null, D(0)), null);
+  assert.equal(n.basket, null, 'nothing ticked yet');
+});
+
+test('the next trip says how far the shopper got in the store, from the ticks', () => {
+  const s = placedPlan();
+  const answer = withTrips(twoTrips([{ stores: ['Pantry Mart Downtown', 'GreenLeaf Grocers'] }, { status: 'approved' }]));
+  const first = nextTrip(s, answer, D(0));
+  assert.ok(first);
+  const ids = answer.strategies[0].trips.find((t) => t.date === first.date)?.lines.map((ln) => ln.product.id) ?? [];
+  const one = nextTrip(s, answer, D(0), (date) => (date === first.date ? [ids[0]] : []));
+  assert.deepEqual(one?.basket, { done: 1, total: 2, text: '1 of 2 in the basket' });
+  const all = nextTrip(s, answer, D(0), () => ids);
+  assert.equal(all?.basket?.text, 'All in the basket');
+  assert.equal(nextTrip(s, answer, D(0), () => [999])?.basket, null, 'a product not on the trip is not progress');
+});
+
+test('the steps are headed by the time the plan covers', () => {
+  assert.equal(planHeading(7), 'This week');
+  assert.equal(planHeading(14), 'These two weeks');
+  assert.equal(planHeading(10), 'These 10 days');
 });
 
 test('the picture heading Home is the first meal cooked, else the first recipe picked', () => {

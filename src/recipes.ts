@@ -18,7 +18,7 @@
 //     back untouched, and a value that is not this shape at all is not overwritten.
 //
 //   pantry.mealplan.inbox.v1   {v: 1, entries: [{key: 'my:<id>', title, added_at}]}
-//     "Add to meal plan": recipes waiting for the meal plan's tray. The doc itself is saved in
+//     "Add to your plan": recipes waiting for the meal plan's tray. The doc itself is saved in
 //     pantry.recipes.v1 first; an entry only names it. The meal planner takes the entries
 //     (takeInbox, which empties the list), adds each recipe to its tray with one meal unless it
 //     is there already, and says so for an entry whose recipe is no longer saved. At most one

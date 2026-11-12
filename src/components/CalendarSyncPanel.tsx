@@ -35,6 +35,7 @@ import type {
   CalendarOpResult, CalendarSyncStatus, CalendarTiming,
 } from '../types';
 import { Icon } from './icons';
+import { Notice, Tag } from './ui';
 
 type Busy = null | 'connect' | 'review' | 'apply' | 'disconnect';
 
@@ -262,9 +263,9 @@ export function GoogleSyncNote({ sync }: { sync: GoogleSync }) {
   const s = sync.status;
   const said = (
     <>
-      {sync.notice && <p className={sync.notice.ok ? 'cal-sync-ok' : 'cart-flag'} role="status">{sync.notice.text}</p>}
-      {s?.problem && <p className="cart-flag" role="alert">{s.problem}</p>}
-      {sync.error && <p className="cart-flag" role="alert">{sync.error}</p>}
+      {sync.notice && <Notice tone={sync.notice.ok ? 'success' : 'warn'}>{sync.notice.text}</Notice>}
+      {s?.problem && <Notice tone="warn">{s.problem}</Notice>}
+      {sync.error && <Notice tone="danger">{sync.error}</Notice>}
     </>
   );
   if (sync.state === 'off') {
@@ -294,16 +295,16 @@ export function GoogleSyncNote({ sync }: { sync: GoogleSync }) {
           before writing anything.
         </p>
         {s.needs_reconnect && (
-          <p className="cart-flag" role="alert">
+          <Notice tone="warn">
             Google ended the connection, as it does every 7 days while the app is in Testing. Connect
             again to keep syncing.
-          </p>
+          </Notice>
         )}
         {!s.can_connect_here && (
-          <p className="cart-flag">
+          <Notice tone="info">
             Connecting works from the console at <a href={s.connect_url}>{s.connect_url}</a>, the address
             registered with your Google OAuth client.
-          </p>
+          </Notice>
         )}
       </div>
     );
@@ -328,7 +329,7 @@ export function GoogleSyncPanel({ sync }: { sync: GoogleSync }) {
   const results = new Map((result?.results ?? []).map((r) => [r.item_id, r]));
   const failed = failedItems(result);
   return (
-    <section className="cal-sync" aria-labelledby={headId} aria-busy={busy !== null}>
+    <section className="card cal-sync" aria-labelledby={headId} aria-busy={busy !== null}>
       <h3 id={headId} className="cal-head">Google Calendar</h3>
       {!diff && <p className="muted">Sync with Google Calendar shows the changes here first.</p>}
       {diff && plan && (
@@ -358,8 +359,10 @@ export function GoogleSyncPanel({ sync }: { sync: GoogleSync }) {
             </div>
           ) : (
             <div className="cal-sync-actions">
-              <p ref={sync.resultLine} tabIndex={-1} className={`cal-sync-result ${failed.length ? 'cart-flag' : 'cal-sync-ok'}`}
-                 role="status">{applySummary(result)}</p>
+              <p ref={sync.resultLine} tabIndex={-1} className="cal-sync-result" role="status">
+                <Tag kind={failed.length ? 'attention' : 'done'}>{failed.length ? 'Some failed' : 'Written'}</Tag>
+                {applySummary(result)}
+              </p>
               {failed.length > 0 && (
                 <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => void sync.retry()}>
                   Retry failed
@@ -415,11 +418,7 @@ function OpRow({ op, choice, disabled, onChoose, result }: {
       <div className="cal-op-head">
         <strong className="cal-title">{op.title}</strong>
         <span className="muted">{opDay(op)}</span>
-        {result && (
-          <span className={`chip ${result.ok ? 'chip-ok' : 'chip-warn'}`}>
-            {resultText(result)}
-          </span>
-        )}
+        {result && <Tag kind={result.ok ? 'done' : 'attention'}>{resultText(result)}</Tag>}
       </div>
       {op.op !== 'create' && op.op !== 'skip' && op.changes.length > 0 && (
         <div className="muted">

@@ -1,7 +1,683 @@
-/* The meal plan's frame and its first stages (views/MealPlanView.tsx): the stage heading, the
-   setup strip and the ways in on Pick meals, Place on days' tools, and Back and Next. The stages'
-   older rules are in index.css ("Meal plan", "Meal plan wizard", "Form pieces"); these come after
-   them and win where both speak. */
+/* The meal plan (views/MealPlanView.tsx): its frame (the progress indicator, the stage heading,
+   Back and Next), Set up and its form pieces (components/fields.tsx, basics.tsx), Pick meals (the
+   setup strip, the ways in, the budget bar, the recipe cards, Quick add and recipe import) and
+   Place on days (the board, the tray, nutrition, the Move sheet). Check ingredients is in
+   styles/check.css, Shop in shop.css, Calendar in calendar.css. Every surface a shopper reads
+   something on is the console's one card (styles/card.css); the rules here only lay out what is
+   in it. A state is said in words with a sign (a Tag, or a note with its icon), never by colour
+   alone. */
+
+/* ─── A note beside an item: plain, something to look at, or not known ───────────────────── */
+/* Each with its sign (an icon) before the words, so the colour only repeats them; the plan's
+   stages and Shop all use them. .fc-problem is a field's or a request's own failure. */
+.mp-note, .mp-note-warn, .fc-problem {
+  display: flex; align-items: flex-start; gap: var(--space-1); margin: var(--space-1) 0 0; font-size: var(--fs-compact);
+}
+.mp-note .ico, .mp-note-warn .ico, .fc-problem .ico, .mp-unknown .ico { flex: none; margin-top: 2px; }
+.mp-note-warn { color: var(--warn); }
+.fc-problem { color: var(--danger-fg); }
+.mp-unknown { display: inline-flex; align-items: baseline; gap: 3px; color: var(--muted); }
+.mp-unknown .ico { align-self: center; margin-top: 0; }
+
+/* --- recipe import (components/ImportSheet.tsx) --------------------------------------------- */
+.sheet.import-sheet { width: min(860px, 100%); }
+.import-no-hub {
+  margin: 0 0 10px; padding: 6px 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius-2);
+  font-size: var(--fs-compact);
+}
+.import-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); }
+.import-tab {
+  margin: 0 0 -1px; padding: 8px 14px; min-height: 44px; border-radius: 0; background: none;
+  color: var(--muted); border-bottom: 2px solid transparent;
+}
+.import-tab:hover { color: var(--text); }
+/* the selected tab is said by aria-selected and shown by the underline and the colour */
+.import-tab-active { color: var(--accent); border-bottom-color: var(--accent); }
+.import-panel { padding-top: 10px; }
+.import-form { display: flex; flex-direction: column; gap: 6px; }
+.import-form > button { align-self: flex-start; margin-top: 4px; }
+.import-form p { margin: 0; }
+.import-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-compact); color: var(--muted); }
+.import-field textarea { font: var(--fs-compact)/1.5 var(--font-mono); }
+.import-error { margin-top: 12px; }
+.import-video { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-2); }
+.import-video p { margin: 0 0 4px; }
+.import-video-title { font-weight: 600; overflow-wrap: anywhere; }
+.import-ways { margin-top: 10px; }
+.import-ways h4 { margin: 0 0 4px; }
+.import-ways p { margin: 0 0 6px; }
+.import-links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.import-links li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.import-link-url { overflow-wrap: anywhere; }
+.import-review { margin-top: 16px; }
+.import-review h3 { margin: 0 0 8px; }
+.import-review > p { margin: 8px 0 0; font-size: var(--fs-compact); }
+.import-source { color: var(--text); }
+.import-servings { margin-top: 8px; max-width: 360px; }
+.import-check {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 10px;
+  padding: 8px 10px; border: 1px dashed var(--warn); border-radius: var(--radius-2);
+}
+/* positioned, so the header's sr-only "Remove" stays inside the scrolling table rather than
+   widening the sheet past the phone's edge, where focus could scroll the whole sheet sideways */
+.import-table-wrap { margin-top: 10px; position: relative; }
+.import-table input[type="checkbox"] { width: 18px; height: 18px; }
+.import-verbatim { overflow-wrap: anywhere; }
+.import-amount { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* said in words ("amount not stated"); the style only quiets it */
+.import-unstated { color: var(--muted); font-style: italic; }
+.import-row-unchecked td { background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.import-quote { font-style: italic; }
+.import-notes { margin: 8px 0 0; padding-left: 18px; font-size: var(--fs-compact); color: var(--muted); }
+.import-notice { min-height: 1.4em; color: var(--accent); }
+.import-ready {
+  display: flex; align-items: center; gap: var(--space-1); margin: 0 auto 0 0; align-self: center;
+  font-size: var(--fs-compact); color: var(--warn);
+}
+.import-plan { margin-top: 16px; }
+.import-card {
+  margin-top: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-2);
+  background: var(--panel); font-size: var(--fs-compact); max-width: 88%;
+}
+.import-card p { margin: 0 0 4px; }
+.import-card-title { overflow-wrap: anywhere; }
+.import-card-failed { border-style: dashed; border-color: var(--warn); }
+.import-card-lines summary { cursor: pointer; color: var(--muted); font-size: var(--fs-compact); }
+.import-card button { margin-top: 6px; }
+@media (max-width: 640px) {
+  .import-card { max-width: 100%; }
+  .import-form > button, .import-ways button { width: 100%; }
+  /* three actions share two rows instead of taking one each, leaving room for the lines */
+  .import-sheet .sheet-foot button { flex: 1 1 auto; }
+  .import-ready { flex-basis: 100%; }
+}
+
+/* --- Place on days: the board, its chips, the tray -------------------------------------------
+   One DOM at every width. At 900 px and up each week is seven day columns; below, the same day
+   cards stack as an agenda. Targets show as a dashed --line-strong outline and the one under
+   the pointer as a solid accent outline: outlines only, so nothing changes size. Unknown and
+   at-risk states use --warn and always carry a word or a sign as well as the colour. A day column
+   is narrow on a laptop (seven of them), so what it shows is short: each meal's name and energy,
+   the trip's state and cost, and the day's energy; what is true of every day the Nutrition band
+   says once. */
+.mp-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mp-inline { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-compact); color: var(--muted); }
+.mp-inline input, .mp-inline select { padding: 4px 8px; }
+/* a fixed-height status line, so a check starting or ending moves nothing below it */
+.mp-status { margin: 8px 0 0; min-height: 1.5em; font-size: var(--fs-compact); font-variant-numeric: tabular-nums; }
+.mp-status-problem { margin-top: var(--space-2); }
+.mp-empty { color: var(--muted); font-size: var(--fs-compact); }
+.mp-empty-place { text-align: center; padding: 8px 0; }
+.mp-empty-place p { margin: 4px 0 0; }
+
+.mp-board { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; scroll-padding-bottom: 72px; }
+.mp-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.mp-day {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 6px;
+  border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--bg);
+  container-type: inline-size;
+}
+.mp-day-head { margin: 0; font-size: var(--fs-compact); font-weight: 600; font-variant-numeric: tabular-nums; }
+.mp-row-k { display: block; }
+.mp-shop, .mp-slot {
+  position: relative; min-height: 48px; padding: 3px 4px; border-radius: var(--radius-2);
+  background: var(--panel); outline: 1px solid transparent; outline-offset: -1px;
+}
+.mp-shop {
+  background: transparent; border-bottom: 1px solid var(--border);
+  border-radius: 0; border-top-left-radius: var(--radius-2); border-top-right-radius: var(--radius-2);
+}
+.mp-shop-none { display: block; }
+.mp-shop[data-target], .mp-slot[data-target] { outline: 2px dashed var(--line-strong); }
+.mp-shop[data-over], .mp-slot[data-over], .mp-tray[data-over] { outline: 2px solid var(--accent); }
+.mp-slot-target {
+  display: block; width: 100%; margin: 2px 0 0; padding: 4px; min-height: 28px; font-size: var(--fs-label);
+  background: transparent; color: var(--accent); border: 1px dashed var(--line-strong);
+}
+.mp-day-foot { margin-top: auto; padding-top: 4px; border-top: 1px solid var(--border); }
+.mp-day-nut { font-size: var(--fs-label); line-height: 1.35; font-variant-numeric: tabular-nums; }
+.mp-day-nut-line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--space-1); }
+.mp-day-complete { color: var(--accent); }
+
+.mp-chip {
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas:
+    "grip thumb main more" "grip thumb nut more"; align-items: center; column-gap: 2px;
+  margin-top: 2px; padding: 2px; border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--panel);
+  box-shadow: var(--shadow-1); transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.mp-chip:hover { border-color: var(--line-strong); }
+.mp-chip > .rpic-thumb { grid-area: thumb; margin: 0 2px; }
+.mp-chip[data-held] { outline: 2px solid var(--accent); }
+.mp-chip[data-risk] { border-color: var(--warn); }
+/* the one element that does not scroll the page under a finger */
+.mp-grip {
+  grid-area: grip; width: 24px; height: 24px; flex: none; cursor: grab; touch-action: none; border-radius: var(--radius-1);
+  background: radial-gradient(circle, var(--line-strong) 1.2px, transparent 1.6px) 0 0 / 6px 6px;
+  background-origin: content-box; padding: 5px;
+}
+.mp-grip:active { cursor: grabbing; }
+.mp-chip-main {
+  grid-area: main; margin: 0; padding: 2px; min-height: 24px; text-align: left; background: none;
+  color: var(--text); font-weight: 600; font-size: var(--fs-compact); line-height: 1.25; min-width: 0;
+}
+.mp-chip-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.mp-chip-meta { display: flex; gap: 4px; font-weight: 400; font-size: var(--fs-label); color: var(--muted); font-variant-numeric: tabular-nums; }
+.mp-mark-warn { color: var(--warn); }
+.mp-chip-nut { grid-area: nut; font-size: var(--fs-label); padding-left: 2px; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.mp-chip-more {
+  grid-area: more; display: grid; place-items: center; margin: 0; padding: 0; width: 24px; height: 24px;
+  background: none; color: var(--text); border-radius: var(--radius-1);
+}
+.mp-chip-more:hover { background: var(--accent-soft); }
+/* A narrow day column (seven of them on a laptop screen): the grip and the ⋯ share the top row
+   and the name gets the chip's whole width, so it wraps between words, not inside them. */
+@container (max-width: 150px) {
+  .mp-chip { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "grip thumb more" "main main main" "nut nut nut"; }
+  .mp-chip > .rpic-thumb { justify-self: start; }
+  .mp-chip-title { overflow-wrap: break-word; hyphens: auto; }
+  /* a suggested trip's grip, narrower, so "Suggested" fits beside it inside the dashed edge */
+  .mp-trip > .mp-grip { width: 16px; padding: 5px 2px; }
+}
+
+.mp-trip { display: flex; align-items: center; gap: 2px; margin-top: 2px; border-radius: var(--radius-2); padding: 2px; }
+.mp-trip-suggested { outline: 2px dashed var(--line-strong); outline-offset: -2px; }
+.mp-trip-approved { border: 2px solid var(--accent); }
+.mp-trip-review { border: 2px solid var(--warn); }
+/* Approved under the other strategy: this strategy's list for the day is not the approved one. */
+.mp-trip-elsewhere { border: 2px dotted var(--accent); }
+.mp-trip[data-held] { box-shadow: 0 0 0 2px var(--accent); }
+.mp-trip-main {
+  margin: 0; padding: 2px; min-height: 24px; flex: 1; min-width: 0; text-align: left; background: none;
+  color: var(--text); font-size: var(--fs-label); line-height: 1.25; display: flex; flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+.mp-trip-word { font-weight: 600; }
+.mp-trip-review .mp-trip-word { color: var(--warn); }
+.mp-trip-cost { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* fixed above the phone's bottom navigation bar, where there is one (styles/shell.css) */
+.mp-bar {
+  position: fixed; left: 50%; bottom: calc(12px + var(--bottom-nav-h, 0px)); transform: translateX(-50%); z-index: 20;
+  display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; max-width: calc(100% - 24px);
+  padding: 10px 14px; border-radius: var(--radius-3); background: var(--panel); border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-2); font-size: var(--fs-compact);
+}
+.mp-bar-actions { display: inline-flex; gap: 6px; }
+.mp-ghost {
+  position: fixed; left: 0; top: 0; z-index: 30; pointer-events: none; max-width: 220px;
+  padding: 6px 10px; border-radius: var(--radius-2); background: var(--panel); border: 1px solid var(--accent);
+  box-shadow: var(--shadow-2); font-size: var(--fs-compact); will-change: transform;
+}
+.mp-ghost-note { color: var(--muted); font-size: var(--fs-label); }
+
+.mp-move-opts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.mp-stepper { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: var(--fs-compact); }
+/* (a .btn has its own size, 44px under a coarse pointer) */
+.mp-stepper button:not(.btn) { min-width: 28px; min-height: 28px; }
+.mp-stepper output { min-width: 1.5em; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mp-move-day { margin-bottom: 8px; }
+.mp-move-date { font-size: var(--fs-label); font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mp-move-choice {
+  display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin: 3px 0 0; text-align: left;
+  background: var(--panel); color: var(--text); border: 1px solid var(--border); font-weight: 400;
+}
+.mp-move-slot { font-weight: 600; }
+.mp-move-why { font-size: var(--fs-compact); color: var(--muted); }
+.mp-move-note .mp-move-why, .mp-move-warn .mp-move-why, .mp-move-warn .mp-move-slot { color: var(--warn); }
+
+.nut-chip { font-variant-numeric: tabular-nums; }
+/* not known: quieter, never a warning's colour (the words say it) */
+.nut-unknown { color: var(--muted); }
+.nut-floor { color: var(--text); }
+/* "demo amounts" on a recipe's own receipt: a quiet mark, its title saying more */
+.nut-demo { display: inline-flex; align-items: center; gap: 2px; color: var(--muted); font-size: var(--fs-label); font-weight: 400; }
+.nut-target-warn { color: var(--warn); }
+.mp-period {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; padding: 8px 10px;
+  border-radius: var(--radius-2); border: 1px solid var(--border); background: var(--bg); font-size: var(--fs-compact);
+}
+.mp-period-k { font-weight: 600; }
+.mp-period-text { flex: 1; min-width: 200px; font-variant-numeric: tabular-nums; }
+/* what every figure on the board rests on, said once */
+.mp-period-note { display: flex; align-items: flex-start; gap: var(--space-1); flex-basis: 100%; margin: 0; color: var(--muted); }
+.mp-period-note .ico { flex: none; margin-top: 2px; }
+.mp-nut-lines { margin-top: var(--space-2); }
+.mp-nutrition { margin: 8px 0; font-size: var(--fs-compact); }
+.mp-nutrition summary { cursor: pointer; }
+.mp-nut-totals { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 0; margin: 6px 0; list-style: none; }
+.mp-sources { padding-left: 18px; font-size: var(--fs-compact); }
+.mp-sources li { margin-bottom: 6px; }
+.mp-targets { display: flex; flex-direction: column; gap: 6px; }
+.mp-target-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-2); }
+.mp-target-row label { display: inline-flex; gap: 6px; align-items: center; font-size: var(--fs-compact); }
+.mp-target-row input { width: 6em; }
+
+.mp-field { display: flex; flex-direction: column; gap: 2px; }
+.mp-field-why { font-size: var(--fs-compact); }
+/* Suggest cook days' proposal, a card over the board */
+.mp-proposal { margin-top: 10px; }
+.mp-proposal > .card-title { margin-bottom: var(--space-2); }
+.mp-proposal-ops { padding-left: 18px; margin: 6px 0; font-size: var(--fs-compact); }
+.mp-proposal-ops li { margin-bottom: 6px; }
+
+.mp-tray { position: relative; border-radius: var(--radius-2); outline: 1px solid transparent; }
+.mp-tray[data-target] { outline: 2px dashed var(--line-strong); outline-offset: 4px; }
+/* Quick add: a field the width of a sentence, not of the page */
+.mp-quick { max-width: 880px; }
+.mp-quick-label { display: block; margin-bottom: 6px; }
+.mp-preview { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--bg); }
+.mp-qchips { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.mp-qchip {
+  padding: 6px 10px; border-radius: var(--radius-2); border: 1px solid var(--border); background: var(--panel);
+  font-size: var(--fs-compact); font-variant-numeric: tabular-nums;
+}
+.mp-qchip-confirm, .mp-qchip-choose { border: 2px dashed var(--warn); }
+.mp-qchip-unmatched { color: var(--warn); }
+.mp-qchip-off { opacity: 0.7; text-decoration: line-through; }
+.mp-qchip-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.mp-servings { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; padding: 6px 8px; border: 2px solid var(--warn); border-radius: var(--radius-2); font-size: var(--fs-compact); }
+.mp-recipes { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 8px; }
+.mp-recipe {
+  display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-2);
+  background: var(--bg); font-size: var(--fs-compact); min-width: 0;
+}
+.mp-recipe-head { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.mp-recipe-what { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.mp-recipe-title { font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.mp-recipe-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-variant-numeric: tabular-nums; }
+.mp-recipe-placed { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-compact); color: var(--muted); font-variant-numeric: tabular-nums; }
+.mp-recipe-done .mp-recipe-placed { color: var(--accent); font-weight: 600; }
+.mp-recipe-meter { display: block; height: 4px; border-radius: var(--radius-pill); background: var(--border); overflow: hidden; }
+.mp-recipe-meter span { display: block; height: 100%; background: var(--accent); transition: width var(--dur-2) var(--ease); }
+.mp-recipe-remove { align-self: flex-start; flex: none; }
+.mp-recipe-ctl { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.mp-recipe-note { font-size: var(--fs-compact); }
+.mp-recipe-problem, .mp-recipe-served { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--space-2); }
+.mp-recipe-problem .mp-note-warn { margin: 0; }
+.mp-tray-chips { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.mp-tray-chips .mp-chip { margin: 0; }
+
+/* A sprint board: the recipes to place in a card beside the calendar's card, both in view on a
+   wide screen; the tray stays put while the board scrolls, and on a phone sits above the board and
+   folds away. Both cards take the dense step of padding, so the seven day columns keep their room. */
+.sched { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; margin-top: 10px; }
+.mp-side, .sched-board { --card-pad: var(--space-4); min-width: 0; }
+.mp-side { display: flex; flex-direction: column; gap: 10px; }
+.mp-side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.view .mp-side-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-body); font-weight: 600; }
+.mp-side-title .ico { color: var(--accent); }
+.mp-side-count { font-variant-numeric: tabular-nums; }
+.mp-side-note { margin: 0 0 var(--space-2); color: var(--muted); font-size: var(--fs-compact); }
+.mp-side .mp-slot-target { margin: 0; min-height: 36px; }
+.mp-side-shut .mp-side-body { display: none; }
+.sched-board > .mp-period:first-child { margin-top: 0; }
+@media (min-width: 1024px) {
+  .sched { grid-template-columns: 300px minmax(0, 1fr); }
+  .mp-side { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; overscroll-behavior: contain; }
+  .mp-side .mp-recipes { grid-template-columns: minmax(0, 1fr); }
+  /* both in view: the sidebar never folds */
+  .mp-side-fold { display: none; }
+  .mp-side-shut .mp-side-body { display: block; }
+}
+.mp-add-list { list-style: none; padding: 0; margin: 0; }
+.mp-add-list li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 3px 0; }
+.mp-firstrun li { margin-bottom: 8px; }
+.mp-file { margin-top: 12px; }
+@media (max-width: 900px) {
+  .mp-week { grid-template-columns: minmax(0, 1fr); }
+  .mp-day { display: grid; grid-template-columns: minmax(0, 1fr); }
+}
+@media (pointer: coarse) {
+  /* (the narrow columns' trip grip as well: a fingertip's, whatever the column) */
+  .mp-grip, .mp-trip > .mp-grip, .mp-chip-more { width: 44px; height: 44px; }
+  .mp-grip, .mp-trip > .mp-grip { padding: 14px; }
+  .mp-chip-main, .mp-trip-main { min-height: 44px; }
+}
+
+/* --- The progress indicator over the stages (#/plan?step=1..6) ------------------------------
+   Six marks joined by a line: done ones filled with a tick, the current one ringed, ahead ones
+   outlined, and one the plan cannot be on yet dimmed; a done stage an edit has undone shows "!" in
+   --warn. On a phone only the current stage's name shows; the others keep theirs for screen
+   readers. A bar of the page's frame, like Back and Next, rather than a card of the stage. */
+.mp-steps {
+  margin-top: 20px; padding: 14px 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-3);
+  background: var(--panel); box-shadow: var(--shadow-1);
+}
+.mp-steps ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.mp-step { position: relative; display: flex; justify-content: center; min-width: 0; }
+.mp-step:not(:last-child)::after {
+  content: ''; position: absolute; top: 15px; left: calc(50% + 22px); right: calc(-50% + 22px);
+  height: 2px; border-radius: var(--radius-pill); background: var(--border); transition: background var(--dur-2) var(--ease);
+}
+.mp-step-done:not(:last-child)::after { background: var(--accent); }
+.mp-step-link {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: 0 2px;
+  color: var(--muted); text-decoration: none; font-size: var(--fs-compact); font-weight: 600; text-align: center;
+  border-radius: var(--radius-2);
+}
+.mp-step-link:focus-visible { outline: none; }
+.mp-step-link:focus-visible .mp-step-mark { outline: 2px solid var(--focus); outline-offset: 3px; }
+.mp-step-mark {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: 50%; border: 2px solid var(--line-strong); background: var(--panel);
+  font-variant-numeric: tabular-nums; font-weight: 700;
+  transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease), color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
+}
+.mp-step-name { overflow-wrap: anywhere; transition: color var(--dur-2) var(--ease); }
+a.mp-step-link:hover .mp-step-mark { transform: translateY(-1px); box-shadow: var(--shadow-2); }
+a.mp-step-link:hover .mp-step-name { color: var(--text); }
+.mp-step-done .mp-step-link { color: var(--text); }
+.mp-step-done .mp-step-mark { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.mp-step-current .mp-step-link { color: var(--accent); font-weight: 700; }
+.mp-step-current .mp-step-mark {
+  border: 2px solid var(--accent); background: var(--accent-soft); color: var(--accent-soft-fg);
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
+.mp-step-attention .mp-step-mark { background: var(--panel); border-color: var(--warn); color: var(--warn); }
+.mp-step-closed .mp-step-link { opacity: 0.55; cursor: default; }
+
+/* the stage: drawn on the page, its parts cards; what a change of stage cross-fades (.vt-stage) */
+.mp-stage { margin-top: 16px; }
+.mp-behind { margin: 4px 0 10px; }
+
+/* Pick meals: the budget bar stays at the top of the page while the cards scroll under it. Its
+   figures are StatTiles in a plain row (the bar is the box): the budget, the estimate, what is
+   left, and the meals so far in the shopper's words. */
+.mp-budget {
+  position: sticky; top: 0; z-index: 5; margin: 8px 0 10px; padding: 8px 12px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-2); background: var(--panel);
+  box-shadow: var(--shadow-1);
+}
+.mp-budget-over { border-color: var(--warn); }
+.mp-budget .stat-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mp-budget-meter { height: 6px; margin-top: 6px; border-radius: var(--radius-pill); background: var(--border); overflow: hidden; }
+.mp-budget-meter span { display: block; height: 100%; background: var(--accent); }
+.mp-budget-over .mp-budget-meter span { background: var(--warn); }
+.mp-est-basis { margin: 0 0 4px; }
+.mp-section { margin-top: 14px; }
+.mp-section-head { margin: 0 0 6px; font-size: var(--fs-body); }
+details.mp-section > summary { cursor: pointer; }
+details.mp-section > summary .mp-section-head { display: inline; }
+.mp-cards { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 12px; }
+/* A recipe is a card (styles/card.css) with its picture across the top, edge to edge (.card-pic);
+   four to a row on a laptop, with the dense card's padding so the words keep their width. It is not
+   one target (its Add and count are), so it does not lift under the pointer. */
+.mp-card {
+  --card-pad: var(--space-4);
+  display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow: hidden; font-size: var(--fs-compact);
+}
+.mp-card > .card-pic { margin-bottom: var(--space-2); }
+.mp-card:hover .rpic-credit, .mp-card:focus-within .rpic-credit { opacity: 1; }
+/* in the plan: an accent edge drawn inside, so the card keeps its size */
+.mp-card.mp-card-in { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), var(--shadow-1); }
+.mp-card-head { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.mp-card-title { overflow-wrap: anywhere; font-size: var(--fs-body); font-weight: 600; line-height: 1.3; }
+.mp-card-cost { font-variant-numeric: tabular-nums; }
+/* the cost a meal moves to the next line whole, never leaving "meal" alone there (a box of its own
+   drops its leading space, so the gap before its "·" is a margin) */
+.mp-card-cost .muted { display: inline-block; margin-left: 0.3em; }
+.mp-card-note { margin: 0; font-size: var(--fs-compact); }
+/* something stops the card's Add, or it does not fit the diet: its sign and its words */
+.mp-card-warn { color: var(--warn); }
+p.mp-card-warn { display: flex; align-items: flex-start; gap: var(--space-1); }
+.mp-card-warn .ico { flex: none; margin-top: 2px; }
+span.mp-card-warn .ico { display: inline-block; margin: 0 var(--space-1) 0 0; vertical-align: -2px; }
+/* the recipes' own shape while they load, at once */
+.mp-card-skel { height: 236px; border-radius: var(--radius-3); }
+.mp-card-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; padding-top: 8px; }
+@media (max-width: 520px) {
+  /* a phone: the picture a square beside the words, so a list of recipes stays short */
+  .mp-card { display: grid; grid-template-columns: 84px minmax(0, 1fr); column-gap: 12px; row-gap: 0; }
+  .mp-card > .card-pic { grid-row: span 6; width: 84px; margin: 0; aspect-ratio: 1; border-radius: var(--radius-2); }
+  .mp-card > :not(.card-pic) { grid-column: 2; }
+  .mp-card > :not(.card-pic) + :not(.card-pic) { margin-top: 3px; }
+  .mp-card-skel { height: 112px; }
+  .rpic-card .rpic-credit { right: 4px; bottom: 4px; max-width: calc(100% - 8px); padding: 1px 6px; font-size: var(--fs-chrome); }
+  .rpic-card .rpic-credit-k { display: none; }
+}
+.mp-card-over { font-size: var(--fs-compact); }
+/* every place for the meal is taken: said plainly, not as a problem */
+.mp-card-full { font-size: var(--fs-compact); color: var(--muted); }
+.mp-hidden { margin-top: 6px; font-size: var(--fs-compact); }
+.mp-hidden summary { cursor: pointer; color: var(--muted); }
+.mp-hidden ul { margin: 4px 0; padding-left: 18px; }
+.mp-more { margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--border); }
+
+@media (max-width: 640px) {
+  .mp-step-mark { width: 28px; height: 28px; }
+  .mp-step:not(:last-child)::after { top: 13px; left: calc(50% + 18px); right: calc(-50% + 18px); }
+  .mp-steps { padding: 12px 4px 10px; }
+  .mp-step:not(.mp-step-current) .mp-step-name {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap;
+  }
+  /* between words only: "Shopping plan" on two lines, never "Shoppin g" */
+  .mp-step-current .mp-step-name { font-size: var(--fs-label); overflow-wrap: normal; }
+  .mp-budget { padding: 6px 10px; }
+  .mp-budget .stat-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* two rows already: the note under the meals waits for a wider screen, so the bar stays short */
+  .mp-budget .stat-tile-note { display: none; }
+}
+/* --- Form pieces (components/fields.tsx): cards, segments, tiles, chips, switches ------------
+   Each control is drawn over the browser's own radio button or checkbox: the input stays where
+   it is, transparent over the drawn face (or hidden beside it for a switch), so clicks, the
+   keyboard and screen readers reach the real thing. A checked or focused input styles its
+   sibling face; the focus ring is always visible on keyboard focus. */
+/* a form's card is the console's card (styles/card.css, with its .card-title and .card-sub); here
+   only how it sits and its head: the icon beside the title */
+.fc { min-width: 0; margin: 0; }
+.fc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.fc-icon {
+  flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--radius-2);
+  background: var(--accent-soft); color: var(--accent);
+}
+.fc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 10px; }
+.fc-row:first-of-type { margin-top: 0; }
+.fc-sub { margin: 14px 0 6px; }
+.fc-note { margin: 8px 0 0; font-size: var(--fs-compact); }
+.fc-field { display: flex; flex-direction: column; gap: 4px; }
+.fc-inline { flex-direction: row; align-items: center; gap: 8px; }
+.fc-label { font-size: var(--fs-compact); font-weight: 600; color: var(--muted); }
+.fc-range { margin: 12px 0 0; font-size: var(--fs-body); font-weight: 600; font-variant-numeric: tabular-nums; }
+.fc-place { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font-size: var(--fs-body); color: var(--accent); }
+.fc-place strong { color: var(--text); overflow-wrap: anywhere; }
+.fc-privacy { margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--border); font-size: var(--fs-compact); color: var(--muted); }
+
+/* one of a few, as joined segments */
+.seg {
+  display: inline-grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 3px; max-width: 100%;
+  border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface-2);
+}
+.seg-opt { position: relative; display: block; }
+.seg-opt input, .tile input, .tchip input {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer;
+}
+.seg-opt span {
+  display: block; padding: 6px 14px; border-radius: var(--radius-pill); font-size: var(--fs-compact); font-weight: 600; color: var(--muted);
+  text-align: center;
+  white-space: nowrap; transition: background var(--dur-2) var(--ease), color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+.seg-opt:hover span { color: var(--text); }
+/* the chosen segment is raised: lighter than the track in either theme */
+.seg-opt input:checked + span { background: var(--popover); color: var(--text); box-shadow: var(--shadow-1); }
+.seg-opt input:focus-visible + span, .tile input:focus-visible + .tile-face, .tchip input:focus-visible + span {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  /* a phone: the segments share the card's width, on one row */
+  .seg { display: grid; width: 100%; }
+  .seg-opt span { padding: 6px 2px; }
+}
+
+/* one of several, as tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr)); gap: 8px; }
+.tile { position: relative; display: block; }
+.tile-face {
+  display: flex; flex-direction: column; gap: 3px; height: 100%; padding: 10px 12px;
+  border: 1.5px solid var(--border-ui); border-radius: var(--radius-2); background: var(--bg);
+  transition: border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
+}
+.tile-face .ico { color: var(--muted); margin-bottom: 2px; transition: color var(--dur-2) var(--ease); }
+.tile-name { font-weight: 600; font-size: var(--fs-compact); }
+.tile-hint { font-size: var(--fs-compact); color: var(--muted); }
+.tile:hover .tile-face { border-color: var(--line-strong); }
+.tile input:checked + .tile-face { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.tile input:checked + .tile-face .ico, .tile input:checked + .tile-face .tile-name { color: var(--accent-soft-fg); }
+
+/* on or off among others, as chips; plain chips have no tick */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tchip { position: relative; display: inline-block; }
+/* the face is the label's own span; a count inside it (.tchip-n) is not a second face */
+.tchip > span {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--bg); font-size: var(--fs-compact); font-weight: 600;
+  color: var(--text); transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease), color var(--dur-2) var(--ease);
+}
+.tchip:not(.tchip-plain) > span::before {
+  content: ''; flex: none; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--line-strong);
+  transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+.tchip-plain > span { justify-content: center; min-width: 52px; }
+.tchip:hover > span { border-color: var(--line-strong); }
+.tchip input:checked + span { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-soft-fg); }
+.tchip input:checked + span::before { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 3px var(--panel); }
+.tchip input:disabled { cursor: default; }
+.tchip input:disabled + span { opacity: 0.5; }
+.tchip-n {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--muted); font-size: var(--fs-chrome); font-variant-numeric: tabular-nums;
+}
+
+/* a rule, as a switch: the input hidden beside the drawn track */
+.switches { display: flex; flex-direction: column; }
+.switch { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 0; cursor: pointer; }
+.switches .switch + .switch { border-top: 1px solid var(--border); }
+.switch input { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; }
+.switch-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.switch-label { font-size: var(--fs-compact); font-weight: 600; overflow-wrap: anywhere; }
+.switch-hint { font-size: var(--fs-compact); color: var(--muted); }
+.switch-track {
+  position: relative; flex: none; width: 40px; height: 24px; border-radius: var(--radius-pill); background: var(--line-strong);
+  transition: background var(--dur-2) var(--ease);
+}
+.switch-track::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--knob); box-shadow: var(--knob-shadow); transition: transform var(--dur-2) var(--ease);
+}
+.switch input:checked ~ .switch-track { background: var(--accent); }
+.switch input:checked ~ .switch-track::after { transform: translateX(16px); }
+.switch input:focus-visible ~ .switch-track { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* a quick pick, a button that says whether it is the value */
+.qpicks { display: flex; flex-wrap: wrap; gap: 6px; }
+.qpick {
+  margin: 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--bg);
+  color: var(--text); font-size: var(--fs-compact); font-weight: 600; transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
+}
+.qpick:hover { border-color: var(--line-strong); }
+.qpick[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* a sum of money, large */
+.money {
+  display: inline-flex; align-items: baseline; gap: 2px; padding: 4px 14px; border: 1.5px solid var(--border-ui);
+  border-radius: var(--radius-2); background: var(--bg); transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.money:hover { border-color: var(--line-strong); }
+.money:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.money-sym { font-size: var(--fs-section); font-weight: 600; color: var(--muted); }
+.money input {
+  width: 6.5ch; padding: 4px 2px; border: none; background: transparent; color: var(--text);
+  font: inherit; font-size: var(--fs-section); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.money input:focus { outline: none; }
+.money input::placeholder { font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
+
+/* an address search: the field, its button, and what it found */
+.search {
+  display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border: 1.5px solid var(--border-ui);
+  border-radius: var(--radius-pill); background: var(--bg); transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.search-ico { color: var(--muted); display: grid; }
+.search-input { flex: 1; min-width: 0; padding: 6px 2px; border: none; background: transparent; color: var(--text); font: inherit; }
+.search-input:focus { outline: none; }
+.search button { border-radius: var(--radius-pill); padding: 6px 14px; }
+.geo { margin-top: 8px; }
+.geo-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-2); overflow: hidden; }
+.geo-list li + li { border-top: 1px solid var(--border); }
+.geo-pick {
+  display: flex; align-items: flex-start; gap: 8px; width: 100%; margin: 0; padding: 9px 12px; border-radius: 0;
+  background: var(--panel); color: var(--text); font-weight: 500; font-size: var(--fs-compact); text-align: left;
+  transition: background var(--dur-1) var(--ease);
+}
+.geo-pick .ico { margin-top: 2px; color: var(--accent); }
+.geo-pick:hover { background: var(--accent-soft); }
+.geo-attr { margin: 4px 0 0; font-size: var(--fs-chrome); color: var(--muted); text-align: right; }
+
+/* country chips in an order: number, name, earlier, later, off */
+.cchips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.cchip {
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px 2px 2px 4px; border: 1px solid var(--border);
+  border-radius: var(--radius-pill); background: var(--bg); font-size: var(--fs-compact);
+}
+.cchip-n {
+  display: grid; place-items: center; min-width: 20px; height: 20px; border-radius: var(--radius-pill); background: var(--accent-soft);
+  color: var(--accent-soft-fg); font-size: var(--fs-chrome); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.cchip-name { padding: 0 4px; font-weight: 600; }
+.cchip-btn {
+  display: grid; place-items: center; margin: 0; width: 26px; height: 26px; padding: 0; border-radius: 50%;
+  background: transparent; color: var(--muted); transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.cchip-btn:hover { background: var(--surface-2); color: var(--text); }
+.cchip-btn[aria-disabled="true"] { opacity: 0.35; cursor: default; }
+
+/* --- Set up: the form cards, and "Your plan" beside them on a wide screen -------------------- */
+.bx { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.bx-forms, .fc-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+@media (min-width: 760px) {
+  /* two cards a row, the wide ones across both */
+  .bx-forms, .fc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bx-forms .fc-wide { grid-column: 1 / -1; }
+}
+@media (min-width: 1100px) { .fc-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.fc-times input[type="time"] { width: 8.5em; }
+.fc-input-sm { padding: 4px 8px; font-size: var(--fs-compact); }
+.mp-timing-zone { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; }
+/* "Your plan": a card (styles/card.css) washed with the accent at its head */
+.sum { background: linear-gradient(180deg, var(--accent-soft), var(--panel) 120px); }
+.view .sum-title { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: var(--fs-body); color: var(--accent); }
+.sum-list { margin: 0; display: grid; gap: 10px; }
+.sum-row { display: grid; gap: 1px; }
+.sum-row dt { display: flex; align-items: center; gap: 6px; }
+.sum-row dd { margin: 0 0 0 22px; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.sum-note { display: block; font-size: var(--fs-compact); font-weight: 400; color: var(--muted); }
+@media (min-width: 960px) {
+  .bx { grid-template-columns: minmax(0, 1fr) 300px; }
+  .sum { position: sticky; top: 16px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tile:active .tile-face, .tchip:active > span, .qpick:active { transform: scale(0.98); }
+}
+
+@media (pointer: coarse) {
+  .mp-step-link { min-height: 44px; }
+}
+@media (forced-colors: active) {
+  /* the import tabs' underline is a border, kept; the unselected ones hide theirs */
+  .import-tab { border: none; border-bottom: 2px solid Canvas; }
+  .import-tab-active { border-bottom-color: Highlight; }
+  .mp-shop[data-target], .mp-slot[data-target], .mp-tray[data-target] { outline-color: ButtonText; }
+  .mp-shop[data-over], .mp-slot[data-over], .mp-tray[data-over], .mp-chip[data-held] { outline-color: Highlight; }
+  .mp-grip { background: none; border: 1px solid ButtonText; }
+  /* the form pieces draw their state with fills: say it with system colours as well */
+  .tile input:checked + .tile-face, .tchip input:checked + span, .seg-opt input:checked + span,
+  .qpick[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .switch-track { border: 1px solid ButtonText; }
+  .switch input:checked ~ .switch-track { background: Highlight; }
+}
 
 /* ─── The stage heading ──────────────────────────────────────────────────────────────────── */
 /* The stage's name, in the display face, with the quiet "Step 2 of 6" over it (inside the
@@ -23,46 +699,32 @@
 /* Set up says it is optional, under its name in the progress indicator. */
 .mp-step-opt { display: block; font: 400 var(--fs-chrome)/14px var(--font-body); color: var(--muted); }
 
-/* Set up's own answers to a question it asks back (When: "send them back to the tray?") */
-.fc-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-
 /* ─── Pick meals: the setup restated ─────────────────────────────────────────────────────── */
-/* A card of short cells: what each answer is, its value and a note under it, and Change at the
-   cell's top right. Two to a row on a phone, three on a tablet, all six in one row on a wide
-   screen. */
-.mp-setup {
-  margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4) var(--space-4);
-  border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--panel); box-shadow: var(--shadow-1);
-}
+/* A card of short cells, each reading down: what the answer is, the answer and a note under it,
+   then that answer's own Change, under it at the cell's start, so it is never read with the next
+   cell's name. Two to a row on a phone, three on a tablet, all six in one row on a wide screen. */
+.mp-setup { margin: 0 0 var(--space-4); }
 .view .mp-setup-head {
   margin: 0 0 var(--space-3); font: var(--type-label); letter-spacing: var(--label-tracking);
   text-transform: uppercase; color: var(--muted);
 }
 .mp-setup-list {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); margin: 0;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin: 0;
 }
 @media (min-width: 600px) { .mp-setup-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 1100px) { .mp-setup-list { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
-.mp-setup-item {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "key change" "value value";
-  align-items: baseline; column-gap: var(--space-2); min-width: 0;
-}
-.mp-setup-key { grid-area: key; color: var(--muted); font: var(--type-label); letter-spacing: var(--label-tracking); text-transform: uppercase; }
-.mp-setup-value { grid-area: value; margin: var(--space-1) 0 0; font-weight: 600; font-size: var(--fs-compact); line-height: 20px; overflow-wrap: anywhere; }
+.mp-setup-item { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.mp-setup-value { margin: var(--space-1) 0 0; font-weight: 600; font-size: var(--fs-compact); line-height: 20px; overflow-wrap: anywhere; }
 .mp-setup-note { display: block; font-weight: 400; font-size: var(--fs-compact); line-height: 18px; color: var(--muted); }
-.mp-setup-change { grid-area: change; margin: 0; font-size: var(--fs-compact); line-height: 16px; }
+.mp-setup-change { margin: var(--space-1) 0 0; font-size: var(--fs-compact); line-height: 18px; }
 .mp-setup-change a { font-weight: 600; text-underline-offset: 2px; }
 @media (max-width: 599.98px) {
-  /* compact on a phone: the cells closer, the notes smaller */
-  .mp-setup { padding: var(--space-3); }
   .mp-setup-list { gap: var(--space-3); }
-  .mp-setup-value { font-size: var(--fs-compact); line-height: 19px; }
-  .mp-setup-note { font-size: var(--fs-compact); line-height: 16px; }
 }
 /* A fingertip's 44px for each Change, reaching out over the cell's edges rather than making the
    cells taller. */
 @media (pointer: coarse) {
-  .mp-setup-change a { display: inline-flex; align-items: center; min-height: 44px; margin: -14px -8px; padding: 0 8px; }
+  .mp-setup-change a { display: inline-flex; align-items: center; min-height: 44px; margin: -13px -8px; padding: 0 8px; }
 }
 
 /* ─── Pick meals: the ways in ────────────────────────────────────────────────────────────── */
@@ -85,9 +747,6 @@
 }
 
 /* ─── Place on days: the tools over the board ────────────────────────────────────────────── */
-/* The tray's Hide is for a phone, where the tray sits over the board; beside it on a wide screen,
-   it never folds (index.css), whatever .btn would show. */
-@media (min-width: 1024px) { .mp-side .mp-side-fold { display: none; } }
 .mp-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .mp-tools-toggle { margin-left: auto; }
 /* pressed: every slot shows; a filled edge as well as the tick, so not colour alone */
@@ -110,9 +769,11 @@
 /* while something is picked up the Moving bar stands in its place (components/mealcal.tsx) */
 .mp-wnav[hidden] { display: none; }
 .mp-wnav-back { grid-area: back; }
-.mp-wnav-next { grid-area: next; justify-self: end; }
+.mp-wnav-next { grid-area: next; justify-self: end; min-width: 0; max-width: 100%; }
 .mp-wnav-why { grid-area: why; margin: 0; font-size: var(--fs-compact); line-height: 18px; text-align: right; }
-.mp-wnav-next { min-width: 0; max-width: 100%; }
+/* why Next cannot be used yet: the warning's sign before the words */
+.mp-wnav-blocked { display: flex; align-items: flex-start; justify-content: flex-end; gap: var(--space-1); color: var(--warn); }
+.mp-wnav-blocked .ico { flex: none; margin-top: 2px; }
 .mp-wnav-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* Waiting on an answer: the accent's soft fill with a slow sweep along its foot, and the time it
@@ -138,6 +799,7 @@
   .mp-wnav-next { justify-self: stretch; }
   .mp-wnav .btn { padding: 0 var(--space-3); }
   .mp-wnav-why { text-align: left; }
+  .mp-wnav-blocked { justify-content: flex-start; }
   /* "Back" alone: the stage it goes to stays for screen readers */
   .mp-wnav-to {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -167,8 +829,5 @@
   .geo-pick { min-height: 44px; align-items: center; }
   .switch { min-height: 44px; }
   details.mp-section > summary, .mp-hidden summary, .mp-add summary, .mp-nutrition summary { padding-block: 12px; }
-  .mp-qchip .linkish, .mp-recipe .linkish { min-height: 44px; padding: 0 4px; }
-  .mp-slot-target { min-height: 44px; }
-  .mp-side .mp-slot-target { min-height: 44px; }
-  .mp-period button, .mp-proposal button { min-height: 44px; }
+  .mp-slot-target, .mp-side .mp-slot-target { min-height: 44px; }
 }

@@ -6,10 +6,13 @@
 // household's diet, avoid-tags and area. A card says the recipe's diet, what one more meal of it
 // adds to the plan's cost, and what cannot be bought nearby (and whether only the origin rule
 // stops it); Add and the count stepper put meals in the plan. A budget bar stays at the top while
-// the page scrolls: the budget, the estimated spend, what is left, and the slots filled. An Add
+// the page scrolls: the budget, the estimated spend, what is left, and the meals so far ("6
+// dinners, for 6 of 7 days": the shopper's terms; Place on days counts slots). An Add
 // that would pass the budget cannot be pressed and says by how much; recipes that do not fit the
 // diet are counted under "n hidden by your diet". Quick add, Import a recipe and the shopper's
-// own recipes stay below, as other ways to add.
+// own recipes stay below, as other ways to add. While the recipes load, cards in their shape hold
+// their place at once, so the stage never stands empty and nothing below it rides up under the
+// Back and Next bar.
 //
 // The spend is the selection in whole packs, as trips buy it, so it is close to what Ingredients
 // and the Shopping plan show. The arithmetic is in mealplan/catalog.ts.
@@ -34,14 +37,16 @@ import { AddRecipes, QuickAdd } from './mealtray';
 import { RecipePicture } from './pictures';
 import { Icon } from './icons';
 import { SetupStrip } from './SummaryStrip';
-import { Notice, Spinner } from './ui';
+import { Notice, Spinner, StatRow, StatTile } from './ui';
 import type { NoticeAction } from './ui';
 import { useBuildWeek } from './useBuildWeek';
 import { useKeepClear } from './useKeepClear';
 
 // ─── The budget bar ──────────────────────────────────────────
 
-// pending: the recipes' prices have not arrived yet, so the figures would be "$0.00".
+// pending: the recipes' prices have not arrived yet, so the figures would be "$0.00". The
+// figures are StatTiles in a plain row, since the bar is the box (components/ui.tsx); over the
+// budget, what is left says so in words with the warning's sign and colour.
 function BudgetBar({ spend, pending }: { spend: Spend; pending: boolean }) {
   const mp = useMealPlan();
   const bar = budgetBar(mp.state, spend);
@@ -52,13 +57,13 @@ function BudgetBar({ spend, pending }: { spend: Spend; pending: boolean }) {
   // to rest below it, not under it
   const keepClear = useKeepClear('top');
   return (
-    <div ref={keepClear} className={`mp-budget${over ? ' mp-budget-over' : ''}`} role="group" aria-label="Budget and slots">
-      <dl className="mp-budget-figures">
-        <div><dt>Budget</dt><dd>{t.budget}</dd></div>
-        <div><dt>Estimated</dt><dd>{t.spent}</dd></div>
-        <div><dt>Remaining</dt><dd className={over ? 'cart-flag' : undefined}>{over && <Icon name="alert" className="ico-inline" />}{t.remaining}</dd></div>
-        <div><dt>Slots</dt><dd>{t.slots}</dd></div>
-      </dl>
+    <div ref={keepClear} className={`mp-budget${over ? ' mp-budget-over' : ''}`} role="group" aria-label="Budget and meals">
+      <StatRow plain>
+        <StatTile label="Budget" value={t.budget} />
+        <StatTile label="Estimated" value={t.spent} />
+        <StatTile label="Remaining" value={t.remaining} tone={over && !pending ? 'warn' : 'default'} />
+        <StatTile label="Meals" value={t.meals} note={t.mealsNote || undefined} />
+      </StatRow>
       {bar.budget !== null && (
         <div className="mp-budget-meter" aria-hidden="true"><span style={{ width: `${used}%` }} /></div>
       )}
@@ -92,20 +97,20 @@ function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend
     onClick: () => { if (!blocked && !full) onAdd(r); },
   } as const;
   return (
-    <li className={`mp-card${inPlan ? ' mp-card-in' : ''}`}>
-      <RecipePicture pic={recipePicture(r.image, ownDoc)} slot={r.slot} size="card" />
+    <li className={`card mp-card${inPlan ? ' mp-card-in' : ''}`}>
+      <div className="card-pic"><RecipePicture pic={recipePicture(r.image, ownDoc)} slot={r.slot} size="card" /></div>
       <div className="mp-card-head">
         <strong className="mp-card-title">{r.title}</strong>
-        {badge && <span className="chip chip-ok">{badge}</span>}
-        {isMine(r) && <span className="chip chip-muted">my recipe</span>}
+        {badge && <span className="chip">{badge}</span>}
+        {isMine(r) && <span className="chip">my recipe</span>}
       </div>
       <div className="mp-card-cost">
         {addCostText(adds)}
         {r.est_cost_per_meal !== null && <span className="muted"> · {costPerMealText(r)}</span>}
       </div>
       {r.contains.length > 0 && <div className="muted mp-card-note">contains {r.contains.join(', ')}</div>}
-      {!r.fits && <div className="cart-flag mp-card-note">Not for your diet: {r.why_not ?? 'it does not fit'}.</div>}
-      {cannot.map((t) => <div key={t} className="cart-flag mp-card-note">{t}</div>)}
+      {!r.fits && <p className="mp-card-note mp-card-warn"><Icon name="alert" size={14} />Not for your diet: {r.why_not ?? 'it does not fit'}.</p>}
+      {cannot.map((t) => <p key={t} className="mp-card-note mp-card-warn"><Icon name="alert" size={14} />{t}</p>)}
       <div className="mp-card-ctl">
         {inPlan ? (
           <span className="mp-stepper">
@@ -123,7 +128,11 @@ function RecipeCard({ r, spend, picks, onAdd }: { r: CatalogRecipe; spend: Spend
           <span id={overId} className="mp-card-over">
             {full && <span className="mp-card-full">{full}.</span>}
             {full && blocked && ' '}
-            {blocked && <span className="cart-flag">{full ? `It would also go ${over} over the budget.` : blocked}</span>}
+            {blocked && (
+              <span className="mp-card-warn">
+                <Icon name="alert" size={14} />{full ? `It would also go ${over} over the budget.` : blocked}
+              </span>
+            )}
           </span>
         )}
       </div>
@@ -255,13 +264,22 @@ export function MealsStage({ quickText, setQuickText, onChange }: {
       {c && spend.unknown.length > 0 && (
         <p className="muted">Not in the estimate (cost unknown): {spend.unknown.join(', ')}.</p>
       )}
-      {catalog.status === 'checking' && !c && <p className="muted" role="status">Loading the recipes…</p>}
-      {catalog.status === 'error' && (
-        <div className="banner banner-error" role="alert">
-          The recipes could not be loaded: {catalog.error}{' '}
-          <button type="button" className="btn btn-secondary btn-sm" onClick={catalog.retry}>Try again</button>
-          <div className="banner-hint">The lists below still add recipes, without estimates.</div>
+      {/* the recipes' own shape while they load, at once: the stage is never empty, and what
+          comes after it stays below the fold rather than under the Back and Next bar */}
+      {!c && catalog.status !== 'error' && (
+        <div className="mp-section">
+          <p className="sr-only" role="status">Loading the recipes…</p>
+          <ul className="mp-cards" aria-hidden="true">
+            {Array.from({ length: 8 }, (_, i) => <li key={i} className="skel skel-card mp-card-skel" />)}
+          </ul>
         </div>
+      )}
+      {catalog.status === 'error' && (
+        <Notice tone="danger" title="The recipes could not be loaded"
+                hint="The lists further down still add recipes, without estimates."
+                actions={[{ label: 'Try again', icon: 'refresh', onClick: catalog.retry }]}>
+          {catalog.error}
+        </Notice>
       )}
       {c && <p className="muted mp-est-basis">{estimateText(spend)}</p>}
 
@@ -338,7 +356,7 @@ export function MealsStage({ quickText, setQuickText, onChange }: {
         {c ? (
           <>
             <h4>My recipes</h4>
-            {mp.myRecipesProblem && <p className="cart-flag">{mp.myRecipesProblem}</p>}
+            {mp.myRecipesProblem && <Notice tone="warn">{mp.myRecipesProblem}</Notice>}
             {own.shown.length > 0 ? (
               <ul className="mp-cards">
                 {own.shown.map((r) => <RecipeCard key={r.key} r={r} spend={spend} picks={picks} onAdd={add} />)}
@@ -351,7 +369,7 @@ export function MealsStage({ quickText, setQuickText, onChange }: {
         ) : catalog.status === 'error' && <AddRecipes />}
       </section>
 
-      {/* "Add to meal plan" in the sheet leaves the recipe in the inbox; it joins the plan here */}
+      {/* "Add to your plan" in the sheet leaves the recipe in the inbox; it joins the plan here */}
       <ImportSheet open={importing} onClose={() => { setImporting(false); mp.syncSaved(); }} />
     </>
   );

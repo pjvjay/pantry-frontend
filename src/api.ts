@@ -140,7 +140,7 @@ export const parseSelection = (body: SelectionParseRequest, signal?: AbortSignal
 export const suggestCookDays = (draft: MealPlanDraft, signal?: AbortSignal) =>
   post<CookDaysProposal>('/mealplan/suggest-cook-days', draft, signal);
 
-// The wizard's Meals and Ingredients stages: no LLM, deterministic, fast. The catalog classifies
+// The wizard's Pick meals and Check ingredients stages: no LLM, deterministic, fast. The catalog classifies
 // every starter and library recipe (and the shopper's own) for a diet and estimates a meal's
 // cost; the basket shows each chosen recipe's ingredients as the plan would buy them.
 export const mealCatalog = (body: CatalogRequest, signal?: AbortSignal) =>
@@ -149,7 +149,7 @@ export const mealCatalog = (body: CatalogRequest, signal?: AbortSignal) =>
 export const mealBasket = (draft: MealPlanDraft, signal?: AbortSignal) =>
   post<MealBasket>('/mealplan/basket', { draft }, signal);
 
-// The stores near the shopper for the Ingredients stage: distance, in range, turned off, and how
+// The stores near the shopper for Check ingredients: distance, in range, turned off, and how
 // many of the plan's products each sells.
 export const mealStores = (draft: MealPlanDraft, signal?: AbortSignal) =>
   post<MealStores>('/mealplan/stores', { draft }, signal);

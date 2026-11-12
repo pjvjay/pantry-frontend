@@ -55,7 +55,7 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
   productId: number | null;
   productName: string;
   onClose: () => void;
-  // a line with no product (the Ingredients stage), asked by its recipe line
+  // a line with no product (Check ingredients), asked by its recipe line
   line?: LineAsk | null;
 }) {
   const mp = useMealPlan();

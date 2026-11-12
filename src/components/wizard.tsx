@@ -137,7 +137,8 @@ export function StageNav({ step, facts, go, say, hidden = false }: {
         </button>
       )}
       {block && (
-        <p id={why} className={`mp-wnav-why ${block.state === 'pending' ? 'muted' : 'cart-flag'}`}>
+        <p id={why} className={`mp-wnav-why${block.state === 'pending' ? ' muted' : ' mp-wnav-blocked'}`}>
+          {block.state !== 'pending' && <Icon name="alert" size={14} />}
           {block.text}
           {block.state === 'pending' && queued && ` ${stepName(next)} opens when it is done.`}
           {block.state !== 'pending' && block.step < step && (

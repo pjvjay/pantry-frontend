@@ -14,7 +14,8 @@
 // as a card of quiet rows, a skeleton of rows in its place while its products are checked. "Your
 // stores" sits beside them on a wide screen, staying in view, and lights the store a row is
 // bought at; on a phone it comes before the recipes. The words are in mealplan/basket.ts and
-// mealplan/check.ts.
+// mealplan/check.ts. Where every row would say the same about its origin ("origin unknown · not
+// checked", as in the demo), the header says it once and the rows leave it out.
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 
@@ -51,6 +52,7 @@ const taskSelector = (key: string) => `[data-task="${CSS.escape(key)}"] button`;
 const rowSelector = (key: string) => `[data-ing-line="${CSS.escape(key)}"]`;
 
 const cap = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
+const lowerFirst = (t: string) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 
 // ─── The header ──────────────────────────────────────────────
 
@@ -58,10 +60,12 @@ const cap = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 // words say (found, skipped, still to answer; recipes checked while their products are), so it is
 // decoration to a screen reader; while a check is under way a sweep runs along it, which holds
 // still under reduced motion.
-function CheckHeader({ progress, total, coverage, elapsed }: {
+function CheckHeader({ progress, total, coverage, origin, elapsed }: {
   progress: CheckProgress;
   total: { text: string; over: boolean } | null;
   coverage: { text: string; flag: boolean } | null;
+  // what every row would say about its origin, said here once instead
+  origin: LineView | null;
   elapsed: number | null;
 }) {
   const p = progress;
@@ -69,7 +73,7 @@ function CheckHeader({ progress, total, coverage, elapsed }: {
   const found = p.value ?? 0;
   const done = p.state === 'done';
   return (
-    <section className={`mp-check-head mp-check-${p.state}`} aria-labelledby={CHECK_HEAD}>
+    <section className={`card mp-check-head mp-check-${p.state}`} aria-labelledby={CHECK_HEAD}>
       <div className="mp-check-top">
         <h3 id={CHECK_HEAD} className="mp-check-title" tabIndex={-1}>{p.head}</h3>
         {done && p.open > 0 && <Tag kind="attention">{p.note}</Tag>}
@@ -111,7 +115,15 @@ function CheckHeader({ progress, total, coverage, elapsed }: {
           </details>
         </div>
       )}
-      {coverage && <p className={`mp-check-coverage${coverage.flag ? ' cart-flag' : ''}`}>{coverage.text}</p>}
+      {coverage && (
+        <p className="mp-check-coverage">{coverage.flag && <Icon name="alert" size={14} />}{coverage.text}</p>
+      )}
+      {origin && (
+        <p className="mp-check-coverage mp-ing-origin">
+          Every product here: {lowerFirst(origin.origin.text)}
+          <EvidenceMark kind={origin.evidence.kind} word={origin.evidence.word} />
+        </p>
+      )}
     </section>
   );
 }
@@ -125,16 +137,14 @@ const ANSWER_ICON: Record<Answer, IconName> = { stores: 'store', product: 'swap'
 function AtRiskList({ tasks, onAnswer }: { tasks: AtRisk[]; onAnswer: (t: AtRisk, a: Answer) => void }) {
   const head = useId();
   return (
-    <section className="mp-tasks" aria-labelledby={head}>
-      <div className="mp-tasks-top">
-        <h3 id={head} className="mp-tasks-title">
-          <Icon name="alert" size={20} />{toAnswerText(tasks.length)}
-        </h3>
-        <p className="mp-tasks-lede">
-          The plan cannot buy {tasks.length === 1 ? 'this' : 'these'} near you. Choose what to do
-          for each: Place on days waits for every answer.
-        </p>
-      </div>
+    <section className="card mp-tasks" aria-labelledby={head}>
+      <h3 id={head} className="mp-tasks-title">
+        <Icon name="alert" size={20} />{toAnswerText(tasks.length)}
+      </h3>
+      <p className="mp-tasks-lede">
+        The plan cannot buy {tasks.length === 1 ? 'this' : 'these'} near you. Choose what to do
+        for each: Place on days waits for every answer.
+      </p>
       <ol className="mp-tasks-list">
         {tasks.map((t) => {
           const l = t.line;
@@ -176,7 +186,9 @@ function AtRiskList({ tasks, onAnswer }: { tasks: AtRisk[]; onAnswer: (t: AtRisk
 // rest describes it), so a click anywhere on it, Enter or Space open them. A row the plan cannot
 // buy that is answered (skipped, or its recipe has no meals now) stays quiet and says so; one
 // still to answer is in the task list above instead.
-function Line({ l, title, onOptions, onHot }: { l: LineView; title: string; onOptions: Open; onHot: Hot }) {
+// origin: the row says its own origin (false when the header says the one every row shares).
+function Line({ l, title, onOptions, onHot, origin }: { l: LineView; title: string; onOptions: Open; onHot: Hot;
+  origin: boolean }) {
   const mp = useMealPlan();
   const facts = useId();
   // Needed after all: the row goes back up to the task list, and the keyboard with it, a moment
@@ -210,11 +222,13 @@ function Line({ l, title, onOptions, onHot }: { l: LineView; title: string; onOp
             {meta && <span className="mp-ing-meta">{meta}</span>}
             <span className="mp-ing-facts">
               {l.grade && <MatchTag kind={l.grade.kind} label={l.grade.label} />}
-              <span className="mp-ing-origin">
-                <span className={l.origin.flag ? 'cart-flag' : 'muted'}>{l.origin.text}</span>
-                <EvidenceMark kind={l.evidence.kind} word={l.evidence.word} />
-              </span>
-              {l.labels.map((x) => <span key={x} className="chip chip-muted">{x}</span>)}
+              {origin && (
+                <span className="mp-ing-origin">
+                  <span className="muted">{l.origin.text}</span>
+                  <EvidenceMark kind={l.evidence.kind} word={l.evidence.word} />
+                </span>
+              )}
+              {l.labels.map((x) => <span key={x} className="chip">{x}</span>)}
               {l.shared && <span className="muted">{l.shared}</span>}
             </span>
           </span>
@@ -236,12 +250,12 @@ function Line({ l, title, onOptions, onHot }: { l: LineView; title: string; onOp
 
 // A recipe's card: its picture and name, its counts, and its rows; those still to answer wait in
 // the task list above, and the count says so.
-function RecipeIngredients({ r, onOptions, onHot, servings }: { r: RecipeView; onOptions: Open; onHot: Hot;
-  servings: boolean }) {
+function RecipeIngredients({ r, onOptions, onHot, servings, origin }: { r: RecipeView; onOptions: Open; onHot: Hot;
+  servings: boolean; origin: boolean }) {
   const head = useId();
   const quiet = r.lines.filter((l) => l.answered);
   return (
-    <section className="mp-ing-recipe" aria-labelledby={head}>
+    <section className="card mp-ing-recipe" aria-labelledby={head}>
       <div className="mp-ing-recipe-head">
         <RecipePicture pic={r.picture} slot={r.slot} size="head" />
         <div>
@@ -254,7 +268,7 @@ function RecipeIngredients({ r, onOptions, onHot, servings }: { r: RecipeView; o
       {r.lines.length === 0 && <p className="muted">No ingredients to show yet.</p>}
       {quiet.length > 0 && (
         <ul className="mp-ing-lines">
-          {quiet.map((l) => <Line key={l.key} l={l} title={r.title} onOptions={onOptions} onHot={onHot} />)}
+          {quiet.map((l) => <Line key={l.key} l={l} title={r.title} onOptions={onOptions} onHot={onHot} origin={origin} />)}
         </ul>
       )}
     </section>
@@ -268,7 +282,7 @@ function RecipeShell({ title, slot, sub, children }: { title: string; slot: Reci
   children?: ReactNode }) {
   const head = useId();
   return (
-    <section className="mp-ing-recipe mp-ing-shell" aria-labelledby={head}>
+    <section className="card mp-ing-recipe mp-ing-shell" aria-labelledby={head}>
       <div className="mp-ing-recipe-head">
         <RecipePicture pic={null} slot={slot} size="head" />
         <div>
@@ -311,6 +325,10 @@ export function IngredientsStage({ basket, facts, onMeals }: { basket: KeyedCall
   const checked = (k: string) => Boolean(d.resolved[k]) && USABLE_RESOLVE.includes(d.resolved[k].status);
   const ready = view?.recipes.filter((r) => checked(r.key)) ?? [];
   const shown = new Set(ready.map((r) => r.key));
+  // the origin every row shown would say, when they all say the same: said once, in the header
+  const rows = ready.flatMap((r) => r.lines.filter((l) => l.answered));
+  const sameOrigin = rows.length > 1 && rows.every((l) => l.origin.text === rows[0].origin.text
+    && l.evidence.kind === rows[0].evidence.kind && l.evidence.word === rows[0].evidence.word) ? rows[0] : null;
   // Origin coverage, said only when the plan has origin rules: they act on known origins only.
   const rules = originRules(d.settings);
   const hasRules = rules.excludeUS || rules.preferCanada || rules.allies.length > 0;
@@ -407,7 +425,8 @@ export function IngredientsStage({ basket, facts, onMeals }: { basket: KeyedCall
   return (
     <div className="mp-check">
       <div className="mp-check-lead">
-        <CheckHeader progress={progress} total={total} coverage={coverage} elapsed={pending ? elapsed : null} />
+        <CheckHeader progress={progress} total={total} coverage={coverage} origin={sameOrigin}
+                     elapsed={pending ? elapsed : null} />
         {/* A call that failed is said once, here, with its reason and Try again (the header says
             what could not be checked); a recipe its check answered with a problem says so in its
             own card below. */}
@@ -444,7 +463,7 @@ export function IngredientsStage({ basket, facts, onMeals }: { basket: KeyedCall
 
       <div className="mp-check-recipes">
         {ready.map((r) => (
-          <RecipeIngredients key={r.key} r={r} onHot={setHotStore} servings={servingsAsked(r.key)}
+          <RecipeIngredients key={r.key} r={r} onHot={setHotStore} servings={servingsAsked(r.key)} origin={!sameOrigin}
                              onOptions={(l) => {
                                openedFrom.current = l.key;
                                setOptionsFor(l.key);

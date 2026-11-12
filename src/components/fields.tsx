@@ -1,8 +1,9 @@
-// The wizard's form pieces: a card for each group of questions, and controls drawn as segments,
+// The wizard's form pieces: a card for each group of questions (the console's one card,
+// styles/card.css, with its icon, its title and a line of help), and controls drawn as segments,
 // tiles, chips and switches over the browser's own radio buttons and checkboxes. The native
 // input stays in place (transparent, over the drawn face, or hidden beside it), so the keyboard,
 // a screen reader and form autofill treat them as they always do; only the look is ours. The
-// styles are the "Form pieces" section of index.css.
+// styles are the "Form pieces" section of styles/plan.css.
 import type { ReactNode } from 'react';
 
 import { Icon } from './icons';
@@ -21,12 +22,12 @@ export function FormCard({ icon, title, help, headId, children, className, id }:
   id?: string;
 }) {
   return (
-    <section id={id} className={className ? `fc ${className}` : 'fc'} aria-labelledby={headId}>
+    <section id={id} className={className ? `card fc ${className}` : 'card fc'} aria-labelledby={headId}>
       <div className="fc-head">
         <span className="fc-icon"><Icon name={icon} /></span>
         <div>
-          <h3 id={headId} className="fc-title">{title}</h3>
-          {help && <p className="fc-help">{help}</p>}
+          <h3 id={headId} className="card-title">{title}</h3>
+          {help && <p className="card-sub">{help}</p>}
         </div>
       </div>
       {children}

@@ -51,6 +51,14 @@ export function greeting(hour: number): string {
 export const periodText = (d: MealPlanDraft): string =>
   `${dayLabel(d.start_date)} – ${dayLabel(addDays(d.start_date, d.days - 1))}`;
 
+// The heading over the plan's steps, named for the time the plan covers: "This week" for a week,
+// "These two weeks" for a fortnight, "These 10 days" otherwise.
+export function planHeading(days: number): string {
+  if (days === 7) return 'This week';
+  if (days === 14) return 'These two weeks';
+  return `These ${days} days`;
+}
+
 // The recipe whose picture heads Home: the one cooked first, else the first one picked.
 export function firstRecipe(d: MealPlanDraft): string | null {
   const rank = (sl: Slot | null) => (sl === null ? SLOTS.length : SLOTS.indexOf(sl));
@@ -232,11 +240,15 @@ export interface NextTrip {
   items: string;                   // "25 items"
   cost: string;                    // "$112.05", "at least $4.00", "price unknown"
   look: TripLook;
+  // how far the shopper got in the store (in-store mode's ticks), once anything is in the basket
+  basket: { done: number; total: number; text: string } | null;
 }
 
 // The first trip of the strategy shown from today on, approved or not (its state says which);
-// none when the plan has no trip left to shop for.
-export function nextTrip(s: MealPlanState, sc: MealSchedule | null, today: CivilDate): NextTrip | null {
+// none when the plan has no trip left to shop for. ticked: the products in that trip's basket
+// (mealplan/shopping.ts), so a trip begun in the store says how far it got ("3 of 8 in the basket").
+export function nextTrip(s: MealPlanState, sc: MealSchedule | null, today: CivilDate,
+  tickedOn: (date: CivilDate) => readonly number[] = () => []): NextTrip | null {
   const d = s.draft;
   const st = strategyOf(sc, d.prefs.strategy);
   const t = [...(st?.trips ?? [])].filter((x) => daysBetween(today, x.date) >= 0)
@@ -244,11 +256,16 @@ export function nextTrip(s: MealPlanState, sc: MealSchedule | null, today: Civil
   if (!t || !st) return null;
   const ahead = daysBetween(today, t.date);
   const day = dayLabel(t.date);
+  const rows = shopRows(t);
+  const has = new Set(tickedOn(t.date));
+  const done = rows.filter((r) => has.has(r.productId)).length;
   return {
     date: t.date, day, when: ahead === 0 ? 'Today' : ahead === 1 ? 'Tomorrow' : day,
     stores: t.stores.length ? listOf(t.stores) : 'No store chosen yet',
-    items: plural(shopRows(t).length, 'item', 'items'),
+    items: plural(rows.length, 'item', 'items'),
     cost: costText(t.total_cost, t.total_is_floor, tripPriced(t)),
     look: tripLook(t, approvedElsewhere(d, t.date, st.name)),
+    basket: done ? { done, total: rows.length,
+      text: done === rows.length ? 'All in the basket' : `${done} of ${rows.length} in the basket` } : null,
   };
 }

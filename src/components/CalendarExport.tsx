@@ -6,7 +6,9 @@
 // sync needs it, rather than nothing. Then the times and reminders, folded into one Timing card
 // whose heading says what they are now; then a preview of every event by day, each with its
 // recipe's or product's picture (a quiet placeholder where the hub has none) and one Google
-// add-event link; then pantry-api's notes on importing.
+// add-event link; then pantry-api's notes on importing. What every event of a kind carries
+// ("demo amounts" on every cook day, "demo store" on every trip) is said once over the list, kind
+// by kind, and an event marks only what sets it apart.
 //
 // Once the events have gone to a calendar (the file downloaded, or a sync written with nothing
 // failed) the stage says so and its last step is done, here, in the progress indicator and on
@@ -105,7 +107,7 @@ function Reminders({ labelledBy, choices, remind, onChange }: {
   const full = remind.filter((c) => choices.includes(c)).length >= MAX_REMINDERS;
   return (
     <>
-      <p id={labelledBy} className="fc-sub">Remind me</p>
+      <p id={labelledBy} className="label fc-sub">Remind me</p>
       <div className="chips" role="group" aria-labelledby={labelledBy}>
         {choices.map((c) => {
           const on = remind.includes(c);
@@ -126,7 +128,7 @@ function LengthField({ minutes, onChange }: { minutes: number; onChange: (n: num
   return (
     <label className="fc-field">
       <span className="fc-label">For</span>
-      <select className="fc-input" value={minutes} onChange={(e) => onChange(Number(e.target.value))}>
+      <select value={minutes} onChange={(e) => onChange(Number(e.target.value))}>
         {LENGTHS.map((n) => <option key={n} value={n}>{lengthText(n)}</option>)}
       </select>
     </label>
@@ -147,14 +149,14 @@ function KindSettings({ k, onChange }: { k: KindTiming; onChange: (k: KindTiming
         <div className="fc-row">
           <label className="fc-field">
             <span className="fc-label">From</span>
-            <input className="fc-input" type="time" value={k.start} step={900} aria-invalid={problem ? true : undefined}
+            <input type="time" value={k.start} step={900} aria-invalid={problem ? true : undefined}
                    aria-describedby={problem ? why : undefined}
                    onChange={(e) => onChange({ ...k, start: e.target.value })} />
           </label>
           <LengthField minutes={k.minutes} onChange={(minutes) => onChange({ ...k, minutes })} />
         </div>
       )}
-      {problem && <p id={why} className="cart-flag fc-note">Sent as all day until it is {problem}.</p>}
+      {problem && <p id={why} className="fc-note fc-problem"><Icon name="alert" size={14} />Sent as all day until it is {problem}.</p>}
       <Reminders labelledBy={rem} choices={reminderChoices(k.timed)} remind={k.remind}
                  onChange={(remind) => onChange({ ...k, remind })} />
     </FormCard>
@@ -183,7 +185,7 @@ function CookSettings({ c, slots, onChange }: { c: CookTiming; slots: readonly M
           {SLOTS.filter((sl) => slots.includes(sl)).map((sl) => (
             <label key={sl} className="fc-field">
               <span className="fc-label">{SLOT_LABELS[sl]}</span>
-              <input className="fc-input" type="time" value={c.bySlot[sl]} step={900}
+              <input type="time" value={c.bySlot[sl]} step={900}
                      aria-invalid={problem ? true : undefined} aria-describedby={problem ? why : undefined}
                      onChange={(e) => setSlot(sl, e.target.value)} />
             </label>
@@ -191,7 +193,7 @@ function CookSettings({ c, slots, onChange }: { c: CookTiming; slots: readonly M
           <LengthField minutes={c.minutes} onChange={(minutes) => onChange({ ...c, minutes })} />
         </div>
       )}
-      {problem && <p id={why} className="cart-flag fc-note">Sent as all day until it is {problem}.</p>}
+      {problem && <p id={why} className="fc-note fc-problem"><Icon name="alert" size={14} />Sent as all day until it is {problem}.</p>}
       <Reminders labelledBy={rem} choices={reminderChoices(c.timed, true)} remind={c.remind}
                  onChange={(remind) => onChange({ ...c, remind })} />
     </FormCard>
@@ -215,7 +217,7 @@ function ThawSettings({ form, onChange }: { form: TimingForm; onChange: (f: Timi
 export function TimingSettings({ form, onChange, zone, slots }: { form: TimingForm; onChange: (f: TimingForm) => void;
   zone: string; slots: readonly MealSlot[] }) {
   return (
-    <details className="cal-timing">
+    <details className="card cal-timing">
       <summary>
         <Icon name="clock" size={20} />
         <span className="cal-timing-what">
@@ -250,12 +252,24 @@ function EventPicture({ e, schedule, pictures }: { e: CalendarEvent; schedule: A
   return <span className={`cal-pic cal-pic-${e.kind}`}><Icon name={KIND_ICON[e.kind]} size={22} /></span>;
 }
 
-function EventRow({ e, schedule, pictures }: { e: CalendarEvent; schedule: ApprovedSchedule | null;
-  pictures: ReadonlyMap<string, PictureSource | null> }) {
+// The labels every event of a kind carries, said once over the list ("Cook: demo amounts"); an
+// event shows only the labels that set it apart from its kind.
+function sharedLabels(events: readonly CalendarEvent[]): Map<CalendarEvent['kind'], string[]> {
+  const out = new Map<CalendarEvent['kind'], string[]>();
+  for (const e of events) {
+    const now = out.get(e.kind);
+    out.set(e.kind, now ? now.filter((l) => e.labels.includes(l)) : [...e.labels]);
+  }
+  return out;
+}
+
+function EventRow({ e, schedule, pictures, shared }: { e: CalendarEvent; schedule: ApprovedSchedule | null;
+  pictures: ReadonlyMap<string, PictureSource | null>; shared: readonly string[] }) {
   const href = googleLink(e);
   const reminders = remindersText(e);
+  const own = e.labels.filter((l) => !shared.includes(l));
   return (
-    <li className={`cal-event cal-${e.kind}`}>
+    <li className={`card-row cal-event cal-${e.kind}`}>
       <EventPicture e={e} schedule={schedule} pictures={pictures} />
       <div className="cal-event-main">
         <div className="cal-event-head">
@@ -265,11 +279,7 @@ function EventRow({ e, schedule, pictures }: { e: CalendarEvent; schedule: Appro
         <strong className="cal-title">{e.title}</strong>
         {e.location && <div className="cal-event-line">{e.location}</div>}
         {reminders && <div className="cal-event-line">{reminders}</div>}
-        {e.labels.length > 0 && (
-          <div className="cal-labels">
-            {e.labels.map((l) => <span key={l} className="chip chip-warn">{l}</span>)}
-          </div>
-        )}
+        {own.length > 0 && <div className="cal-event-line">{own.join(' · ')}</div>}
         <div className="cal-event-more">
           <details className="cal-details">
             <summary>What the event says</summary>
@@ -365,14 +375,15 @@ export function CalendarExport({ schedule, current, timing, slots, pictures, exp
   };
 
   const counts = schedule ? includeCounts(schedule) : null;
+  const shared = useMemo(() => sharedLabels(data?.events ?? []), [data]);
   const head = problem ?? (!current ? 'Checking the plan…'
     : preview.status === 'error' ? 'The events could not be built'
       : data ? eventsHead(data) : 'Building the events…');
   const how = exported?.how === 'google' ? 'synced them to Google Calendar' : 'downloaded them';
 
   return (
-    <div className="cal-export">
-      <section className="cal-card" aria-labelledby={headId}>
+    <div>
+      <section className="card cal-card" aria-labelledby={headId}>
         <div className="cal-card-top">
           <span className="fc-icon" aria-hidden="true"><Icon name="calendar" /></span>
           <div className="cal-card-what">
@@ -386,9 +397,9 @@ export function CalendarExport({ schedule, current, timing, slots, pictures, exp
           {sent === 'current' && <Tag kind="done">{exported?.how === 'google' ? 'In Google Calendar' : 'Downloaded'}</Tag>}
           {sent === 'changed' && <Tag kind="changed" />}
         </div>
-        {preview.status === 'error' && <p className="cart-flag cal-status" role="alert">{preview.error}</p>}
+        {preview.status === 'error' && <p className="fc-problem cal-status" role="alert"><Icon name="alert" size={14} />{preview.error}</p>}
 
-        <p id={kindsHead} className="fc-sub">Add to the calendar</p>
+        <p id={kindsHead} className="label fc-sub">Add to the calendar</p>
         <div className="chips" role="group" aria-labelledby={kindsHead}>
           {INCLUDE_ALL.map((k) => (
             <ToggleChip key={k} checked={include.includes(k)} onChange={() => toggle(k)}>
@@ -404,7 +415,9 @@ export function CalendarExport({ schedule, current, timing, slots, pictures, exp
           </button>
           <GoogleSyncButton sync={sync} primary={googleFirst} />
         </div>
-        <p className={downloadError ? 'cart-flag cal-saved' : 'cal-saved'} role="status">{downloadError ?? saved}</p>
+        <p className="cal-saved" role="status">
+          {downloadError ? <span className="fc-problem"><Icon name="alert" size={14} />{downloadError}</span> : saved}
+        </p>
         {sent === 'current' && !saved && (
           <p className="cal-done"><Icon name="circle-check" size={16} />Done: you {how}. Do it again after the plan changes.</p>
         )}
@@ -424,12 +437,22 @@ export function CalendarExport({ schedule, current, timing, slots, pictures, exp
         <section className="cal-preview" aria-labelledby={`${headId}-events`} aria-busy={preview.status === 'loading'}>
           <h3 id={`${headId}-events`} className="cal-head">The events</h3>
           {data.events.length === 0 && <p className="muted">No events of the kinds chosen.</p>}
+          {shared.size > 0 && [...shared.values()].some((l) => l.length) && (
+            <p className="cal-caveats">
+              <Icon name="info" size={14} />
+              <span>
+                {[...shared.entries()].filter(([, l]) => l.length)
+                  .map(([k, l]) => `${KIND_LABELS[k]}: ${l.join(', ')}`).join(' · ')}
+              </span>
+            </p>
+          )}
           <ol className="cal-days">
             {eventsByDay(data).map((d) => (
               <li key={d.date} className="cal-day">
                 <h4 className="cal-day-head">{d.label}</h4>
                 <ul className="cal-events">
-                  {d.events.map((e) => <EventRow key={e.uid} e={e} schedule={schedule} pictures={pictures} />)}
+                  {d.events.map((e) => <EventRow key={e.uid} e={e} schedule={schedule} pictures={pictures}
+                                                 shared={shared.get(e.kind) ?? []} />)}
                 </ul>
               </li>
             ))}

@@ -1,6 +1,7 @@
 /* Home (views/HomeView.tsx). With a plan: a greeting band beside the first meal's picture, then
    "This week" (the plan's steps as a task list, GOV.UK's pattern) with Continue, and beside it on
-   a wide screen the next trip and the Ask box. With none: one invitation to start. */
+   a wide screen the next trip and the Ask box. With none: one invitation to start. Each is the
+   console's card (styles/card.css); the band and the invitation are its hero, at --radius-4. */
 
 .view .home-title, .home-title { margin: 0; font: var(--type-page); }
 .home-lede { margin: var(--space-3) 0 0; max-width: 60ch; color: var(--muted); font-size: var(--fs-body); line-height: 1.55; }
@@ -8,8 +9,7 @@
 /* ─── No plan yet: the invitation, and beside it how it goes ─────────────────────────────── */
 .home-start {
   display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: center; gap: var(--space-6) var(--space-7);
-  margin-top: var(--space-6); padding: var(--space-7);
-  border: 1px solid var(--border); border-radius: var(--radius-4); box-shadow: var(--shadow-1);
+  margin-top: var(--space-6); padding: var(--space-7); border-radius: var(--radius-4);
   background: linear-gradient(160deg, var(--accent-soft), var(--panel) 60%);
 }
 .home-start-main { min-width: 0; }
@@ -19,6 +19,8 @@
 .home-build[aria-disabled="true"] { opacity: 1; cursor: progress; background: var(--accent-hover); }
 .home-build-clock { font-weight: 400; font-variant-numeric: tabular-nums; }
 .home-start-about { margin: var(--space-3) 0 0; max-width: 62ch; color: var(--muted); font-size: var(--fs-compact); }
+/* Build a week's failure, under the ways in */
+.home-problem { margin-top: var(--space-4); }
 .home-start-steps {
   display: grid; gap: var(--space-4); margin: 0; padding: var(--space-5); list-style: none;
   border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--panel);
@@ -44,8 +46,7 @@
 /* ─── The greeting band ──────────────────────────────────────────────────────────────────── */
 .home-band {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 36%); align-items: stretch;
-  margin-top: var(--space-6); overflow: hidden;
-  border: 1px solid var(--border); border-radius: var(--radius-4); background: var(--panel); box-shadow: var(--shadow-1);
+  margin-top: var(--space-6); padding: 0; overflow: hidden; border-radius: var(--radius-4);
 }
 .home-band-text { display: flex; flex-direction: column; justify-content: center; padding: var(--space-6) var(--space-7); }
 .home-when { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--fs-body); font-variant-numeric: tabular-nums; }
@@ -63,10 +64,6 @@
   gap: var(--space-5); margin-top: var(--space-5);
 }
 .home-side { display: grid; gap: var(--space-5); }
-.home-card {
-  padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-3);
-  background: var(--panel); box-shadow: var(--shadow-1);
-}
 .view .home-card-title { margin: 0 0 var(--space-3); font: var(--type-section); }
 
 /* each step one row: its name (a link to the stage, the whole row its target), what it has made,
@@ -94,14 +91,22 @@ a.home-step-name:hover { text-decoration-thickness: 2px; }
 .home-done-text .ico { flex: none; }
 .home-done .home-continue { margin-top: var(--space-3); }
 
+/* the day and its state (a Tag), then the stores, what it holds, and once begun in the store how
+   far the shopper got, as words over a bar that fills as the basket does */
+.home-trip-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .home-trip-when { margin: 0; font: var(--type-title); }
 .home-trip-day { color: var(--muted); font-weight: 400; }
 .home-trip-stores { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-2) 0 0; font-size: var(--fs-compact); }
 .home-trip-stores .ico { flex: none; margin-top: 1px; color: var(--muted); }
 .home-trip-meta { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--fs-compact); font-variant-numeric: tabular-nums; }
-.home-trip-state { display: inline-flex; align-items: center; gap: var(--space-1); font-weight: 600; color: var(--text); }
-.home-trip-approved, .home-trip-elsewhere { color: var(--accent-soft-fg); }
-.home-trip-review { color: var(--warn); }
+.home-trip-basket { margin-top: var(--space-3); }
+.home-trip-basket p {
+  display: flex; align-items: center; gap: var(--space-1); margin: 0; font-size: var(--fs-compact); font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.home-trip-basket .ico { flex: none; color: var(--accent); }
+.home-trip-bar { display: block; height: 4px; margin-top: var(--space-1); border-radius: var(--radius-pill); background: var(--surface-2); overflow: hidden; }
+.home-trip-bar span { display: block; height: 100%; background: var(--accent); }
 .home-trip-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 .home-trip-note { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--fs-compact); }
 
@@ -122,7 +127,6 @@ a.home-step-name:hover { text-decoration-thickness: 2px; }
   .home-band .rpic-hero { order: -1; min-height: 0; aspect-ratio: 16 / 6; }
   .home-band-text { padding: var(--space-4) var(--space-4) var(--space-5); }
   .view .home-title, .home-title { font-size: var(--fs-section); line-height: 32px; }
-  .home-card { padding: var(--space-4); }
   .home-continue { width: 100%; }
   .home-trip-actions .btn { flex: 1 1 auto; }
 }

@@ -334,6 +334,8 @@ function Toast({ toast, dismiss }: { toast: ToastItem; dismiss: (id: number) => 
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  // where the keyboard was before it came to the toast, to go back to when the toast goes
+  const before = useRef<HTMLElement | null>(null);
   const held = hovered || focused;
 
   // It waits while the pointer is on it or focus is in it, and gets its whole time again after.
@@ -343,11 +345,21 @@ function Toast({ toast, dismiss }: { toast: ToastItem; dismiss: (id: number) => 
     return () => window.clearTimeout(id);
   }, [held, dismiss, toast.id]);
 
-  // Gone by a press of its own: the keyboard carries on from the page, not from nowhere.
+  // Gone by a press of its own: the keyboard goes back to where it was before it came here (or
+  // stays where the action itself put it, on what the action changed), and to the page only when
+  // that place has gone, never to nowhere.
   const leave = () => {
     const hadFocus = box.current?.contains(document.activeElement) ?? false;
     dismiss(toast.id);
-    if (hadFocus) document.getElementById('main')?.focus({ preventScroll: true });
+    if (!hadFocus) return;
+    const back = before.current;
+    if (back?.isConnected) back.focus({ preventScroll: true });
+    if (!back?.isConnected || document.activeElement !== back) document.getElementById('main')?.focus({ preventScroll: true });
+  };
+  const onFocus = (e: FocusEvent<HTMLDivElement>) => {
+    const from = e.relatedTarget;
+    if (from instanceof HTMLElement && !e.currentTarget.contains(from)) before.current = from;
+    setFocused(true);
   };
   const onBlur = (e: FocusEvent<HTMLDivElement>) => {
     if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
@@ -355,7 +367,7 @@ function Toast({ toast, dismiss }: { toast: ToastItem; dismiss: (id: number) => 
 
   return (
     <div ref={box} className="toast" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-         onFocus={() => setFocused(true)} onBlur={onBlur}>
+         onFocus={onFocus} onBlur={onBlur}>
       <p className="toast-text">{toast.text}</p>
       {toast.action && (
         <button type="button" className="btn btn-ghost btn-sm toast-action"

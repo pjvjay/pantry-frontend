@@ -1,7 +1,13 @@
 // Nutrition on the meal plan: a chip per meal and per day, the period band above the board, a
 // recipe's receipt line by line, and the shopper's daily targets. Every number and every
-// "unknown" is worded by src/nutritionFormat.ts, so they read the same everywhere, and the
-// "demo amounts" badge appears wherever the server says demo house amounts were counted.
+// "unknown" is worded by src/nutritionFormat.ts, so they read the same everywhere.
+//
+// What is true of every figure on the board is said once, in the band over it: that the recipes'
+// amounts are demo house amounts, and that a day with an empty slot counts only what is planned.
+// So a meal's chip is its energy, and a day's footer its energy with a sign when the day is
+// complete; the whole line (protein too, and why a day is incomplete) is there for a screen reader
+// and in the footer's title. A recipe's own receipt (the Move sheet) still marks demo amounts,
+// since recipes differ in that.
 import { useEffect, useState } from 'react';
 
 import {
@@ -15,23 +21,29 @@ import type {
 } from '../types';
 import { Sheet } from './Sheet';
 import { Icon } from './icons';
+import { Notice, ScrollRegion } from './ui';
 
+// A quiet mark, not a coloured chip: the words say it, the title says more.
 export function DemoBadge() {
-  return <span className="nut-badge" title={DEMO_TITLE}>demo amounts</span>;
+  return <span className="nut-demo" title={DEMO_TITLE}><Icon name="info" size={12} />demo amounts</span>;
 }
 
+// How a figure is drawn by how sure it is: unknown quieter, a lower bound as it is.
+const PART_CLASS: Partial<Record<string, string>> = { unknown: 'nut-unknown', at_least: 'nut-floor' };
+const VERDICT_CLASS: Partial<Record<string, string>> = { warn: 'nut-target-warn' };
+
 // A chip: each nutrient carries its own title (what it misses), so "≥" always explains itself.
-export function NutritionChipView({ chip, label }: { chip: NutritionChip; label?: string }) {
+// badge: say "demo amounts" here too (a recipe's own receipt); the board says it once instead.
+export function NutritionChipView({ chip, label, badge = true }: { chip: NutritionChip; label?: string; badge?: boolean }) {
   return (
     <span className="nut-chip">
       {label && <span className="sr-only">{label}: </span>}
       {chip.parts.map((p, i) => (
-        <span key={p.key} title={p.title}
-              className={p.status === 'unknown' ? 'nut-unknown' : p.status === 'at_least' ? 'nut-floor' : undefined}>
+        <span key={p.key} title={p.title} className={PART_CLASS[p.status]}>
           {i > 0 && ' · '}{p.text}
         </span>
       ))}
-      {chip.badge && <> <DemoBadge /></>}
+      {badge && chip.badge && <> <DemoBadge /></>}
     </span>
   );
 }
@@ -49,10 +61,13 @@ export function MealEnergy({ n }: { n: MealNutrition | undefined }) {
     );
   }
   const chip = nutritionChip(n.totals, n.demo_amounts, ['energy_kcal']);
-  return <NutritionChipView chip={chip} label="per serving" />;
+  return <NutritionChipView chip={chip} label="per serving" badge={false} />;
 }
 
-// A day's footer: one person's day (one serving of each meal), and the targets' verdicts.
+// A day's footer, one short line for a narrow day column: one person's day (one serving of each
+// meal) as its energy, with a tick once the day is complete. Everything else (protein, why a day
+// is incomplete, the day's note) is in its title and, whole, for a screen reader. The targets'
+// verdicts follow, when the shopper has set targets.
 export function DayNutritionLine({ day, coverage, targets }: {
   day: DayNutrition | null | undefined;
   coverage: PlanCoverage['nutrition'] | undefined;
@@ -60,13 +75,19 @@ export function DayNutritionLine({ day, coverage, targets }: {
 }) {
   const line = dayLine(day, coverage);
   const verdicts = targetVerdicts(targets, day?.targets);
+  const energy = line.chip?.parts.find((p) => p.key === 'energy_kcal') ?? null;
+  const said = line.chip ? `One person's day: ${line.chip.parts.map((p) => p.text).join(', ')}; ${line.status}`
+    : line.status;
   return (
-    <div className="mp-day-nut" title={day?.note || undefined}>
-      {line.chip ? <NutritionChipView chip={line.chip} label="one person's day" />
-        : <span className={day && !day.meals.length ? 'muted' : 'nut-unknown'}>{line.status}</span>}
-      {line.chip && <span className="muted"> · {line.status}</span>}
+    <div className="mp-day-nut" title={[said, day?.note].filter(Boolean).join('. ')}>
+      <span className="sr-only">{said}.</span>
+      <span className="mp-day-nut-line" aria-hidden="true">
+        {energy ? <span className={PART_CLASS[energy.status]}>{energy.text}</span>
+          : <span className="muted">{day && !day.meals.length ? 'no meals' : '—'}</span>}
+        {day?.complete && <Icon name="check" size={13} strokeWidth={2.4} className="mp-day-complete" />}
+      </span>
       {verdicts.map((v) => (
-        <div key={v.key} className={v.level === 'warn' ? 'nut-target-warn' : 'muted'}>
+        <div key={v.key} className={VERDICT_CLASS[v.level] ?? 'muted'}>
           {v.level === 'warn' && <><Icon name="alert" className="ico-inline" /><span className="sr-only">Warning: </span></>}{v.text}
         </div>
       ))}
@@ -75,7 +96,7 @@ export function DayNutritionLine({ day, coverage, targets }: {
 }
 
 // The band above the board: complete days, the average over them only, and the period's
-// lower-bound total.
+// lower-bound total; under it, once for the whole board, what every figure on it rests on.
 export function PeriodBand({ period, coverage, onTargets, targetCount }: {
   period: PeriodNutrition | null | undefined;
   coverage: PlanCoverage['nutrition'] | undefined;
@@ -83,16 +104,24 @@ export function PeriodBand({ period, coverage, onTargets, targetCount }: {
   targetCount: number;
 }) {
   const band = periodBand(period, coverage);
+  const notes = [
+    band.badge ? 'The recipes’ amounts are demo house amounts, not from a published recipe.' : '',
+    period && period.days_complete < period.days_total
+      ? 'A day is complete once every slot has a meal and every amount is counted; until then its figure is a floor (≥).'
+      : '',
+  ].filter(Boolean);
   return (
     <div className="mp-period" role="group" aria-label="Nutrition over the plan">
       <span className="mp-period-k">Nutrition</span>
       <span className="mp-period-text">
         {band.parts.map((p, i) => <span key={p}>{i > 0 && ' · '}{p}</span>)}
-        {band.badge && <> <DemoBadge /></>}
       </span>
       <button type="button" className="btn btn-secondary btn-sm" onClick={onTargets}>
         {targetCount ? `Daily targets (${targetCount})` : 'Daily targets'}
       </button>
+      {notes.length > 0 && (
+        <p className="mp-period-note"><Icon name="info" size={14} /><span>{notes.join(' ')}</span></p>
+      )}
       {period?.note && <span className="sr-only">{period.note}</span>}
     </div>
   );
@@ -120,8 +149,8 @@ export function RecipeNutrition({ n, title }: { n: MealNutrition | undefined; ti
         {chip.parts.map((p) => <li key={p.key} title={p.title}>{p.text}</li>)}
       </ul>
       <p className="muted">{n.coverage.note}{n.amounts_basis.length > 0 && ` · ${amountsBasisText(n.amounts_basis).join(', ')}`}</p>
-      <div className="table-wrap">
-        <table className="metrics-table compact">
+      <ScrollRegion label={`Nutrition of ${title}, line by line`} className="table-scroll mp-nut-lines">
+        <table className="table">
           <thead><tr><th>Line</th><th>Reference food</th><th className="num">g</th><th>Counted</th></tr></thead>
           <tbody>
             {n.lines.map((l) => (
@@ -129,7 +158,7 @@ export function RecipeNutrition({ n, title }: { n: MealNutrition | undefined; ti
                 <td>{l.ingredient}</td>
                 <td title={l.match_note || undefined}>
                   {l.ref_description ?? '—'}
-                  {l.match_kind === 'close' && <span className="cart-flag"> close match</span>}
+                  {l.match_kind === 'close' && <span className="mp-unknown"> <Icon name="approx" size={12} />close match</span>}
                   {l.conversion && <div className="muted">{l.conversion}</div>}
                 </td>
                 <td className="num">{l.grams === null ? 'unknown' : Math.round(l.grams)}</td>
@@ -143,7 +172,7 @@ export function RecipeNutrition({ n, title }: { n: MealNutrition | undefined; ti
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     </details>
   );
 }
@@ -214,8 +243,8 @@ export function TargetsEditor({ open, onClose, targets, onSave }: {
     <Sheet open={open} onClose={onClose} title="Daily targets"
            description="Targets you set for one person's day, saved in this browser. Leave a box empty for no bound."
            footer={<>
-             <button type="button" className="secondary" onClick={() => setDraft(toDraft({}))}>Clear all</button>
-             <button type="button" onClick={save}>Save targets</button>
+             <button type="button" className="btn btn-secondary" onClick={() => setDraft(toDraft({}))}>Clear all</button>
+             <button type="button" className="btn btn-primary" onClick={save}>Save targets</button>
            </>}>
       <p className="muted">
         A day is judged only where its total proves it: a lower bound can show a minimum met or a
@@ -237,7 +266,7 @@ export function TargetsEditor({ open, onClose, targets, onSave }: {
           </fieldset>
         ))}
       </div>
-      {problem && <p className="banner banner-error" role="alert">{problem}</p>}
+      {problem && <Notice tone="danger">{problem}</Notice>}
     </Sheet>
   );
 }

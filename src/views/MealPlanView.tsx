@@ -42,14 +42,15 @@ import { IngredientsStage } from '../components/ingredients';
 import { ActionBar, DragGhost, MoveSheet, PlanBoard, WeekStrip } from '../components/mealcal';
 import type { BoardCtl } from '../components/mealcal';
 import { MealsStage } from '../components/mealcards';
-import { CookDaysDiff, CoverageChips, ShopPanel, TripSheet, WarningsPanel } from '../components/mealtrips';
+import { CookDaysDiff, CoverageList, ShopPanel, TripSheet, WarningsPanel } from '../components/mealtrips';
 import { Icon } from '../components/icons';
 import { EXAMPLE_SENTENCE, FirstRunSheet, RecipeTray } from '../components/mealtray';
 import { PeriodBand, TargetsEditor } from '../components/nutrition';
 import { CheckPlan, StrategyTiles, YourList, strategyInputId } from '../components/shoplist';
 import { STORES_HEAD } from '../components/stores';
-import { EmptyState, Skeleton, useToast } from '../components/ui';
+import { EmptyState, Notice, Skeleton, useToast } from '../components/ui';
 import { usePointerDrag } from '../components/usePointerDrag';
+import { withViewTransition } from '../components/viewTransition';
 import { StageNav, Stepper } from '../components/wizard';
 import { useExported } from '../components/useExported';
 import { autofillCount, readAutofilled, rememberAutofilled, spreadText } from '../mealplan/autofill';
@@ -160,6 +161,8 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   // further than the plan allows. '#/plan' alone (Plan in the navigation) keeps the stage shown,
   // and says so. The plan's old address, '#/mealplan', is read the same way, in case it arrives
   // before the shell has rewritten it. The shopping plan on its own has no stage to follow.
+  // The stage changes with a short cross-fade of the stage alone (.vt-stage, below): the
+  // stepper, the bars and the page around it stay still (components/viewTransition.ts).
   useEffect(() => {
     if (shop) return undefined;
     const onHash = () => {
@@ -168,7 +171,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
         const to = routeStep(asked, factsRef.current, null, true);
         // held back to the stage shown already: the effect below would not run, so say it here
         if (to !== asked) window.history.replaceState(null, '', stepHash(to));
-        setStep(to);
+        if (to !== stepRef.current) withViewTransition(() => setStep(to));
       } else if (isPlanHash(window.location.hash)) {
         window.history.replaceState(null, '', stepHash(stepRef.current));
       }
@@ -480,15 +483,19 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   // for the schedule to place them, and filling again would do nothing.
   const trayCount = d.meals.filter((m) => m.date === null && m.pinned).length;
   const statusLine = (
-    <p className="mp-status" aria-live="off">
-      <span>{summaryLine(state, answer)} · {dayLabel(d.start_date)} to {dayLabel(addDays(d.start_date, d.days - 1))}</span>
-      <span className="muted"> · {status}</span>
+    <>
+      <p className="mp-status" aria-live="off">
+        <span>{summaryLine(state, answer)} · {dayLabel(d.start_date)} to {dayLabel(addDays(d.start_date, d.days - 1))}</span>
+        <span className="muted"> · {status}</span>
+      </p>
       {schedule.status === 'error' && (
-        <> <span className="cart-flag">{schedule.error}</span>{' '}
-          {fix && <><button type="button" className="linkish" onClick={() => mp.dispatch(fix.edit)}>{fix.label}</button>{' '}</>}
-          <button type="button" className="linkish" onClick={mp.recheck}>Retry</button></>
+        <Notice tone="danger" title="The trips could not be worked out" className="mp-status-problem"
+                actions={[...(fix ? [{ label: fix.label, onClick: () => { mp.dispatch(fix.edit); } }] : []),
+                  { label: 'Try again', icon: 'refresh' as const, onClick: mp.recheck }]}>
+          {schedule.error}
+        </Notice>
       )}
-    </p>
+    </>
   );
 
   // An earlier stage an edit has since undone: said at the top of this one too.
@@ -505,15 +512,16 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   return (
     <div className={`view mealplan${shop ? ' mealplan-shop' : ''}`} onKeyDown={onKeyDown}>
       {mp.loadProblem && (
-        <div className="banner banner-error">
+        <Notice tone="danger" title="Your saved plan could not be read">
           {mp.loadProblem} It was kept in this browser as a backup, and a new plan was started.
-        </div>
+        </Notice>
       )}
 
       {!shop && <Stepper step={step} facts={facts} finished={finished} />}
 
-      {/* every stage is cards, drawn on the page itself */}
-      <section className="panel mp-stage mp-stage-flat" aria-labelledby="mp-stage-head">
+      {/* every stage is cards, drawn on the page itself; the stage is what cross-fades when it
+          changes (vt-stage), and only it */}
+      <section className="mp-stage vt-stage" aria-labelledby="mp-stage-head">
         {shop ? (
           <div className="mp-shop-head">
             <h2 id="mp-stage-head" ref={heading} tabIndex={-1}>{SHOP_TITLE}</h2>
@@ -530,10 +538,10 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
           </h2>
         )}
         {behind && (
-          <p className="banner banner-update mp-behind">
-            {stepName(behind.step)}: {behind.text}.{' '}
-            <a href={stepHash(behind.step)}>Go to {stepName(behind.step)}</a>
-          </p>
+          <Notice tone="warn" className="mp-behind"
+                  actions={[{ label: `Go to ${stepName(behind.step)}`, href: stepHash(behind.step) }]}>
+            {stepName(behind.step)}: {behind.text}.
+          </Notice>
         )}
 
         {step === 1 && (
@@ -573,7 +581,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
             {/* a sprint board: the recipes to place beside the calendar, both in view */}
             <div className="sched">
               <RecipeTray ctl={ctl} emptyText="No meals yet: add some in Pick meals." />
-              <section className="sched-board" aria-label="Calendar">
+              <section className="card sched-board" aria-label="Calendar">
                 <PeriodBand period={answer?.period_nutrition} coverage={answer?.coverage.nutrition}
                             onTargets={() => setTargetsOpen(true)}
                             targetCount={Object.keys(d.nutrition_targets ?? {}).length} />
@@ -612,7 +620,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
             ) : (
               <>
                 <YourList schedule={answer} />
-                <section className="shop-card shop-trips" aria-labelledby="mp-trips-head">
+                <section className="card shop-card shop-trips" aria-labelledby="mp-trips-head">
                   <h3 id="mp-trips-head" className="shop-card-title">Trips</h3>
                   <StrategyTiles schedule={answer} />
                   <WarningsPanel schedule={answer} onAsk={onAsk} />
@@ -622,7 +630,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
                 {/* what the figures rest on, for whoever wants it, out of the way of shopping */}
                 <details className="mp-covers">
                   <summary>What the data covers</summary>
-                  <CoverageChips coverage={answer.coverage} />
+                  <CoverageList coverage={answer.coverage} />
                 </details>
               </>
             )}

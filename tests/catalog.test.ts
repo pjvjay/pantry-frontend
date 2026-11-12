@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MAX_OWN, addCheck, addCost, addCostText, againstBudget, budgetBar, budgetBarText, budgetSaid, byKey, catalogRequest,
+  MAX_OWN, addCheck, addCost, addCostText, againstBudget, budgetBar, budgetBarText, budgetSaid, byKey, catalogRequest, mealsText,
   catalogSections, cleanRef, costPerMealText, dietBadge, estimateText, estimatedSpend, excludedWords, hiddenText,
   notInCatalog, ownRecipes, packCost, picksOf, slotCounts, unavailableText,
 } from '../src/mealplan/catalog.ts';
@@ -109,9 +109,9 @@ test('places filled out of what the days hold: two snacks a day, tray meals by t
     [['breakfast', 2, 2, 7], ['lunch', 0, 0, 7], ['dinner', 9, 7, 7], ['snack', 3, 3, 14]]);
   const dinner = catalogSections(CATALOG, s)[2];
   assert.equal(dinner.overflow, 2, 'two dinners more than the week holds');
+  // the budget bar says it in meals, not slots (Place on days counts slots)
   const bar = budgetBar(s, estimatedSpend(s, byKey(CATALOG)));
-  assert.equal(bar.filled, 12);
-  assert.equal(bar.slots, 35);
+  assert.deepEqual(mealsText(bar), { value: '14 meals', note: '2 breakfasts, 9 dinners and 3 snacks' });
 });
 
 test('the estimate is meals × each recipe\'s cost a meal; an unknown is left out and said', () => {
@@ -136,16 +136,18 @@ test('an Add that would pass the budget is stopped with the amount over; one wit
   assert.deepEqual(addCheck(40, spend, 1), { ok: false, over: 5.1 }, 'already over');
 });
 
-test('the budget bar: budget, estimated spend, what is left or over, and the slots', () => {
+test('the budget bar: budget, estimated spend, what is left or over, and the meals in words', () => {
   let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 3));
   s = run(s, { type: 'setPrefs', prefs: { budget: 50 } });
   let bar = budgetBar(s, estimatedSpend(s, byKey(CATALOG)));
-  assert.deepEqual(bar, { budget: 50, spent: 19.5, atLeast: false, remaining: 30.5, filled: 3, slots: 35 });
+  assert.deepEqual([bar.budget, bar.spent, bar.atLeast, bar.remaining, bar.days], [50, 19.5, false, 30.5, 7]);
+  // the shopper's terms, not "3 of 35 slots filled": what was picked, and the days it covers
   assert.deepEqual(budgetBarText(bar), { budget: '$50.00', spent: '$19.50', remaining: '$30.50 left',
-    slots: '3 of 35 slots filled' });
+    meals: '3 dinners', mealsNote: 'for 3 of 7 days' });
   assert.equal(budgetSaid(bar), 'About $30.50 left of $50.00.');
   s = run(s, add('mango_milkshake', 'Mango Milkshake', 1, 'snack'), { type: 'setPrefs', prefs: { budget: 10 } });
   bar = budgetBar(s, estimatedSpend(s, byKey(CATALOG)));
+  assert.deepEqual([budgetBarText(bar).meals, budgetBarText(bar).mealsNote], ['4 meals', '3 dinners and 1 snack']);
   assert.equal(budgetBarText(bar).spent, 'at least $19.50');
   assert.equal(budgetBarText(bar).remaining, '$9.50 over');
   assert.equal(budgetSaid(bar), 'The estimate is $9.50 over your $10.00 budget.');
@@ -217,6 +219,15 @@ test('a card says what one more meal adds: nothing when the packs chosen cover i
   const spend = packCost(picks);
   assert.deepEqual(addCheck(12, spend, addCost(picks, fresh)?.cost ?? null), { ok: false, over: 1.95 });
   assert.deepEqual(addCheck(12, spend, addCost(picks, CONGEE)?.cost ?? null), { ok: true });
+});
+
+test('the meals in words: none yet, one kind over the days it fills, snacks over the days, several as a count', () => {
+  assert.deepEqual(mealsText(budgetBar(planWith(7), { total: 0, unknown: [], unpriced: [] })), { value: 'none yet', note: '' });
+  const nine = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 9));
+  assert.deepEqual(mealsText(budgetBar(run(nine, { type: 'setPrefs', prefs: { slots_on: ['dinner'] } }), { total: 0, unknown: [], unpriced: [] })),
+    { value: '9 dinners', note: 'for 7 of 7 days' }, 'more than the days hold: the days, never more');
+  const snacks = planWith(14, add('mango_milkshake', 'Mango Milkshake', 1, 'snack'));
+  assert.deepEqual(mealsText(budgetBar(snacks, { total: 0, unknown: [], unpriced: [] })), { value: '1 snack', note: 'over 14 days' });
 });
 
 test('the plan as a selection, and the bar says "at least" while an ingredient is not priced', () => {

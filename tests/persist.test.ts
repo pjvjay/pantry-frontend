@@ -256,7 +256,7 @@ test('the meal plan only reads saved recipes; recipe import is the one writer', 
 const sent = (id: string, title: string, at = '2026-10-08T20:00:00Z'): InboxEntry =>
   ({ key: `my:${id}`, title, added_at: at });
 
-test('recipes sent with "Add to meal plan" are taken once, oldest first, and the inbox emptied', () => {
+test('recipes sent with "Add to your plan" are taken once, oldest first, and the inbox emptied', () => {
   assert.equal(MEAL_PLAN_INBOX_KEY, 'pantry.mealplan.inbox.v1');
   const entries = [sent('a1', 'Dal Tadka'), sent('b2', 'Lemon Rice', '2026-10-08T20:05:00Z')];
   const store = memory({ [MEAL_PLAN_INBOX_KEY]: JSON.stringify({ v: 1, entries }) });

@@ -7,10 +7,16 @@
 // - Schedule: /mealplan/schedule 400 ms after the last change, never during a drag. Each call
 //   carries the draft's rev and the answer is used only while the rev still matches, so a slow
 //   answer never paints over a newer plan; while a call runs the last answer stays on screen,
-//   marked as not current, and approving waits for a current one. The dates the server spread
-//   meals to are stored back on the plan (mergeSchedule). An answer the console already holds
-//   for the rev an edit just made (Options checks a choice before making it) is used as it is,
-//   with no second call (adoptSchedule).
+//   marked as not current. The dates the server spread meals to are stored back on the plan
+//   (mergeSchedule). An answer the console already holds for the rev an edit just made (Options
+//   checks a choice before making it) is used as it is, with no second call (adoptSchedule).
+// - Approving: the reducer approves only from an answer for the plan as it is (its rev). An
+//   Approve pressed while that answer is still on its way waits for it, and is made from it only
+//   when the trip's list is still the one the shopper saw (its fingerprint); a list that changed
+//   meanwhile is not approved unseen, and the live region says so (board.ts queuedApprovals).
+// - Offline copy: each answer for the plan as it is keeps its approved trips in this browser
+//   beside the plan (mealplan/offline.ts), so in-store mode can open the list where pantry-api
+//   cannot be reached.
 // - Resolve: each recipe once, as it enters the tray, never on a drag (the one call that may
 //   use a model). A failure is not retried on its own; retryResolve does that, both for a call
 //   that failed and for a recipe the server answered with a failure status (llm_error,
@@ -40,8 +46,11 @@ import {
 } from '../myRecipes';
 import type { StorageLike } from '../myRecipes';
 import { basketKey, unansweredCount } from './basket';
+import { queuedApprovals, queuedMissText } from './board';
+import type { QueuedApproval } from './board';
 import { catalogRequest } from './catalog';
-import { todayIn } from './dates';
+import { dayLabel, todayIn } from './dates';
+import { copyKey, copyOf, readOffline, writeOffline } from './offline';
 import { historyStep, newPlan, recorded, redoPlan, undoPlan } from './model';
 import type { MealPlanState, Outcome, PlanEdit } from './model';
 import { parsePlan, readPlan, serialize, writePlan } from './persist';
@@ -110,8 +119,13 @@ export interface MealPlanApi {
   proposeCookDays: () => void;
   applyCookDays: () => Outcome | null;
   dismissCookDays: () => void;
-  // replace: the day's approval under the other strategy gives way to this one
+  // replace: the day's approval under the other strategy gives way to this one. Pressed while the
+  // trips are being checked again, it waits for that answer (see the header): the outcome then has
+  // nothing refused and nothing said yet.
   approveTrip: (trip: Trip, strategy: TripStrategy, replace?: boolean) => Outcome;
+  // every suggested trip at once, as one step (Approve all), waiting the same way; done(n) runs
+  // once a wait ends with n trips approved, for the caller's toast with its Undo
+  approveTrips: (trips: Trip[], strategy: TripStrategy, done?: (approved: number) => void) => Outcome;
   exportText: () => string;
   importText: (text: string) => string | null;
   clear: () => void;
@@ -412,10 +426,82 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => cookCtl.current?.abort(), []);
 
   // ─── Trips, export, import ─────────────────────────────────
-  // Approving needs an answer for the plan as it is; the reducer refuses an older one.
-  const approveTrip = useCallback((trip: Trip, strategy: TripStrategy, replace = false) =>
-    dispatch({ type: 'approveTrip', trip, strategy, rev: schedule.answer?.rev ?? -1, replace }),
-  [dispatch, schedule.answer]);
+  // Approving needs an answer for the plan as it is; the reducer refuses an older one. While the
+  // answer for it is on its way, an approval waits for it in `queue` (one per day, the latest).
+  const queue = useRef<QueuedApproval[]>([]);
+  const queueDone = useRef<((approved: number) => void)[]>([]);
+  const scheduleNow = useRef(schedule);
+  scheduleNow.current = schedule;
+  const checking = () => {
+    const sc = scheduleNow.current;
+    const rev = historyRef.current.present.draft.rev;
+    return sc.status === 'checking' || (sc.status === 'ok' && sc.answer !== null && sc.answer.rev !== rev);
+  };
+  const wait = useCallback((trips: Trip[], strategy: TripStrategy, replace: boolean,
+    done?: (approved: number) => void): Outcome => {
+    const days = new Set(trips.map((t) => t.date));
+    queue.current = [...queue.current.filter((q) => !days.has(q.date)),
+      ...trips.map((t) => ({ date: t.date, fingerprint: t.fingerprint, strategy, replace }))];
+    if (done) queueDone.current.push(done);
+    announce(trips.length === 1 ? `The trip on ${dayLabel(trips[0].date)} is approved as soon as the plan is checked.`
+      : `The ${trips.length} trips are approved as soon as the plan is checked.`);
+    return { state: historyRef.current.present, refused: null, said: '' };
+  }, [announce]);
+
+  const approveTrip = useCallback((trip: Trip, strategy: TripStrategy, replace = false) => {
+    if (checking()) return wait([trip], strategy, replace);
+    return dispatch({ type: 'approveTrip', trip, strategy, rev: scheduleNow.current.answer?.rev ?? -1, replace });
+  }, [dispatch, wait]);
+
+  const approveTrips = useCallback((trips: Trip[], strategy: TripStrategy, done?: (approved: number) => void) => {
+    if (checking()) return wait(trips, strategy, false, done);
+    const rev = scheduleNow.current.answer?.rev ?? -1;
+    return dispatch({ type: 'batch', edits: trips.map((trip) => ({ type: 'approveTrip', trip, strategy, rev })) },
+      { quiet: true });
+  }, [dispatch, wait]);
+
+  // The answer the waiting approvals were for: made from it, as one step, where the list is the
+  // one the shopper saw; the rest named. A check that failed approves nothing, and says so. What
+  // was approved is said once: by Approve all's toast (with its Undo) when it waited, else here.
+  useEffect(() => {
+    if (!queue.current.length) return;
+    const dones = queueDone.current;
+    if (schedule.status === 'error') {
+      queue.current = [];
+      queueDone.current = [];
+      announce('Not approved: the trips could not be checked. Approve again once they are.');
+      return;
+    }
+    const a = schedule.answer;
+    if (schedule.status !== 'ok' || !a || a.rev !== draft.rev) return;
+    const { edits, changed, gone } = queuedApprovals(queue.current, a);
+    queue.current = [];
+    queueDone.current = [];
+    const before = historyRef.current.present.draft.trips.length;
+    const out = edits.length === 1 ? dispatch(edits[0], { quiet: true })
+      : edits.length ? dispatch({ type: 'batch', edits }, { quiet: true }) : null;
+    const approved = out && !out.refused ? out.state.draft.trips.length - before : 0;
+    const toasted = approved > 0 && dones.length > 0;
+    if (toasted) dones.forEach((done) => done(approved));
+    const not = queuedMissText(changed, gone, historyRef.current.present.draft.dismissed_dates);
+    const said = [out?.refused ? `Not done: ${out.refused}.` : toasted ? '' : out?.said ?? '', not]
+      .filter(Boolean).join(' ');
+    if (said) announce(said);
+  }, [schedule, draft.rev, dispatch, announce]);
+
+  // The offline copy (mealplan/offline.ts): every answer for the plan as it is keeps its approved
+  // trips, or none, in this browser; a copy the same as the one kept is not written again.
+  const keptCopy = useRef<string | null>(null);
+  useEffect(() => {
+    const a = schedule.answer;
+    if (schedule.status !== 'ok' || !a || a.rev !== draft.rev) return;
+    const copy = copyOf(a, draft, new Date().toISOString());
+    const storage = browserStorage();
+    if (keptCopy.current === null) keptCopy.current = copyKey(readOffline(storage));
+    const key = copyKey(copy);
+    if (key === keptCopy.current) return;
+    if (writeOffline(storage, copy)) keptCopy.current = key;
+  }, [schedule, draft]);
 
   const exportText = useCallback(() =>
     serialize(historyRef.current.present, new Date().toISOString()), []);
@@ -439,11 +525,11 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
     resolve: { ...resolve, pending },
     retryResolve, starters, myRecipes: mine.recipes, myRecipesProblem: [mine.problem, inboxNote].filter(Boolean).join(' ') || null,
     syncSaved,
-    quickAdd, acceptPreview, cookDays, proposeCookDays, applyCookDays, dismissCookDays, approveTrip,
+    quickAdd, acceptPreview, cookDays, proposeCookDays, applyCookDays, dismissCookDays, approveTrip, approveTrips,
     exportText, importText, clear,
   }), [state, dispatch, undo, redo, history, announce, persist, boot.loadProblem, schedule, draft.rev,
     recheck, adoptSchedule, resolve, pending, retryResolve, starters, mine, inboxNote, syncSaved, quickAdd, acceptPreview, cookDays,
-    proposeCookDays, applyCookDays, dismissCookDays, approveTrip, exportText, importText, clear]);
+    proposeCookDays, applyCookDays, dismissCookDays, approveTrip, approveTrips, exportText, importText, clear]);
 
   return (
     <MealPlanContext.Provider value={api}>

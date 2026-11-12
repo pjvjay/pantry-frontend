@@ -36,12 +36,11 @@
 }
 
 .card, .card-row,
-/* Transitional, until every caller is .card: the console's older surfaces (.panel, the Workshop's
-   and the Planner lab's; .fc, a form's card, components/fields.tsx; .mp-card, a recipe on Pick
-   meals; and the Planner lab's recipe .card, which is this class already) take their surface from
-   this same rule and have no copy of it. Their own rules keep only how they lay out. A view that
-   moves to .card takes its class off this list; the last one removes the list. */
-.panel, .fc, .mp-card {
+/* Transitional, until every caller is .card: the console's older surface, .panel (the Workshop's
+   and the Planner lab's), takes its surface from this same rule and has no copy of it; its own
+   rules keep only how it lays out. (The household screens' form cards and recipe cards are .card
+   now.) A view that moves to .card takes its class off this list; the last one removes the list. */
+.panel {
   padding: var(--card-pad);
   border: 1px solid var(--border); border-radius: var(--radius-3);
   background: var(--panel); box-shadow: var(--shadow-1);
@@ -75,8 +74,10 @@
 }
 .card-head:last-child { margin-bottom: 0; }
 .card-head > :first-child { flex: 1 1 12rem; min-width: 0; }
-/* (with .view, so a heading's own rules there do not win) */
-.card-title, .view .card-title { margin: 0; font: var(--type-title); overflow-wrap: anywhere; }
+/* (with .view, so a heading's own rules there do not win: an h4 is a small label there) */
+.card-title, .view .card-title {
+  margin: 0; font: var(--type-title); letter-spacing: normal; text-transform: none; color: var(--text); overflow-wrap: anywhere;
+}
 .card-sub { margin: 0; color: var(--muted); font: var(--type-compact); }
 .card-title + .card-sub { margin-top: 2px; }
 
@@ -100,3 +101,33 @@
 @media (forced-colors: active) {
   .card-interactive:has(.card-link:focus-visible) { outline-color: Highlight; }
 }
+
+/* ─── The pictures in a card (components/pictures.tsx): a recipe's and a product's ───────── */
+/* A box of fixed shape, so nothing moves when a picture arrives; the meal's icon on a soft tint
+   underneath shows while it loads and stays when there is none. Decorative: the words beside
+   say the same. Every household page uses them, and Ask's cart and the Options sheet. */
+.rpic {
+  position: relative; display: block; flex: none; overflow: hidden; color: var(--accent);
+  background: linear-gradient(135deg, var(--accent-soft), var(--surface-2));
+}
+.rpic-none { position: absolute; inset: 0; display: grid; place-items: center; }
+.rpic-none .ico { opacity: 0.8; }
+.rpic img, .ppic img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0;
+  transition: opacity var(--dur-3) var(--ease);
+}
+.rpic-ready img, .ppic-ready img { opacity: 1; }
+.rpic-ready .rpic-none, .ppic-ready .ppic-none { visibility: hidden; }
+.rpic-card { width: 100%; aspect-ratio: 16 / 9; }
+.rpic-head { width: 48px; height: 48px; border-radius: var(--radius-2); }
+.rpic-thumb { width: 28px; height: 28px; border-radius: var(--radius-1); }
+.rpic-credit {
+  position: absolute; right: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 2px 8px; border-radius: var(--radius-pill);
+  background: var(--scrim); color: var(--on-scrim); font-size: var(--fs-chrome); font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity var(--dur-2) var(--ease);
+}
+.ppic {
+  position: relative; display: block; flex: none; width: 44px; height: 44px; overflow: hidden;
+  border-radius: var(--radius-2); border: 1px solid var(--border); background: var(--surface-2); color: var(--muted);
+}
+.ppic-none { position: absolute; inset: 0; display: grid; place-items: center; }

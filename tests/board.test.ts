@@ -7,7 +7,9 @@ import { readFileSync } from 'node:fs';
 import {
   costText, forMealsText, lineWarn, mealCountText, mealsByCell, mealsByDay, packsText, priceDeltaText, shelfText,
   shownSlots, summaryLine, trayRows, tripChipText, tripLook, tripMoveDays, tripToCartSummary, weekEdit,
+  queuedApprovals, queuedMissText,
 } from '../src/mealplan/board.ts';
+import { dayLabel } from '../src/mealplan/dates.ts';
 import { cellKey, step } from '../src/mealplan/model.ts';
 import type { MealSchedule } from '../src/types.ts';
 import { D, TODAY, add, line, planWith, run, schedule, trip } from './helpers/mealplan.ts';
@@ -97,6 +99,7 @@ test('a trip line names its meals, its amount and its storage time on whose word
 test('a trip becomes the cart card: stores in order, unknowns kept unknown', () => {
   const t = real.strategies[0].trips[0];
   const c = tripToCartSummary(t);
+  assert.equal(c.recipe_name, 'Groceries and travel', 'its total adds the travel to the groceries');
   assert.equal(c.lines?.length, t.lines.length);
   assert.deepEqual(c.trip?.stores, t.stores);
   assert.equal(c.trip?.basket_cost, t.total_cost);
@@ -241,4 +244,40 @@ test('the Shopping plan\'s week strip: meals cooked a day, and the days a trip c
   // the edit a move makes, as the strip's drop and the card's "Move to…" both send it
   const moved = run(s, { type: 'moveTrip', from: D(0), to: D(2) });
   assert.ok(moved.draft.fixed_dates.includes(D(2)) && moved.draft.dismissed_dates.includes(D(0)));
+});
+
+test('an Approve pressed while the plan was checked again: approved from the new answer only if its list is unchanged', () => {
+  const f = (c: string) => c.repeat(64);
+  const sc = schedule(7, [], [
+    trip(D(1), [line(10, 'Chicken Thighs')], { fingerprint: f('a') }),
+    trip(D(3), [line(11, 'Whole Milk')], { fingerprint: f('c') }),
+    trip(D(5), [line(12, 'Butter')], { fingerprint: f('e'), status: 'approved' }),
+    trip(D(6), [line(13, 'Flour')], { fingerprint: f('d'), status: 'needs_review' }),
+  ]);
+  const q = (date: string, fp: string, replace = false) => ({ date, fingerprint: f(fp), strategy: 'fresh' as const, replace });
+  const out = queuedApprovals([q(D(1), 'a'), q(D(3), 'b'), q(D(4), 'a'), q(D(5), 'e'), q(D(6), 'd')], sc);
+  assert.deepEqual(out.edits.map((e) => (e.type === 'approveTrip' ? [e.trip.date, e.rev] : null)), [[D(1), 7], [D(6), 7]],
+    'the unchanged list, under the new rev; a changed-since-approved one is approved again with its changes');
+  assert.deepEqual(out.changed, [D(3)], 'its list changed meanwhile: not approved unseen');
+  assert.deepEqual(out.gone, [D(4)]);
+  // approved already: nothing to do
+  assert.equal(out.edits.some((e) => e.type === 'approveTrip' && e.trip.date === D(5)), false);
+  // the edits pass the reducer's revision gate for a plan at that rev
+  let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1));
+  while (s.draft.rev < 7) s = run(s, { type: 'setPrefs', prefs: { budget: s.draft.rev + 10 } });
+  assert.equal(s.draft.rev, 7);
+  const [first] = out.edits;
+  assert.equal(step(s, first).refused, null);
+});
+
+test('what is said of queued approvals not made: a changed list to look at, a day with no trip now', () => {
+  assert.equal(queuedMissText([], [], []), '');
+  assert.equal(queuedMissText([D(1)], [], []),
+    `Not approved: the trip on ${dayLabel(D(1))} changed while the plan was checked; look at it, then approve.`);
+  assert.equal(queuedMissText([D(1), D(3), D(5)], [], []),
+    `Not approved: the trips on ${dayLabel(D(1))}, ${dayLabel(D(3))} and ${dayLabel(D(5))} changed while the plan `
+    + 'was checked; look at them, then approve.');
+  assert.equal(queuedMissText([], [D(2), D(4)], [D(4)]), `Not approved: the plan has no trip on ${dayLabel(D(2))} now.`,
+    'a day the shopper dismissed meanwhile needs no word');
+  assert.equal(queuedMissText([], [D(2), D(4)], []), `Not approved: the plan has no trip on ${dayLabel(D(2))} or ${dayLabel(D(4))} now.`);
 });

@@ -11,9 +11,13 @@
 //     places, Escape cancels, Delete sends it back to the tray.
 // The decisions are in mealplan/dnd.ts and consequences.ts; this file draws them.
 //
-// The Shopping plan stage shows the trips alone as a week strip (WeekStrip): each day's Shop row
-// and how many meals are cooked that day. Its trips move the same ways, and a Move button picks
-// one up from the keyboard.
+// The Shop stage shows the trips alone as a week strip (WeekStrip): each day's Shop row and how
+// many meals are cooked that day. Its trips move the same ways, and a Move button picks one up
+// from the keyboard.
+//
+// The board says each day's nutrition in one short line (the energy, and a sign when the day is
+// complete); what every day has in common, such as the demo house amounts or that a day with an
+// empty slot counts only what is planned, the Nutrition band over the board says once.
 import { useMemo } from 'react';
 import type { KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
@@ -150,7 +154,7 @@ export function ShopRow({ ctl, date, trip, keyMove = false }: { ctl: BoardCtl; d
   return (
     <div className="mp-shop" data-drop={key} data-target={target || undefined}
          data-over={ctl.drag?.over === key || undefined}>
-      <span className="mp-row-k">Shop</span>
+      <span className="label mp-row-k">Shop</span>
       {trip && <TripChip ctl={ctl} trip={trip} keyMove={keyMove} />}
       {!trip && dismissed && <span className="muted mp-shop-none">no trip (you dismissed it)</span>}
       {target && ctl.held && (
@@ -236,7 +240,7 @@ export function SlotCell({ ctl, date, slot, meals }: { ctl: BoardCtl; date: stri
   return (
     <div className="mp-slot" data-drop={key} data-target={target || undefined}
          data-over={ctl.drag?.over === key || undefined}>
-      <span className="mp-row-k">{SLOT_LABELS[slot]}</span>
+      <span className="label mp-row-k">{SLOT_LABELS[slot]}</span>
       {meals.map((m) => <MealChip key={m.id} ctl={ctl} meal={m} />)}
       {ctl.held?.kind === 'meal' && holding && !meals.some((m) => m.id === (ctl.held as { mealId: string }).mealId) && (
         <button type="button" className="mp-slot-target" data-cell={key} onClick={() => ctl.dropOn(key)}

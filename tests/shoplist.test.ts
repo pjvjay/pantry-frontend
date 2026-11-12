@@ -224,6 +224,12 @@ test('the two strategies as tiles: trips and total, the recommended one, and the
   // the cheaper one says so
   const cheaper: MealSchedule = { ...real, strategies: real.strategies.map((s, i) => (i === 1 ? { ...s, total_cost: 210 } : s)) };
   assert.equal(strategyTiles(cheaper)[1].extra, '$9.40 less · 1 note');
+  // trips approved under Shop fresh are kept as they are under Fewest trips too: its tile says so
+  const approved = [{ date: D(1), fingerprint: 'a'.repeat(64), strategy: 'fresh' as const, snapshot: [] },
+    { date: D(4), fingerprint: 'b'.repeat(64), strategy: 'fresh' as const, snapshot: [] }];
+  assert.deepEqual(strategyTiles(real, approved).map((t) => t.extra),
+    ['Recommended · 1 note', '$1.88 more · keeps your 2 approved trips as they are · 1 note']);
+  assert.equal(strategyTiles(real, approved.slice(0, 1))[1].extra, '$1.88 more · keeps your 1 approved trip as it is · 1 note');
   assert.equal(warningCountsText({ must_fix: 2, decide: 0, note: 1, should_fix: 1 }), '2 must fix, 1 should fix, 1 note');
   assert.equal(warningCountsText({ must_fix: 0, decide: 0, note: 0 }), 'no warnings');
 });

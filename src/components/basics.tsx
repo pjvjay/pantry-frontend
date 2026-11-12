@@ -38,6 +38,7 @@ import type { Diet, GeocodeResult } from '../types';
 import { FormCard, Segmented, Switch, Tile, ToggleChip } from './fields';
 import { Icon } from './icons';
 import type { IconName } from './icons';
+import { Notice } from './ui';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];   // Monday is 0, as the engine counts
 
@@ -93,7 +94,7 @@ export function NumberSetting({ label, value, rule, step, placeholder, onSave }:
                  }
                }} />
       </label>
-      {problem && <span id={why} className="cart-flag mp-field-why">Not saved: {problem}.</span>}
+      {problem && <span id={why} className="fc-problem mp-field-why"><Icon name="alert" size={14} />Not saved: {problem}.</span>}
     </span>
   );
 }
@@ -117,7 +118,7 @@ function WhenCard() {
                    onChange={(n) => setWindow(d.start_date, n)} />
         <label className="fc-field">
           <span className="fc-label">Starting</span>
-          <input className="fc-input" type="date" value={d.start_date}
+          <input type="date" value={d.start_date}
                  onChange={(e) => e.target.value && setWindow(e.target.value, d.days)} />
         </label>
       </div>
@@ -126,16 +127,15 @@ function WhenCard() {
         <span className="muted"> · {d.days} days</span>
       </p>
       {ask && (
-        <div className="banner banner-update">
-          Not changed: {ask.reason}.{' '}
-          <span className="fc-actions">
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => {
-              mp.dispatch({ type: 'setWindow', start_date: ask.start, days: ask.days, unplaceOutside: true });
-              setAsk(null);
-            }}>Change it and send them back to the tray</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAsk(null)}>Keep the dates</button>
-          </span>
-        </div>
+        <Notice tone="warn" title="Not changed" actions={[
+          { label: 'Change it and send them back to the tray', onClick: () => {
+            mp.dispatch({ type: 'setWindow', start_date: ask.start, days: ask.days, unplaceOutside: true });
+            setAsk(null);
+          } },
+          { label: 'Keep the dates', onClick: () => setAsk(null) },
+        ]}>
+          {ask.reason.charAt(0).toUpperCase() + ask.reason.slice(1)}.
+        </Notice>
       )}
     </FormCard>
   );
@@ -190,7 +190,7 @@ function BudgetCard() {
                   onClick={() => { setText(''); save(''); }}>None</button>
         </div>
       </div>
-      {problem ? <p id={why} className="cart-flag fc-note">Not saved: {problem}.</p>
+      {problem ? <p id={why} className="fc-note fc-problem"><Icon name="alert" size={14} />Not saved: {problem}.</p>
         : budget !== null && <p className="fc-note"><strong>{perDayText(budget, d.days)}</strong>
           <span className="muted"> · Pick meals stops an Add that would pass it</span></p>}
     </FormCard>
@@ -260,7 +260,7 @@ function OriginCard() {
           Prefer Canadian products
         </Switch>
       </div>
-      <p className="fc-sub">Then prefer, in this order</p>
+      <p className="label fc-sub">Then prefer, in this order</p>
       <ol className="cchips">
         {r.allies.map((c, i) => (
           <li key={c} className="cchip">
@@ -284,7 +284,7 @@ function OriginCard() {
           <>
             <label className="fc-field fc-inline">
               <span className="fc-label">Add</span>
-              <select className="fc-input" value={add} onChange={(e) => setAdding(e.target.value)}>
+              <select value={add} onChange={(e) => setAdding(e.target.value)}>
                 {missing.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
@@ -393,7 +393,7 @@ function WhereCard() {
           </button>
         </form>
       )}
-      {search.status === 'error' && <p className="cart-flag fc-note" role="alert">{search.error}</p>}
+      {search.status === 'error' && <p className="fc-note fc-problem" role="alert"><Icon name="alert" size={14} />{search.error}</p>}
       {search.status === 'ok' && (
         <div className="geo">
           {results.length ? (
@@ -416,8 +416,8 @@ function WhereCard() {
         </button>
         {st.address === CURRENT_LOCATION && <span className="muted">to four decimals, about 10 m</span>}
       </div>
-      {locError && <p className="cart-flag fc-note" role="alert">{locError}</p>}
-      <p className="fc-sub">Or a demo area in Vancouver</p>
+      {locError && <p className="fc-note fc-problem" role="alert"><Icon name="alert" size={14} />{locError}</p>}
+      <p className="label fc-sub">Or a demo area in Vancouver</p>
       <div className="chips" role="radiogroup" aria-label="Demo areas">
         {AREAS.map((a) => (
           <label key={a.id} className="tchip tchip-plain">
@@ -426,7 +426,7 @@ function WhereCard() {
           </label>
         ))}
       </div>
-      <p id={kmHead} className="fc-sub">How far you go</p>
+      <p id={kmHead} className="label fc-sub">How far you go</p>
       <Segmented name="su-km" labelledBy={kmHead} value={st.max_km ?? null}
                  options={distanceChoices(st.max_km).map((v) => ({ value: v, label: distanceLabel(v) }))}
                  onChange={(v) => set({ max_km: v })} />
@@ -475,6 +475,8 @@ function SlotsCard() {
 }
 
 // ─── Your plan ───────────────────────────────────────────────
+// (A section beside the form cards, not an aside: it is part of the stage, inside the page's
+// main landmark.)
 
 const SUMMARY_ICONS: Record<string, IconName> = {
   when: 'calendar', budget: 'wallet', diet: 'sprout', avoid: 'ban', origin: 'globe', where: 'pin', days: 'cart',
@@ -485,17 +487,17 @@ function Summary() {
   const mp = useMealPlan();
   const rows = planSummary(mp.state.draft);
   return (
-    <aside className="sum" aria-labelledby="mp-sum-head">
+    <section className="card sum" aria-labelledby="mp-sum-head">
       <h3 id="mp-sum-head" className="sum-title"><Icon name="sparkle" size={18} /> Your plan</h3>
       <dl className="sum-list">
         {rows.map((r) => (
           <div key={r.key} className="sum-row">
-            <dt><Icon name={SUMMARY_ICONS[r.key]} size={16} />{r.label}</dt>
+            <dt className="label"><Icon name={SUMMARY_ICONS[r.key]} size={16} />{r.label}</dt>
             <dd>{r.value}{r.note && <span className="sum-note">{r.note}</span>}</dd>
           </div>
         ))}
       </dl>
-    </aside>
+    </section>
   );
 }
 
@@ -576,7 +578,7 @@ export function PlanFile() {
       <input ref={input} type="file" accept="application/json,.json" hidden
              onChange={(e) => void importPlan(e.target.files?.[0])} />
       <button type="button" className="btn btn-secondary btn-sm" onClick={mp.clear}>Clear the plan</button>
-      {problem && <span className="cart-flag" role="alert">{problem}</span>}
+      {problem && <span className="fc-problem" role="alert"><Icon name="alert" size={14} />{problem}</span>}
     </div>
   );
 }

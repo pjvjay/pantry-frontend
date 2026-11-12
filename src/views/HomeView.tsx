@@ -1,22 +1,25 @@
 // Home (#/home), where the console starts. With a plan, this week at a glance:
 //   - a greeting for the time of day with the plan's days, beside the picture of the first meal
 //     it cooks (a warm placeholder when there is none, or the demo hub cannot fetch it);
-//   - "This week": the plan's six steps as a task list, each with its state in words (Done, In
-//     progress, Next, Needs attention, Cannot start yet, Changed) and what it has produced so far,
+//   - "This week" ("These two weeks" for a fortnight's plan): the plan's six steps as a task list,
+//     each with its state in words (Done, In progress, Next, Needs attention, Cannot start yet,
+//     Changed) and what it has produced so far,
 //     and one "Continue" to the step to do next (mealplan/home.ts decides all of it). Once every
 //     step is done (the last once the plan's events have gone to a calendar: mealplan/exported.ts)
 //     the week is planned, and the way on is the shopping plan;
-//   - "Next trip": the next shopping trip, with "Shop this trip" (in-store mode) and the way to the
-//     shopping plan;
+//   - "Next trip": the next shopping trip, its state as a tag and, once the shopper has begun it
+//     in the store, how far they got ("3 of 8 in the basket", from the ticks kept beside the plan),
+//     with "Shop this trip" (in-store mode) and the way to the shopping plan;
 //   - "Ask": a question for the assistant, carried to it and put in its message box, unsent.
 // With no plan yet, one invitation to start: build a week of dinners, try the example sentence,
 // or start planning by hand. How the console works is a quiet link to Workshop › About.
-import { useId, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 
 import { arriveAt, arriving } from '../components/arrival';
 import type { Arrival } from '../components/arrival';
 import { Icon } from '../components/icons';
+import { TripTag } from '../components/matchmarks';
 import { RecipePicture } from '../components/pictures';
 import { Notice, Skeleton, Spinner, Tag } from '../components/ui';
 import type { NoticeAction } from '../components/ui';
@@ -24,9 +27,10 @@ import { useBuildWeek } from '../components/useBuildWeek';
 import { useExported } from '../components/useExported';
 import { useHubStatus } from '../hubStatus';
 import { todayIn } from '../mealplan/dates';
-import { basketCounts, firstRecipe, greeting, homeTasks, nextTrip, periodText } from '../mealplan/home';
+import { basketCounts, firstRecipe, greeting, homeTasks, nextTrip, periodText, planHeading } from '../mealplan/home';
 import type { NextTrip } from '../mealplan/home';
 import { planPictures } from '../mealplan/images';
+import { readShopping, tickedOn } from '../mealplan/shopping';
 import { useBasket, useMealPlan, usePlanFacts } from '../mealplan/store';
 import { clockText, stepHash, stepName } from '../mealplan/wizard';
 import type { StepNo } from '../mealplan/wizard';
@@ -61,7 +65,7 @@ function Start() {
       : p.code === 'none_fit' ? { label: 'Change the diet', onClick: () => openStep(1, { focus: SETUP_FOCUS.diet }) }
         : p.code === 'unreachable' ? { label: 'Try again', icon: 'refresh', onClick: week.build } : null;
   return (
-    <section className="home-start" aria-labelledby="home-title">
+    <section className="card home-start" aria-labelledby="home-title">
       <div className="home-start-main">
         <h2 id="home-title" className="home-title">Plan your week in a few minutes</h2>
         <p className="home-lede">
@@ -106,25 +110,41 @@ function Start() {
 
 // ─── This week ───────────────────────────────────────────────
 
+// localStorage, or null where the browser will not hand it over.
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function NextTripCard({ trip }: { trip: NextTrip }) {
   const approved = trip.look.kind === 'approved' || trip.look.kind === 'review';
+  const basket = trip.basket;
+  const begun = basket !== null && basket.done < basket.total;
   return (
-    <section className="home-card home-trip" aria-labelledby="home-trip-head">
+    <section className="card" aria-labelledby="home-trip-head">
       <h3 id="home-trip-head" className="home-card-title">Next trip</h3>
-      <p className="home-trip-when">
-        <strong>{trip.when}</strong>{trip.when !== trip.day && <span className="home-trip-day"> · {trip.day}</span>}
-      </p>
+      <div className="home-trip-top">
+        <p className="home-trip-when">
+          <strong>{trip.when}</strong>{trip.when !== trip.day && <span className="home-trip-day"> · {trip.day}</span>}
+        </p>
+        <TripTag look={trip.look} />
+      </div>
       <p className="home-trip-stores"><Icon name="store" size={18} /><span>{trip.stores}</span></p>
-      <p className="home-trip-meta">
-        {trip.items} · {trip.cost} ·{' '}
-        <span className={`home-trip-state home-trip-${trip.look.kind}`}>
-          {trip.look.kind !== 'suggested' && <Icon name={trip.look.kind === 'review' ? 'alert' : 'check'} size={14} />}
-          {trip.look.word}
-        </span>
-      </p>
+      <p className="home-trip-meta">{trip.items} · {trip.cost}</p>
+      {basket && (
+        <div className="home-trip-basket">
+          <p><Icon name="bag" size={16} />{basket.text}</p>
+          <span className="home-trip-bar" aria-hidden="true">
+            <span style={{ width: `${Math.round((basket.done / basket.total) * 100)}%` }} />
+          </span>
+        </div>
+      )}
       <div className="home-trip-actions">
         <a className={`btn ${approved ? 'btn-primary' : 'btn-secondary'}`} href={hrefFor({ name: 'trip', date: trip.date })}>
-          <Icon name="bag" size={18} />Shop this trip
+          <Icon name="bag" size={18} />{begun ? 'Carry on shopping' : 'Shop this trip'}
         </a>
         <a className={`btn ${approved ? 'btn-secondary' : 'btn-primary'}`} href={hrefFor({ name: 'shop' })}
            onClick={arriving(hrefFor({ name: 'shop' }))}>
@@ -157,13 +177,14 @@ function AskBox() {
     window.location.hash = hrefFor({ name: 'ask' });
   };
   return (
-    <section className="home-card home-ask" aria-labelledby="home-ask-head">
+    <section className="card" aria-labelledby="home-ask-head">
       <h3 id="home-ask-head" className="home-card-title">Ask</h3>
-      <form className="home-ask-form" onSubmit={ask}>
+      <form onSubmit={ask}>
         <label className="home-ask-label" htmlFor={field}>Ask about your plan, a recipe or a product</label>
         <div className="home-ask-row">
-          <input id={field} className="fc-input home-ask-input" value={text} maxLength={2000} autoComplete="off"
-                 placeholder="What can I cook with what is on sale?" onChange={(e) => setText(e.target.value)} />
+          {/* short enough to read whole in a phone's field */}
+          <input id={field} className="home-ask-input" value={text} maxLength={2000} autoComplete="off"
+                 placeholder="What can I cook tonight?" onChange={(e) => setText(e.target.value)} />
           <button type="submit" className="btn btn-primary"><Icon name="chat" size={18} />Ask</button>
         </div>
       </form>
@@ -187,7 +208,9 @@ function ThisWeek() {
   const exported = useExported(d.id);
   const counts = basket.answer && basket.current ? basketCounts(basket.answer, s) : null;
   const home = homeTasks(s, facts, counts, { answer: schedule.answer, failed: schedule.status === 'error' }, exported.mark);
-  const trip = nextTrip(s, schedule.answer, todayIn());
+  // the ticks of the trip begun in the store, read as Home opens (they are kept beside the plan)
+  const shopping = useMemo(() => readShopping(browserStorage()), [d.id]);
+  const trip = nextTrip(s, schedule.answer, todayIn(), (date) => tickedOn(shopping, d.id, date));
   const first = firstRecipe(d);
   const pic = first ? planPictures(d, basket.answer?.recipes ?? []).get(first) ?? null : null;
   const slot = first ? d.recipes[first]?.slot ?? 'dinner' : 'dinner';
@@ -199,7 +222,7 @@ function ThisWeek() {
   const weeks = d.days === 7 ? '1 week' : d.days === 14 ? '2 weeks' : `${d.days} days`;
   return (
     <>
-      <section className="home-band" aria-labelledby="home-title">
+      <section className="card home-band" aria-labelledby="home-title">
         <div className="home-band-text">
           <h2 id="home-title" className="home-title">{greeting(new Date().getHours())}</h2>
           <p className="home-when">Your plan for {periodText(d)} <span className="home-weeks">({weeks})</span></p>
@@ -208,8 +231,8 @@ function ThisWeek() {
       </section>
 
       <div className="home-grid">
-        <section className="home-card home-tasks" aria-labelledby="home-tasks-head">
-          <h3 id="home-tasks-head" className="home-card-title">This week</h3>
+        <section className="card" aria-labelledby="home-tasks-head">
+          <h3 id="home-tasks-head" className="home-card-title">{planHeading(d.days)}</h3>
           {settling ? <Skeleton kind="row" count={6} label="Checking where your plan stands" /> : (
             <>
               <ol className="home-steps">
@@ -254,7 +277,7 @@ export default function HomeView() {
   const mp = useMealPlan();
   const hasPlan = Object.keys(mp.state.draft.recipes).length > 0;
   return (
-    <div className="view home">
+    <div className="view">
       {hasPlan ? <ThisWeek /> : <Start />}
       <p className="home-how">
         <Icon name="info" size={18} />

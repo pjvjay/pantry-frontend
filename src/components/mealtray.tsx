@@ -25,6 +25,7 @@ import { MealChip } from './mealcal';
 import type { BoardCtl } from './mealcal';
 import { RecipePicture } from './pictures';
 import { Sheet } from './Sheet';
+import { Notice, Tag } from './ui';
 
 // The sentence the plan was written around; the first-run sheet offers it as an example.
 export const EXAMPLE_SENTENCE =
@@ -68,9 +69,10 @@ function QuickChip({ item, index, household, onDecide }: {
         </div>
       )}
       {decided && item.state !== 'unmatched' && (
-        <button type="button" className="linkish" onClick={() => onDecide(index, item.state === 'ready' && item.decision === 'reject'
-          ? { use: item.match?.recipe_key ?? '' } : item.state === 'ready' ? 'reject' : null)}>
-          {item.state === 'ready' ? (item.decision === 'reject' ? 'add it back' : 'leave it out') : 'change'}
+        <button type="button" className="btn btn-ghost btn-sm"
+                onClick={() => onDecide(index, item.state === 'ready' && item.decision === 'reject'
+                  ? { use: item.match?.recipe_key ?? '' } : item.state === 'ready' ? 'reject' : null)}>
+          {item.state === 'ready' ? (item.decision === 'reject' ? 'Add it back' : 'Leave it out') : 'Change'}
         </button>
       )}
     </li>
@@ -124,8 +126,8 @@ export function QuickAdd({ text, setText }: { text: string; setText: (t: string)
   return (
     <div className="mp-quick">
       <form onSubmit={(e) => { e.preventDefault(); if (text.trim()) read(); }}>
-        <label className="mp-quick-label" htmlFor="mp-quick-text">Quick add</label>
-        <div className="search mp-quick-row">
+        <label className="label mp-quick-label" htmlFor="mp-quick-text">Quick add</label>
+        <div className="search">
           <span className="search-ico"><Icon name="sparkle" size={18} /></span>
           <input id="mp-quick-text" ref={field} className="search-input" value={text} onChange={(e) => setText(e.target.value)}
                  maxLength={8000} placeholder={EXAMPLE_SENTENCE} autoComplete="off" />
@@ -134,7 +136,7 @@ export function QuickAdd({ text, setText }: { text: string; setText: (t: string)
           </button>
         </div>
       </form>
-      {status === 'error' && <p className="banner banner-error">Could not read that: {error}</p>}
+      {status === 'error' && <Notice tone="danger" title="Could not read that">{error}</Notice>}
       {preview && (
         <div className="mp-preview" aria-label="What Quick add read">
           <ul className="mp-qchips">
@@ -149,8 +151,8 @@ export function QuickAdd({ text, setText }: { text: string; setText: (t: string)
               {preview.periodDays === mp.state.draft.days ? ' (as now)' : ` (now ${mp.state.draft.days})`}.
             </p>
           )}
-          {preview.warnings.map((w) => <p key={w} className="cart-flag">{w}</p>)}
-          {problems.map((p) => <p key={p} className="cart-flag">Not added: {p}</p>)}
+          {preview.warnings.map((w) => <p key={w} className="mp-note-warn"><Icon name="alert" size={14} />{w}</p>)}
+          {problems.map((p) => <p key={p} className="mp-note-warn"><Icon name="alert" size={14} />Not added: {p}</p>)}
           <div className="mp-trip-actions">
             <button type="button" className="btn btn-primary" disabled={!going.length} onClick={add}>
               {going.length ? `Add ${going.reduce((t, a) => t + a.count, 0)} meals to the plan` : 'Nothing to add yet'}
@@ -189,14 +191,21 @@ export function ServingsPrompt({ recipeKey, title }: { recipeKey: string; title:
 
 // A recipe in the sidebar: its picture and name, how many of its meals are placed, its count
 // and meal, what is wrong with it, and the meals still to place as cards to drag onto the board.
-function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
+// What kind of recipe a row is ("demo recipe", "my recipe"), when the plan knows.
+function kindOf(d: ReturnType<typeof useMealPlan>['state']['draft'], key: string): string | null {
+  return d.resolved[key]?.label ?? (key.startsWith('my:') ? 'my recipe' : key.startsWith('starter:') ? 'demo recipe' : null);
+}
+
+// shared: every recipe in the tray is the same kind, which the tray then says once, so the rows
+// leave it out; a kind that differs from row to row stays on its row, as a plain chip.
+function RecipeRow({ row, ctl, shared }: { row: TrayRow; ctl: BoardCtl; shared: string | null }) {
   const mp = useMealPlan();
   const d = mp.state.draft;
   const r = d.recipes[row.key];
   const resolved = d.resolved[row.key];
   const pending = mp.resolve.pending.includes(row.key);
-  const label = resolved?.label ?? (row.key.startsWith('my:') ? 'my recipe' : row.key.startsWith('starter:')
-    ? 'demo recipe' : null);
+  const kind = kindOf(d, row.key);
+  const label = kind === shared ? null : kind;
   const answered = r.servings ?? null;
   const needsServings = resolved?.status === 'needs_servings' && answered === null;
   const full = addStop(d, r.slot, r.wanted);
@@ -211,7 +220,7 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
             <span className="mp-recipe-placed">
               {done && <Icon name="check" size={14} />}{row.placed} of {row.wanted} placed
             </span>
-            {label && <span className={`chip ${label.startsWith('demo') ? 'chip-warn' : 'chip-muted'}`}>{label}</span>}
+            {label && <span className="chip">{label}</span>}
           </span>
           <span className="mp-recipe-meter" aria-hidden="true">
             <span style={{ width: `${row.wanted ? Math.min(100, Math.round((row.placed / row.wanted) * 100)) : 0}%` }} />
@@ -242,24 +251,24 @@ function RecipeRow({ row, ctl }: { row: TrayRow; ctl: BoardCtl }) {
       {full && <div id={`mp-full-${row.key}`} className="mp-card-full">{full}.</div>}
       {pending && mp.resolve.status !== 'error' && <div className="muted">Checking products…</div>}
       {pending && mp.resolve.status === 'error' && (
-        <div className="cart-flag">
-          Products not checked: {mp.resolve.error}{' '}
-          <button type="button" className="linkish" onClick={() => mp.retryResolve()}>Try again</button>
+        <div className="mp-recipe-problem">
+          <p className="mp-note-warn"><Icon name="alert" size={14} />Products not checked: {mp.resolve.error}</p>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => mp.retryResolve()}>Try again</button>
         </div>
       )}
       {resolved && !USABLE_RESOLVE.includes(resolved.status) && (
-        <div className="cart-flag">
-          {resolved.message || resolved.status.replace(/_/g, ' ')}{' '}
-          <button type="button" className="linkish" onClick={() => mp.retryResolve(row.key)}
+        <div className="mp-recipe-problem">
+          <p className="mp-note-warn"><Icon name="alert" size={14} />{resolved.message || resolved.status.replace(/_/g, ' ')}</p>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => mp.retryResolve(row.key)}
                   aria-label={`Check products for ${row.title} again`}>Try again</button>
         </div>
       )}
       {needsServings && <ServingsPrompt recipeKey={row.key} title={row.title} />}
       {answered !== null && resolved?.status === 'needs_servings' && (
-        <div className="muted">
-          Serves {answered} (your answer){' '}
-          <button type="button" className="linkish"
-                  onClick={() => mp.dispatch({ type: 'setRecipeServings', key: row.key, servings: null })}>change</button>
+        <div className="mp-recipe-served">
+          <span className="muted">Serves {answered} (your answer)</span>
+          <button type="button" className="btn btn-ghost btn-sm" aria-label={`Change how many ${row.title} serves`}
+                  onClick={() => mp.dispatch({ type: 'setRecipeServings', key: row.key, servings: null })}>Change</button>
         </div>
       )}
       {resolved && (resolved.not_stocked.length + resolved.out_of_range.length + resolved.skipped.length) > 0 && (
@@ -311,7 +320,7 @@ export function AddRecipes() {
         {!mp.starters.length && <li className="muted">Starters are loading, or this API has none.</li>}
       </ul>
       <h4>Library <span className="muted">(demo house amounts)</span></h4>
-      {libError && <p className="cart-flag">Could not load the library: {libError}</p>}
+      {libError && <Notice tone="danger" title="The library could not be loaded">{libError}</Notice>}
       <ul className="mp-add-list">
         {library.map((r) => (
           <li key={r.slug}>
@@ -322,7 +331,7 @@ export function AddRecipes() {
         ))}
       </ul>
       <h4>My recipes</h4>
-      {mp.myRecipesProblem && <p className="cart-flag">{mp.myRecipesProblem}</p>}
+      {mp.myRecipesProblem && <Notice tone="warn">{mp.myRecipesProblem}</Notice>}
       <ul className="mp-add-list">
         {mp.myRecipes.map((doc) => (
           <li key={doc.key}>
@@ -345,7 +354,9 @@ export function AddRecipes() {
 // picture, how many of its meals are placed, and the ones still to place as cards to drag onto
 // the board, tap or pick up from the keyboard. The whole sidebar is the tray's drop target, so a
 // meal dragged back anywhere on it goes back. Beside the board on a wide screen, where it stays
-// in view as the board scrolls; above it on a phone, where it folds away.
+// in view as the board scrolls; above it on a phone, where it folds away. A kind every recipe in it
+// shares ("demo recipe") is said once, under its heading, not on each row. (A section, not an
+// aside: it is part of the stage, inside the page's main landmark.)
 export function RecipeTray({ ctl, emptyText }: { ctl: BoardCtl; emptyText: string }) {
   const head = useId();
   const body = useId();
@@ -355,13 +366,16 @@ export function RecipeTray({ ctl, emptyText }: { ctl: BoardCtl; emptyText: strin
   const meal = p?.kind === 'meal' ? ctl.state.draft.meals.find((m) => m.id === p.mealId) : undefined;
   const target = p?.kind === 'meal' && canDrop(p, TRAY_KEY) && meal?.date !== null;
   const toPlace = rows.reduce((t, r) => t + r.waiting.length, 0);
+  const kinds = rows.map((r) => kindOf(ctl.state.draft, r.key));
+  const shared = rows.length > 1 && kinds.every((k) => k !== null && k === kinds[0]) ? kinds[0] : null;
   return (
-    <aside className={`mp-tray mp-side${open ? '' : ' mp-side-shut'}`} aria-labelledby={head} data-drop={TRAY_KEY}
-           data-target={target || undefined} data-over={ctl.drag?.over === TRAY_KEY || undefined}>
+    <section className={`card mp-tray mp-side${open ? '' : ' mp-side-shut'}`} aria-labelledby={head} data-drop={TRAY_KEY}
+             data-target={target || undefined} data-over={ctl.drag?.over === TRAY_KEY || undefined}>
       <div className="mp-side-head">
         <h3 id={head} className="mp-side-title">
           <Icon name="list" size={18} />Recipes
-          {rows.length > 0 && <span className="mp-side-count">{toPlace ? `${toPlace} to place` : 'all placed'}</span>}
+          {rows.length > 0 && (toPlace ? <span className="chip mp-side-count">{toPlace} to place</span>
+            : <Tag kind="done">All placed</Tag>)}
         </h3>
         <button type="button" className="btn btn-secondary btn-sm mp-side-fold" aria-expanded={open} aria-controls={body}
                 onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
@@ -372,10 +386,11 @@ export function RecipeTray({ ctl, emptyText }: { ctl: BoardCtl; emptyText: strin
         </button>
       )}
       <div id={body} className="mp-side-body">
+        {shared && <p className="mp-side-note">All {rows.length} are {shared === 'demo recipe' ? 'demo recipes, with the demo\u2019s own amounts' : `${shared}s`}.</p>}
         {rows.length === 0 ? <p className="mp-empty">{emptyText}</p>
-          : <ul className="mp-recipes">{rows.map((row) => <RecipeRow key={row.key} row={row} ctl={ctl} />)}</ul>}
+          : <ul className="mp-recipes">{rows.map((row) => <RecipeRow key={row.key} row={row} ctl={ctl} shared={shared} />)}</ul>}
       </div>
-    </aside>
+    </section>
   );
 }
 

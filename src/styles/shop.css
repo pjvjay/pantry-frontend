@@ -8,6 +8,85 @@
    strip, the trip cards). In the store, one trip as big rows to tick, under a header that stays at
    the top of the screen. */
 
+/* ─── A trip sheet: its state, what changed, each line ───────────────────────────────────── */
+/* its state as a Tag (components/matchmarks.tsx TripTag), with what that means beside it */
+.mp-trip-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: 0 0 var(--space-2); }
+.mp-diff { padding: 8px 10px; border: 2px solid var(--warn); border-radius: var(--radius-2); margin: 8px 0; }
+.mp-diff ul { margin: 6px 0; padding-left: 18px; }
+.mp-lines { list-style: none; padding: 0; margin: 0; }
+.mp-line { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: var(--fs-compact); }
+.mp-line-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.mp-line-price { margin-left: auto; font-variant-numeric: tabular-nums; }
+/* a trip line's Options (the chat cart's dialog): after the price, at the end of the row */
+.mp-line-options { align-self: center; }
+.mp-line-ctl { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin: 4px 0; }
+.mp-line-freeze { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-2); }
+.mp-left-off li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); padding: 4px 0; }
+.mp-warnings { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.mp-warn-group { border: 1px solid var(--border); border-radius: var(--radius-2); padding: 6px 10px; font-size: var(--fs-compact); }
+.mp-warn-group summary { cursor: pointer; font-weight: 600; }
+.mp-warn-must_fix, .mp-warn-should_fix { border-color: var(--warn); }
+.mp-warn-must_fix summary { color: var(--warn); }
+.mp-warn-group ul { margin: 6px 0 0; padding-left: 18px; }
+.mp-warn-group li { margin-bottom: 6px; }
+.mp-remedies { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.mp-warn-all { font-size: var(--fs-compact); }
+.mp-warn-all summary { cursor: pointer; color: var(--muted); font-weight: 400; }
+/* what the figures rest on: each fact with its sign (a tick where it is covered, a question where
+   something is left unclaimed) */
+.mp-coverage { list-style: none; display: grid; gap: var(--space-1); margin: 0; padding: 0; }
+.mp-coverage li { display: flex; align-items: flex-start; gap: var(--space-1); }
+.mp-coverage .ico { flex: none; margin-top: 2px; color: var(--muted); }
+/* each trip a card (styles/card.css), the dense step of padding, its state a Tag in its head */
+.mp-trip-list { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 8px; }
+.mp-trip-card { --card-pad: var(--space-4); font-size: var(--fs-compact); }
+.mp-trip-card-sub { font-variant-numeric: tabular-nums; }
+.mp-trip-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.mp-actions, .mp-sources-wrap, .mp-settings, .mp-add { margin-top: 10px; font-size: var(--fs-compact); }
+.mp-actions summary, .mp-sources-wrap summary, .mp-settings summary, .mp-add summary { cursor: pointer; font-weight: 600; }
+.mp-actions ol { padding-left: 18px; }
+.mp-actions ul { padding-left: 4px; list-style: none; margin: 2px 0 6px; }
+/* Shopping plan: the week strip, a column a day (a row a day on a phone), each with its Shop
+   row, the same drop target as on the calendar */
+.mp-strip { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; }
+.mp-strip-week { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.mp-strip-day {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 4px;
+  border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--bg);
+}
+.mp-strip-date { font-size: var(--fs-label); font-weight: 600; font-variant-numeric: tabular-nums; }
+.mp-strip-meals { font-size: var(--fs-label); }
+.mp-strip .mp-shop { min-height: 40px; border-bottom: none; }
+.mp-strip .mp-row-k {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap;
+}
+.mp-strip .mp-trip { flex-wrap: wrap; }
+/* under the chip's words, the width of the chip, so the price is never covered */
+.mp-trip-move { flex: 1 0 100%; margin: 2px 0 0; }
+.mp-move-to { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+@media (max-width: 900px) {
+  .mp-strip-week { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .mp-strip-day { display: grid; grid-template-columns: 6.5em minmax(0, 1fr) auto; align-items: center; column-gap: 8px; }
+}
+.mp-addtrip { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--line-strong); border-radius: var(--radius-2); }
+/* Trip lists print from a copy outside the app; on screen it is never shown. */
+.mp-print { display: none; }
+
+@media print {
+  body.mp-printing > :not(.mp-print), body.mp-printing dialog { display: none !important; }
+  body.mp-printing { background: var(--print-paper); color: var(--print-ink); }
+  body.mp-printing > .mp-print {
+    display: block; margin: 0; white-space: pre-wrap; font: var(--fs-body)/1.4 var(--font-mono);
+  }
+}
+
+@media (pointer: coarse) {
+  .mp-line-options { min-height: 44px; }
+}
+
+/* ─── Shop ───────────────────────────────────────────────────────────────────────────────── */
+
 /* ─── The shopping plan on its own: its heading and the way back to planning ────────────────── */
 .mp-shop-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4); }
 .view .mp-shop-head h2 { margin: 0; font: var(--type-page); }
@@ -26,15 +105,10 @@
   .mp-shop-back { min-height: 44px; }
 }
 
-/* ─── Cards ──────────────────────────────────────────────────────────────────────────────── */
-.shop-card {
-  margin-top: var(--space-5); padding: var(--space-5);
-  border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--panel); box-shadow: var(--shadow-1);
-}
+/* ─── The cards ──────────────────────────────────────────────────────────────────────────── */
+/* each a card (styles/card.css) on the page, under a heading in the section role */
+.shop-card { margin-top: var(--space-5); }
 .view .shop-card-title { margin: 0; font: var(--type-section); }
-@media (max-width: 640px) {
-  .shop-card { padding: var(--space-4); }
-}
 
 /* ─── Check your plan: what it is, its value and a note under it, Change ──────────────────── */
 .shop-check-list { margin: var(--space-3) 0 0; }
@@ -54,13 +128,19 @@
 .shop-check-over .shop-check-note { color: var(--warn); font-weight: 600; }
 .shop-check-warn { vertical-align: -2px; margin-right: var(--space-1); }
 .shop-check-change { grid-area: change; margin: 0; font-size: var(--fs-compact); }
-.shop-check-change a, .shop-check-change .linkish { font-size: var(--fs-compact); font-weight: 600; text-underline-offset: 2px; }
+/* the one Change that stays on this page (the way to shop, further down) is a button that reads as
+   its neighbours' links do */
+.shop-check-link {
+  margin: 0; padding: 0; border: none; background: none; color: var(--accent); font-family: inherit;
+  text-decoration: underline; cursor: pointer;
+}
+.shop-check-change a, .shop-check-link { font-size: var(--fs-compact); font-weight: 600; text-underline-offset: 2px; }
 @media (max-width: 640px) {
   .shop-check-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "key change" "value value"; }
 }
 /* a fingertip's 44px for each Change, reaching out over the row's edges rather than growing it */
 @media (pointer: coarse) {
-  .shop-check-change a, .shop-check-change .linkish {
+  .shop-check-change a, .shop-check-link {
     display: inline-flex; align-items: center; min-height: 44px; margin: -12px -8px; padding: 0 8px;
   }
 }
@@ -77,10 +157,13 @@
   margin: 0; font: var(--type-title); letter-spacing: normal; text-transform: none; color: var(--text);
 }
 .shop-trip-stores { font-weight: 400; color: var(--muted); }
-.shop-trip-meta { margin: 2px 0 0; color: var(--muted); font-size: var(--fs-compact); font-variant-numeric: tabular-nums; }
-.shop-trip-state { font-weight: 600; color: var(--text); }
-.shop-trip-state-approved, .shop-trip-state-elsewhere { color: var(--accent-soft-fg); }
-.shop-trip-state-review { color: var(--warn); }
+/* its state (a Tag), its items and cost, and how far the shopper got with it in the store */
+.shop-trip-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-1) 0 0;
+  color: var(--muted); font-size: var(--fs-compact); font-variant-numeric: tabular-nums;
+}
+/* Done shopping brings the keyboard back here: words, not a control, so no ring */
+.shop-trip-title:focus { outline: none; }
 /* The sections flow down newspaper columns on a wide screen, one under another on a phone. A
    section stays whole in its column (the columns grow to fit the longest one rather than split it
    from its name), and a line never breaks across two columns. */
@@ -125,17 +208,14 @@
 .mp-approve-all { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-4); }
 .mp-approve-all p { margin: 0; font-size: var(--fs-compact); }
 .shop-trips .mp-trip-list { gap: var(--space-3); margin: var(--space-4) 0; }
-.shop-trips .mp-trip-card { padding: var(--space-3) var(--space-4); border-radius: var(--radius-2); font-size: var(--fs-compact); }
-.mp-trip-card-head { font-variant-numeric: tabular-nums; }
-.mp-trip-reason { margin-top: 2px; font-size: var(--fs-compact); }
+.mp-trip-reason { margin: 0; font-size: var(--fs-compact); }
 .shop-trips .mp-trip-actions { gap: var(--space-2); margin-top: var(--space-3); }
 .shop-trips .mp-addtrip { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-3); }
-/* The trip sheet's status line carries the trip's state class, as the chips and cards do, for its
-   colour; their frame is not its own. */
-p.mp-trip-status { outline: none; border: 0; }
 .mp-covers { margin-top: var(--space-5); font-size: var(--fs-compact); }
 .mp-covers > summary { cursor: pointer; font-weight: 600; width: fit-content; }
 .mp-covers .mp-coverage { margin-top: var(--space-2); }
+/* the days dismissed, each a button that brings its trip back */
+.mp-dismissed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: var(--space-3) 0 0; }
 
 /* ─── A fingertip's 44px on Shop and in the trip sheet ───────────────────────────────────── */
 /* The buttons are .btn (44px under a coarse pointer, styles/buttons.css); these are the other
@@ -143,19 +223,12 @@ p.mp-trip-status { outline: none; border: 0; }
 @media (pointer: coarse) {
   .mp-warn-group > summary, .mp-warn-all > summary, .mp-actions > summary, .mp-sources-wrap > summary,
   .mp-settings > summary, .mp-covers > summary { padding-block: 12px; }
-  .mp-dismissed .linkish, .mp-line .linkish {
-    display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px;
-  }
-  .mp-settings input, .mp-settings select, dialog .form-row select { min-height: 44px; }
-  /* The cart card's own tick in a trip sheet (components/cart.tsx, kept by the other lane): as
-     big as its row allows without a label around it, with room to either side. A whole 44px
-     target needs that label, in cart.tsx. */
-  dialog.sheet .cart-item > input[type="checkbox"] { width: 28px; height: 28px; margin: 0 var(--space-1); }
 }
 
 /* ─── In-store mode ──────────────────────────────────────────────────────────────────────── */
-/* One column, a phone's width even on a wide screen: the list is read at arm's length. */
-.instore { max-width: 760px; margin: 0 auto; }
+/* One column on a phone, read at arm's length; on a wide screen the page's width, each section's
+   rows two to a line, so a ticked row's place stays in view. */
+.instore { max-width: 1120px; margin: 0 auto; }
 .instore h2[tabindex="-1"]:focus { outline: none; }
 
 /* The header stays at the top of the screen (useKeepClear: a focused row never comes to rest
@@ -186,6 +259,9 @@ p.mp-trip-status { outline: none; border: 0; }
 .view .is-store-name { display: flex; align-items: center; gap: var(--space-2); margin: 0; font: var(--type-title); }
 .view .is-sec-name { margin: var(--space-4) 0 var(--space-2); }
 .is-rows { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+@media (min-width: 900px) {
+  .is-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .is-row {
   border: 1px solid var(--border); border-radius: var(--radius-2); background: var(--panel); box-shadow: var(--shadow-1);
   transition: background-color var(--dur-1) var(--ease-standard);
@@ -213,6 +289,19 @@ p.mp-trip-status { outline: none; border: 0; }
 .is-price-unknown { color: var(--warn); font-size: var(--fs-compact); font-weight: 400; }
 /* in the basket: struck through, and quieter, as well as moved to the end */
 .is-row-on { background: var(--surface-2); box-shadow: none; }
+/* just ticked: still in its place for a moment, ticked and "In the basket", then it moves (the
+   tick's feedback where it happened, not only in the header); it fades as it goes, unless the
+   shopper asked for less motion */
+.is-row-settling { background: var(--accent-soft); border-color: var(--accent); }
+.is-row-settling .is-name { color: var(--text); }
+.is-moved {
+  display: inline-flex; align-items: center; gap: var(--space-1); margin-top: 2px;
+  color: var(--accent-soft-fg); font-size: var(--fs-compact); font-weight: 600;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .is-row-settling { animation: is-settle calc(var(--dur-3) * 3) var(--ease-in) forwards; }
+}
+@keyframes is-settle { 0%, 60% { opacity: 1; } 100% { opacity: 0.35; } }
 .is-row-on .is-name { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 2px; }
 .is-row-on .is-price { color: var(--muted); }
 .is-row-on .ppic { opacity: 0.6; }
@@ -224,6 +313,13 @@ p.mp-trip-status { outline: none; border: 0; }
 .is-done { min-width: min(100%, 320px); }
 .is-notes { max-width: 52ch; margin: 0; color: var(--muted); font-size: var(--fs-compact); }
 .is-none { margin-top: var(--space-5); height: auto; }
+/* the list from this browser's offline copy, while no answer has come: when it was made */
+.is-offline {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: var(--space-4) 0 0;
+  color: var(--muted); font-size: var(--fs-compact);
+}
+.is-offline .ico { flex: none; }
+.is-offline > span { flex: 1 1 14em; min-width: 0; }
 
 @media (max-width: 640px) {
   .is-hit { gap: var(--space-2) 10px; padding: var(--space-2); }

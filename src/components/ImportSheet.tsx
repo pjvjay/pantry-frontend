@@ -26,8 +26,11 @@ import type { ImportSupport, StorageLike } from '../recipes';
 import type {
   ImportResult, ImportVideo, PlanExecution, RecipeDoc, RecipeImportEvent, ShoppingPlan,
 } from '../types';
+import { Icon } from './icons';
+import { EvidenceMark } from './matchmarks';
 import { AbortAlert, PlanView } from './plan';
 import { Sheet } from './Sheet';
+import { Notice, ScrollRegion } from './ui';
 
 export type ImportTab = 'link' | 'youtube' | 'paste';
 
@@ -71,8 +74,12 @@ const hostOf = (url: string) => {
   }
 };
 
-function Badge({ text, tone }: { text: string; tone: 'ok' | 'warn' | 'muted' }) {
-  return <span className={`chip chip-${tone} import-badge`}>{text}</span>;
+// Where a line's amount came from, said in words, with a sign where it matters: stated by the
+// source (a tick), or something to check (transcribed, demo amounts, written by the assistant);
+// the rest plain. Never a coloured chip alone.
+function AmountFrom({ text, tone }: { text: string; tone: 'ok' | 'warn' | 'muted' }) {
+  if (tone === 'muted') return <span className="muted">{text}</span>;
+  return <EvidenceMark kind={tone === 'ok' ? 'checked' : 'disputed'} word={text} />;
 }
 
 // The review table: every line as written, the amount read from it, what will be bought, where
@@ -89,13 +96,13 @@ export function LinesTable({ doc, edit }: {
   const removeAt = (lineNo: number, index: number) => {
     edit?.remove(lineNo);
     window.requestAnimationFrame(() => {
-      const left = body.current?.querySelectorAll<HTMLButtonElement>('button.import-remove');
+      const left = body.current?.querySelectorAll<HTMLButtonElement>('button[data-remove-line]');
       if (left?.length) left[Math.min(index, left.length - 1)].focus();
     });
   };
   return (
-    <div className="table-wrap import-table-wrap">
-      <table className="import-table">
+    <ScrollRegion label={`Ingredient lines of ${doc.title}`} className="table-scroll import-table-wrap">
+      <table className="table import-table">
         <caption className="sr-only">Ingredient lines of {doc.title}</caption>
         <thead>
           <tr>
@@ -130,7 +137,7 @@ export function LinesTable({ doc, edit }: {
                   {l.name}
                   {l.note && <div className="muted">{l.note}</div>}
                 </td>
-                <td><Badge {...badge} /></td>
+                <td><AmountFrom {...badge} /></td>
                 {anyEvidence && (
                   <td>
                     {href ? (
@@ -144,7 +151,7 @@ export function LinesTable({ doc, edit }: {
                 )}
                 {edit && (
                   <td>
-                    <button type="button" className="secondary mini import-remove"
+                    <button type="button" className="btn btn-ghost btn-sm" data-remove-line={l.line_no}
                             aria-label={`Remove line ${l.line_no}, ${l.name}`}
                             onClick={() => removeAt(l.line_no, index)}>
                       Remove
@@ -156,7 +163,7 @@ export function LinesTable({ doc, edit }: {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }
 
@@ -202,7 +209,7 @@ function VideoPanel({ video, result, hasDoc, support, busy, onReadLink, onPaste,
           <ul className="import-links">
             {result.linked_pages.map((p) => (
               <li key={p.url}>
-                <button type="button" className="secondary" disabled={busy} onClick={() => onReadLink(p.url)}>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onReadLink(p.url)}>
                   Read {p.site || hostOf(p.url)}
                 </button>
                 <span className="muted import-link-url">{p.url}</span>
@@ -216,7 +223,7 @@ function VideoPanel({ video, result, hasDoc, support, busy, onReadLink, onPaste,
           <div className="import-ways">
             <h4>Paste the ingredient list</h4>
             <p className="muted">From the description or the video, one ingredient per line.</p>
-            <button type="button" className="secondary" onClick={onPaste}>Paste the list</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onPaste}>Paste the list</button>
           </div>
           <div className="import-ways">
             <h4>Have Gemini watch the video</h4>
@@ -233,11 +240,11 @@ function VideoPanel({ video, result, hasDoc, support, busy, onReadLink, onPaste,
               </label>
             )}
             {transcribe.enabled && daily && <p className="muted">{dailyText(daily)}</p>}
-            <button type="button" disabled={busy || !!why} aria-describedby={why ? reasonId : undefined}
-                    onClick={() => onTranscribe(length)}>
+            <button type="button" className="btn btn-primary btn-sm" disabled={busy || !!why}
+                    aria-describedby={why ? reasonId : undefined} onClick={() => onTranscribe(length)}>
               Transcribe with Gemini{length != null && transcribe.enabled ? ` (${durationText(length)} of video)` : ''}
             </button>
-            {why && <p id={reasonId} className="hint">{why}</p>}
+            {why && <p id={reasonId} className="fc-problem"><Icon name="alert" size={14} />{why}</p>}
           </div>
         </>
       )}
@@ -482,9 +489,9 @@ export function ImportSheet({ open, onClose, start, planInChat, chatBlocked, onP
       return;
     }
     setDoc({ ...doc, key: r.key });
-    setNotice(r.already ? `"${doc.title.trim()}" is already waiting for the meal plan.`
-      : `Saved to My recipes and added to the meal plan: "${doc.title.trim()}" waits for the `
-        + "meal plan's tray, in this browser.");
+    setNotice(r.already ? `"${doc.title.trim()}" is already waiting for your plan.`
+      : `Saved to My recipes and added to your plan: "${doc.title.trim()}" waits in the plan's tray, `
+        + 'in this browser.');
   };
 
   // the tab list's arrow keys (one tab stop for the list, as the ARIA tabs pattern has it)
@@ -517,7 +524,7 @@ export function ImportSheet({ open, onClose, start, planInChat, chatBlocked, onP
           The demo hub on this machine reads the page's schema.org recipe (JSON-LD or microdata):
           its ingredient lines and a link back, never the method.
         </p>
-        <button disabled={busy !== null || !url.trim()}>{busy === 'read' ? 'Reading…' : 'Read recipe'}</button>
+        <button className="btn btn-primary" disabled={busy !== null || !url.trim()}>{busy === 'read' ? 'Reading…' : 'Read recipe'}</button>
       </form>
     );
   } else if (shown === 'youtube') {
@@ -534,7 +541,7 @@ export function ImportSheet({ open, onClose, start, planInChat, chatBlocked, onP
             : 'The hub reads the title and channel. It has no YouTube key, so it cannot read the '
               + 'description; you can read a page the creator links or paste the list.'}
         </p>
-        <button disabled={busy !== null || !videoUrl.trim()}>{busy === 'read' ? 'Reading…' : 'Read video'}</button>
+        <button className="btn btn-primary" disabled={busy !== null || !videoUrl.trim()}>{busy === 'read' ? 'Reading…' : 'Read video'}</button>
       </form>
     );
   } else {
@@ -563,7 +570,7 @@ export function ImportSheet({ open, onClose, start, planInChat, chatBlocked, onP
                     placeholder={'400 g red lentils\n1 tbsp cumin seeds\n2 cloves garlic, minced'} />
         </label>
         <p className="muted">Read by pantry with no AI: each line's amount, unit and what to buy.</p>
-        <button disabled={busy !== null || !pasteText.trim()}>{busy === 'read' ? 'Reading…' : 'Read lines'}</button>
+        <button className="btn btn-primary" disabled={busy !== null || !pasteText.trim()}>{busy === 'read' ? 'Reading…' : 'Read lines'}</button>
       </form>
     );
   }
@@ -579,16 +586,16 @@ export function ImportSheet({ open, onClose, start, planInChat, chatBlocked, onP
       description="Its ingredient lines, for you to review before anything is planned."
       footer={doc && (
         <>
-          {planBlocked && <p id={readyId} className="import-ready">{planBlocked}</p>}
-          <button type="button" className="secondary" disabled={!!problem || busy !== null}
+          {planBlocked && <p id={readyId} className="import-ready"><Icon name="alert" size={14} />{planBlocked}</p>}
+          <button type="button" className="btn btn-secondary" disabled={!!problem || busy !== null}
                   aria-describedby={problem ? readyId : undefined} onClick={save}>
             Save to my recipes
           </button>
-          <button type="button" className="secondary" disabled={!!problem || busy !== null}
+          <button type="button" className="btn btn-secondary" disabled={!!problem || busy !== null}
                   aria-describedby={problem ? readyId : undefined} onClick={addToPlan}>
-            Add to meal plan
+            Add to your plan
           </button>
-          <button type="button" disabled={!!planBlocked || busy !== null}
+          <button type="button" className="btn btn-primary" disabled={!!planBlocked || busy !== null}
                   aria-describedby={planBlocked ? readyId : undefined} onClick={() => void planNow()}>
             {busy === 'plan' ? 'Planning…' : 'Plan this now'}
           </button>
@@ -613,7 +620,7 @@ export function ImportSheet({ open, onClose, start, planInChat, chatBlocked, onP
         {panel}
       </div>
 
-      {error && <div className="banner banner-error import-error" role="alert">{error}</div>}
+      {error && <Notice tone="danger" className="import-error">{error}</Notice>}
       {busy === 'video' && (
         <p className="muted" role="status">Gemini is watching the video; this can take a minute or two…</p>
       )}
@@ -700,7 +707,7 @@ export function ImportCard({ event, onOpen }: {
             : 'The video is not fetched. You can paste its ingredient list instead.'}
         </p>
         {youtube && onOpen && (
-          <button type="button" className="secondary mini" onClick={() => onOpen({ tab: 'paste' })}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpen({ tab: 'paste' })}>
             Import a recipe
           </button>
         )}
@@ -719,7 +726,7 @@ export function ImportCard({ event, onOpen }: {
         </p>
         {result.warnings.length > 0 && <p className="muted">{result.warnings.join(' ')}</p>}
         {onOpen && (
-          <button type="button" className="secondary mini" onClick={() => onOpen({ result, tab: 'youtube', url: event.url ?? undefined })}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpen({ result, tab: 'youtube', url: event.url ?? undefined })}>
             Choose how to read it
           </button>
         )}
@@ -745,8 +752,8 @@ export function ImportCard({ event, onOpen }: {
       </details>
       {doc.warnings.length > 0 && <p className="muted">{doc.warnings.join('; ')}</p>}
       {onOpen && (
-        <button type="button" className="secondary mini" onClick={() => onOpen({ result, url: event.url ?? undefined })}>
-          Review, save or add to meal plan
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpen({ result, url: event.url ?? undefined })}>
+          Review, save or add to your plan
         </button>
       )}
     </div>

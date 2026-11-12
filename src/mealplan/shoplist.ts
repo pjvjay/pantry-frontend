@@ -31,7 +31,7 @@ import { addDays, dayLabel } from './dates.ts';
 import type { CivilDate } from './dates.ts';
 import { AVOID_LABELS, DIET_LABELS, STRATEGY_NAMES, approvedElsewhere, avoidOf, budgetOf, dietOf } from './model.ts';
 import type {
-  MealPlanDraft, MealSchedule, StrategyResult, Trip, TripLine, TripStrategy, WarningCounts,
+  ApprovedTrip, MealPlanDraft, MealSchedule, StrategyResult, Trip, TripLine, TripStrategy, WarningCounts,
 } from '../types.ts';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -376,8 +376,11 @@ export interface StrategyTile {
 }
 
 // Each strategy with what it comes to, and what it costs against the other when both totals
-// are known exactly (an "at least" is no ground for "more" or "less").
-export function strategyTiles(sc: MealSchedule): StrategyTile[] {
+// are known exactly (an "at least" is no ground for "more" or "less"). approvals: the plan's
+// approved trips. A way to shop other than the one a trip was approved under keeps that trip as it
+// is (an approved list is never rewritten), so its figures move towards the other's as trips are
+// approved: its tile says why, so it does not seem to have changed by itself.
+export function strategyTiles(sc: MealSchedule, approvals: readonly ApprovedTrip[] = []): StrategyTile[] {
   const exact = (s: StrategyResult) =>
     (s.trips.some(tripPriced) && !s.total_is_floor && s.total_cost !== null ? s.total_cost : null);
   return sc.strategies.map((s) => {
@@ -387,10 +390,13 @@ export function strategyTiles(sc: MealSchedule): StrategyTile[] {
     const diff = mine !== null && theirs !== null ? cents(mine - theirs) : null;
     const vs = diff === null || s.recommended ? ''
       : diff === 0 ? 'the same total' : `${money(Math.abs(diff))} ${diff > 0 ? 'more' : 'less'}`;
+    const kept = approvals.filter((a) => a.strategy !== s.name).length;
     return {
       name: s.name, label: STRATEGY_NAMES[s.name], recommended: s.recommended,
       hint: `${plural(s.trips.length, 'trip', 'trips')} · ${costText(s.total_cost, s.total_is_floor, s.trips.some(tripPriced))}`,
-      extra: [s.recommended ? 'Recommended' : '', vs, warningCountsText(s.warning_counts)].filter(Boolean)
+      extra: [s.recommended ? 'Recommended' : '', vs,
+        kept ? `keeps your ${plural(kept, 'approved trip', 'approved trips')} as ${kept === 1 ? 'it is' : 'they are'}` : '',
+        warningCountsText(s.warning_counts)].filter(Boolean)
         .map((x, i) => (i === 0 ? x.charAt(0).toUpperCase() + x.slice(1) : x)).join(' · '),
     };
   });

@@ -1,7 +1,7 @@
 // Pure module: no React, DOM or import.meta.env, and sibling imports name their .ts file, so
 // node --test runs it as it is (tests/pure-modules.test.ts checks all of this).
 //
-// The wizard's Meals stage: recipe cards by meal from /mealplan/catalog, and the budget bar
+// The wizard's Pick meals stage: recipe cards by meal from /mealplan/catalog, and the budget bar
 // over them. The selection is priced as trips buy it, in whole packs: each product once, enough
 // packs for every chosen meal that uses it (packCost), so the bar is close to what Check
 // ingredients and Shop will show. A card says what one more meal adds to that, which may be
@@ -9,7 +9,7 @@
 // total that leaves an ingredient out is "at least", and an Add whose cost is unknown is never
 // stopped by the budget. "about $3.20 a meal" (pantry-api's share-of-the-pack estimate) stays on
 // the card as a guide.
-import { SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf, docRef, mealsOf, recipeTitle } from './model.ts';
+import { CAPACITY, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf, docRef, mealsOf, recipeTitle } from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
 import { roomOf } from './room.ts';
 import type { SlotRoom } from './room.ts';
@@ -210,36 +210,59 @@ export interface BudgetBar {
   spent: number;
   atLeast: boolean;                // some recipe's cost is unknown
   remaining: number | null;        // negative: over the budget
-  filled: number;
-  slots: number;
+  meals: SlotCount[];              // each meal planned (Set up), with how many of it the plan has
+  days: number;
 }
 
 export function budgetBar(s: MealPlanState, spend: Spend): BudgetBar {
   const budget = budgetOf(s.draft.prefs);
-  const counts = slotCounts(s.draft);
   return {
     budget,
     spent: spend.total,
     atLeast: spend.unknown.length > 0 || spend.unpriced.length > 0,
     remaining: budget === null ? null : cents(budget - spend.total),
-    filled: counts.reduce((t, c) => t + c.filled, 0),
-    slots: counts.reduce((t, c) => t + c.capacity, 0),
+    meals: slotCounts(s.draft),
+    days: s.draft.days,
   };
 }
 
+const MEAL_WORDS: Record<Slot, [string, string]> = {
+  breakfast: ['breakfast', 'breakfasts'], lunch: ['lunch', 'lunches'], dinner: ['dinner', 'dinners'],
+  snack: ['snack', 'snacks'],
+};
+
+// What the plan holds so far, as the shopper would say it rather than as slots: "6 dinners" over
+// "for 6 of 7 days"; "11 meals" over "6 dinners and 5 lunches" with more than one kind; "none yet"
+// before the first. (Place on days counts slots; here nothing is on a day yet.)
+export function mealsText(b: { meals: SlotCount[]; days: number }): { value: string; note: string } {
+  const kinds = b.meals.filter((m) => m.meals > 0);
+  if (!kinds.length) return { value: 'none yet', note: '' };
+  const said = (m: SlotCount) => plural(m.meals, MEAL_WORDS[m.slot][0], MEAL_WORDS[m.slot][1]);
+  if (kinds.length > 1) {
+    return { value: plural(kinds.reduce((t, m) => t + m.meals, 0), 'meal', 'meals'), note: listOf(kinds.map(said)) };
+  }
+  const [m] = kinds;
+  // one a day (breakfast, lunch, dinner): the days it fills; snacks, two a day, just the days
+  return { value: said(m), note: CAPACITY[m.slot] === 1 ? `for ${Math.min(m.meals, b.days)} of ${b.days} days`
+    : `over ${b.days} days` };
+}
+
 // The bar's parts, as the shopper reads them and a screen reader hears them.
-export function budgetBarText(b: BudgetBar): { budget: string; spent: string; remaining: string; slots: string } {
+export function budgetBarText(b: BudgetBar): { budget: string; spent: string; remaining: string; meals: string;
+  mealsNote: string } {
   const spent = `${b.atLeast ? 'at least ' : ''}${money(b.spent)}`;
   let remaining = 'no budget set';
   if (b.remaining !== null) {
     remaining = b.remaining < 0 ? `${money(-b.remaining)} over`
       : `${b.atLeast ? 'at most ' : ''}${money(b.remaining)} left`;
   }
+  const meals = mealsText(b);
   return {
     budget: b.budget === null ? 'no budget' : money(b.budget),
     spent,
     remaining,
-    slots: `${b.filled} of ${b.slots} slots filled`,
+    meals: meals.value,
+    mealsNote: meals.note,
   };
 }
 

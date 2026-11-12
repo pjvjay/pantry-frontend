@@ -1,7 +1,8 @@
 // Check ingredients' "Your stores": how far the shopper goes from where they are, and the
-// stores near them, nearest first, each with its address (a "demo store" chip when they are the
-// demo's own), its distance, how many of the plan's products it sells and about what the basket
-// buys there, and a switch to turn it off (the plan then buys nothing there). A new distance checks
+// stores near them, nearest first, each with its address, its distance, how many of the plan's
+// products it sells and about what the basket buys there, and a switch to turn it off (the plan
+// then buys nothing there). When they are the demo's own stores (all of them are, or none) the
+// card says so once, under its heading, rather than on every store. A new distance checks
 // the recipes' products again; a store turned off or on is only skipped, an undoable edit that asks
 // for the basket again. With it, while the hub serves map tiles, a map of them
 // (components/storemap.tsx): a store's row and its marker light together, whether the pointer or
@@ -17,6 +18,7 @@ import type { MealBasket, MealStores } from '../types';
 import { FormCard, Segmented, Switch } from './fields';
 import { StoreMap, useTilesOn } from './storemap';
 import type { MapStore } from './storemap';
+import { Notice } from './ui';
 
 // The heading Ingredients' "Your stores" answers move focus to.
 export const STORES_HEAD = 'mp-stores-head';
@@ -64,24 +66,24 @@ export function StoresPanel({ stores, lit = null, basket = null }: { stores: Key
 
   return (
     <FormCard icon="store" title="Your stores" headId={STORES_HEAD} className="fc-stores"
-              help={`Near ${placeText(st)} (Set up). Turn a store off and the plan buys nothing there.`}>
+              help={`${demo ? 'Demo stores' : 'Stores'} near ${placeText(st)} (Set up). Turn a store off and the plan buys nothing there.`}>
       <div className={map ? 'stores-body stores-body-map' : 'stores-body'}>
         <div className="stores-side">
-          <p id={kmHead} className="fc-sub">How far you go</p>
+          <p id={kmHead} className="label fc-sub">How far you go</p>
           <Segmented name="mp-km" labelledBy={kmHead} value={st.max_km ?? null}
                      options={distanceChoices(st.max_km).map((v) => ({ value: v, label: distanceLabel(v) }))}
                      onChange={(v) => mp.dispatch({ type: 'setSettings', settings: { max_km: v } })} />
           {stores.status === 'checking' && !view && <p className="muted fc-note" role="status">Finding the stores near you…</p>}
           {stores.status === 'error' && (
-            <p className="cart-flag fc-note" role="alert">
-              The stores could not be listed: {stores.error}{' '}
-              <button type="button" className="linkish" onClick={stores.retry}>Try again</button>
-            </p>
+            <Notice tone="danger" title="The stores could not be listed"
+                    actions={[{ label: 'Try again', icon: 'refresh', onClick: stores.retry }]}>
+              {stores.error}
+            </Notice>
           )}
           {view && (
             <>
               <p className="stores-head">{storesLine(view, st)}</p>
-              {view.warning && <p className="banner banner-update fc-note" role="alert">{view.warning}</p>}
+              {view.warning && <Notice tone="warn">{view.warning}</Notice>}
               {view.inRange.length > 0 && (
                 <ul className="stores-list">
                   {view.inRange.map((x) => {
@@ -97,7 +99,6 @@ export function StoresPanel({ stores, lit = null, basket = null }: { stores: Key
                                   {line.share && <span className="store-share">{line.share}</span>}
                                 </>}>
                           <span className="store-name">{x.name}</span>
-                          {demo && <span className="chip chip-warn store-demo">demo store</span>}
                         </Switch>
                       </li>
                     );
@@ -111,7 +112,6 @@ export function StoresPanel({ stores, lit = null, basket = null }: { stores: Key
                     {view.farther.map((x) => (
                       <li key={x.id} tabIndex={-1} className={hot === x.id ? 'store-hot' : undefined} {...rowProps(x.id)}>
                         {x.name} <span className="muted">· {kmText(x.distance_km)}{x.address && ` · ${x.address}`}</span>
-                        {demo && <> <span className="chip chip-warn store-demo">demo store</span></>}
                       </li>
                     ))}
                   </ul>
