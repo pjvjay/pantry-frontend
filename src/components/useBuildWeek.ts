@@ -27,7 +27,6 @@ import { catalogRequest } from '../mealplan/catalog';
 import { todayIn } from '../mealplan/dates';
 import { SLOTS } from '../mealplan/model';
 import { useMealPlan } from '../mealplan/store';
-import { useToast } from './ui';
 import { useElapsed } from './useElapsed';
 
 export interface BuildProblem {
@@ -68,7 +67,6 @@ const newId = () => (typeof crypto.randomUUID === 'function' ? crypto.randomUUID
 
 export function useBuildWeek({ onBuilt }: { onBuilt?: (added: number) => void } = {}): BuildWeek {
   const mp = useMealPlan();
-  const toast = useToast();
   // the plan as it is now, for an answer that arrives after the render that asked for it, and
   // the caller's latest onBuilt
   const latest = useRef(mp);
@@ -120,8 +118,7 @@ export function useBuildWeek({ onBuilt }: { onBuilt?: (added: number) => void } 
           setProblem({ text: `Nothing was added: ${done.refused}.`, code: 'refused' });
           return;
         }
-        toast.show({ text: builtText(out.added, out.trayed, left.length),
-          action: { label: 'Undo', onClick: () => latest.current.undo() } });
+        now.toastUndo(builtText(out.added, out.trayed, left.length));
         const notes = [leftText(left), out.problems.length ? `Not added: ${out.problems.join('; ')}.` : null];
         setNote(notes.filter(Boolean).join(' ') || null);
         built.current?.(out.added);
@@ -134,7 +131,7 @@ export function useBuildWeek({ onBuilt }: { onBuilt?: (added: number) => void } 
         if (!c.signal.aborted) setRunning(false);
       }
     })();
-  }, [toast]);
+  }, []);
 
   return { build, running, elapsed, problem, note };
 }

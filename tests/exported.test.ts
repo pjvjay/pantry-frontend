@@ -5,9 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+import { DEFAULT_TIMING, timingFrom } from '../src/calendar.ts';
 import {
   EXPORTED_KEY, EXPORTED_PLANS, changedSinceText, emptyExported, eventsSignature, exportState, exportedFor, exportedText,
-  markExported, parseExported, readExported, writeExported,
+  markExported, parseExported, readExported, timingSignature, writeExported,
 } from '../src/mealplan/exported.ts';
 import type { ExportMark } from '../src/mealplan/exported.ts';
 import type { StorageLike } from '../src/mealplan/persist.ts';
@@ -21,8 +22,11 @@ function memory(): StorageLike & { data: Map<string, string> } {
   return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => { data.set(k, v); } };
 }
 
+// the times and reminders the events went with: the Calendar stage's defaults, in Vancouver
+const timing = timingFrom(DEFAULT_TIMING, 'America/Vancouver', ['dinner']);
 const mark = (over: Partial<ExportMark> = {}): ExportMark => ({
-  id: 'plan-1', sig: eventsSignature(schedule), events: 6, how: 'file', at: '2026-11-11T18:00:00.000Z', ...over,
+  id: 'plan-1', sig: eventsSignature(schedule), events: 6, kinds: ['trips', 'cooks', 'reminders'],
+  timing: timingSignature(timing), how: 'file', at: '2026-11-11T18:00:00.000Z', ...over,
 });
 
 test('the events are named by what they are: not by their order, nor by the plan\'s revision', () => {
@@ -57,6 +61,22 @@ test('current while the events are the ones handed over, changed after, none bef
   assert.equal(exportState(mark(), { ...schedule, v: undefined }), 'none', 'an older API exports nothing');
 });
 
+test('every kind of event must have gone, at the times set now, for the step to be done', () => {
+  // the fixture has a trip, three cook days and two reminders
+  assert.equal(exportState(mark(), schedule, timing), 'current');
+  assert.equal(exportState(mark({ kinds: ['trips'], events: 1 }), schedule, timing), 'partial',
+    'only the trip went: the cook days and reminders are not in a calendar');
+  const noReminders = copy(schedule);
+  noReminders.reminders = [];
+  assert.equal(exportState(mark({ sig: eventsSignature(noReminders), kinds: ['trips', 'cooks'] }), noReminders, timing),
+    'current', 'a kind with no events in the plan need not go');
+  const later = timingFrom({ ...DEFAULT_TIMING, trips: { ...DEFAULT_TIMING.trips, start: '17:00' } }, 'America/Vancouver',
+    ['dinner']);
+  assert.equal(exportState(mark(), schedule, later), 'changed', 'the trips moved to another time since');
+  assert.equal(exportState(mark({ kinds: ['trips'] }), schedule, later), 'changed');
+  assert.equal(exportState(mark(), schedule), 'current', 'no times to compare with: the events alone decide');
+});
+
 test('kept in this browser beside the plan, latest last, a few plans at most', () => {
   const store = memory();
   assert.deepEqual(readExported(store), emptyExported());
@@ -81,6 +101,11 @@ test('a value that is not ours, or damaged, reads as no marks; a refusing browse
   const mixed = JSON.stringify({ v: 1, plans: [mark(), { ...mark({ id: 'b' }), sig: 'not-hex' }, { ...mark({ id: 'c' }), how: 'fax' },
     { ...mark({ id: 'd' }), events: -1 }, 'nonsense', mark()] });
   assert.deepEqual(parseExported(mixed).plans.map((p) => p.id), ['plan-1'], 'only whole marks, once each');
+  const { kinds: _kinds, timing: _timing, ...older } = mark({ id: 'older' });
+  const odd = JSON.stringify({ v: 1, plans: [older, { ...mark({ id: 'e' }), kinds: ['trips', 'fax'] },
+    { ...mark({ id: 'f' }), timing: 'soon' }, mark({ id: 'g', kinds: ['cooks', 'cooks'] })] });
+  assert.deepEqual(parseExported(odd).plans.map((p) => [p.id, p.kinds]), [['g', ['cooks']]],
+    'a mark that does not say which kinds went, or at what times, says too little to count');
   const refusing: StorageLike = { getItem: () => { throw new Error('denied'); }, setItem: () => { throw new Error('full'); } };
   assert.deepEqual(readExported(refusing), emptyExported());
   assert.equal(writeExported(refusing, emptyExported()), false);
@@ -90,6 +115,9 @@ test('a value that is not ours, or damaged, reads as no marks; a refusing browse
 test('Home\'s words for it: how many went, and how', () => {
   assert.equal(exportedText(mark()), '6 events downloaded');
   assert.equal(exportedText(mark({ how: 'google', events: 1 })), '1 event in Google Calendar');
+  assert.equal(exportedText(mark({ events: 4 }), 19), '4 of 19 events downloaded', 'only some kinds went');
+  assert.equal(exportedText(mark({ how: 'google', events: 4 }), 19), '4 of 19 events in Google Calendar');
+  assert.equal(exportedText(mark(), 6), '6 events downloaded');
   assert.equal(changedSinceText('file'), 'changed since you downloaded them');
   assert.equal(changedSinceText('google'), 'changed since you synced them');
 });

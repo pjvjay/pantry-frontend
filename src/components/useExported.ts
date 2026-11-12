@@ -9,9 +9,11 @@
 // A mark made in another tab of the same browser shows up here too.
 import { useCallback, useEffect, useState } from 'react';
 
+import { TIMING_KEY, readTimingForm, timingFrom } from '../calendar';
 import type { StorageLike } from '../mealplan/persist';
 import { EXPORTED_KEY, exportedFor, markExported, readExported, writeExported } from '../mealplan/exported';
 import type { ExportMark, ExportedState } from '../mealplan/exported';
+import type { CalendarTiming, MealSlot } from '../types';
 
 // localStorage, or null where the browser will not hand it over.
 function browserStorage(): StorageLike | null {
@@ -42,4 +44,26 @@ export function useExported(planId: string) {
   }, [planId]);
 
   return { mark: exportedFor(state, planId), done, kept };
+}
+
+// The browser's time zone, as the events' times are meant.
+export function browserZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+// The times and reminders the Calendar stage would send now: its saved choices (calendar.ts), in
+// this browser's time zone, for the meals the plan has. A page without the Calendar stage (Home)
+// compares the mark with these.
+export function savedTiming(slots: readonly MealSlot[]): CalendarTiming {
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(TIMING_KEY);
+  } catch {
+    /* none kept: the defaults */
+  }
+  return timingFrom(readTimingForm(raw), browserZone(), slots);
 }

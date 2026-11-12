@@ -51,6 +51,19 @@ test('the copy keeps the approved trips of the plan as it is, trimmed to what th
   assert.deepEqual(copied.basket.map((r) => [r.name, r.forText]), fresh.basket.map((r) => [r.name, r.forText]));
 });
 
+test('a day approved under the other way to shop is kept from its approved list', () => {
+  let s = plan();
+  const approved = trip(D(1), [line(10, 'Chicken Thighs', { for_meals: [meal], price: 9.36 })]);
+  s = run(s, { type: 'approveTrip', trip: approved, strategy: 'fresh', rev: s.draft.rev },
+    { type: 'setPrefs', prefs: { strategy: 'fewest_trips' } });
+  const answer = schedule(s.draft.rev, [], [{ ...approved, status: 'approved' }]);
+  answer.strategies[1].trips = [approved, trip(D(4), [line(12, 'Butter')])];
+  const c = copyOf(answer, s.draft, AT);
+  assert.ok(c);
+  assert.deepEqual([c.strategy, c.trips.map((t) => [t.date, t.status])], ['fewest_trips', [[D(1), 'approved']]]);
+  assert.equal(offlineTrip(c, s.draft, D(1))?.status, 'approved', 'in-store mode opens the approved list');
+});
+
 test('no copy from an answer for another rev, or with nothing approved', () => {
   const s = plan();
   assert.equal(copyOf(answerFor(s.draft.rev - 1), s.draft, AT), null);

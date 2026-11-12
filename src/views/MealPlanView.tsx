@@ -48,7 +48,7 @@ import { EXAMPLE_SENTENCE, FirstRunSheet, RecipeTray } from '../components/mealt
 import { PeriodBand, TargetsEditor } from '../components/nutrition';
 import { CheckPlan, StrategyTiles, YourList, strategyInputId } from '../components/shoplist';
 import { STORES_HEAD } from '../components/stores';
-import { EmptyState, Notice, Skeleton, useToast } from '../components/ui';
+import { EmptyState, Notice, Skeleton } from '../components/ui';
 import { usePointerDrag } from '../components/usePointerDrag';
 import { withViewTransition } from '../components/viewTransition';
 import { StageNav, Stepper } from '../components/wizard';
@@ -129,7 +129,6 @@ const SHOP_TITLE = 'Shopping plan';
 export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode }) {
   const shop = mode === 'shop';
   const mp = useMealPlan();
-  const toast = useToast();
   const { state, schedule } = mp;
   const d = state.draft;
   const strategy = d.prefs.strategy;
@@ -257,7 +256,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   // Whether the plan's events have gone to a calendar, and are still the plan's: the last stage's
   // work done, which the progress indicator shows (mealplan/exported.ts).
   const exported = useExported(d.id);
-  const finished = exportState(exported.mark, answer?.approved_schedule) === 'current';
+  const finished = exportState(exported.mark, answer?.approved_schedule, timing.timing) === 'current';
 
   // Nothing stays held on another stage.
   useEffect(() => setHeld(null), [step]);
@@ -436,8 +435,8 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
     rememberAutofilled(storage, plan.draft.id);
     const out = mp.dispatch({ type: 'fillEmpty' }, { quiet: true });
     if (out.refused) return;
-    toast.show({ text: spreadText(n, plan.draft.days), action: { label: 'Undo', onClick: mp.undo } });
-    // the stage and the plan are what it runs on; mp and toast are the same throughout
+    mp.toastUndo(spreadText(n, plan.draft.days));
+    // the stage and the plan are what it runs on; mp's toastUndo is the same throughout
   }, [step, d.id, shop]);
 
   // Every remedy that is not an edit lands here (consequences.remedyStep), so none is a button

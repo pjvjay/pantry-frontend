@@ -9,7 +9,7 @@
 import { dayLabel } from './dates.ts';
 import type { CivilDate } from './dates.ts';
 import {
-  CAPACITY, SLOT_LABELS, STRATEGY_NAMES, cellKey, libraryRef, mealsOf, newPlan, occupants, placedCount,
+  CAPACITY, SLOT_LABELS, STRATEGY_NAMES, approvalOn, cellKey, libraryRef, mealsOf, newPlan, occupants, placedCount,
   recipeTitle, step, windowDates, windowOf,
 } from './model.ts';
 import type { MealPlanState, PlanEdit, Slot } from './model.ts';
@@ -78,6 +78,16 @@ export function trayRows(s: MealPlanState): TrayRow[] {
 
 export const strategyOf = (sc: MealSchedule | null, name: TripStrategy): StrategyResult | undefined =>
   sc?.strategies.find((st) => st.name === name);
+
+// The trip the shopper shops on a day: the list approved there, under the way to shop it was
+// approved under (an approved list is never rewritten, so it is the one to buy, whichever way to
+// shop is shown now), else the day's trip under the way shown. Home's next trip, in-store mode and
+// the offline copy all take a day's trip from here, so they show the same list.
+export function tripToShop(sc: MealSchedule | null, d: MealPlanDraft, date: CivilDate): Trip | null {
+  const approval = approvalOn(d, date);
+  const approved = approval ? strategyOf(sc, approval.strategy)?.trips.find((t) => t.date === date) : undefined;
+  return approved ?? strategyOf(sc, d.prefs.strategy)?.trips.find((t) => t.date === date) ?? null;
+}
 
 export function tripsByDate(st: StrategyResult | undefined): Map<CivilDate, Trip> {
   return new Map((st?.trips ?? []).map((t) => [t.date, t]));

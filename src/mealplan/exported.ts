@@ -12,9 +12,13 @@
 // remembered by a signature of what they are (each trip, cook and reminder by its id and day, a
 // trip by what it buys), not by the plan's revision: an edit that leaves the events as they were
 // keeps the mark current, and one that changes them (another trip approved, a meal moved) reads as
-// changed since. Keyed by the plan's id, so a new plan starts unmarked.
+// changed since. The mark also keeps what went with them: which kinds of event the shopper sent
+// (they may leave cook days or reminders out, and then only part of the plan is in a calendar) and
+// the times and reminders they were sent with (Timing: new times are not the ones in the calendar,
+// so they read as changed since too). Keyed by the plan's id, so a new plan starts unmarked.
+import { INCLUDE_ALL, includeCounts } from '../calendar.ts';
 import type { StorageLike } from './persist.ts';
-import type { ApprovedSchedule } from '../types.ts';
+import type { ApprovedSchedule, CalendarInclude, CalendarTiming } from '../types.ts';
 
 export const EXPORTED_KEY = 'pantry.exported.v1';
 // The plans whose marks are kept, the latest marked last.
@@ -26,6 +30,8 @@ export interface ExportMark {
   id: string;                      // the plan's id
   sig: string;                     // eventsSignature of the events handed over
   events: number;                  // how many
+  kinds: CalendarInclude[];        // the kinds of event sent (the shopper may leave some out)
+  timing: string;                  // timingSignature of the times and reminders they went with
   how: ExportHow;
   at: string;                      // when, as an ISO instant
 }
@@ -59,10 +65,17 @@ export function eventsSignature(a: ApprovedSchedule): string {
   return fnv1a(items.join('\n'));
 }
 
+// The times and reminders the events went with (calendar.ts timingFrom builds them, always in the
+// same order): other times or reminders make other events in the shopper's calendar.
+export const timingSignature = (t: CalendarTiming): string => fnv1a(JSON.stringify(t));
+
 const isHow = (x: unknown): x is ExportHow => x === 'file' || x === 'google';
+const isKind = (x: unknown): x is CalendarInclude => INCLUDE_ALL.includes(x as CalendarInclude);
+const HEX8 = /^[0-9a-f]{8}$/;
 
 // The marks in a stored value, keeping only what this console wrote: a value that is not ours, or
-// is damaged, reads as no marks rather than an error.
+// is damaged, reads as no marks rather than an error. A mark from before the kinds and the times
+// were kept says too little to call the step done, so it reads as none.
 export function parseExported(raw: string | null): ExportedState {
   if (!raw) return emptyExported();
   let data: unknown;
@@ -77,11 +90,12 @@ export function parseExported(raw: string | null): ExportedState {
   const out: ExportMark[] = [];
   for (const p of plans) {
     if (typeof p !== 'object' || p === null) continue;
-    const { id, sig, events, how, at } = p as Record<string, unknown>;
-    if (typeof id !== 'string' || !id || typeof sig !== 'string' || !/^[0-9a-f]{8}$/.test(sig)) continue;
+    const { id, sig, events, kinds, timing, how, at } = p as Record<string, unknown>;
+    if (typeof id !== 'string' || !id || typeof sig !== 'string' || !HEX8.test(sig)) continue;
     if (typeof events !== 'number' || !Number.isInteger(events) || events < 0 || !isHow(how)) continue;
+    if (!Array.isArray(kinds) || !kinds.every(isKind) || typeof timing !== 'string' || !HEX8.test(timing)) continue;
     if (typeof at !== 'string' || out.some((x) => x.id === id)) continue;
-    out.push({ id, sig, events, how, at });
+    out.push({ id, sig, events, kinds: [...new Set(kinds)], timing, how, at });
   }
   return { v: 1, plans: out.slice(-EXPORTED_PLANS) };
 }
@@ -115,19 +129,27 @@ export function markExported(s: ExportedState, mark: ExportMark): ExportedState 
 export const exportedFor = (s: ExportedState, planId: string): ExportMark | null =>
   s.plans.find((p) => p.id === planId) ?? null;
 
-// current: the events handed over are the plan's events now. changed: they were handed over, and
-// the events have changed since. none: never, or there are no events to compare with yet.
-export type ExportState = 'current' | 'changed' | 'none';
+// current: the events handed over are the plan's events now, every kind of them, at the times set
+// now. partial: they are, but the shopper sent only some kinds (cook days left out, say), so part of
+// the plan is not in a calendar. changed: they were handed over, and the events, or their times and
+// reminders, have changed since. none: never, or there are no events to compare with yet. timing:
+// the times and reminders the Calendar stage would send now (left out, they are not compared).
+export type ExportState = 'current' | 'partial' | 'changed' | 'none';
 
-export function exportState(mark: ExportMark | null, a: ApprovedSchedule | null | undefined): ExportState {
+export function exportState(mark: ExportMark | null, a: ApprovedSchedule | null | undefined,
+  timing?: CalendarTiming | null): ExportState {
   if (!mark || !a || a.v !== 1 || !Array.isArray(a.cooks)) return 'none';
-  return eventsSignature(a) === mark.sig ? 'current' : 'changed';
+  if (eventsSignature(a) !== mark.sig || (timing && timingSignature(timing) !== mark.timing)) return 'changed';
+  const counts = includeCounts(a);
+  return INCLUDE_ALL.some((k) => counts[k] > 0 && !mark.kinds.includes(k)) ? 'partial' : 'current';
 }
 
 // What the last step has produced, in Home's words: "23 events downloaded", "23 events in Google
-// Calendar"; and, once the events have changed, how the plan has moved on since.
-export function exportedText(mark: ExportMark): string {
-  const n = `${mark.events} ${mark.events === 1 ? 'event' : 'events'}`;
+// Calendar", or, when only some kinds went, "4 of 23 events downloaded" (total: every event the plan
+// has); and, once the events have changed, how the plan has moved on since.
+export function exportedText(mark: ExportMark, total = mark.events): string {
+  const n = total > mark.events ? `${mark.events} of ${total} events`
+    : `${mark.events} ${mark.events === 1 ? 'event' : 'events'}`;
   return mark.how === 'google' ? `${n} in Google Calendar` : `${n} downloaded`;
 }
 

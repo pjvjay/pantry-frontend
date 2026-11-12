@@ -28,7 +28,7 @@ import {
   timingSummary,
 } from '../calendar';
 import type { CookTiming, KindTiming, ReminderChoice, TimingForm } from '../calendar';
-import { eventsSignature, exportState } from '../mealplan/exported';
+import { eventsSignature, exportState, exportedText, timingSignature } from '../mealplan/exported';
 import type { ExportMark } from '../mealplan/exported';
 import type { PictureSource } from '../mealplan/images';
 import { SLOTS, SLOT_LABELS } from '../mealplan/model';
@@ -41,6 +41,7 @@ import { Icon } from './icons';
 import type { IconName } from './icons';
 import { ProductPicture, RecipePicture } from './pictures';
 import { Tag } from './ui';
+import { browserZone } from './useExported';
 
 type Preview =
   | { status: 'idle' | 'loading'; data: CalendarPreview | null; error: null }
@@ -69,14 +70,6 @@ function save(form: TimingForm) {
   }
 }
 
-// The browser's time zone, as the events' times are meant.
-function browserZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  } catch {
-    return 'UTC';
-  }
-}
 
 export interface TimingState {
   form: TimingForm;
@@ -341,13 +334,17 @@ export function CalendarExport({ schedule, current, timing, slots, pictures, exp
 
   const data = preview.data;
   const ready = preview.status === 'ok' && current && !problem;
-  // what this plan's events are now, for marking them as gone to a calendar
+  // what this plan's events are now, which kinds of them went and at what times, for marking them
+  // as gone to a calendar
   const mark = (how: ExportMark['how']) => {
-    if (schedule && data) onExported({ sig: eventsSignature(schedule), events: data.events.length, how });
+    if (schedule && data) {
+      onExported({ sig: eventsSignature(schedule), events: data.events.length, kinds: [...include],
+        timing: timingSignature(timing.timing), how });
+    }
   };
   const sync = useGoogleSync({ open: true, schedule, include, timing: timing.timing, ready, onSynced: () => mark('google') });
   const googleFirst = sync.state === 'connected';
-  const sent = exportState(exported, schedule);
+  const sent = exportState(exported, schedule, timing.timing);
 
   const toggle = (k: CalendarInclude) =>
     setInclude((now) => (now.includes(k) ? now.filter((x) => x !== k) : [...now, k]));
@@ -395,6 +392,7 @@ export function CalendarExport({ schedule, current, timing, slots, pictures, exp
             </p>
           </div>
           {sent === 'current' && <Tag kind="done">{exported?.how === 'google' ? 'In Google Calendar' : 'Downloaded'}</Tag>}
+          {sent === 'partial' && <Tag kind="progress">{exported?.how === 'google' ? 'Partly in Google Calendar' : 'Partly downloaded'}</Tag>}
           {sent === 'changed' && <Tag kind="changed" />}
         </div>
         {preview.status === 'error' && <p className="fc-problem cal-status" role="alert"><Icon name="alert" size={14} />{preview.error}</p>}
@@ -420,6 +418,12 @@ export function CalendarExport({ schedule, current, timing, slots, pictures, exp
         </p>
         {sent === 'current' && !saved && (
           <p className="cal-done"><Icon name="circle-check" size={16} />Done: you {how}. Do it again after the plan changes.</p>
+        )}
+        {sent === 'partial' && exported && counts && (
+          <p className="cal-changed">
+            <Icon name="info" size={16} />Only {exportedText(exported, Object.values(counts).reduce((t, x) => t + x, 0))}:
+            add the kinds you left out to have the whole plan in your calendar.
+          </p>
         )}
         {sent === 'changed' && (
           <p className="cal-changed">

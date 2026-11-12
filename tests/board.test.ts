@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import {
   costText, forMealsText, lineWarn, mealCountText, mealsByCell, mealsByDay, packsText, priceDeltaText, shelfText,
   shownSlots, summaryLine, trayRows, tripChipText, tripLook, tripMoveDays, tripToCartSummary, weekEdit,
-  queuedApprovals, queuedMissText,
+  queuedApprovals, queuedMissText, tripToShop,
 } from '../src/mealplan/board.ts';
 import { dayLabel } from '../src/mealplan/dates.ts';
 import { cellKey, step } from '../src/mealplan/model.ts';
@@ -280,4 +280,20 @@ test('what is said of queued approvals not made: a changed list to look at, a da
   assert.equal(queuedMissText([], [D(2), D(4)], [D(4)]), `Not approved: the plan has no trip on ${dayLabel(D(2))} now.`,
     'a day the shopper dismissed meanwhile needs no word');
   assert.equal(queuedMissText([], [D(2), D(4)], []), `Not approved: the plan has no trip on ${dayLabel(D(2))} or ${dayLabel(D(4))} now.`);
+});
+
+test('a day is shopped from its approved list, under the way to shop it was approved under', () => {
+  let s = planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1));
+  s = run(s, { type: 'approveTrip', trip: trip(D(1), [line(10, 'Chicken Breast')]), strategy: 'fresh', rev: s.draft.rev },
+    { type: 'setPrefs', prefs: { strategy: 'fewest_trips' } });
+  const sc = schedule(s.draft.rev, [], [trip(D(1), [line(10, 'Chicken Breast')], { status: 'approved' })]);
+  sc.strategies[1].trips = [trip(D(1), [line(10, 'Chicken Breast')]), trip(D(3), [line(12, 'Flour')])];
+  assert.equal(tripToShop(sc, s.draft, D(1)), sc.strategies[0].trips[0], 'approved under Shop fresh: that list');
+  assert.equal(tripToShop(sc, s.draft, D(3)), sc.strategies[1].trips[1], 'no approval: the way to shop shown');
+  assert.equal(tripToShop(sc, s.draft, D(5)), null, 'no trip that day');
+  assert.equal(tripToShop(null, s.draft, D(1)), null, 'no answer yet');
+  const moved = schedule(s.draft.rev, [], []);
+  moved.strategies[1].trips = [trip(D(1), [line(10, 'Chicken Breast')])];
+  assert.equal(tripToShop(moved, s.draft, D(1)), moved.strategies[1].trips[0],
+    'the approval\'s way has no trip that day: the one shown');
 });

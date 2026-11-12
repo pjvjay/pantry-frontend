@@ -26,6 +26,8 @@
 //   when the Meal plan view opens (syncSaved; a save in this same page fires no storage event).
 // - Announcements: one polite live region, rendered here, for every edit and refusal, except an
 //   edit dispatched quiet, which its caller says in a toast with an Undo (one place, not two).
+//   That Undo is toastUndo's: it takes back the edit the toast names and nothing else, and the
+//   toast goes once the plan has another step (undo.ts markOf, isLatest).
 // - The wizard's catalog, basket and stores (useCatalog, useBasket, useStores): asked from the
 //   view that shows them, only while it does, whenever what they depend on changes (300 ms after the last
 //   change), and kept for that request: a stage opened again shows its answer with no call.
@@ -37,6 +39,7 @@ import {
   ApiError, getMealStarters, mealBasket, mealCatalog, mealStores, parseSelection, resolveRecipes,
   scheduleMealPlan, suggestCookDays,
 } from '../api';
+import { useToast } from '../components/ui';
 import type {
   CookDaysProposal, MealBasket, MealCatalog, MealSchedule, MealStarter, MealStores, RecipeDoc, RecipeRef, Trip,
   TripStrategy,
@@ -56,7 +59,7 @@ import type { MealPlanState, Outcome, PlanEdit } from './model';
 import { parsePlan, readPlan, serialize, writePlan } from './persist';
 import { buildPreview, previewEdit } from './selectionPreview';
 import type { Preview } from './selectionPreview';
-import { canRedo, canUndo, startHistory } from './undo';
+import { canRedo, canUndo, isLatest, markOf, startHistory } from './undo';
 import type { History } from './undo';
 import { wizardFacts } from './wizard';
 import type { WizardFacts } from './wizard';
@@ -95,6 +98,11 @@ export interface MealPlanApi {
   dispatch: (e: PlanEdit, opts?: DispatchOptions) => Outcome;
   undo: () => void;
   redo: () => void;
+  // An edit just made, said in a toast whose Undo takes back that edit and nothing else: the toast
+  // goes as soon as the plan has another step (an edit, an undo or a redo; an answer stored on the
+  // plan is not one), and an Undo pressed after that takes nothing back and says so. then: what
+  // follows the Undo (where the keyboard goes).
+  toastUndo: (text: string, then?: () => void) => void;
   canUndo: boolean;
   canRedo: boolean;
   announce: (text: string) => void;
@@ -213,6 +221,30 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
     commit(redoPlan(historyRef.current));
     announce('Redone.');
   }, [announce, commit]);
+
+  // The toasts that offer to undo an edit, each with the mark of the step it would take back
+  // (undo.ts markOf): a toast whose step is no longer the latest goes.
+  const toasts = useToast();
+  const offers = useRef<{ id: number; mark: readonly MealPlanState[] }[]>([]);
+  const toastUndo = useCallback((text: string, then?: () => void) => {
+    const mark = markOf(historyRef.current);
+    const id = toasts.show({ text, action: { label: 'Undo', onClick: () => {
+      if (!isLatest(historyRef.current, mark)) {
+        announce('Not undone: the plan has changed since. Undo in the plan takes back its latest change.');
+        return;
+      }
+      undo();
+      then?.();
+    } } });
+    offers.current.push({ id, mark });
+  }, [toasts, announce, undo]);
+  useEffect(() => {
+    offers.current = offers.current.filter((o) => {
+      if (o.mark === history.past) return true;
+      toasts.dismiss(o.id);
+      return false;
+    });
+  }, [history.past, toasts]);
 
   const state = history.present;
   const { draft } = state;
@@ -518,7 +550,7 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
   }, [dispatch]);
 
   const api = useMemo<MealPlanApi>(() => ({
-    state, dispatch, undo, redo, canUndo: canUndo(history), canRedo: canRedo(history), announce,
+    state, dispatch, undo, redo, toastUndo, canUndo: canUndo(history), canRedo: canRedo(history), announce,
     persist, loadProblem: boot.loadProblem,
     schedule: { ...schedule, current: schedule.answer?.rev === draft.rev && schedule.status === 'ok' },
     recheck, adoptSchedule, setDragging,
@@ -527,7 +559,7 @@ export function MealPlanProvider({ children }: { children: ReactNode }) {
     syncSaved,
     quickAdd, acceptPreview, cookDays, proposeCookDays, applyCookDays, dismissCookDays, approveTrip, approveTrips,
     exportText, importText, clear,
-  }), [state, dispatch, undo, redo, history, announce, persist, boot.loadProblem, schedule, draft.rev,
+  }), [state, dispatch, undo, redo, toastUndo, history, announce, persist, boot.loadProblem, schedule, draft.rev,
     recheck, adoptSchedule, resolve, pending, retryResolve, starters, mine, inboxNote, syncSaved, quickAdd, acceptPreview, cookDays,
     proposeCookDays, applyCookDays, dismissCookDays, approveTrip, approveTrips, exportText, importText, clear]);
 

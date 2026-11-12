@@ -22,11 +22,13 @@ import { RunDrawer } from './RunView';
 // was asked under the question; the model, the steps, the tokens and the confidence are in the
 // run's drawer. The drawer is in the address
 // (#/workshop/metrics?trace=<id>), so a run can be linked to (the Assistant's "Run details" does)
-// and the browser's Back closes it. Closed by its own way back, a drawer this page opened takes
-// its history entry with it (history.back()), so Back afterwards leaves Metrics; one that came in
-// by its address is replaced by Metrics' own address instead, so Back still goes where the shopper
-// came from. Figures sit right-aligned in equal widths; a long or wide table scrolls in its own box
-// (ScrollRegion: a stop for the keyboard while it does), a long one under a head that stays.
+// and the browser's Back closes it. Closed by its own way back, a drawer this page opened takes its
+// history entry with it (history.back()), so Back afterwards leaves Metrics; the entry is marked as
+// this page's in the history's own state, so that holds after Back and Forward through it too. One
+// that came in by its address is replaced by Metrics' own address instead, so Back still goes where
+// the shopper came from. Figures sit right-aligned in equal widths; a long or wide table scrolls in
+// its own box (ScrollRegion: a stop for the keyboard while it does), a long one under a head that
+// stays.
 
 const fmt = (key: string, v: unknown): string => {
   if (v == null) return '–';
@@ -136,13 +138,19 @@ export default function MetricsView() {
   // The run open in the drawer: the address's, kept in step with it (a "Run details" link, Back
   // and Forward all change the hash on this page).
   const [open, setOpen] = useState<string | null>(() => traceOf(window.location.hash));
-  // the run this page opened itself, pushing an entry onto the history
+  // the run this page is opening, pushing an entry onto the history; once there, the entry is
+  // marked ({ trace }) in the history's state, which the browser keeps with it through Back and
+  // Forward (and a reload)
   const pushed = useRef<string | null>(null);
   const leaving = useRef(false);
   useEffect(() => {
     const onHash = () => {
       const id = traceOf(window.location.hash);
-      if (id !== pushed.current) pushed.current = null;
+      if (id !== null && id === pushed.current) {
+        const now: unknown = window.history.state;
+        window.history.replaceState({ ...(typeof now === 'object' && now !== null ? now : {}), trace: id }, '');
+      }
+      pushed.current = null;
       leaving.current = false;
       setOpen(id);
     };
@@ -158,8 +166,8 @@ export default function MetricsView() {
   const close = () => {
     if (!open || leaving.current) return;
     leaving.current = true;
-    if (pushed.current === open) {
-      // the hashchange that follows closes the drawer
+    if ((window.history.state as { trace?: unknown } | null)?.trace === open) {
+      // this page's own entry: the hashchange that follows closes the drawer
       window.history.back();
     } else {
       window.history.replaceState(window.history.state, '', hrefFor({ name: 'workshop', tab: 'metrics' }));

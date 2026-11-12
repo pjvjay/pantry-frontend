@@ -28,6 +28,13 @@ export function replace<T>(h: History<T>, next: T): History<T> {
 }
 
 export const canUndo = <T>(h: History<T>): boolean => h.past.length > 0;
+
+// A step's mark: the history's past just after the step was made. Only a new step, an undo or a
+// redo gives the history a new past (replace() keeps it), so while a mark holds, the step it was
+// taken after is still the latest one, and an Undo offered beside that step (a toast's) may take
+// it back; once the mark lapses, the same Undo would take back something else.
+export const markOf = <T>(h: History<T>): readonly T[] => h.past;
+export const isLatest = <T>(h: History<T>, mark: readonly T[]): boolean => h.past.length > 0 && h.past === mark;
 export const canRedo = <T>(h: History<T>): boolean => h.future.length > 0;
 
 // `restore(target, current)` adapts the snapshot being brought back to what is true now; the

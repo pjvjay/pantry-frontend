@@ -11,10 +11,11 @@
 // for the plan as it is (its id and rev), and is used only while the plan still has that id and
 // rev: a plan edited since, another plan, or a copy this console did not write reads as no copy.
 // Only approved trips are kept (an approved list is never rewritten, so it is the list to shop
-// from), and only what in-store mode reads of them, so one plan's copy stays small; one plan is
+// from), each under the way to shop it was approved under, as in-store mode shows it (board.ts
+// tripToShop), and only what in-store mode reads of them, so one plan's copy stays small; one plan is
 // kept, and a copy that would still be larger than OFFLINE_MAX_CHARS is not written at all. A
 // browser that refuses storage simply has no copy: nothing else depends on it.
-import { strategyOf } from './board.ts';
+import { strategyOf, tripToShop } from './board.ts';
 import type { CivilDate } from './dates.ts';
 import { dayLabel } from './dates.ts';
 import type { StorageLike } from './persist.ts';
@@ -62,13 +63,16 @@ function trimTrip(t: Trip): Trip {
 }
 
 // The copy an answer gives the plan, or null when there is nothing to keep: an answer for another
-// rev, or no approved trip under the way the shopper shops.
+// rev, or no approved trip.
 export function copyOf(answer: MealSchedule, d: MealPlanDraft, at: string): OfflineCopy | null {
   if (answer.rev !== d.rev) return null;
-  const strategy = d.prefs.strategy;
-  const trips = (strategyOf(answer, strategy)?.trips ?? []).filter((t) => t.status !== 'suggested');
+  // every day with a trip under the way to shop shown, or with an approval, as in-store mode takes it
+  const days = new Set([...(strategyOf(answer, d.prefs.strategy)?.trips ?? []).map((t) => t.date),
+    ...d.trips.map((a) => a.date)]);
+  const trips = [...days].sort().map((date) => tripToShop(answer, d, date))
+    .filter((t): t is Trip => t !== null && t.status !== 'suggested');
   if (!trips.length) return null;
-  return { id: d.id, rev: d.rev, strategy, at, trips: trips.map(trimTrip) };
+  return { id: d.id, rev: d.rev, strategy: d.prefs.strategy, at, trips: trips.map(trimTrip) };
 }
 
 // What makes two copies the same list, without comparing every line: the plan, its rev, the way

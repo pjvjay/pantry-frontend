@@ -23,7 +23,7 @@
 // change; the console cannot look into the calendar app itself, so that is all it can say.
 import { includeCounts } from '../calendar.ts';
 import type { BasketCounts } from './basket.ts';
-import { costText, money, strategyOf, tripLook, tripPriced } from './board.ts';
+import { costText, money, strategyOf, tripLook, tripPriced, tripToShop } from './board.ts';
 import type { TripLook } from './board.ts';
 import { addDays, dayLabel, daysBetween } from './dates.ts';
 import type { CivilDate } from './dates.ts';
@@ -34,7 +34,7 @@ import { changedSinceText, exportState, exportedText } from './exported.ts';
 import type { ExportMark } from './exported.ts';
 import { STEPS, furthest } from './wizard.ts';
 import type { StepNo, WizardFacts } from './wizard.ts';
-import type { MealPlanDraft, MealSchedule } from '../types.ts';
+import type { CalendarTiming, MealPlanDraft, MealSchedule } from '../types.ts';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -182,8 +182,10 @@ function shopStep(s: MealPlanState, sc: ScheduleFacts): StepState {
   return { state: 'ready', produces: `${count} · ${cost}` };
 }
 
-// mark: when this plan's events last went to a calendar (mealplan/exported.ts), if they have.
-function calendarStep(s: MealPlanState, sc: ScheduleFacts, mark: ExportMark | null): StepState {
+// mark: when this plan's events last went to a calendar (mealplan/exported.ts), if they have;
+// timing: the times and reminders the Calendar stage would send now.
+function calendarStep(s: MealPlanState, sc: ScheduleFacts, mark: ExportMark | null,
+  timing: CalendarTiming | null): StepState {
   if (!s.draft.trips.length) return { state: 'empty', produces: 'Once a trip is approved' };
   const a = sc.answer?.approved_schedule ?? null;
   if (!sc.answer) return sc.failed ? { state: 'problem', produces: 'The events could not be worked out' }
@@ -194,16 +196,18 @@ function calendarStep(s: MealPlanState, sc: ScheduleFacts, mark: ExportMark | nu
   const n = Object.values(includeCounts(a)).reduce((t, x) => t + x, 0);
   if (!n) return { state: 'empty', produces: 'Nothing to add yet' };
   const ready = `${plural(n, 'event', 'events')} ready`;
-  const sent = exportState(mark, a);
+  const sent = exportState(mark, a, timing);
   if (sent === 'current' && mark) return { state: 'complete', produces: exportedText(mark) };
+  if (sent === 'partial' && mark) return { state: 'partial', produces: exportedText(mark, n) };
   if (sent === 'changed' && mark) return { state: 'stale', produces: `${ready} · ${changedSinceText(mark.how)}` };
   return { state: 'ready', produces: ready };
 }
 
 // The six steps with their state and what they have produced, and the one to continue with.
-// exported: this plan's mark from mealplan/exported.ts, null when its events never went to a calendar.
+// exported: this plan's mark from mealplan/exported.ts, null when its events never went to a calendar;
+// timing: the times and reminders the Calendar stage would send now, which the mark is compared with.
 export function homeTasks(s: MealPlanState, f: WizardFacts, basket: BasketCounts | null, sc: ScheduleFacts,
-  exported: ExportMark | null = null): HomeTasks {
+  exported: ExportMark | null = null, timing: CalendarTiming | null = null): HomeTasks {
   const d = s.draft;
   const states: Record<StepNo, StepState> = {
     1: setupStep(d),
@@ -211,7 +215,7 @@ export function homeTasks(s: MealPlanState, f: WizardFacts, basket: BasketCounts
     3: ingredientsStep(f, basket),
     4: placeStep(d),
     5: shopStep(s, sc),
-    6: calendarStep(s, sc, exported),
+    6: calendarStep(s, sc, exported, timing),
   };
   const reach = furthest(f);
   const next = STEPS.find(({ n }) => n > 1 && states[n].state !== 'complete')?.n ?? 6;
@@ -245,15 +249,18 @@ export interface NextTrip {
 }
 
 // The first trip of the strategy shown from today on, approved or not (its state says which);
-// none when the plan has no trip left to shop for. ticked: the products in that trip's basket
-// (mealplan/shopping.ts), so a trip begun in the store says how far it got ("3 of 8 in the basket").
+// none when the plan has no trip left to shop for. A day approved under the other way to shop is
+// shown as approved, with its approved list (board.ts tripToShop), the one in-store mode opens.
+// ticked: the products in that trip's basket (mealplan/shopping.ts), so a trip begun in the store
+// says how far it got ("3 of 8 in the basket").
 export function nextTrip(s: MealPlanState, sc: MealSchedule | null, today: CivilDate,
   tickedOn: (date: CivilDate) => readonly number[] = () => []): NextTrip | null {
   const d = s.draft;
   const st = strategyOf(sc, d.prefs.strategy);
-  const t = [...(st?.trips ?? [])].filter((x) => daysBetween(today, x.date) >= 0)
+  const first = [...(st?.trips ?? [])].filter((x) => daysBetween(today, x.date) >= 0)
     .sort((a, b) => a.date.localeCompare(b.date))[0];
-  if (!t || !st) return null;
+  if (!first || !st) return null;
+  const t = tripToShop(sc, d, first.date) ?? first;
   const ahead = daysBetween(today, t.date);
   const day = dayLabel(t.date);
   const rows = shopRows(t);

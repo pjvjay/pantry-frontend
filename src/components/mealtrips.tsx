@@ -39,7 +39,7 @@ import { TripLineOptionsDialog } from './tripoptions';
 import { Icon } from './icons';
 import type { IconName } from './icons';
 import { TripTag } from './matchmarks';
-import { Notice, useToast } from './ui';
+import { Notice } from './ui';
 
 // A trip card's "Shop this trip", which Done shopping in the store brings focus back to, and its
 // "Open list", which stays on the card whatever state the trip is in.
@@ -420,7 +420,6 @@ const KIND_ICON: Record<PlanAction['kind'], IconName> = { shop: 'cart', freeze: 
 // a trip added by hand, and what happens day by day.
 export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; onOpenTrip: (date: string) => void }) {
   const mp = useMealPlan();
-  const toast = useToast();
   const d = mp.state.draft;
   const strategy = d.prefs.strategy;
   const st = strategyOf(schedule, strategy);
@@ -471,9 +470,8 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
     if (!suggested.length) return;
     const before = d.trips.length;
     const waiting = !mp.schedule.current;
-    const said = (n: number) => toast.show({
-      text: n === suggested.length ? `Approved ${n} trips` : `Approved ${n} of ${suggested.length} trips`,
-      action: { label: 'Undo', onClick: mp.undo } });
+    const said = (n: number) => mp.toastUndo(n === suggested.length ? `Approved ${n} trips`
+      : `Approved ${n} of ${suggested.length} trips`);
     const out = mp.approveTrips(suggested, strategy, said);
     if (out.refused) {
       mp.announce(`Not done: ${out.refused}.`);
@@ -499,7 +497,9 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
         {st?.trips.map((t) => {
           const elsewhere = approvedElsewhere(d, t.date, strategy);
           const look = tripLook(t, elsewhere);
-          const approved = look.kind === 'approved' || look.kind === 'review';
+          // approved here, or under the other way to shop: either way in-store mode opens the
+          // approved list (board.ts tripToShop)
+          const approved = look.kind !== 'suggested';
           const delta = priceDeltaText(t.price_delta);
           return (
             <li key={t.id} className="card mp-trip-card">
@@ -520,7 +520,8 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
               )}
               <div className="mp-trip-actions">
                 {approved && (
-                  <a className="btn btn-primary btn-sm" href={hrefFor({ name: 'trip', date: t.date })} data-shop-trip={t.date}
+                  <a className={`btn ${look.kind === 'elsewhere' ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+                     href={hrefFor({ name: 'trip', date: t.date })} data-shop-trip={t.date}
                      aria-label={`Shop the trip on ${dayLabel(t.date)}`}>
                     <Icon name="bag" size={16} />Shop this trip
                   </a>
@@ -559,6 +560,10 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
               <TripTag look={{ kind: 'elsewhere', word: `Approved under ${STRATEGY_NAMES[a.strategy]}` }} />
             </div>
             <div className="mp-trip-actions">
+              <a className="btn btn-primary btn-sm" href={hrefFor({ name: 'trip', date: a.date })} data-shop-trip={a.date}
+                 aria-label={`Shop the trip on ${dayLabel(a.date)}`}>
+                <Icon name="bag" size={16} />Shop this trip
+              </a>
               <button type="button" className="btn btn-ghost btn-sm"
                       onClick={() => mp.dispatch({ type: 'unapproveTrip', date: a.date })}>Take the approval back</button>
             </div>

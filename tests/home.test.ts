@@ -138,8 +138,8 @@ test('the Calendar is done once its events went to a calendar, and says when the
     { type: 'approveTrip', trip: trips[1], strategy: 'fresh', rev: s.draft.rev + 1 });
   const both = twoTrips([{ status: 'approved' }, { status: 'approved' }]);
   const events = calendar(2, 3);
-  const sent: ExportMark = { id: s.draft.id, sig: eventsSignature(events), events: 5, how: 'file',
-    at: '2026-10-09T18:00:00.000Z' };
+  const sent: ExportMark = { id: s.draft.id, sig: eventsSignature(events), events: 5,
+    kinds: ['trips', 'cooks', 'reminders'], timing: '0123abcd', how: 'file', at: '2026-10-09T18:00:00.000Z' };
   const done = homeTasks(s, ok(s), ALL_FOUND, { answer: withTrips(both, events), failed: false }, sent);
   assert.deepEqual(tags(done), ['done', 'done', 'done', 'done', 'done', 'done']);
   assert.equal(done.tasks[5].produces, '5 events downloaded');
@@ -147,6 +147,11 @@ test('the Calendar is done once its events went to a calendar, and says when the
   const google = homeTasks(s, ok(s), ALL_FOUND, { answer: withTrips(both, events), failed: false },
     { ...sent, how: 'google' });
   assert.equal(google.tasks[5].produces, '5 events in Google Calendar');
+  // only the trips went: part of the plan is in a calendar, so the step is under way, not done
+  const part = homeTasks(s, ok(s), ALL_FOUND, { answer: withTrips(both, events), failed: false },
+    { ...sent, kinds: ['trips'], events: 2 });
+  assert.deepEqual([part.tasks[5].tag, part.tasks[5].produces, part.next, part.done],
+    ['progress', '2 of 5 events downloaded', 6, false]);
   // another cook day since: the events handed over are not the plan's any more
   const moved = homeTasks(s, ok(s), ALL_FOUND, { answer: withTrips(both, calendar(2, 4)), failed: false }, sent);
   assert.equal(moved.tasks[5].tag, 'changed');
@@ -213,6 +218,19 @@ test('the next trip: the first from today, approved or not, with its day, stores
   assert.equal(nextTrip(s, answer, D(5)), null, 'every trip is behind us');
   assert.equal(nextTrip(s, null, D(0)), null);
   assert.equal(n.basket, null, 'nothing ticked yet');
+});
+
+test('a next trip approved under the other way to shop is that approved trip, not a suggestion', () => {
+  let s = placedPlan();
+  s = run(s, { type: 'approveTrip', trip: twoTrips()[0], strategy: 'fresh', rev: s.draft.rev },
+    { type: 'setPrefs', prefs: { strategy: 'fewest_trips' } });
+  const answer = withTrips(twoTrips([{ status: 'approved' }, {}]));
+  answer.strategies[1].trips = twoTrips();
+  const n = nextTrip(s, answer, D(0));
+  assert.deepEqual([n?.date, n?.look.kind, n?.look.word, n?.items], [D(1), 'approved', 'Approved', '2 items'],
+    'Shop fresh\'s approved list, which in-store mode opens');
+  const later = nextTrip(s, answer, D(2));
+  assert.equal(later?.look.kind, 'suggested', 'a day with no approval is the way shown');
 });
 
 test('the next trip says how far the shopper got in the store, from the ticks', () => {

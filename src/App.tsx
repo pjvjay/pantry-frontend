@@ -17,6 +17,7 @@ import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 
 import { PrimaryNav, ShellFooter, ShellHeader } from './components/nav';
+import { PageBoundary } from './components/PageBoundary';
 import { Notice, Skeleton, ToastProvider } from './components/ui';
 import { HubStatusProvider } from './hubStatus';
 import { MealPlanProvider } from './mealplan/store';
@@ -24,12 +25,16 @@ import { ROUTE_IDS, arrivalFor, hrefFor, parseHash, sectionOf, titleFor } from '
 import type { Route } from './routes';
 import AssistantView from './views/AssistantView';
 import HomeView from './views/HomeView';
+import InStoreView from './views/InStoreView';
 
-// The meal plan's views load when Plan or Shop is first opened, in-store mode when a trip is, and
-// the Workshop's developer views when the Workshop is: a household opening Home or a trip on a
-// phone does not download them first. The plan and its store are above every page.
+// The meal plan's views load when Plan or Shop is first opened, and the Workshop's developer views
+// when the Workshop is: a household opening Home or a trip on a phone does not download them
+// first. The plan and its store are above every page. In-store mode is small and comes with the
+// console itself, not on demand: it is opened in a shop, where the signal may not carry a download,
+// and its list can then still open from the offline copy (mealplan/offline.ts). A page that could
+// not be loaded or drawn says so in its own place (components/PageBoundary.tsx): the header, the
+// navigation and Back keep working.
 const MealPlanView = lazy(() => import('./views/MealPlanView'));
-const InStoreView = lazy(() => import('./views/InStoreView'));
 const WorkshopView = lazy(() => import('./views/WorkshopView'));
 
 // The page the address names. An old or unknown address becomes the page's own in place
@@ -132,19 +137,24 @@ export default function App() {
             <main id="main" className="shell-main" tabIndex={-1}>
               {route.name === 'home' && <HomeView />}
               {route.name === 'plan' && (
-                <Suspense fallback={<Loading what="the meal plan" />}>
-                  <MealPlanView mode="plan" />
-                </Suspense>
+                <PageBoundary what="The meal plan">
+                  <Suspense fallback={<Loading what="the meal plan" />}>
+                    <MealPlanView mode="plan" />
+                  </Suspense>
+                </PageBoundary>
               )}
               {route.name === 'shop' && (
-                <Suspense fallback={<Loading what="the shopping plan" />}>
-                  <MealPlanView mode="shop" />
-                </Suspense>
+                <PageBoundary what="The shopping plan">
+                  <Suspense fallback={<Loading what="the shopping plan" />}>
+                    <MealPlanView mode="shop" />
+                  </Suspense>
+                </PageBoundary>
               )}
               {route.name === 'trip' && (
-                <Suspense fallback={<Loading what="your trip" />}>
-                  <InStoreView key={route.date} date={route.date} />
-                </Suspense>
+                <PageBoundary key={route.date} what="Your trip"
+                              back={{ label: 'Back to the shopping plan', href: hrefFor({ name: 'shop' }) }}>
+                  <InStoreView date={route.date} />
+                </PageBoundary>
               )}
               {assistantOpened && (
                 <div hidden={route.name !== 'ask'}>
@@ -152,9 +162,11 @@ export default function App() {
                 </div>
               )}
               {route.name === 'workshop' && (
-                <Suspense fallback={<Loading what="the Workshop" />}>
-                  <WorkshopView tab={route.tab} query={route.query ?? ''} />
-                </Suspense>
+                <PageBoundary what="The Workshop">
+                  <Suspense fallback={<Loading what="the Workshop" />}>
+                    <WorkshopView tab={route.tab} query={route.query ?? ''} />
+                  </Suspense>
+                </PageBoundary>
               )}
             </main>
             <ShellFooter build={BUILD} />

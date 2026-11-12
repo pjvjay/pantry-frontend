@@ -9,13 +9,14 @@
 // browser kept of the trip as last approved (mealplan/offline.ts), with when it was made; the
 // fresh answer takes over the moment it comes.
 //
-// The trip is the one the plan's last schedule answer has on that day, under the strategy the
-// shopper chose (the same list as the shopping plan's). The ticks are kept in this browser beside
-// the plan, not in it (components/useTicks.ts, mealplan/shopping.ts): ticking never gives the
-// plan a new revision, never sends it to be scheduled again and never lands in its undo. While the
-// page is open the screen is asked to stay on (useWakeLock). Every product's picture comes from
-// the demo hub and may not come at all (the public demo has none): a quiet placeholder takes its
-// place, the same box, so nothing moves.
+// The trip is the one the plan's last schedule answer has on that day: the list approved there,
+// under the way to shop it was approved under, else the day's trip under the way the shopper chose
+// (mealplan/board.ts tripToShop, as Home's next trip and the offline copy have it). The ticks are
+// kept in this browser beside the plan, not in it (components/useTicks.ts, mealplan/shopping.ts):
+// ticking never gives the plan a new revision, never sends it to be scheduled again and never lands
+// in its undo. While the page is open the screen is asked to stay on (useWakeLock). Every product's
+// picture comes from the demo hub and may not come at all (the public demo has none): a quiet
+// placeholder takes its place, the same box, so nothing moves.
 //
 // Focus: the page opens at its top with the keyboard on its heading. Ticking a line moves focus to
 // the line that takes its place (or Done shopping once the list is done), and a screen reader
@@ -31,7 +32,7 @@ import { copiedAt, offlineTrip, readOffline } from '../mealplan/offline';
 import { useKeepClear } from '../components/useKeepClear';
 import { useTicks } from '../components/useTicks';
 import { useWakeLock } from '../components/useWakeLock';
-import { strategyOf } from '../mealplan/board';
+import { tripToShop } from '../mealplan/board';
 import { dayLabel } from '../mealplan/dates';
 import { inWindow, windowDates, windowOf } from '../mealplan/model';
 import { instoreView, listOf, tickedText } from '../mealplan/shoplist';
@@ -90,7 +91,7 @@ export default function InStoreView({ date }: { date: string }) {
   const d = mp.state.draft;
   const schedule = mp.schedule;
   const answer = schedule.answer;
-  const fresh = strategyOf(answer, d.prefs.strategy)?.trips.find((t) => t.date === date) ?? null;
+  const fresh = tripToShop(answer, d, date);
   // With no answer yet (on its way, or pantry-api out of reach), the trip as this browser last kept
   // it, if that copy is of the plan as it is now; a fresh answer always takes over.
   const copy = useMemo(() => (answer ? null : readOffline(browserStorage())), [answer === null, d.id, d.rev]);

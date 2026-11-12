@@ -37,7 +37,7 @@ import { ServingsPrompt } from './mealtray';
 import { ProductPicture, RecipePicture } from './pictures';
 import { STORES_HEAD, StoresPanel } from './stores';
 import { TripLineOptionsDialog } from './tripoptions';
-import { EmptyState, Notice, Skeleton, Tag, useToast } from './ui';
+import { EmptyState, Notice, Skeleton, Tag } from './ui';
 import { useElapsed } from './useElapsed';
 
 type Open = (l: LineView) => void;
@@ -300,7 +300,6 @@ function RecipeShell({ title, slot, sub, children }: { title: string; slot: Reci
 export function IngredientsStage({ basket, facts, onMeals }: { basket: KeyedCall<MealBasket>; facts: WizardFacts;
   onMeals: () => void }) {
   const mp = useMealPlan();
-  const toast = useToast();
   const d = mp.state.draft;
   const stores = useStores(true);
   // the ingredient whose Options are open, by its line, so the sheet follows the row's answers
@@ -398,10 +397,9 @@ export function IngredientsStage({ basket, facts, onMeals }: { basket: KeyedCall
       const out = mp.dispatch({ type: 'skipLine', recipeKey: l.recipeKey, lineNo: l.lineNo, ingredient: l.ingredient,
         skip: true }, { quiet: true });
       if (out.refused) return;
-      toast.show({ text: out.said, action: { label: 'Undo', onClick: () => {
-        mp.undo();
+      mp.toastUndo(out.said, () => {
         window.setTimeout(() => document.querySelector<HTMLElement>(taskSelector(l.key))?.focus(), 0);
-      } } });
+      });
     }
   };
 

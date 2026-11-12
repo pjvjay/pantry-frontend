@@ -86,20 +86,24 @@ export function StageNav({ step, facts, go, say, hidden = false }: {
   const next = (step + 1) as StepNo;
   const back = (step - 1) as StepNo;
 
-  // Next pressed while its answer was on the way: on to the next stage once it is in. A stage
-  // change of any kind (Back, the stepper, the browser's own Back, Next itself) forgets it.
-  const [queued, setQueued] = useState(false);
-  useEffect(() => setQueued(false), [step]);
+  // Next pressed while its answer was on the way: on to the next stage once it is in. The request
+  // belongs to the stage it was pressed on, so a stage change of any kind (Back, the stepper, the
+  // browser's own Back, Next itself) forgets it in the very render that shows the new stage: it
+  // can never move on from a stage the shopper has left, which would push an address over the one
+  // they went to and cost them their Forward.
+  const [queuedOn, setQueuedOn] = useState<StepNo | null>(null);
+  const queued = queuedOn === step;
+  useEffect(() => setQueuedOn(null), [step]);
   const gateState = block?.state ?? 'ok';
   const gateText = block?.text ?? '';
   useEffect(() => {
     if (!queued) return;
     if (gateState === 'ok') {
-      setQueued(false);
+      setQueuedOn(null);
       go(next);
     } else if (gateState === 'blocked') {
       // the answer came back with something to fix: say what, and stay
-      setQueued(false);
+      setQueuedOn(null);
       say(`Not yet: ${gateText}.`);
     }
   }, [queued, gateState, gateText, go, next, say]);
@@ -108,7 +112,7 @@ export function StageNav({ step, facts, go, say, hidden = false }: {
     if (!block) go(next);
     else if (block.state === 'pending') {
       if (!queued) say(`${stepName(next)} opens as soon as the check is done.`);
-      setQueued(true);
+      setQueuedOn(step);
     } else say(`Not yet: ${block.text}.`);
   };
 

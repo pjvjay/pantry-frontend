@@ -111,7 +111,8 @@ function browserStorage(): Storage | null {
 // (the ticks, kept beside the plan: mealplan/shopping.ts), and its lines by section. Its heading
 // is where Done shopping in the store brings the keyboard back to.
 function TripBlock({ list, ticked }: { list: TripList; ticked: readonly number[] }) {
-  const approved = list.look.kind === 'approved' || list.look.kind === 'review';
+  // approved under either way to shop: in-store mode opens its approved list (board.ts tripToShop)
+  const approved = list.look.kind !== 'suggested';
   const head = `shop-trip-${list.date}`;
   const has = new Set(ticked);
   const inBasket = list.sections.reduce((t, s) => t + s.rows.filter((r) => has.has(r.productId)).length, 0);

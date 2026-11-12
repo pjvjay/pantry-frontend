@@ -24,7 +24,7 @@ import { RecipePicture } from '../components/pictures';
 import { Notice, Skeleton, Spinner, Tag } from '../components/ui';
 import type { NoticeAction } from '../components/ui';
 import { useBuildWeek } from '../components/useBuildWeek';
-import { useExported } from '../components/useExported';
+import { savedTiming, useExported } from '../components/useExported';
 import { useHubStatus } from '../hubStatus';
 import { todayIn } from '../mealplan/dates';
 import { basketCounts, firstRecipe, greeting, homeTasks, nextTrip, periodText, planHeading } from '../mealplan/home';
@@ -119,8 +119,9 @@ function browserStorage(): Storage | null {
   }
 }
 
+// approved: under either way to shop (its tag says which), so it is shopped from its approved list
 function NextTripCard({ trip }: { trip: NextTrip }) {
-  const approved = trip.look.kind === 'approved' || trip.look.kind === 'review';
+  const approved = trip.look.kind !== 'suggested';
   const basket = trip.basket;
   const begun = basket !== null && basket.done < basket.total;
   return (
@@ -151,7 +152,7 @@ function NextTripCard({ trip }: { trip: NextTrip }) {
           See shopping plan
         </a>
       </div>
-      {!approved && (
+      {trip.look.kind === 'suggested' && (
         <p className="home-trip-note">Suggested by the plan: approve it in the shopping plan and it is never rewritten.</p>
       )}
     </section>
@@ -207,7 +208,8 @@ function ThisWeek() {
   const schedule = mp.schedule;
   const exported = useExported(d.id);
   const counts = basket.answer && basket.current ? basketCounts(basket.answer, s) : null;
-  const home = homeTasks(s, facts, counts, { answer: schedule.answer, failed: schedule.status === 'error' }, exported.mark);
+  const home = homeTasks(s, facts, counts, { answer: schedule.answer, failed: schedule.status === 'error' }, exported.mark,
+    savedTiming(d.prefs.slots_on));
   // the ticks of the trip begun in the store, read as Home opens (they are kept beside the plan)
   const shopping = useMemo(() => readShopping(browserStorage()), [d.id]);
   const trip = nextTrip(s, schedule.answer, todayIn(), (date) => tickedOn(shopping, d.id, date));
