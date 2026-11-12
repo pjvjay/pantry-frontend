@@ -126,11 +126,11 @@ nothing. The logic is in pure modules under `src/mealplan/`:
 lines of the shopper's own recipes). Counted dishes ("3 Pepperoni Pizza + 2
 Chicken Fried Rice + 3 chicken briyani + 7 mango milkshakes in 2 weeks") come
 back as a meal-plan card (`components/MealPlanCard.tsx`): the days as a strip,
-what Apply changes, a misspelt or other name as a question with **Use** and
+what adding it changes, a misspelt or other name as a question with **Use** and
 **Not this** (never placed until the shopper says Use), the suggested trips,
-**Apply to my Meal plan** (one undo step; when the plan changed since the
+**Add to your plan** (one undo step; when the plan changed since the
 draft, each change is tried in turn and a meal whose slot is taken waits for a
-free one) and **Open in Meal plan**. The Assistant stays mounted once opened,
+free one) and **Open your plan**. The Assistant stays mounted once opened,
 so its conversation is there when the shopper comes back. Nothing in the chat
 approves a trip.
 
@@ -145,7 +145,7 @@ plan cannot be on yet says what it waits for), with Back and Next under each; Ne
 stays focusable when it cannot be used and says what stops it. The stage is in the
 address, `#/plan?step=1..6`, so the browser's Back works and a reload comes
 back to it; Google's `?calendar=` return lands on Calendar, and the Assistant's and
-the Planner's "Open in Meal plan" on Schedule. On each change of stage focus moves
+the Planner lab's "Open in your plan" on Place on days. On each change of stage focus moves
 to its heading. `views/MealPlanView.tsx` puts them together:
 
 1. **Basics** (`components/basics.tsx`): form cards (`components/fields.tsx`:
@@ -220,7 +220,7 @@ to its heading. `views/MealPlanView.tsx` puts them together:
 6. **Calendar** (`components/CalendarExport.tsx`): trip and cook times and the
    reminders on each kind of event, the events, the `.ics` and Google Calendar.
 
-The Planner's week plan has "Open in Meal plan".
+The Planner lab's week plan has "Open in your plan".
 
 How a meal moves (all four end in one reducer edit):
 
@@ -374,7 +374,11 @@ product's price per 100 g, the words and tag of each state, the waterfall's lege
   (`components/useRowNav.ts`): one Tab stop, Up and Down, Home and End, Page Up and
   Down, Enter opens the row. A table's head stays in view while its rows scroll, and
   figures sit right-aligned in equal widths; the Catalog also prices each product per
-  100 g. Under 900px a product opens in a sheet over the table.
+  100 g and shows its picture (a quiet placeholder when there is none). Under 900px a
+  product opens in a sheet over the table. Recent turns are newest first, by when each
+  began; on a phone they keep the question, its state and its time.
+- While the mcp-sim runner is not running, Simulations says so calmly, with how to start
+  it (`scripts/up.sh`), rather than as an error.
 - A run opens in a drawer over Metrics (`views/RunView.tsx`, the drawer preset of
   `components/Sheet.tsx`) whose header stays in view: the way back, the question, its
   model and state, the raw JSON, even when the run cannot be read.
@@ -383,7 +387,7 @@ product's price per 100 g, the words and tag of each state, the waterfall's lege
   address in its place. The waterfall has a legend in the chart colours and folds the
   browser's spans away when there are many.
 - "Run all" (Simulations) and "Reset demo data" (System) ask first, in place
-  (`components/InlineConfirm.tsx`, also behind the Planner lab's "Open in Meal plan"):
+  (`components/InlineConfirm.tsx`, also behind the Planner lab's "Open in your plan"):
   Escape or Cancel puts the button back, with focus. Reset demo data reseeds the whole
   database, so it lives in System now; Provenance points there.
 - The Catalog's "Submit a label reading" lands in Provenance's Submit panel: scrolled

@@ -170,7 +170,7 @@ export function StepRow({ step }: { step: Step }) {
     </>
   );
   return (
-    <li className={`rs rs-kind-${step.kind} rs-${step.status}`}>
+    <li className={`rs rs-${step.status}`} data-kind={step.kind}>
       {opens ? (
         <button type="button" className="rs-line" aria-expanded={open} aria-controls={open ? bodyId : undefined}
                 onClick={() => setOpen((o) => !o)}>

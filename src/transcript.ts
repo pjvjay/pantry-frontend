@@ -641,6 +641,27 @@ export function headline(run: Pick<Run, 'status' | 'stepCount' | 'ms' | 'tools'>
   }
 }
 
+// What the Settings button says the assistant runs on: "Gemini 3 Flash (preview) · pantry". Once
+// the conversation has begun, the model and MCP server its answers came from (the run's start
+// event names them, and a replayed run or the hub's own choice can make them other than the ones
+// picked); before that, the ones picked for the first question, the server marked "(default)"
+// while it is only the hub's default, since nothing has answered from it yet. A server goes by the
+// short part of its name ("pantry, direct (bearer token)" is "pantry"). Empty until the hub's
+// options are known.
+export function runsOnText(
+  options: { models: { id: string; label: string }[]; targets: { id: string; label: string }[];
+    default_target: string } | null,
+  picked: { model: string; target: string },
+  answered: { model: string; target: string } | null,
+): string {
+  if (!options) return '';
+  const on = answered ?? picked;
+  if (!on.model || !on.target) return '';
+  const model = options.models.find((m) => m.id === on.model)?.label ?? modelShort(on.model);
+  const server = (options.targets.find((t) => t.id === on.target)?.label ?? on.target).split(',')[0];
+  return `${model} · ${server}${!answered && on.target === options.default_target ? ' (default)' : ''}`;
+}
+
 // The run's settings and what it cost, for the end of its open timeline:
 // "gemini-3-flash-preview · pantry · 2 of 17 tools offered at first · 9,930 tokens read, 96 written".
 export function metaLine(meta: RunMeta, modelLabel: (id: string) => string = modelShort): string {

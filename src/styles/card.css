@@ -35,12 +35,7 @@
   :root { --card-pad: var(--space-4); }
 }
 
-.card, .card-row,
-/* Transitional, until every caller is .card: the console's older surface, .panel (the Workshop's
-   and the Planner lab's), takes its surface from this same rule and has no copy of it; its own
-   rules keep only how it lays out. (The household screens' form cards and recipe cards are .card
-   now.) A view that moves to .card takes its class off this list; the last one removes the list. */
-.panel {
+.card, .card-row {
   padding: var(--card-pad);
   border: 1px solid var(--border); border-radius: var(--radius-3);
   background: var(--panel); box-shadow: var(--shadow-1);

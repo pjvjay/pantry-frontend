@@ -7,6 +7,7 @@ import { useId, useState } from 'react';
 import { thoughtLabel } from '../../transcript';
 import type { Run } from '../../transcript';
 import { Icon } from '../icons';
+import { ScrollRegion } from '../ui';
 
 export function Thought({ run }: { run: Run }) {
   const [chosen, setChosen] = useState<boolean | null>(null);
@@ -23,14 +24,14 @@ export function Thought({ run }: { run: Run }) {
         <Icon name="chevron-down" size={16} className="thought-chev" />
       </button>
       {open && (
-        <div id={bodyId} className="thought-body">
+        <ScrollRegion id={bodyId} label="Reasoning" className="thought-body">
           {run.reasoning.map((r) => (
             <p key={r.step}>
               {several && <span className="thought-step">Step {r.step}</span>}
               {r.text}
             </p>
           ))}
-        </div>
+        </ScrollRegion>
       )}
     </div>
   );

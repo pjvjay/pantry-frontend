@@ -66,7 +66,7 @@ export function EvidenceCard({ evidence: e, heading, tag, lines = [], children }
   const place = MAKING.has(e.claim) ? madeIn || origin : origin || madeIn;
   const both = origin && madeIn && origin !== madeIn;
   return (
-    <div className="ev-card">
+    <div className="card ev-card">
       {(heading || tag) && (
         <div className="ev-top">
           {heading && <p className="ev-heading">{heading}</p>}
@@ -83,7 +83,7 @@ export function EvidenceCard({ evidence: e, heading, tag, lines = [], children }
         : <p className="ev-quote-none">The wording on the label was not copied.</p>}
       <p className="ev-meta">
         <ConfidenceBand confidence={e.confidence} />
-        <span className="ev-source">
+        <span>
           {sourceLabel(e.source)}
           {e.sourceRef && <> · <code>{e.sourceRef}</code></>}
         </span>

@@ -1,5 +1,11 @@
-// The plan renderers shared by the Planner and the Assistant: query-plan timeline, trip
-// options, gate alerts, coverage, a shopping plan and a week plan.
+// The plan renderers shared by the Planner lab, the import sheet and the Assistant's steps: the
+// query-plan timeline, trip options, gate alerts, coverage, a shopping plan and a week plan.
+//
+// They wear the console's one set of pieces: each plan is a card (styles/card.css), its figures
+// StatTiles, its states Tags (a glyph and words), how well a product matches its line a MatchTag,
+// each product its picture with a quiet placeholder (pictures.tsx), and its tables the one table
+// style, in a box that scrolls on its own when a phone is narrower than they are (ScrollRegion).
+// A model's name or a routing strategy is a plain fact, so a plain chip. Styles: styles/workshop.css.
 import type { ReactNode } from 'react';
 import type {
   DroppedIngredient,
@@ -12,8 +18,12 @@ import type {
   TripOption,
   WeekPlan,
 } from '../types';
-import { IngredientImage } from './flow';
+import { PLAN_STATES, coverageStatus, humanize, originStatus } from '../workshop';
 import { Icon } from './icons';
+import { MatchTag } from './matchmarks';
+import { ProductPicture } from './pictures';
+import { Notice, ScrollRegion, StatRow, StatTile, Tag } from './ui';
+import type { TagKind } from './ui';
 
 export const modelShort = (model: string) =>
   model.includes('haiku') ? 'haiku'
@@ -22,22 +32,18 @@ export const modelShort = (model: string) =>
         : model === 'demo-deterministic' ? 'demo'
           : model || '—';
 
-const modelClass = (model: string) =>
-  model.includes('haiku') ? 'model-haiku'
-    : model.includes('sonnet') ? 'model-sonnet'
-      : model.startsWith('gemini:') ? 'model-gemini'
-        : model === 'demo-deterministic' ? 'chip-warn' : '';
-
+// The model that chose a line: a plain fact, its full name on hover.
 export function ModelChip({ model }: { model: string }) {
-  return <span className={`chip ${modelClass(model)}`} title={model}>{modelShort(model)}</span>;
+  return <span className="chip" title={model}>{modelShort(model)}</span>;
 }
 
+// How sure the planner is of a line, as a meter: the bar shows it, the figure beside it says it.
 export function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(value * 100);
   const tone = value >= 0.8 ? 'high' : value >= 0.5 ? 'mid' : 'low';
   return (
     <div className="conf">
-      <div className="conf-track">
+      <div className="conf-track" aria-hidden="true">
         <div className={`conf-fill conf-${tone}`} style={{ width: `${pct}%` }} />
       </div>
       <span className="conf-label">{pct}%</span>
@@ -131,10 +137,12 @@ const stepTitle = (s: StepResult) =>
     : s.step_id === 'w3_menu' ? 'menu selection'
       : STEP_TITLES[s.kind];
 
+// The steps the server ran, one row each, opening into the SQL it ran. Its heading is a label, not
+// a heading of the page: the plan's card has the heading.
 export function PlanTimeline({ steps, heading }: { steps: StepResult[]; heading: string }) {
   return (
     <div className="timeline">
-      <div className="timeline-heading">{heading}</div>
+      <p className="timeline-heading">{heading}</p>
       {steps.map((s) => (
         <details key={s.step_id} className={`step step-${s.outcome}`}>
           <summary>
@@ -150,7 +158,7 @@ export function PlanTimeline({ steps, heading }: { steps: StepResult[]; heading:
             </span>
             {s.phases && s.phases.length > 0 && <PhaseBar phases={s.phases} legend />}
           </summary>
-          <pre><code>{s.sql_display}</code></pre>
+          <ScrollRegion label={`The SQL of ${s.step_id}`} className="step-sql"><pre><code>{s.sql_display}</code></pre></ScrollRegion>
         </details>
       ))}
     </div>
@@ -161,12 +169,11 @@ export function TripOptionsPanel({ options }: { options: TripOption[] }) {
   if (options.length === 0) return null;
   return (
     <div className="trips">
-      <div className="timeline-heading">
-        Where to shop (basket vs travel)
-        <span className="basis"> · optimal store split over straight-line
-        distance at an assumed $/km — the search is exact, the inputs are
-        estimates</span>
-      </div>
+      <p className="timeline-heading">
+        Where to shop (basket against travel)
+        <span className="basis"> · the best split across stores, over straight-line distances at an
+        assumed $ per km: the search is exact, its inputs are estimates</span>
+      </p>
       {options.map((o) => (
         <details key={o.stores.join('|')} className={`trip ${o.recommended ? 'trip-rec' : ''}`}>
           <summary>
@@ -176,11 +183,10 @@ export function TripOptionsPanel({ options }: { options: TripOption[] }) {
               ${o.basket_cost.toFixed(2)} basket + {o.travel_km} km (${o.travel_cost.toFixed(2)})
             </span>
             <span className="trip-total">${o.total_cost.toFixed(2)}</span>
-            {o.recommended && <span className="chip chip-ok">recommended</span>}
+            {o.recommended && <Tag kind={PLAN_STATES.recommended.kind}>{PLAN_STATES.recommended.word}</Tag>}
             {!o.recommended && o.savings_vs_one_stop !== 0 && (
-              <span className="chip chip-muted">
-                {o.savings_vs_one_stop > 0 ? 'saves' : 'costs'} $
-                {Math.abs(o.savings_vs_one_stop).toFixed(2)} vs one stop
+              <span className="chip">
+                {o.savings_vs_one_stop > 0 ? 'saves' : 'costs'} ${Math.abs(o.savings_vs_one_stop).toFixed(2)} against one stop
               </span>
             )}
           </summary>
@@ -188,7 +194,7 @@ export function TripOptionsPanel({ options }: { options: TripOption[] }) {
             <ul className="trip-items">
               {o.items.map((it, i) => (
                 <li key={`${it.product_id}-${i}`}>
-                  {it.product_name} — <strong>{it.store_name}</strong> ${it.price.toFixed(2)}
+                  {it.product_name}: <strong>{it.store_name}</strong> ${it.price.toFixed(2)}
                 </li>
               ))}
             </ul>
@@ -201,24 +207,24 @@ export function TripOptionsPanel({ options }: { options: TripOption[] }) {
 
 const GATE_TITLES: Record<string, string> = {
   missing_ingredients: 'Ingredients not stocked',
-  unavailable_within_constraints: 'Unavailable within your constraints',
-  budget_infeasible: 'Budget infeasible',
+  unavailable_within_constraints: 'Unavailable within your limits',
+  budget_infeasible: 'The budget cannot be met',
 };
 
+// A plan the server stopped at one of its gates (a 409): why, each ingredient that stopped it with
+// what could stand in, and the query plan up to the step that stopped it.
 export function AbortAlert({ execution }: { execution: PlanExecution }) {
   const alert = execution.aborted;
   if (!alert) return null;
   return (
-    <section className="panel">
-      <div className="alert-card">
-        <div className="alert-title">
-          <Icon name="circle-x" size={18} />{GATE_TITLES[alert.code] ?? alert.code} <span className="chip chip-warn">{alert.stage}</span>
-        </div>
+    <section className="card plan-abort">
+      <Notice tone="danger" title={GATE_TITLES[alert.code] ?? humanize(alert.code)}
+              hint={<>Stopped at the <code>{alert.stage}</code> step.</>}>
         <p className="alert-message">{alert.message}</p>
         <ul className="alert-details">
           {alert.details.map((d) => (
             <li key={d.name}>
-              <strong>{d.name}</strong> — {d.reason}
+              <strong>{d.name}</strong>: {d.reason}
               {d.suggestions.length > 0 && (
                 <span className="alert-suggestions">
                   {d.suggestions.map((sug) => <span key={sug} className="chip">{sug}</span>)}
@@ -227,43 +233,49 @@ export function AbortAlert({ execution }: { execution: PlanExecution }) {
             </li>
           ))}
         </ul>
-      </div>
-      <PlanTimeline steps={execution.steps} heading="Query plan (aborted at the step marked with an X):" />
+      </Notice>
+      <PlanTimeline steps={execution.steps} heading="Query plan (it stopped at the step marked with a cross)" />
     </section>
   );
 }
 
 export function CoverageNote({ coverage }: { coverage?: OriginCoverage | null }) {
   if (!coverage || coverage.lines_total === 0) return null;
-  // Spend-weighted is the headline: a basket can be half-covered by count
-  // and barely covered by money. Never render an unverified basket as clean.
-  const pct = Math.round(coverage.spend_fraction * 100);
+  // Spend-weighted is the headline: a basket can be half-covered by count and barely covered by
+  // money. An unverified basket is never drawn as clean: under the floor it needs attention.
+  const state = coverageStatus(coverage.spend_fraction, coverage.meets_floor);
   return (
-    <div className={`coverage ${coverage.meets_floor ? 'coverage-ok' : 'coverage-warn'}`}>
-      <strong>Origin checked for {pct}% of spend</strong>{' '}
-      ({coverage.lines_known} of {coverage.lines_total} lines
-      {coverage.lines_excluded_origin > 0 &&
-        `; ${coverage.lines_excluded_origin} candidate(s) excluded`})
+    <div className="coverage">
+      <p className="coverage-head">
+        <Tag kind={state.kind}>{state.word}</Tag>
+        <span className="muted">
+          {coverage.lines_known} of {coverage.lines_total} lines
+          {coverage.lines_excluded_origin > 0 && `; ${coverage.lines_excluded_origin} candidate(s) left out for their origin`}
+        </span>
+      </p>
       {!coverage.meets_floor && (
-        <div className="hint">
-          Below the {Math.round(coverage.floor * 100)}% floor — the unchecked
-          lines are not evidence of foreign origin, but this basket has not
-          been verified well enough to call it clean.
-        </div>
+        <p className="coverage-hint">
+          Under the {Math.round(coverage.floor * 100)}% floor. The unchecked lines are not evidence of
+          a foreign origin, but this basket has not been checked well enough to call it clean.
+        </p>
       )}
     </div>
   );
 }
 
-function Dropped({ title, items, tone }: { title: string; items?: DroppedIngredient[]; tone: string }) {
+// Ingredients a plan could not buy, under a tag that says why.
+function Dropped({ title, items, kind }: { title: string; items?: DroppedIngredient[]; kind: TagKind }) {
   if (!items || items.length === 0) return null;
   return (
-    <div className={`dropped dropped-${tone}`}>
-      <div className="dropped-title">{title} ({items.length})</div>
+    <div className="dropped">
+      <p className="dropped-head">
+        <Tag kind={kind}>{title}</Tag>
+        <span className="muted">{items.length} {items.length === 1 ? 'ingredient' : 'ingredients'}</span>
+      </p>
       <ul>
         {items.map((d) => (
           <li key={d.ingredient}>
-            <strong>{d.ingredient}</strong> — {d.reason}
+            <strong>{d.ingredient}</strong>: {d.reason}
             {d.suggestions.length > 0 && (
               <span className="alert-suggestions">
                 {d.suggestions.map((s) => <span key={s} className="chip">{s}</span>)}
@@ -276,35 +288,39 @@ function Dropped({ title, items, tone }: { title: string; items?: DroppedIngredi
   );
 }
 
+// How well a line's product matches the line, when it is not the very thing asked for.
 const MATCH_HINT: Record<string, string> = {
-  exact: 'the product is the ingredient asked for',
-  form: 'same ingredient in another form (e.g. ground for whole)',
-  generic: 'a substitution: a more general product than asked for',
+  form: 'the same ingredient in another form (ground for whole, say)',
+  generic: 'a substitution: a more general product than the one asked for',
 };
+
+function LineMatch({ match }: { match?: string | null }) {
+  if (!match || match === 'exact') return null;
+  return (
+    <span title={MATCH_HINT[match]}>
+      {match === 'generic' ? <MatchTag kind="closest" label="Substitution" />
+        : match === 'form' ? <MatchTag kind="form" label="Another form" />
+          : <MatchTag kind="looser" label={humanize(match)} />}
+    </span>
+  );
+}
 
 export function PlanView({ plan }: { plan: ShoppingPlan }) {
   const gaps = (plan.not_stocked?.length ?? 0) + (plan.out_of_range?.length ?? 0)
     + (plan.skipped?.length ?? 0);
+  const origin = plan.origin_status && plan.origin_status !== 'not_requested' ? originStatus(plan.origin_status) : null;
   return (
-    <section className="panel">
-      {plan.interpretation.length > 0 && (
-        <div className="interpretation">
-          <span className="interp-label">Interpreted as:</span>
-          {plan.interpretation.map((line) => (
-            <span key={line} className="chip">{line}</span>
-          ))}
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <h2 className="card-title">Shopping plan · {plan.recipe_name}</h2>
+          {plan.interpretation.length > 0 && (
+            <p className="card-sub interpretation">
+              <span className="interp-label">Read as:</span>
+              {plan.interpretation.map((line) => <span key={line} className="chip">{line}</span>)}
+            </p>
+          )}
         </div>
-      )}
-      {plan.plan_trace.length > 0 && (
-        <PlanTimeline
-          steps={plan.plan_trace}
-          heading={plan.candidate_count > 0
-            ? `Query plan · ${plan.candidate_count} candidates retrieved:`
-            : 'Plan trace (LLM calls phase by phase, then the trip optimizer):'}
-        />
-      )}
-      <div className="plan-header">
-        <h2>Shopping plan · {plan.recipe_name}</h2>
         <div className="plan-meta">
           <span className="chip">{plan.routing_strategy}</span>
           {/* In demo mode every line says demo-deterministic while preselected_model still names
@@ -312,24 +328,32 @@ export function PlanView({ plan }: { plan: ShoppingPlan }) {
           <ModelChip model={plan.line_items.length > 0
             && plan.line_items.every((l) => l.model_used === 'demo-deterministic')
             ? 'demo-deterministic' : plan.preselected_model} />
-          {plan.escalated && <span className="chip chip-warn">escalated</span>}
+          {plan.escalated && <Tag kind={PLAN_STATES.escalated.kind}>{PLAN_STATES.escalated.word}</Tag>}
+          {origin && <Tag kind={origin.kind}>Origin {origin.word.toLowerCase()}</Tag>}
           <BurrLink run={plan.burr_run} />
-          {plan.origin_status && plan.origin_status !== 'not_requested' && (
-            <span className={`chip ${plan.origin_status === 'verified' ? 'chip-ok' : 'chip-warn'}`}>
-              origin {plan.origin_status}
-            </span>
-          )}
-          <span className="chip chip-muted">
-            LLM ${plan.total_llm_cost_usd.toFixed(4)} · {(plan.total_latency_ms / 1000).toFixed(1)}s
-          </span>
         </div>
       </div>
+      <StatRow className="plan-figures">
+        <StatTile label="Total" value={`$${plan.total_cost.toFixed(2)}`}
+                  note={plan.ingredient_count
+                    ? `${plan.line_items.length} purchases for ${plan.ingredient_count} ingredients` : undefined} />
+        <StatTile label="LLM cost" value={`$${plan.total_llm_cost_usd.toFixed(4)}`} />
+        <StatTile label="Planning time" value={`${(plan.total_latency_ms / 1000).toFixed(1)} s`} />
+      </StatRow>
+      {plan.plan_trace.length > 0 && (
+        <PlanTimeline
+          steps={plan.plan_trace}
+          heading={plan.candidate_count > 0
+            ? `Query plan · ${plan.candidate_count} candidates retrieved`
+            : 'Plan trace (the LLM calls phase by phase, then the trip optimizer)'}
+        />
+      )}
       <TripOptionsPanel options={plan.trip_options} />
-      <div className="table-wrap">
-        <table>
+      <ScrollRegion label={`The lines of the plan for ${plan.recipe_name}`} className="table-scroll plan-lines">
+        <table className="table">
           <thead>
             <tr>
-              <th aria-label="photo" />
+              <th><span className="sr-only">Picture</span></th>
               <th>Ingredient</th>
               <th>Matched product</th>
               <th className="num">Price</th>
@@ -340,7 +364,9 @@ export function PlanView({ plan }: { plan: ShoppingPlan }) {
           <tbody>
             {plan.line_items.map((li) => (
               <tr key={li.line_no}>
-                <td><IngredientImage name={li.ingredient_name.split(' + ')[0]} size={40} /></td>
+                <td className="plan-pic">
+                  <ProductPicture product={li.product_name} ingredient={li.ingredient_name.split(' + ')[0]} />
+                </td>
                 <td>
                   {li.ingredient_name}
                   {li.also_lines && li.also_lines.length > 0 && (
@@ -348,14 +374,10 @@ export function PlanView({ plan }: { plan: ShoppingPlan }) {
                   )}
                 </td>
                 <td>
-                  <div className="prod-name">
-                    {li.product_name}
-                    {li.match && li.match !== 'exact' && (
-                      <span className={`claim-chip match-${li.match}`} title={MATCH_HINT[li.match]}>
-                        {li.match === 'generic' ? 'substitution' : li.match}
-                      </span>
-                    )}
-                    {(li.packs ?? 1) > 1 && <span className="claim-chip">× {li.packs} packs</span>}
+                  <div className="prod-name">{li.product_name}</div>
+                  <div className="prod-marks">
+                    <LineMatch match={li.match} />
+                    {(li.packs ?? 1) > 1 && <span className="chip">× {li.packs} packs</span>}
                   </div>
                   <div className="prod-desc" title={li.reasoning}>{li.product_description}</div>
                   {li.store_name && <div className="prod-store">at {li.store_name}</div>}
@@ -371,55 +393,57 @@ export function PlanView({ plan }: { plan: ShoppingPlan }) {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={2}>
+              <td colSpan={3}>
                 Total for the planned lines
                 {plan.ingredient_count ? ` (${plan.line_items.length} purchases for ${plan.ingredient_count} ingredients)` : ''}
               </td>
-              <td className="num total">${plan.total_cost.toFixed(2)}</td>
+              <td className="num">${plan.total_cost.toFixed(2)}</td>
               <td colSpan={2} />
             </tr>
           </tfoot>
         </table>
-        <CoverageNote coverage={plan.origin_coverage} />
-      </div>
+      </ScrollRegion>
+      <CoverageNote coverage={plan.origin_coverage} />
       {gaps > 0 ? (
         <>
-          <Dropped title="Not stocked anywhere" items={plan.not_stocked} tone="bad" />
-          <Dropped title="Stocked, but not within your limits" items={plan.out_of_range} tone="warn" />
-          <Dropped title="Skipped" items={plan.skipped} tone="muted" />
+          <Dropped title="Not stocked anywhere" items={plan.not_stocked} kind="attention" />
+          <Dropped title="Stocked, but not within your limits" items={plan.out_of_range} kind="attention" />
+          <Dropped title="Skipped" items={plan.skipped} kind="paused" />
         </>
       ) : (plan.ingredient_count ?? 0) > 0 && (
-        <p className="muted">Every ingredient was planned: nothing is out of stock or out of range.</p>
+        <p className="muted plan-all">Every ingredient was planned: nothing is out of stock or out of range.</p>
       )}
     </section>
   );
 }
 
-// actions: controls for the header, such as the Planner's "Open in Meal plan".
+// actions: controls for the header, such as the Planner lab's "Open in your plan".
 export function WeekView({ week, actions }: { week: WeekPlan; actions?: ReactNode }) {
   return (
-    <section className="panel">
-      <div className="plan-header">
-        <h2>Week plan · {week.days.length} dinners</h2>
+    <section className="card">
+      <div className="card-head">
+        <h2 className="card-title">Week plan · {week.days.length} dinners</h2>
         {actions}
-        <div className="plan-meta">
-          <span className="chip chip-ok">
-            merged basket ${week.total_cost.toFixed(2)}
-          </span>
-          <span className="chip">standalone ${week.standalone_cost.toFixed(2)}</span>
-          {week.overlap_savings > 0 && (
-            <span className="chip chip-ok">overlap saves ${week.overlap_savings.toFixed(2)}</span>
-          )}
-          {week.budget != null && <span className="chip">budget ${week.budget.toFixed(2)}</span>}
-          <span className="chip chip-muted">LLM ${week.total_llm_cost_usd.toFixed(4)}</span>
-        </div>
       </div>
+      <StatRow className="plan-figures">
+        <StatTile label="Merged basket" value={`$${week.total_cost.toFixed(2)}`} note="shared items bought once" />
+        <StatTile label="Bought one by one" value={`$${week.standalone_cost.toFixed(2)}`} />
+        {week.overlap_savings > 0 && (
+          <StatTile label="Merging saves" value={`$${week.overlap_savings.toFixed(2)}`} tone="good" note="by buying shared items once" />
+        )}
+        {week.budget != null && (
+          <StatTile label="Budget" value={`$${week.budget.toFixed(2)}`}
+                    tone={week.total_cost > week.budget ? 'warn' : 'default'}
+                    note={week.total_cost > week.budget ? `$${(week.total_cost - week.budget).toFixed(2)} over` : 'kept under'} />
+        )}
+        <StatTile label="LLM cost" value={`$${week.total_llm_cost_usd.toFixed(4)}`} />
+      </StatRow>
       {week.notes.length > 0 && (
-        <ul className="week-notes">
-          {week.notes.map((n) => <li key={n}>{n}</li>)}
-        </ul>
+        <Notice tone="info" title="What the planner noted">
+          <ul className="week-notes">{week.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+        </Notice>
       )}
-      <PlanTimeline steps={week.plan_trace} heading="Query plan:" />
+      <PlanTimeline steps={week.plan_trace} heading="Query plan" />
       <TripOptionsPanel options={week.trip_options} />
       <div className="week-days">
         {week.days.map((d) => (
@@ -440,8 +464,8 @@ export function WeekView({ week, actions }: { week: WeekPlan; actions?: ReactNod
           </details>
         ))}
       </div>
-      <div className="table-wrap">
-        <table>
+      <ScrollRegion label="The week's shopping list" className="table-scroll">
+        <table className="table">
           <thead>
             <tr>
               <th>Buy once</th>
@@ -456,22 +480,20 @@ export function WeekView({ week, actions }: { week: WeekPlan; actions?: ReactNod
                 <td className="prod-name">{w.product_name}</td>
                 <td>{w.store_name}</td>
                 <td className="num">${w.price.toFixed(2)}</td>
-                <td>
-                  {w.used_by.map((r) => <span key={r} className="chip chip-muted">{r}</span>)}
-                </td>
+                <td><span className="plan-used">{w.used_by.map((r) => <span key={r} className="chip">{r}</span>)}</span></td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr>
               <td colSpan={2}>Week total (shared items once)</td>
-              <td className="num total">${week.total_cost.toFixed(2)}</td>
+              <td className="num">${week.total_cost.toFixed(2)}</td>
               <td />
             </tr>
           </tfoot>
         </table>
-        <CoverageNote coverage={week.origin_coverage} />
-      </div>
+      </ScrollRegion>
+      <CoverageNote coverage={week.origin_coverage} />
     </section>
   );
 }

@@ -1,12 +1,14 @@
-// The agentic flow made visible: an ingredient's photo, a recipe page's images,
-// a step's reasoning, the answer's evals and confidence, and a turn's trace as a waterfall of
-// spans from every layer (browser, model, tools, gateway, pantry's own steps and LLM calls).
+// The agentic flow made visible: a recipe page's images, a step's reasoning, the answer's evals
+// and confidence, and a turn's trace as a waterfall of spans from every layer (browser, model,
+// tools, gateway, pantry's own steps and LLM calls). (A product's picture is pictures.tsx's
+// ProductPicture, with its quiet placeholder.)
 import { useState } from 'react';
-import { ingredientImage, remoteImage } from '../hub';
+import { remoteImage } from '../hub';
 import { hrefFor } from '../routes';
-import { kindKey, legendFor } from '../workshop';
+import { confidenceStatus, kindKey, legendFor } from '../workshop';
 import type { Evals, PlanConfidence, Span, Trace } from '../types';
 import { Icon } from './icons';
+import { ScrollRegion, Tag } from './ui';
 
 const pct = (v: number | null | undefined) => (v == null ? '–' : `${Math.round(v * 100)}%`);
 export const dur = (ms: number | null | undefined) => {
@@ -16,16 +18,6 @@ export const dur = (ms: number | null | undefined) => {
   const s = Math.round(ms / 1000);              // round once, so 119.6 s is 2m 0s, not 1m 60s
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 };
-
-// An ingredient's photo (Wikipedia, cached by the hub); a plain tile when there is none.
-export function IngredientImage({ name, size = 56 }: { name: string; size?: number }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) return <span className="ing-img ing-img-none" style={{ width: size, height: size }}>{name.slice(0, 1)}</span>;
-  return (
-    <img className="ing-img" src={ingredientImage(name)} alt={name} width={size} height={size}
-         loading="lazy" onError={() => setFailed(true)} />
-  );
-}
 
 const IMG_URL = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s"'<>)]+\.(?:jpe?g|png|webp|avif)(?:\?[^\s"'<>)]*)?)/gi;
 const NOT_A_PHOTO = /logo|icon|avatar|sprite|pixel|badge|button|emoji|gravatar|spinner|\.svg|\.gif/i;
@@ -56,51 +48,59 @@ export function RecipeImages({ urls }: { urls: string[] }) {
   );
 }
 
-export function Reasoning({ text, label = 'reasoning' }: { text: string; label?: string }) {
+// What a model reasoned, behind a disclosure; a long one scrolls in its own box.
+export function Reasoning({ text, label = 'Reasoning' }: { text: string; label?: string }) {
   return (
     <details className="reasoning">
       <summary>{label} · {text.length.toLocaleString()} chars</summary>
-      <pre>{text}</pre>
+      <ScrollRegion label={label} className="reasoning-body"><pre>{text}</pre></ScrollRegion>
     </details>
   );
 }
 
-function ConfidenceBadge({ value, label }: { value: number | null; label: string }) {
-  const tone = value == null ? 'muted' : value >= 0.9 ? 'ok' : value >= 0.6 ? 'warn' : 'bad';
-  return <span className={`conf-badge conf-${tone}`}>{label} {pct(value)}</span>;
-}
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 function PlanConfidenceLine({ plan }: { plan: PlanConfidence }) {
   return (
-    <div className="muted">
-      plan: {plan.lines} line(s), line confidence min {pct(plan.min_line_confidence)} · mean {pct(plan.mean_line_confidence)},
-      exact matches {pct(plan.exact_share)}
-      {plan.origin_spend_verified != null && <>, origin verified for {pct(plan.origin_spend_verified)} of spend</>}
-      {plan.left_out > 0 && <>, {plan.left_out} ingredient(s) left out</>}
-    </div>
+    <p className="eval-plan">
+      The plan: {plural(plan.lines, 'line', 'lines')}, its lines {pct(plan.min_line_confidence)} sure at the least
+      and {pct(plan.mean_line_confidence)} on average, {pct(plan.exact_share)} exact matches
+      {plan.origin_spend_verified != null && <>, origin verified for {pct(plan.origin_spend_verified)} of the spend</>}
+      {plan.left_out > 0 && <>, {plural(plan.left_out, 'ingredient', 'ingredients')} left out</>}.
+    </p>
   );
 }
 
-// The answer's online evals: each check against this turn's own tool results.
+// The answer's online evals: each check against this turn's own tool results. How sure the answer
+// is, is a tag (a glyph and words, workshop.ts confidenceStatus: done from 90%, needs attention
+// under it); a check that passed is a quiet tick beside its name, one that failed a tag of its own,
+// with what it found below.
 export function EvalCard({ evals, traceId }: { evals: Evals; traceId?: string }) {
+  const sure = confidenceStatus(evals.answer_confidence);
+  const name = (n: string) => n.replace(/_/g, ' ');
   return (
     <div className="eval-card">
       <div className="eval-head">
-        <ConfidenceBadge value={evals.answer_confidence} label="answer confidence" />
+        <Tag kind={sure.kind}>{sure.word}</Tag>
         <span className="muted">{evals.passed} of {evals.total} checks passed</span>
-        {traceId && <a href={hrefFor({ name: 'workshop', tab: 'metrics', query: `trace=${encodeURIComponent(traceId)}` })} title="Everything recorded about this run, from every system">run details<Icon name="arrow-right" className="ico-inline ico-end" /></a>}
+        {traceId && (
+          <a href={hrefFor({ name: 'workshop', tab: 'metrics', query: `trace=${encodeURIComponent(traceId)}` })}
+             title="Everything recorded about this run, from every system">
+            Run details<Icon name="arrow-right" className="ico-inline ico-end" />
+          </a>
+        )}
       </div>
-      <div className="eval-checks">
+      <ul className="eval-checks">
         {evals.checks.map((c) => (
-          <span key={c.name} className={`eval-check ${c.passed ? 'eval-pass' : 'eval-fail'}`}
-                title={c.detail || (c.passed ? 'passed' : 'failed')}>
-            <Icon name={c.passed ? 'check' : 'x'} className="ico-inline" />
-            <span className="sr-only">{c.passed ? 'passed: ' : 'failed: '}</span>{c.name.replace(/_/g, ' ')}
-          </span>
+          <li key={c.name} title={c.detail || undefined}>
+            {c.passed
+              ? <span className="eval-ok"><Icon name="check" size={14} /><span className="sr-only">Passed: </span>{name(c.name)}</span>
+              : <Tag kind="attention"><span className="sr-only">Failed: </span>{name(c.name)}</Tag>}
+          </li>
         ))}
-      </div>
+      </ul>
       {evals.checks.filter((c) => !c.passed && c.detail).map((c) => (
-        <div key={c.name} className="eval-detail">{c.name.replace(/_/g, ' ')}: {c.detail}</div>
+        <p key={c.name} className="eval-detail"><strong>{name(c.name)}:</strong> {c.detail}</p>
       ))}
       {evals.plan && <PlanConfidenceLine plan={evals.plan} />}
     </div>
@@ -228,10 +228,15 @@ export function Waterfall({ trace }: { trace: Trace }) {
                 {s.events.map((e, j) => (
                   <div key={j} className="muted">{dur(e.at_ms)}: {e.name} {JSON.stringify(e.attrs).slice(0, 300)}</div>
                 ))}
-                <pre>{JSON.stringify(Object.fromEntries(Object.entries(s.attrs)
-                  .filter(([k]) => k !== 'reasoning' && k !== 'preview' && k !== 'text')), null, 1)}</pre>
+                <ScrollRegion label={`${s.name}: attributes`} className="wf-pre">
+                  <pre>{JSON.stringify(Object.fromEntries(Object.entries(s.attrs)
+                    .filter(([k]) => k !== 'reasoning' && k !== 'preview' && k !== 'text')), null, 1)}</pre>
+                </ScrollRegion>
                 {typeof s.attrs.preview === 'string' && (
-                  <details><summary>result preview</summary><pre>{s.attrs.preview}</pre></details>
+                  <details>
+                    <summary>Result preview</summary>
+                    <ScrollRegion label={`${s.name}: result preview`} className="wf-pre"><pre>{s.attrs.preview}</pre></ScrollRegion>
+                  </details>
                 )}
               </div>
             )}

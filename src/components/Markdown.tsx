@@ -7,7 +7,13 @@
 // can move between. The answer's shallowest heading is its top, whatever number of #s the model
 // wrote (it often starts at ###); deeper ones follow, never past h6. Without it, headings are
 // drawn as styled lines, as before, for the pages that have not placed them.
+//
+// A table is the console's one table style, and a table or a block of code wider than its column
+// scrolls in its own box, a stop for the keyboard while it does (ScrollRegion), named by what it
+// holds.
 import type { ReactNode } from 'react';
+
+import { ScrollRegion } from './ui';
 
 function inline(text: string, key: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -50,7 +56,9 @@ export default function Markdown({ text, headings }: { text: string; headings?: 
       i += 1;
       while (i < lines.length && !lines[i].startsWith('```')) body.push(lines[i++]);
       i += 1;
-      blocks.push(<pre key={key} className="md-code"><code>{body.join('\n')}</code></pre>);
+      blocks.push(
+        <ScrollRegion key={key} label="Code" className="md-code"><pre><code>{body.join('\n')}</code></pre></ScrollRegion>,
+      );
       continue;
     }
     if (line.trim().startsWith('|') && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) {
@@ -58,9 +66,10 @@ export default function Markdown({ text, headings }: { text: string; headings?: 
       const rows: string[][] = [];
       i += 2;
       while (i < lines.length && lines[i].trim().startsWith('|')) rows.push(cells(lines[i++]));
+      const named = head.map((h) => h.replace(/[*`]/g, '')).filter(Boolean).join(', ');
       blocks.push(
-        <div key={key} className="table-wrap md-table">
-          <table>
+        <ScrollRegion key={key} label={named ? `Table: ${named}` : 'Table'} className="table-scroll md-table">
+          <table className="table">
             <thead><tr>{head.map((h, j) => <th key={j}>{inline(h, `${key}h${j}`)}</th>)}</tr></thead>
             <tbody>
               {rows.map((r, ri) => (
@@ -68,7 +77,7 @@ export default function Markdown({ text, headings }: { text: string; headings?: 
               ))}
             </tbody>
           </table>
-        </div>,
+        </ScrollRegion>,
       );
       continue;
     }

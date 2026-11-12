@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { PlanAbortError, getRecipes } from '../api';
 import { ErrorBanner, parseList } from '../components/common';
+import { Icon } from '../components/icons';
 import { ImportSheet } from '../components/ImportSheet';
 import { OpenInMealPlan } from '../components/OpenInMealPlan';
 import { AbortAlert, PlanView, WeekView } from '../components/plan';
@@ -39,21 +40,27 @@ function OriginInputs({ prefer, exclude, setPrefer, setExclude }: {
   return (
     <>
       <label>
-        prefer origins
+        Prefer origins
         <input value={prefer} onChange={(e) => setPrefer(e.target.value)} placeholder="Canada, Italy" />
       </label>
       <label>
-        exclude origins
+        Leave out origins
         <input value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="United States" />
       </label>
     </>
   );
 }
 
+// The Planner lab: the one-off planner, for trying the API's own planning by hand. Each way in is a
+// card with one primary action (a recipe pasted, a week of dinners), and the library's recipes are
+// cards of their own, each with a quieter Plan shopping. What comes back is drawn by
+// components/plan.tsx, as the import sheet and the Assistant's steps draw it.
 export default function PlannerView() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loadError, setLoadError] = useState('');
   const [text, setText] = useState('');
+  // Plan my shopping pressed with nothing pasted: it says what to do instead of doing nothing
+  const [textEmpty, setTextEmpty] = useState(false);
   const [place, setPlace] = useState(0);
   const [maxKm, setMaxKm] = useState('5');
   const [allowPartial, setAllowPartial] = useState(true);
@@ -68,6 +75,10 @@ export default function PlannerView() {
   const [planError, setPlanError] = useState('');
   const [planAbort, setPlanAbort] = useState<PlanExecution | null>(null);
   const [importing, setImporting] = useState(false);
+  const recipeBox = useRef<HTMLTextAreaElement>(null);
+  const textId = useId();
+  const textNote = useId();
+  const libraryId = useId();
 
   useEffect(() => {
     getRecipes().then(setRecipes).catch((e: Error) => setLoadError(e.message));
@@ -91,13 +102,20 @@ export default function PlannerView() {
 
   const origins = () => ({ exclude_origin: parseList(exclude), preference: parseList(prefer) });
 
-  const onPlanText = () => run('__nl__', async () => {
-    const p = PLACES[place];
-    setPlan(await planNLWith(text, {
-      lat: p.lat, lon: p.lon, max_km: maxKm.trim() ? Number(maxKm) : null,
-      allow_partial: allowPartial, ...origins(),
-    }));
-  });
+  const onPlanText = () => {
+    if (!text.trim()) {
+      setTextEmpty(true);
+      recipeBox.current?.focus();
+      return;
+    }
+    void run('__nl__', async () => {
+      const p = PLACES[place];
+      setPlan(await planNLWith(text, {
+        lat: p.lat, lon: p.lon, max_km: maxKm.trim() ? Number(maxKm) : null,
+        allow_partial: allowPartial, ...origins(),
+      }));
+    });
+  };
 
   const onPlanWeek = () => run('__week__', async () => {
     setWeek(await planWeekWith({
@@ -129,12 +147,12 @@ export default function PlannerView() {
 
   const busy = planning !== null;
   return (
-    <div className="view">
+    <div className="view ws-stack">
       <ErrorBanner error={loadError && `Couldn't load recipes: ${loadError}`}
                    hint={<>Is the pantry API up and the database seeded? See <a href={SYSTEM}>Workshop › System</a>.</>} />
 
-      <section className="panel">
-        <h2>Plan from a recipe</h2>
+      <section className="card">
+        <h2 className="card-title">Plan from a recipe</h2>
         <p className="card-sub">
           Paste any recipe. The recipe is parsed into ingredient lines, every line is matched
           against the store catalog with SQL, and products are chosen per line. The query plan,
@@ -142,84 +160,98 @@ export default function PlannerView() {
           <strong>Import a recipe</strong> instead reads a link (with the local demo hub) or a
           pasted ingredient list into lines you review, and plans exactly those, with no AI parse.
         </p>
-        <form className="recipe-input" onSubmit={(e) => { e.preventDefault(); void onPlanText(); }}>
-          <textarea rows={9} value={text} onChange={(e) => setText(e.target.value)}
-                    placeholder={RECIPE_SAMPLE} />
+        <form className="recipe-input" onSubmit={(e) => { e.preventDefault(); onPlanText(); }}>
+          <label htmlFor={textId}>Recipe</label>
+          <textarea id={textId} ref={recipeBox} rows={9} value={text} placeholder={RECIPE_SAMPLE}
+                    aria-describedby={textEmpty && !text.trim() ? textNote : undefined}
+                    onChange={(e) => { setText(e.target.value); setTextEmpty(false); }} />
+          {/* on the page from the start (empty), so the words are heard when there is nothing to plan */}
+          <p id={textNote} className="planner-note" role="status">
+            {textEmpty && !text.trim() ? 'Paste a recipe first, or press Use the sample.' : ''}
+          </p>
           <div className="form-row">
             <label>
-              shopping from
+              Shopping from
               <select value={place} onChange={(e) => setPlace(Number(e.target.value))}>
                 {PLACES.map((p, i) => <option key={p.label} value={i}>{p.label}</option>)}
               </select>
             </label>
             <label>
-              within km
+              Within (km)
               <input type="number" min={0.5} max={100} step={0.5} value={maxKm}
                      onChange={(e) => setMaxKm(e.target.value)} placeholder="any" />
             </label>
             <label className="check">
               <input type="checkbox" checked={allowPartial}
                      onChange={(e) => setAllowPartial(e.target.checked)} />
-              plan what it can (list the rest)
+              Plan what it can, and list the rest
             </label>
           </div>
           <div className="form-row">
             <OriginInputs prefer={prefer} exclude={exclude} setPrefer={setPrefer} setExclude={setExclude} />
-            <button type="button" className="secondary" onClick={() => setText(RECIPE_SAMPLE)}>
-              Use sample
+          </div>
+          <div className="planner-actions">
+            <button type="button" className="btn btn-ghost" onClick={() => { setText(RECIPE_SAMPLE); setTextEmpty(false); }}>
+              Use the sample
             </button>
-            <button type="button" className="secondary" disabled={busy} onClick={() => setImporting(true)}>
-              Import a recipe
+            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setImporting(true)}>
+              <Icon name="link" size={16} />Import a recipe
             </button>
-            <button disabled={busy || !text.trim()}>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
               {planning === '__nl__' ? 'Planning…' : 'Plan my shopping'}
             </button>
           </div>
         </form>
       </section>
 
-      <section className="panel">
-        <h2>Plan a week of dinners</h2>
+      <section className="card">
+        <h2 className="card-title">Plan a week of dinners</h2>
         <p className="card-sub">
           Picks dinners from the recipe library, merges the basket so shared ingredients are
           bought once, and keeps the total under the budget when one is given. Want to choose the
-          recipes and days yourself? <a href={hrefFor({ name: 'plan' })}>Open the meal plan</a>.
+          recipes and days yourself? <a href={hrefFor({ name: 'plan' })}>Open your plan</a>.
         </p>
         <form className="form-row" onSubmit={(e) => { e.preventDefault(); void onPlanWeek(); }}>
           <label>
-            dinners
+            Dinners
             <input type="number" min={1} max={14} value={days}
                    onChange={(e) => setDays(Number(e.target.value))} />
           </label>
           <label>
-            budget $
+            Budget ($)
             <input type="number" min={1} step="0.01" placeholder="optional" value={budget}
                    onChange={(e) => setBudget(e.target.value)} />
           </label>
           <label>
-            exclude diet tags
+            Leave out diet tags
             <input value={excludeTags} onChange={(e) => setExcludeTags(e.target.value)}
                    placeholder="dairy, gluten" />
           </label>
-          <button disabled={busy}>{planning === '__week__' ? 'Planning…' : 'Plan my week'}</button>
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {planning === '__week__' ? 'Planning…' : 'Plan my week'}
+          </button>
         </form>
       </section>
 
-      <p className="or-divider">
-        …or plan one of the library recipes, priced at stores near the shopping location within
-        the distance above (with the server default and no distance, catalog prices without stores):
-      </p>
-      <section className="recipes">
-        {recipes.map((r) => (
-          <article key={r.slug} className={`card ${plan?.recipe_slug === r.slug ? 'card-active' : ''}`}>
-            <h3>{r.name}</h3>
-            <p className="card-sub">serves {r.servings} · {r.ingredients.length} ingredients</p>
-            <p className="card-ings">{r.ingredients.map((i) => i.name).join(', ')}</p>
-            <button onClick={() => void onPlanRecipe(r.slug)} disabled={busy}>
-              {planning === r.slug ? 'Planning…' : 'Plan shopping'}
-            </button>
-          </article>
-        ))}
+      <section aria-labelledby={libraryId}>
+        <h2 id={libraryId} className="ws-section-title">Plan a recipe from the library</h2>
+        <p className="card-sub">
+          Priced at stores near the shopping place above, within its distance; with the server
+          default and no distance, at catalog prices without stores.
+        </p>
+        <ul className="recipes">
+          {recipes.map((r) => (
+            <li key={r.slug} className={`card${plan?.recipe_slug === r.slug ? ' card-active' : ''}`}>
+              <h3 className="card-title">{r.name}</h3>
+              <p className="card-sub">serves {r.servings} · {r.ingredients.length} ingredients</p>
+              <p className="card-ings">{r.ingredients.map((i) => i.name).join(', ')}</p>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => void onPlanRecipe(r.slug)}
+                      disabled={busy}>
+                {planning === r.slug ? 'Planning…' : 'Plan shopping'}<span className="sr-only"> for {r.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <ErrorBanner error={planError && `Planning failed: ${planError}`}

@@ -1,5 +1,6 @@
-// "Open in Meal plan" for the Planner's week of dinners: each dinner on its own day from the
-// plan's first day, as one undo step, opened on the plan's Place on days stage. A plan that already has meals is never replaced without
+// "Open in your plan" for the Planner lab's week of dinners: each dinner on its own day from the
+// plan's first day, as one undo step, opened on the plan's Place on days stage. ("Your plan" is the
+// navigation's word for that page.) A plan that already has meals is never replaced without
 // asking: the shopper chooses a new plan or adding to the current one.
 import { useRef, useState } from 'react';
 
@@ -9,6 +10,7 @@ import { todayIn } from '../mealplan/dates';
 import { useMealPlan } from '../mealplan/store';
 import { stepHash } from '../mealplan/wizard';
 import type { WeekPlan } from '../types';
+import { Icon } from './icons';
 import { InlineConfirm } from './InlineConfirm';
 
 const newId = () => (typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
@@ -39,7 +41,7 @@ export function OpenInMealPlan({ week }: { week: WeekPlan }) {
 
   if (asking) {
     return (
-      <InlineConfirm question="Your meal plan has meals already." returnFocus={trigger}
+      <InlineConfirm question="Your plan has meals already." returnFocus={trigger}
                      choices={[
                        { label: 'Add these dinners', onClick: () => open('add') },
                        { label: 'Start a new plan', onClick: () => open('replace'), tone: 'secondary' },
@@ -48,13 +50,13 @@ export function OpenInMealPlan({ week }: { week: WeekPlan }) {
     );
   }
   return (
-    <span className="row-gap">
-      <button ref={trigger} type="button" className="secondary mini"
+    <span className="open-plan">
+      <button ref={trigger} type="button" className="btn btn-secondary btn-sm"
               onClick={() => (hasMeals ? setAsking(true) : open('replace'))}
               title="Each dinner on its own day, with trips, freshness and nutrition">
-        Open in Meal plan
+        Open in your plan
       </button>
-      {problem && <span className="cart-flag">{problem}</span>}
+      {problem && <span className="open-plan-problem" role="alert"><Icon name="alert" size={16} />{problem}</span>}
     </span>
   );
 }

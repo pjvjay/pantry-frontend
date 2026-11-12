@@ -3,12 +3,12 @@ import type { RefObject } from 'react';
 import { StateTag } from '../components/evidence';
 import { dur } from '../components/flow';
 import { Icon } from '../components/icons';
-import { HubErrorBanner, Skeleton } from '../components/ui';
+import { HubErrorBanner, ScrollRegion, Skeleton, StatRow, StatTile } from '../components/ui';
 import { useRowNav } from '../components/useRowNav';
 import { getMetrics, traceList } from '../hub';
 import { hrefFor } from '../routes';
 import type { Metrics, MetricsRow, TraceSummary } from '../types';
-import { figureColumns, runStatus, traceOf } from '../workshop';
+import { figureColumns, newestFirst, runStatus, traceOf, whenText } from '../workshop';
 import { RunDrawer } from './RunView';
 
 // Every layer of the Assistant's workflow, measured: the models (tokens, cache, rates, time to
@@ -16,14 +16,17 @@ import { RunDrawer } from './RunView';
 // observers, the online evals, the browser (web vitals, API calls, the chat stream) and the hub's
 // HTTP routes, rolled up from recent turns; and each turn's trace as a waterfall.
 //
-// The recent turns come first, as a grid of rows the keyboard walks (components/useRowNav.ts):
-// Enter opens the run in a drawer over this page (RunView.tsx). The drawer is in the address
+// The recent turns come first, newest first by when each began (workshop.ts newestFirst), as a grid
+// of rows the keyboard walks (components/useRowNav.ts): Enter opens the run in a drawer over this
+// page (RunView.tsx). On a phone the grid keeps the question, its state and its time, with when it
+// was asked under the question; the model, the steps, the tokens and the confidence are in the
+// run's drawer. The drawer is in the address
 // (#/workshop/metrics?trace=<id>), so a run can be linked to (the Assistant's "Run details" does)
 // and the browser's Back closes it. Closed by its own way back, a drawer this page opened takes
 // its history entry with it (history.back()), so Back afterwards leaves Metrics; one that came in
 // by its address is replaced by Metrics' own address instead, so Back still goes where the shopper
-// came from. Figures sit right-aligned in equal widths; a long table scrolls in its own box under a
-// head that stays.
+// came from. Figures sit right-aligned in equal widths; a long or wide table scrolls in its own box
+// (ScrollRegion: a stop for the keyboard while it does), a long one under a head that stays.
 
 const fmt = (key: string, v: unknown): string => {
   if (v == null) return '–';
@@ -54,9 +57,8 @@ function Table({ rows, keys, label }: { rows: MetricsRow[]; keys?: string[]; lab
   const figures = figureColumns(rows, cols);
   const tall = rows.length > TALL;
   return (
-    // a box that scrolls is a stop for the keyboard too, so it can be scrolled without a mouse
-    <div className={`table-wrap${tall ? ' tall' : ''}`} {...(tall ? { tabIndex: 0, role: 'region', 'aria-label': label } : {})}>
-      <table className="metrics-table" aria-label={tall ? undefined : label}>
+    <ScrollRegion label={label} className={tall ? 'table-scroll ws-tall' : 'table-scroll'}>
+      <table className={tall ? 'table table-sticky' : 'table'} aria-label={label}>
         <thead>
           <tr>{cols.map((k) => <th key={k} className={figures.has(k) ? 'num' : undefined}>{LABELS[k] ?? k.replace(/_/g, ' ')}</th>)}</tr>
         </thead>
@@ -66,8 +68,14 @@ function Table({ rows, keys, label }: { rows: MetricsRow[]; keys?: string[]; lab
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
+}
+
+// "Wed 11 Nov, 10:54 AM" on two lines, the day over the time, so the column stays narrow.
+function When({ at }: { at: string }) {
+  const [day, time] = whenText(at).split(', ');
+  return <><span className="turns-day">{day}</span>{time && <span className="turns-time">{time}</span>}</>;
 }
 
 function RecentTurns({ traces, onOpen, open, rowsOut }: {
@@ -85,27 +93,31 @@ function RecentTurns({ traces, onOpen, open, rowsOut }: {
     return <p className="muted">No Assistant turns yet. Ask a question under Ask, and its run shows here.</p>;
   }
   return (
-    <div className="table-wrap tall">
+    // the rows are the keyboard's way in and out (one Tab stop), so the box needs no stop of its own
+    <div className="table-scroll ws-tall">
       <p id={hint} className="sr-only">Up and Down move along the runs; Enter opens one.</p>
-      <table className="metrics-table ws-grid turns" role="grid" aria-label="Recent turns" aria-describedby={hint}>
+      <table className="table table-sticky ws-grid turns" role="grid" aria-label="Recent turns" aria-describedby={hint}>
         <thead>
           <tr>
-            <th>When</th><th>Question</th><th>Model and toolset</th><th>Status</th>
-            <th className="num">Time</th><th className="num">Steps</th><th className="num">Tokens in / out</th>
-            <th className="num">Confidence</th>
+            <th className="col-wide">When</th><th>Question</th><th className="col-wide">Model and toolset</th><th>Status</th>
+            <th className="num">Time</th><th className="num col-wide">Steps</th>
+            <th className="num col-wide">Tokens in / out</th><th className="num col-wide">Confidence</th>
           </tr>
         </thead>
         <tbody>
           {traces.map((t) => (
             <tr key={t.id} {...grid.rowProps(t.id)} className={open === t.id ? 'row-active' : undefined}>
-              <td className="figures">{new Date(t.started_at).toLocaleTimeString()}</td>
-              <td className="msg turns-q">{t.message}</td>
-              <td className="turns-model"><code>{t.model}</code><span className="muted">{t.disclosure} toolset</span></td>
+              <td className="col-wide"><When at={t.started_at} /></td>
+              <td className="turns-q">
+                <span className="turns-q-text">{t.message}</span>
+                <span className="turns-when">{whenText(t.started_at)}</span>
+              </td>
+              <td className="col-wide turns-model"><code>{t.model}</code><span className="muted">{t.disclosure} toolset</span></td>
               <td><StateTag state={runStatus(t.status)} /></td>
               <td className="num">{dur(t.wall_ms)}</td>
-              <td className="num">{t.steps}</td>
-              <td className="num">{(t.input_tokens ?? 0).toLocaleString()} / {(t.output_tokens ?? 0).toLocaleString()}</td>
-              <td className="num">{fmt('answer_confidence', t.answer_confidence)}</td>
+              <td className="num col-wide">{t.steps}</td>
+              <td className="num col-wide">{(t.input_tokens ?? 0).toLocaleString()} / {(t.output_tokens ?? 0).toLocaleString()}</td>
+              <td className="num col-wide">{fmt('answer_confidence', t.answer_confidence)}</td>
             </tr>
           ))}
         </tbody>
@@ -171,7 +183,7 @@ export default function MetricsView() {
 
   const load = useCallback(() => {
     Promise.all([getMetrics(), traceList(50)])
-      .then(([m, t]) => { setMetrics(m); setTraces(t); setError(''); })
+      .then(([m, t]) => { setMetrics(m); setTraces(newestFirst(t)); setError(''); })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoaded(true));
   }, []);
@@ -179,10 +191,10 @@ export default function MetricsView() {
 
   const b = metrics?.browser;
   return (
-    <div className="view metrics">
-      <section className="panel">
-        <div className="plan-header">
-          <h2>Metrics</h2>
+    <div className="view ws-stack">
+      <section className="card">
+        <div className="card-head">
+          <h2 className="card-title">Metrics</h2>
           <button type="button" className="btn btn-secondary btn-sm" onClick={load}>
             <Icon name="refresh" size={16} />Refresh
           </button>
@@ -199,18 +211,18 @@ export default function MetricsView() {
       <HubErrorBanner error={error} />
       {/* everything below arrives at once: sections filling in one by one moved the ones under
           them (a layout shift of 0.22 on this page) */}
-      {!loaded && <section className="panel"><Skeleton kind="row" count={8} label="Loading metrics" /></section>}
+      {!loaded && <section className="card"><Skeleton kind="row" count={8} label="Loading metrics" /></section>}
       {loaded && !error && (
-        <section className="panel" aria-labelledby={turnsId}>
-          <h3 id={turnsId} ref={heading} tabIndex={-1} className="metrics-turns-h">Recent turns</h3>
+        <section className="card" aria-labelledby={turnsId}>
+          <h3 id={turnsId} ref={heading} tabIndex={-1} className="card-title metrics-turns-h">Recent turns</h3>
           <p className="card-sub">Each Assistant run, newest first. Open one for its timeline, steps, tool calls and checks.</p>
           <RecentTurns traces={traces} onOpen={openRun} open={open} rowsOut={rowOf} />
         </section>
       )}
       {metrics && (
         <>
-          <section className="panel">
-            <h3>Models</h3>
+          <section className="card">
+            <h3 className="card-title">Models</h3>
             <Table label="Models" rows={metrics.models} keys={['model', 'turns', 'answered_share', 'answer_confidence',
               'turn_p50_ms', 'turn_p95_ms', 'steps_per_turn', 'step_p50_ms', 'ttft_p50_ms', 'queued_p95_ms',
               'read_tok_s', 'write_tok_s', 'cached_share', 'prompt_tokens_p50', 'tokens_in_per_turn',
@@ -221,34 +233,43 @@ export default function MetricsView() {
               Prices: <a href={metrics.prices_source.split(' ')[0]} target="_blank" rel="noreferrer">{metrics.prices_source}</a>
             </p>
           </section>
-          <section className="panel">
-            <h3>MCP tools and the gateway</h3>
+          <section className="card">
+            <h3 className="card-title">MCP tools and the gateway</h3>
             <Table label="MCP tools and the gateway" rows={metrics.tools} />
           </section>
-          <section className="panel">
-            <h3>Online evals</h3>
+          <section className="card">
+            <h3 className="card-title">Online evals</h3>
             <Table label="Online evals" rows={metrics.evals} />
           </section>
           <div className="grid-2">
-            <section className="panel">
-              <h3>pantry pipeline steps</h3>
+            <section className="card">
+              <h3 className="card-title">pantry pipeline steps</h3>
               <Table label="pantry pipeline steps" rows={metrics.pantry_steps} />
             </section>
-            <section className="panel">
-              <h3>Observers that fired</h3>
+            <section className="card">
+              <h3 className="card-title">Observers that fired</h3>
               <Table label="Observers that fired" rows={metrics.observers} />
             </section>
           </div>
-          <section className="panel">
-            <h3>Browser</h3>
+          <section className="card">
+            <h3 className="card-title">Browser</h3>
             {b && (
-              <p className="card-sub figures">
-                page loads {String(b.page_loads)}: first byte p50 {fmt('_ms', b.page_ttfb_p50_ms)}, LCP p50 {fmt('_ms', b.lcp_p50_ms)},
-                INP p95 {fmt('_ms', b.inp_p95_ms)}, CLS max {fmt('x', b.cls_max)}, long tasks {String(b.long_tasks)} ·
-                chat turns {String(b.chat_turns)}: first byte p50 {fmt('_ms', b.ttfb_p50_ms)}, first event p50{' '}
-                {fmt('_ms', b.first_event_p50_ms)}, stream lag p95 {fmt('_ms', b.stream_lag_p95_ms)}, render p95{' '}
-                {fmt('_ms', b.render_p95_ms)}
-              </p>
+              <>
+                <p className="card-sub">Page loads, then the Assistant's chat turns, as this browser measured them.</p>
+                <StatRow className="metrics-browser">
+                  <StatTile label="Page loads" value={fmt('n', b.page_loads)} />
+                  <StatTile label="First byte p50" value={fmt('_ms', b.page_ttfb_p50_ms)} />
+                  <StatTile label="LCP p50" value={fmt('_ms', b.lcp_p50_ms)} />
+                  <StatTile label="INP p95" value={fmt('_ms', b.inp_p95_ms)} />
+                  <StatTile label="CLS max" value={fmt('x', b.cls_max)} />
+                  <StatTile label="Long tasks" value={fmt('n', b.long_tasks)} />
+                  <StatTile label="Chat turns" value={fmt('n', b.chat_turns)} />
+                  <StatTile label="Chat first byte p50" value={fmt('_ms', b.ttfb_p50_ms)} />
+                  <StatTile label="First event p50" value={fmt('_ms', b.first_event_p50_ms)} />
+                  <StatTile label="Stream lag p95" value={fmt('_ms', b.stream_lag_p95_ms)} />
+                  <StatTile label="Render p95" value={fmt('_ms', b.render_p95_ms)} />
+                </StatRow>
+              </>
             )}
             {Array.isArray(b?.cls_sources) && (b.cls_sources as MetricsRow[]).length > 0 && (
               <>
@@ -258,8 +279,8 @@ export default function MetricsView() {
             )}
             <Table label="The browser's API calls" rows={b?.api ?? []} />
           </section>
-          <section className="panel">
-            <h3>Hub HTTP</h3>
+          <section className="card">
+            <h3 className="card-title">Hub HTTP</h3>
             <Table label="Hub HTTP" rows={metrics.hub_http} />
           </section>
         </>

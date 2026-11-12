@@ -1,8 +1,10 @@
 // The Assistant's meal-plan draft (pantry's plan_meals) as a card: the days as a strip, what
-// Apply changes in the shopper's Meal plan, the dishes that wait for the shopper's word (Use /
-// Not this), the suggested trips, and Apply (one undo step) and Open in Meal plan. Nothing here
-// approves a trip: that is the shopper's, in the Meal plan.
+// adding it changes in the shopper's plan, the dishes that wait for the shopper's word (Use /
+// Not this), the suggested trips, and Add to your plan (one undo step) and Open your plan. It
+// says "your plan", the navigation's own word for that page. Nothing here approves a trip: that
+// is the shopper's, in their plan.
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 
 import {
   applyDraft, asMealPlan, current, draftDiff, endOf, stripDays, tripText,
@@ -13,6 +15,16 @@ import { useMealPlan } from '../mealplan/store';
 import { stepHash } from '../mealplan/wizard';
 import type { PlanCardData } from '../types';
 import { Icon } from './icons';
+
+// A warning in the card: the alert glyph beside the words, so it never rests on their colour.
+function Flag({ children, alert = false }: { children: ReactNode; alert?: boolean }) {
+  return (
+    <p className="mpc-flag" role={alert ? 'alert' : undefined}>
+      <Icon name="alert" size={16} />
+      <span>{children}</span>
+    </p>
+  );
+}
 
 const SLOT_WORD: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
 
@@ -92,18 +104,18 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
     }
     setProblem(null);
     setResult({ said: out.said, skipped: out.skipped, diff });
-    mp.announce(`${out.said} Undo is in the Meal plan.`);
+    mp.announce(`${out.said} Undo is in your plan.`);
   };
 
   return (
-    <section className="cart mpc-card" aria-label={`Meal plan draft: ${plan.days} days from ${dayLabel(plan.start_date)}`}>
+    <section className="card cart" data-draft aria-label={`Draft plan: ${plan.days} days from ${dayLabel(plan.start_date)}`}>
       <div className="cart-head">
         <div>
-          <div className="cart-title">Meal plan draft</div>
-          <div className="muted">
+          <div className="cart-title">Draft plan</div>
+          <div className="card-sub">
             {plan.days} days from {dayLabel(plan.start_date)} · {newMeals} new meal{newMeals === 1 ? '' : 's'} · each serves {plan.household_servings}
           </div>
-          {card.label && <span className="chip chip-muted mpc-label">{card.label}</span>}
+          {card.label && <span className="chip mpc-label">{card.label}</span>}
         </div>
         <div className="cart-total" title="The suggested trips' total (demo prices)">{total}</div>
       </div>
@@ -111,10 +123,10 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
       <Strip plan={plan} />
 
       <div className="mpc-section">
-        <h4>{result ? 'Applied to your Meal plan' : 'What Apply changes in your Meal plan'}</h4>
+        <h4>{result ? 'Added to your plan' : 'What it adds to your plan'}</h4>
         {!fresh && !result && (
-          <p className="cart-flag">Your Meal plan changed since this draft: each change is tried
-            in turn, and a meal whose slot is taken waits for a free one.</p>
+          <Flag>Your plan changed since this draft: each change is tried in turn, and a meal whose
+            slot is taken waits for a free one.</Flag>
         )}
         {(result?.diff ?? diff).length
           ? <ul className="mpc-diff">{(result?.diff ?? diff).map((line) => <li key={line}>{line}</li>)}</ul>
@@ -168,27 +180,29 @@ export function MealPlanCard({ card }: { card: PlanCardData }) {
             ))}
           </ul>
         ) : <p className="muted">No trips yet.</p>}
-        <p className="muted">Demo prices. Only you approve a trip, in the Meal plan.</p>
+        <p className="muted">Demo prices. Only you approve a trip, in your plan.</p>
         {plan.nutrition && <p className="muted mpc-nutrition">{plan.nutrition}</p>}
         {plan.warnings.length > 0 && (
-          <ul className="mpc-warnings">{plan.warnings.map((w) => <li key={w} className="cart-flag">{w}</li>)}</ul>
+          <ul className="mpc-warnings">
+            {plan.warnings.map((w) => <li key={w}><Icon name="alert" size={16} /><span>{w}</span></li>)}
+          </ul>
         )}
       </div>
 
       <div className="cart-foot mpc-actions">
         {result ? (
           <p role="status" className="mpc-applied">
-            Applied: {result.said}{result.skipped.length > 0 && ` Not applied: ${result.skipped.join('; ')}.`} Undo is in the Meal plan.
+            Added: {result.said}{result.skipped.length > 0 && ` Not added: ${result.skipped.join('; ')}.`} Undo is in your plan.
           </p>
         ) : (
           <button type="button" className="btn btn-primary" onClick={apply}
-                  title={waiting ? `${waiting} dish(es) wait for your Use or Not this; Apply leaves them out` : undefined}>
-            Apply to my Meal plan
+                  title={waiting ? `${waiting} dish(es) wait for your Use or Not this; adding leaves them out` : undefined}>
+            Add to your plan
           </button>
         )}
         {/* the plan's Place on days stage: the draft's meals on their days */}
-        <a className="btn btn-secondary" href={stepHash(4)}>Open in Meal plan</a>
-        {problem && <p className="cart-flag" role="alert">Not applied: {problem}.</p>}
+        <a className="btn btn-secondary" href={stepHash(4)}>Open your plan</a>
+        {problem && <Flag alert>Not added: {problem}.</Flag>}
       </div>
     </section>
   );

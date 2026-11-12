@@ -5,11 +5,11 @@ import { EvalCard, Reasoning, Waterfall, dur, modelSegments } from '../component
 import { Icon } from '../components/icons';
 import Markdown from '../components/Markdown';
 import { Sheet } from '../components/Sheet';
-import { Notice, Skeleton } from '../components/ui';
+import { Notice, ScrollRegion, Skeleton, StatRow, StatTile } from '../components/ui';
 import { runDetail } from '../hub';
 import { useHubStatus } from '../hubStatus';
 import type { BurrRun, GatewayTrace, RunDetail, Span } from '../types';
-import { runStatus } from '../workshop';
+import { runStatus, whenText } from '../workshop';
 
 // One Assistant run as every system saw it, on one clock, in a drawer over Workshop › Metrics (the
 // drawer preset of components/Sheet.tsx):
@@ -23,7 +23,10 @@ import { runStatus } from '../workshop';
 // The drawer's header stays in view whatever the body shows: the way back to Metrics, the question
 // the run answered, its model and state, and the raw JSON. So a run that cannot be read (gone, or
 // the hub is off) still says which run it was and has the way back and a Try again, rather than a
-// lone red banner where the page was. Wide tables scroll in their own box, never the drawer.
+// lone red banner where the page was. Wide tables scroll in their own box, never the drawer. Its
+// figures are StatTiles; a figure this run's model does not report (a cloud model says nothing of
+// its reading, writing or queueing) is left out and said once, rather than drawn as a dash that
+// looks like missing data.
 
 const num = (v: unknown) => (typeof v === 'number' ? v : 0);
 const fmtN = (v: unknown, digits = 0) => (typeof v === 'number' ? v.toLocaleString(undefined, {
@@ -67,7 +70,7 @@ function TimeBudget({ spans, wall }: { spans: Span[]; wall: number }) {
   const parts = budget(spans, wall);
   const total = parts.reduce((a, b) => a + b.ms, 0) || 1;
   return (
-    <div className="budget">
+    <div className="budget" role="group" aria-label="Where the time went">
       <div className="budget-bar" aria-hidden="true">
         {parts.map((p) => (
           <span key={p.key} className={`budget-${p.key}`} style={{ width: `${(100 * p.ms) / total}%` }}
@@ -90,8 +93,8 @@ function ModelSteps({ spans }: { spans: Span[] }) {
   const steps = spans.filter((s) => s.kind === 'model').sort((a, b) => a.start_ms - b.start_ms);
   if (!steps.length) return <p className="muted">No model steps.</p>;
   return (
-    <div className="table-wrap">
-      <table className="metrics-table">
+    <ScrollRegion label="Model steps" className="table-scroll">
+      <table className="table">
         <thead><tr>
           <th>Step</th><th className="num">Tool calls</th><th className="num">Prompt tokens</th><th className="num">New (est.)</th>
           <th className="num">Cached</th><th className="num">Reading</th><th className="num">Read tok/s</th>
@@ -133,7 +136,7 @@ function ModelSteps({ spans }: { spans: Span[] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }
 
@@ -145,8 +148,8 @@ function GatewayCard({ g }: { g: GatewayTrace }) {
         <strong>ContextForge</strong> <code>{g.name}</code> · HTTP {g.http_status} · {g.status} · <span className="figures">{dur(g.duration_ms ?? null)}</span>
         <span className="muted"> trace {g.trace_id}</span>
       </div>
-      <div className="table-wrap">
-        <table className="metrics-table compact">
+      <ScrollRegion label={`ContextForge's spans for ${g.name}`} className="table-scroll">
+        <table className="table">
           <thead><tr><th>Span</th><th className="num">At</th><th className="num">Took</th><th>Status</th><th>Attributes</th></tr></thead>
           <tbody>
             {(g.spans ?? []).map((s, i) => (
@@ -157,7 +160,7 @@ function GatewayCard({ g }: { g: GatewayTrace }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     </div>
   );
 }
@@ -172,8 +175,8 @@ function BurrCard({ b, toolStart }: { b: BurrRun; toolStart: number }) {
       </div>
       {b.note && <p className="muted">{b.note}</p>}
       {b.steps.length > 0 && (
-        <div className="table-wrap">
-          <table className="metrics-table compact">
+        <ScrollRegion label={`pantry's steps in ${b.app_id}`} className="table-scroll">
+          <table className="table">
             <thead><tr><th>Action</th><th className="num">At (in the call)</th><th className="num">Took</th><th>Result</th><th>State it changed</th><th><span className="sr-only">State</span></th></tr></thead>
             <tbody>
               {b.steps.map((s) => [
@@ -191,12 +194,14 @@ function BurrCard({ b, toolStart }: { b: BurrRun; toolStart: number }) {
                   )}</td>
                 </tr>,
                 open === s.sequence_id && (
-                  <tr key={`${s.sequence_id}-state`}><td colSpan={6}><pre className="run-pre">{json(s.changed)}</pre></td></tr>
+                  <tr key={`${s.sequence_id}-state`}><td colSpan={6}>
+                    <ScrollRegion label={`The state ${s.action} changed`} className="run-pre"><pre>{json(s.changed)}</pre></ScrollRegion>
+                  </td></tr>
                 ),
               ])}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       )}
     </div>
   );
@@ -222,9 +227,15 @@ function ToolCalls({ detail }: { detail: RunDetail }) {
                 {' '}· result {fmtN(a.result_chars)} chars, the model read {fmtN(a.model_chars)}
               </span>
             </div>
-            <details><summary>Arguments</summary><pre className="run-pre">{json(a.arguments)}</pre></details>
+            <details>
+              <summary>Arguments</summary>
+              <ScrollRegion label={`The arguments of ${String(a.tool ?? t.name)}`} className="run-pre"><pre>{json(a.arguments)}</pre></ScrollRegion>
+            </details>
             {typeof a.preview === 'string' && (
-              <details><summary>Result preview</summary><pre className="run-pre">{a.preview}</pre></details>
+              <details>
+                <summary>Result preview</summary>
+                <ScrollRegion label={`What ${String(a.tool ?? t.name)} returned`} className="run-pre"><pre>{a.preview}</pre></ScrollRegion>
+              </details>
             )}
             {gateway && <GatewayCard g={gateway} />}
             {burr && <BurrCard b={burr} toolStart={t.start_ms} />}
@@ -242,8 +253,8 @@ function Disclosure({ spans }: { spans: Span[] }) {
     .sort((a, b) => a.at_ms - b.at_ms);
   if (!events.length) return <p className="muted">No observers fired (or every tool was offered from the start).</p>;
   return (
-    <div className="table-wrap">
-      <table className="metrics-table compact">
+    <ScrollRegion label="Observers and tools offered" className="table-scroll">
+      <table className="table">
         <thead><tr><th className="num">At</th><th>Where</th><th>What</th><th>Detail</th></tr></thead>
         <tbody>
           {events.map((e, i) => {
@@ -261,7 +272,7 @@ function Disclosure({ spans }: { spans: Span[] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }
 
@@ -284,18 +295,28 @@ function RunBody({ detail }: { detail: RunDetail }) {
   const models = t.spans.filter((s) => s.kind === 'model');
   const sum = (k: string) => models.reduce((acc, s) => acc + num(s.attrs[k]), 0);
   const queued = models.reduce((acc, s) => acc + (modelSegments(s.attrs).find((x) => x.kind === 'queued')?.ms ?? 0), 0);
-  const kpis: [string, string][] = [
-    ['time', dur(t.wall_ms)], ['steps', String(t.steps)],
-    ['tokens in / out', `${fmtN(t.input_tokens)} / ${fmtN(t.output_tokens)}`],
-    ['reading', dur(sum('prompt_s') * 1000 || null)], ['writing', dur(sum('gen_s') * 1000 || null)],
-    ['queued', dur(queued || null)], ['tool calls', String(t.spans.filter((s) => s.kind === 'tool').length)],
-    ['cost (paid list)', money(t.cost_usd)], ['confidence', pct(t.evals?.answer_confidence)],
-  ];
+  // what only a local model reports: none of it, for a cloud model
+  const reading = sum('prompt_s') * 1000;
+  const writing = sum('gen_s') * 1000;
+  const unreported = !reading && !writing && !queued && models.length > 0;
   return (
     <div className="run-body">
-      <dl className="kpis">
-        {kpis.map(([k, v]) => <div key={k} className="kpi"><dt className="kpi-k">{k}</dt><dd className="kpi-v">{v}</dd></div>)}
-      </dl>
+      <StatRow className="run-figures">
+        <StatTile label="Time" value={dur(t.wall_ms)} />
+        <StatTile label="Steps" value={t.steps} />
+        <StatTile label="Tokens in / out" value={`${fmtN(t.input_tokens)} / ${fmtN(t.output_tokens)}`} />
+        {reading > 0 && <StatTile label="Reading" value={dur(reading)} />}
+        {writing > 0 && <StatTile label="Writing" value={dur(writing)} />}
+        {queued > 0 && <StatTile label="Queued" value={dur(queued)} />}
+        <StatTile label="Tool calls" value={t.spans.filter((s) => s.kind === 'tool').length} />
+        <StatTile label="Cost (paid list)" value={money(t.cost_usd)} />
+        {t.evals?.answer_confidence != null && <StatTile label="Confidence" value={pct(t.evals.answer_confidence)} />}
+      </StatRow>
+      {unreported && (
+        <p className="muted run-unreported">
+          How long the model spent reading, writing and waiting in its queue is not reported by this model.
+        </p>
+      )}
       <Section title="Where the time went">
         <TimeBudget spans={t.spans} wall={num(t.wall_ms)} />
         <p className="muted">
@@ -323,12 +344,13 @@ function RunBody({ detail }: { detail: RunDetail }) {
       </div>
       {t.browser && (
         <Section title="Browser">
-          <dl className="kpis">
-            {Object.entries(t.browser).filter(([k]) => k.endsWith('_ms') || k === 'events').map(([k, v]) => (
-              <div key={k} className="kpi"><dt className="kpi-k">{k.replace(/_ms$/, '').replace(/_/g, ' ')}</dt>
-                <dd className="kpi-v">{k.endsWith('_ms') ? dur(v as number) : String(v)}</dd></div>
-            ))}
-          </dl>
+          <StatRow>
+            {Object.entries(t.browser).filter(([k]) => k.endsWith('_ms') || k === 'events').map(([k, v]) => {
+              const name = k.replace(/_ms$/, '').replace(/_/g, ' ');
+              return <StatTile key={k} label={name[0].toUpperCase() + name.slice(1)}
+                               value={k.endsWith('_ms') ? dur(v as number) : String(v)} />;
+            })}
+          </StatRow>
         </Section>
       )}
       {answer && (
@@ -372,14 +394,14 @@ export function RunDrawer({ id, onClose, returnFocus }: {
       <span className="run-head-q">“{t.message}”</span>
       <span className="run-head-meta">
         <StateTag state={runStatus(t.status)} />
-        <span><code>{t.model}</code> · {t.target} · {t.disclosure} toolset · {new Date(t.started_at).toLocaleString()}</span>
+        <span><code>{t.model}</code> · {t.target} · {t.disclosure} toolset · {whenText(t.started_at)}</span>
       </span>
     </>
   ) : id ? <span className="run-head-meta"><code>{id}</code></span> : null;
 
   return (
     <Sheet variant="drawer" open={id != null} onClose={onClose} returnFocus={returnFocus}
-           closeLabel="Back to Metrics" title="Run details" description={description} className="run-drawer"
+           closeLabel="Back to Metrics" title="Run details" description={description}
            actions={id && !error ? (
              <a className="btn btn-ghost btn-sm" href={`/hub/runs/${encodeURIComponent(id)}`} target="_blank" rel="noreferrer">
                JSON<Icon name="external" size={16} /><span className="sr-only"> (opens in a new tab)</span>
