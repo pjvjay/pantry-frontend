@@ -13,8 +13,9 @@
 // holds back, else the shopping plan, to approve the trip again.
 //
 // Where pantry-api cannot be reached (a shop's signal), the list opens from the offline copy this
-// browser kept of the trip as last approved (mealplan/offline.ts), with when it was made; the
-// fresh answer takes over the moment it comes.
+// browser kept of the trip as last approved (mealplan/offline.ts), with when it was made, and a
+// trip changed since its approval says what changed, and why, as it does online; the fresh answer
+// takes over the moment it comes.
 //
 // The trip is the one the plan's last schedule answer has on that day: the list approved there,
 // under the way to shop it was approved under, else the day's trip under the way the shopper chose
@@ -199,8 +200,9 @@ export default function InStoreView({ date }: { date: string }) {
   const Sec = severalStores ? 'h4' : 'h3';
   // a product this trip buys against the plan's country rule, named over the list
   const against = trip ? againstRule(rules, shopRows(trip)) : null;
-  // an approved trip pantry-api would now buy differently: what changed, null when nothing did
-  const held = useMemo(() => heldProducts(answer), [answer]);
+  // an approved trip pantry-api would now buy differently: what changed, null when nothing did; the
+  // products the country rule holds back are the answer's, else those the offline copy kept
+  const held = useMemo(() => (answer ? heldProducts(answer) : new Set(copy?.held ?? [])), [answer, copy]);
   const changed = trip?.status === 'needs_review' ? tripChangeText(trip, held) : null;
   // the way on: Check ingredients, where a product the country rule now holds back is answered
   // (the shopping plan waits for it), else the shopping plan, where the trip is approved again

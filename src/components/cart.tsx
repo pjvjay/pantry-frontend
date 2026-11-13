@@ -172,10 +172,10 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
   const share = summary.coverage?.spend_fraction;
   const keptOut = leftOutForOrigin(summary.coverage?.lines_excluded_origin);
   const verified = summary.origin_status === 'verified';
-  // no line's origin is known: said once at the top, not as "origin unclear" on every line
+  // No line's origin is known: the top says so even when there is no share of the spend to give.
+  // Each line still says to check its own label, as every list in the console marks its rows.
   const unclearAll = originAsked && lines.length > 0 && lines.every((l) => !l.origin_country);
-  const notesOf = (l: CartLine) => lineNotes(l, originAsked)
-    .filter((n) => !(unclearAll && n.flag && n.text === 'origin unclear'));
+  const notesOf = (l: CartLine) => lineNotes(l, originAsked);
   const toggle = (key: string) => setGot((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);

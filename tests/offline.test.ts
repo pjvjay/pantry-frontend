@@ -6,8 +6,9 @@ import assert from 'node:assert/strict';
 import {
   OFFLINE_KEY, OFFLINE_MAX_CHARS, copiedAt, copyKey, copyOf, offlineTrip, parseOffline, readOffline, writeOffline,
 } from '../src/mealplan/offline.ts';
-import { instoreView } from '../src/mealplan/shoplist.ts';
+import { heldProducts, instoreView, tripChangeText } from '../src/mealplan/shoplist.ts';
 import type { StorageLike } from '../src/mealplan/persist.ts';
+import type { MealSchedule, PlanWarning, TripDiff } from '../src/types.ts';
 import { D, add, line, planWith, run, schedule, trip } from './helpers/mealplan.ts';
 
 function memory(init: Record<string, string> = {}): StorageLike & { data: Record<string, string> } {
@@ -126,6 +127,66 @@ test('the copy keeps where each product comes from, so the store list still asks
   const broken = JSON.parse(store.data[OFFLINE_KEY]);
   broken.copy.trips[0].lines[0].origin.status = 'probably';
   assert.equal(parseOffline(JSON.stringify(broken)), null);
+});
+
+// A plan approved before the evidence that its chicken is from the United States came in: pantry-api
+// now holds the chicken back (an origin_excluded warning) and the approved trip is changed.
+const heldWarning = (product_id: number): PlanWarning => ({
+  level: 'decide', code: 'origin_excluded', message: 'held back by the origin rule', strategy: null,
+  remedies: [{ op: 'resolve', recipe_key: 'starter:pepperoni_pizza' }], meal_ids: [meal.meal_id], product_id,
+  trip_date: null, recipe_key: 'starter:pepperoni_pizza',
+});
+
+function changedAnswer(rev: number): MealSchedule {
+  const diff: TripDiff = {
+    removed: [{ product_id: 10, name: 'Boneless Skinless Chicken Breast 500g', packs: 1, storage: 'fridge' }],
+    added: [{ product_id: 11, name: 'Chicken Thighs Bone-In 700g', packs: 1, storage: 'fridge' }],
+    changed: [{ product_id: 19, name: 'Whole Milk 1L', packs_before: 1, packs_after: 2, storage: 'fridge' }],
+    text: ['-1 Boneless Skinless Chicken Breast 500g (fridge)', '+1 Chicken Thighs Bone-In 700g (fridge)'],
+  };
+  return {
+    ...schedule(rev, [], [
+      trip(D(1), [line(12, 'Butter')], { status: 'approved', diff: { ...diff, removed: [], added: [], changed: [] } }),
+      trip(D(5), [line(11, 'Chicken Thighs Bone-In 700g'), line(19, 'Whole Milk 1L', { packs: 2 })],
+        { status: 'needs_review', diff }),
+    ]),
+    // 10 is the chicken the changed trip no longer buys; 99 is held back but on no trip of this copy
+    warnings: [heldWarning(10), heldWarning(99)],
+  };
+}
+
+test('a changed trip keeps what changed, and the products the rule held back, so offline its notice reads the same', () => {
+  const s = plan();
+  const answer = changedAnswer(s.draft.rev);
+  const c = copyOf(answer, s.draft, AT);
+  assert.ok(c);
+  assert.deepEqual(c.held, [10], 'only a held product a kept trip no longer buys');
+  assert.equal(c.trips[0].diff, null, 'an approved trip says nothing changed');
+  assert.deepEqual(c.trips[1].diff?.text, [], "the API's own sentences are not kept");
+  const store = memory();
+  assert.equal(writeOffline(store, c), true);
+  const kept = readOffline(store);
+  assert.ok(kept);
+  const online = tripChangeText(answer.strategies[0].trips[1], heldProducts(answer));
+  assert.equal(online, 'Boneless Skinless Chicken Breast 500g is no longer on it: your country rule now leaves it out. '
+    + 'Chicken Thighs Bone-In 700g is new on it. Whole Milk 1L: 2 packs instead of 1.');
+  assert.equal(tripChangeText(offlineTrip(kept, s.draft, D(5))!, new Set(kept.held)), online);
+  // a copy kept before it kept what changed is not the same list: the next answer replaces it
+  const before = { ...c, held: undefined, trips: c.trips.map((t) => ({ ...t, diff: null })) };
+  assert.notEqual(copyKey(before), copyKey(c));
+  assert.equal(copyKey(copyOf(answer, s.draft, '2026-10-09T08:00:00')), copyKey(c), 'the same list, later');
+  // such an older copy is still read, and its notice names nothing it does not have
+  const older = memory();
+  writeOffline(older, before);
+  assert.equal(readOffline(older)?.held, undefined);
+  assert.equal(tripChangeText(offlineTrip(readOffline(older), s.draft, D(5))!, new Set()), '');
+  // a diff or held list this console could not have written makes the copy unreadable
+  const broken = JSON.parse(store.data[OFFLINE_KEY]);
+  broken.copy.trips[1].diff.removed[0].product_id = 'ten';
+  assert.equal(parseOffline(JSON.stringify(broken)), null);
+  const badHeld = JSON.parse(store.data[OFFLINE_KEY]);
+  badHeld.copy.held = ['10'];
+  assert.equal(parseOffline(JSON.stringify(badHeld)), null);
 });
 
 test('a copy larger than the cap is not written, and the one before it is kept', () => {

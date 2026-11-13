@@ -518,19 +518,23 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   const waitsText = shopWaits ? `Not yet: ${shopWaits.text}.` : null;
 
   // The shopping plan can give way to "Not yet" after it is drawn: the basket answers late and
-  // finds an ingredient left to answer (a product the country rule now holds back). The keyboard
-  // was on the plan (the trip Done shopping came back to), so it goes to the way on, and a screen
-  // reader hears why, rather than both being dropped at the top of the page.
+  // finds an ingredient left to answer (a product the country rule now holds back). The page it
+  // replaced was scrolled down to a trip, so it now starts at its top, the reason in view. The
+  // keyboard was on the plan (the trip Done shopping came back to), so it goes to the way on, and a
+  // screen reader hears why, rather than both being dropped at the top of the page.
   const shopDrawn = useRef(false);
   useEffect(() => {
     if (waitsText === null) {
       shopDrawn.current = shop;
       return;
     }
-    const active = document.activeElement;
-    if (shopDrawn.current && (!active || active === document.body)) {
-      document.querySelector<HTMLElement>('.mp-shop-waits a[href]')?.focus();
-      mp.announce(waitsText);
+    if (shopDrawn.current) {
+      window.scrollTo(0, 0);
+      const active = document.activeElement;
+      if (!active || active === document.body) {
+        document.querySelector<HTMLElement>('.mp-shop-waits a[href]')?.focus();
+        mp.announce(waitsText);
+      }
     }
     shopDrawn.current = false;
   }, [waitsText, shop]);

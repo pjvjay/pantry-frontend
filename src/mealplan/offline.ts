@@ -15,11 +15,16 @@
 // tripToShop), and only what in-store mode reads of them, so one plan's copy stays small; one plan is
 // kept, and a copy that would still be larger than OFFLINE_MAX_CHARS is not written at all. A
 // browser that refuses storage simply has no copy: nothing else depends on it.
+//
+// A trip approved and since changed keeps what changed (its diff), and the copy keeps the products
+// the country rule held back among those such a trip no longer buys, so offline its notice says
+// what changed, and why, as it does online (shoplist.ts tripChangeText).
 import { strategyOf, tripToShop } from './board.ts';
 import type { CivilDate } from './dates.ts';
 import { dayLabel } from './dates.ts';
 import type { StorageLike } from './persist.ts';
-import type { MealPlanDraft, MealSchedule, Trip, TripLine, TripStrategy } from '../types.ts';
+import { heldProducts } from './shoplist.ts';
+import type { MealPlanDraft, MealSchedule, Trip, TripDiff, TripDiffLine, TripLine, TripStrategy } from '../types.ts';
 
 export const OFFLINE_KEY = 'pantry.offline.v1';
 // About 200 kB of text: a fortnight's approved trips are a few tens of kB once trimmed.
@@ -31,6 +36,9 @@ export interface OfflineCopy {
   strategy: TripStrategy;          // the way to shop the trips are for
   at: string;                      // when the answer was kept (ISO)
   trips: Trip[];                   // the approved trips, trimmed to what in-store mode reads
+  // the products the country rule held back that a kept trip no longer buys (absent from a copy an
+  // older console kept)
+  held?: number[];
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -58,11 +66,23 @@ function trimLine(ln: TripLine): TripLine {
   };
 }
 
+// A line of what changed, as in-store mode says it: the product, its name, where it is kept and
+// how many packs. The API's own sentences (TripDiff.text) are left out.
+function trimDiffLine(x: TripDiffLine): TripDiffLine {
+  return { product_id: x.product_id, name: x.name, storage: x.storage, packs: x.packs ?? null,
+    packs_before: x.packs_before ?? null, packs_after: x.packs_after ?? null };
+}
+
+const trimDiff = (d: TripDiff): TripDiff => ({ added: d.added.map(trimDiffLine), removed: d.removed.map(trimDiffLine),
+  changed: d.changed.map(trimDiffLine), text: [] });
+
 function trimTrip(t: Trip): Trip {
   return {
     id: t.id, date: t.date, status: t.status, reason: '', lines: t.lines.map(trimLine), dismissed: [], stores: [...t.stores],
     recommended: null, frontier: [], not_stocked: [...t.not_stocked], total_cost: t.total_cost,
-    total_is_floor: t.total_is_floor, price_delta: null, fingerprint: t.fingerprint, diff: null, list_text: '',
+    total_is_floor: t.total_is_floor, price_delta: null, fingerprint: t.fingerprint,
+    // only a trip changed since it was approved says what changed
+    diff: t.status === 'needs_review' && t.diff ? trimDiff(t.diff) : null, list_text: '',
   };
 }
 
@@ -74,22 +94,30 @@ export function copyOf(answer: MealSchedule, d: MealPlanDraft, at: string): Offl
   const days = new Set([...(strategyOf(answer, d.prefs.strategy)?.trips ?? []).map((t) => t.date),
     ...d.trips.map((a) => a.date)]);
   const trips = [...days].sort().map((date) => tripToShop(answer, d, date))
-    .filter((t): t is Trip => t !== null && t.status !== 'suggested');
+    .filter((t): t is Trip => t !== null && t.status !== 'suggested').map(trimTrip);
   if (!trips.length) return null;
-  return { id: d.id, rev: d.rev, strategy: d.prefs.strategy, at, trips: trips.map(trimTrip) };
+  const gone = new Set(trips.flatMap((t) => t.diff?.removed.map((x) => x.product_id) ?? []));
+  const held = [...heldProducts(answer)].filter((id) => gone.has(id)).sort((a, b) => a - b);
+  return { id: d.id, rev: d.rev, strategy: d.prefs.strategy, at, trips, held };
 }
 
 // What makes two copies the same list, without comparing every line in full: the plan, its rev,
-// the way to shop, each trip's own fingerprint and state, and where each line's product comes
-// from. The fingerprint leaves the origin out (evidence that comes in later never asks the shopper
-// to look at an approved trip again), so a copy kept before its lines said where they come from,
-// or before that evidence changed, is replaced by the next answer rather than kept as it is.
+// the way to shop, each trip's own fingerprint and state, where each line's product comes from,
+// which products a changed trip no longer buys or buys anew, and the products the rule held back.
+// The fingerprint leaves the origin out (evidence that comes in later never asks the shopper to
+// look at an approved trip again), so a copy kept before its lines said where they come from, or
+// before that evidence changed, or before the copy kept what changed, is replaced by the next
+// answer rather than kept as it is.
 const originKey = (ln: TripLine) => (ln.origin ? `${ln.origin.status}:${ln.origin.country ?? ''}` : '-');
+const diffKey = (t: Trip) => (t.diff
+  ? [t.diff.removed, t.diff.added, t.diff.changed].map((xs) => xs.map((x) => x.product_id).join('+')).join('/')
+  : '-');
 
 export function copyKey(c: OfflineCopy | null): string {
   if (!c) return '';
   return [c.id, c.rev, c.strategy,
-    ...c.trips.map((t) => `${t.date}:${t.status}:${t.fingerprint}:${t.lines.map(originKey).join(',')}`)].join('|');
+    ...c.trips.map((t) => `${t.date}:${t.status}:${t.fingerprint}:${t.lines.map(originKey).join(',')}:${diffKey(t)}`),
+    `held:${(c.held ?? []).join(',')}`].join('|');
 }
 
 // ─── Reading what was stored ─────────────────────────────────
@@ -118,12 +146,18 @@ function lineOk(x: unknown): boolean {
     && isObj(x.shelf_life) && originOk(x.origin);
 }
 
+// What changed on a stored trip: none, or lines its notice can name.
+const diffLineOk = (x: unknown) => isObj(x) && isNum(x.product_id) && typeof x.name === 'string'
+  && typeof x.storage === 'string' && [x.packs, x.packs_before, x.packs_after].every((n) => n === undefined || numOrNull(n));
+const diffOk = (x: unknown) => x === undefined || x === null
+  || (isObj(x) && [x.added, x.removed, x.changed].every((xs) => Array.isArray(xs) && xs.every(diffLineOk)));
+
 function tripOk(x: unknown): boolean {
   return isObj(x) && typeof x.id === 'string' && typeof x.date === 'string' && DATE.test(x.date)
     && (x.status === 'approved' || x.status === 'needs_review') && Array.isArray(x.stores)
     && x.stores.every((s) => typeof s === 'string') && Array.isArray(x.lines) && x.lines.every(lineOk)
     && numOrNull(x.total_cost) && typeof x.total_is_floor === 'boolean' && typeof x.fingerprint === 'string'
-    && Array.isArray(x.not_stocked);
+    && Array.isArray(x.not_stocked) && diffOk(x.diff);
 }
 
 // The copy in a stored value; null for anything this console did not write, or damaged.
@@ -138,7 +172,8 @@ export function parseOffline(raw: string | null): OfflineCopy | null {
   if (!isObj(data) || data.v !== 1 || !isObj(data.copy)) return null;
   const c = data.copy;
   if (typeof c.id !== 'string' || !c.id || !isNum(c.rev) || !STRATEGIES.includes(c.strategy as TripStrategy)
-    || typeof c.at !== 'string' || Number.isNaN(Date.parse(c.at)) || !Array.isArray(c.trips) || !c.trips.every(tripOk)) {
+    || typeof c.at !== 'string' || Number.isNaN(Date.parse(c.at)) || !Array.isArray(c.trips) || !c.trips.every(tripOk)
+    || !(c.held === undefined || (Array.isArray(c.held) && c.held.every(isNum)))) {
     return null;
   }
   return c as unknown as OfflineCopy;
