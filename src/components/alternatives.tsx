@@ -28,8 +28,8 @@
 import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import {
-  COMPARE_ROWS, altBasketOrigin, compareColumns, coversText, footText, matchingNote, movedText, needText, notOffered,
-  priceLine, reasonOf, reasonsLine, rowGrade, rowGroups, sizeInName, storeText, unitPriceText,
+  COMPARE_ROWS, altBasketOrigin, compareColumns, coversText, footText, heldOrigin, matchingNote, movedText, needText,
+  notOffered, priceLine, reasonOf, reasonsLine, rowGrade, rowGroups, sizeInName, storeText, unitPriceText,
 } from '../alternatives';
 import type { CompareColumn } from '../alternatives';
 import { agentAlternatives } from '../hub';
@@ -145,7 +145,7 @@ function CompareStrip({ cols, holds }: { cols: CompareColumn[]; holds: string })
 }
 
 export function AlternativesDialog({ conversationId, target, blocked, returnFocus, onChoose,
-  onClose, load, loadKey, place = 'cart', description, notice, title, empty, extra, rules = NO_RULES }: {
+  onClose, load, loadKey, place = 'cart', description, notice, title, empty, extra, rules = NO_RULES, heldOpen = false }: {
   conversationId: string | null;
   // null: closed
   target: OptionsTarget | null;
@@ -175,6 +175,9 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
   extra?: ReactNode;
   // the plan's country rules, which each row's origin tag is read against (a meal plan's)
   rules?: CountryRules;
+  // the products the rule left out are listed open: the sheet was opened from a row that says it
+  // left some out (Check ingredients' "Your rule left out …")
+  heldOpen?: boolean;
 }) {
   const [ranking, setRanking] = useState<AlternativeRanking | null>(null);
   const [error, setError] = useState('');
@@ -310,19 +313,20 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
           {extra}
 
           {ranking.held_back.length > 0 && (
-            <details className="alt-held" open={(empty && others === 0 && !current) || undefined}>
-              <summary>
-                {ranking.held_back.length} held back by your origin rule (cannot be chosen here)
-              </summary>
+            <details className="alt-held" open={heldOpen || (empty && others === 0 && !current) || undefined}>
+              <summary>Left out by your rule ({ranking.held_back.length})</summary>
               <ul className="alt-held-list">
                 {ranking.held_back.map((h) => (
                   <li key={h.product_id}>
                     <ProductPicture product={h.product} ingredient={ingredient} />
-                    <span>
-                      <strong>{h.product}</strong>: {h.country}
-                      {h.field === 'conflicting_evidence' ? ' (sources disagree)' : ''}
-                      {h.verbatim && <> — <span className="verbatim">“{h.verbatim}”</span></>}
-                      {h.demo && ' (demo label photo)'}
+                    <span className="alt-held-what">
+                      <strong>{h.product}</strong>
+                      <span className="alt-marks">
+                        <OriginTag words={originTag(heldOrigin(h), rules)} />
+                        {h.field === 'conflicting_evidence' && <span className="muted">its sources disagree</span>}
+                        {h.verbatim && <span className="verbatim">“{h.verbatim}”</span>}
+                        {h.demo && <EvidenceMark kind="checked" word="demo label photo" />}
+                      </span>
                     </span>
                   </li>
                 ))}

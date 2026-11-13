@@ -52,13 +52,13 @@ export function EvidenceMark({ kind, word }: { kind: EvidenceKind; word: string 
 // say it all, a glyph and a tint repeat it: no flags (they are pictures of countries, not words, and
 // many systems draw them as two letters). A screen reader hears "From" before a country. A
 // processing claim's caveat ("ingredients may be imported") follows the pill as quiet words, so the
-// pill stays one short line; compact (in the store) leaves the caveat to the title and to a screen
-// reader.
+// pill stays one short line, and is shown wherever the pill is, the store too: it is why that label
+// is worth reading (a title is out of reach on a phone).
 const ORIGIN_ICON: Record<OriginKind, IconName> = {
   preferred: 'star', country: 'globe', made: 'globe', excluded: 'ban', unclear: 'alert', unknown: 'help',
 };
 
-export function OriginTag({ words, compact = false }: { words: OriginWords; compact?: boolean }) {
+export function OriginTag({ words }: { words: OriginWords }) {
   const caveat = words.kind === 'made' ? words.note : '';
   const pill = (
     <span className={`otag otag-${words.kind}${words.check ? ' otag-check' : ''}`} title={words.label}>
@@ -66,11 +66,10 @@ export function OriginTag({ words, compact = false }: { words: OriginWords; comp
       <span>
         {words.lead && <span className="sr-only">{words.lead}</span>}
         {caveat ? words.text : words.words}
-        {caveat && compact && <span className="sr-only">, {caveat}</span>}
       </span>
     </span>
   );
-  if (!caveat || compact) return pill;
+  if (!caveat) return pill;
   return (
     <span className="otag-with">
       {pill}

@@ -30,7 +30,7 @@ import type { TripLook } from './board.ts';
 import { addDays, dayLabel } from './dates.ts';
 import type { CivilDate } from './dates.ts';
 import { AVOID_LABELS, DIET_LABELS, STRATEGY_NAMES, approvedElsewhere, avoidOf, budgetOf, dietOf } from './model.ts';
-import { countryRules, firstText, hasRules, listOriginText, originListWords, ruleText } from './origin.ts';
+import { againstRule, countryRules, firstText, hasRules, listOriginText, originListWords, ruleText } from './origin.ts';
 import type { CountryRules } from './origin.ts';
 import type {
   ApprovedTrip, BasketOrigin, MealPlanDraft, MealSchedule, StrategyResult, Trip, TripLine, TripStrategy, WarningCounts,
@@ -207,21 +207,26 @@ export function listCountText(lists: readonly TripList[]): string {
 const rowsOf = (lists: readonly TripList[]): ShopRow[] => lists.flatMap((l) => l.sections.flatMap((s) => s.rows));
 
 // The one line over Your list while the plan has country rules: the rule, and how many of the
-// rows shown ask the shopper to read the label in the store ("No US products · 4 to check on the
-// label"); null with no rules.
+// products shown ask the shopper to read the label in the store ("No US products · 4 products to
+// check on the label"); null with no rules.
 export const listOriginNote = (lists: readonly TripList[], rules: CountryRules): string | null =>
-  listOriginText(rules, rowsOf(lists).map((r) => r.origin));
+  listOriginText(rules, rowsOf(lists));
+
+// Any product the list still buys from a country the plan leaves out, said apart from that line
+// ("1 product here is from the United States, against your rule: …"); null when there is none.
+export const listAgainstRule = (lists: readonly TripList[], rules: CountryRules): string | null =>
+  againstRule(rules, rowsOf(lists));
 
 // The list as text, for the clipboard and the printer: the heading, then each trip with its
 // sections and lines, then the total and the demo's notice. While the plan has country rules
-// (rules), the line under the heading says the rule, and each line where its product comes from
-// in a few words ("from Canada", "origin unknown: check the label").
+// (rules), the lines under the heading say the rule and any product against it, and each line
+// where its product comes from in a few words ("from Canada", "origin unknown: check the label").
 //   head: "Shopping list · Thu 12 Nov – Wed 25 Nov · Shop fresh"; total: "Total $214.44"
 export function listText(lists: readonly TripList[], head: string, total: string, notice = '',
   rules: CountryRules | null = null): string {
   const ruled = rules !== null && hasRules(rules) ? rules : null;
-  const note = ruled ? listOriginNote(lists, ruled) : null;
-  const out = note ? [head, note] : [head];
+  const out = [head, ...(ruled ? [listOriginNote(lists, ruled), listAgainstRule(lists, ruled)] : [])]
+    .filter((x): x is string => Boolean(x));
   for (const l of lists) {
     out.push('', `${l.heading} · ${l.cost}`);
     for (const s of l.sections) {

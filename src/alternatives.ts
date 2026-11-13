@@ -7,8 +7,8 @@
 import { countryRules, originTag } from './mealplan/origin.ts';
 import type { CountryRules } from './mealplan/origin.ts';
 import type {
-  AlternativeRanking, AltOrigin, AltReason, BasketOrigin, CartLine, CartSummary, FilteredProduct, MatchGroup, PlanCardData,
-  RankedAlternative,
+  AlternativeRanking, AltOrigin, AltReason, BasketOrigin, CartLine, CartSummary, FilteredProduct, HeldBack, MatchGroup,
+  PlanCardData, RankedAlternative,
 } from './types.ts';
 
 // A product's name with its size, unless the name already says it: "Jasmine Rice 2kg", never
@@ -151,6 +151,14 @@ export function altBasketOrigin(o: AltOrigin): BasketOrigin {
   if (!country) return { country: null, claim: 'Origin unknown', status: 'unknown', preferred_rank: null };
   return { country, claim: o.claim === 'processing' ? `Made in ${country}, ingredients may be imported` : `From ${country}`,
     status: 'evidenced', preferred_rank: null };
+}
+
+// A product the plan's country rule holds back, in the same terms, so its tag names the country its
+// evidence matched, against the rule: made there for a processing claim, from there otherwise.
+// Sources that disagree are said beside the tag (the row's own words), not by it.
+export function heldOrigin(h: HeldBack): BasketOrigin {
+  const made = h.field === 'manufactured_in' || /^made in /i.test(h.verbatim.trim());
+  return { country: h.country, claim: `${made ? 'Made in' : 'From'} ${h.country}`, status: 'evidenced', preferred_rank: null };
 }
 
 // ─── Compare with your pick ──────────────────────────────────

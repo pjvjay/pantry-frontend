@@ -154,9 +154,11 @@
 /* ─── Your list ──────────────────────────────────────────────────────────────────────────── */
 .shop-list-top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
 .shop-list-sum { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--fs-compact); font-variant-numeric: tabular-nums; }
-/* the plan's country rule, and how many labels the list asks the shopper to read */
+/* the plan's country rule, and how many labels the list asks the shopper to read; a product the
+   list buys against the rule is a warning of its own, under the heading */
 .shop-list-origin { display: flex; align-items: flex-start; gap: var(--space-1); margin: var(--space-1) 0 0; font-size: var(--fs-compact); }
 .shop-list-origin .ico { flex: none; margin-top: 1px; color: var(--accent); }
+.shop-list-against { margin-top: var(--space-3); }
 .shop-list-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .shop-list-none { margin: var(--space-3) 0 0; font-size: var(--fs-compact); }
 .shop-trip { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border); }
@@ -334,6 +336,8 @@
 .is-done { min-width: min(100%, 320px); }
 .is-notes { max-width: 52ch; margin: 0; color: var(--muted); font-size: var(--fs-compact); }
 .is-none { margin-top: var(--space-5); height: auto; }
+/* a product this trip buys against the plan's country rule, named over the list */
+.is-against { margin-top: var(--space-4); }
 /* the list from this browser's offline copy, while no answer has come: when it was made */
 .is-offline {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: var(--space-4) 0 0;

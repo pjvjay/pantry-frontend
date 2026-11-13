@@ -145,11 +145,20 @@ test('the shopper\'s own pick that the country rule now leaves out says so above
   const held = { product_id: SALT, product: 'Table Salt 1kg', country: 'United States', field: 'ingredient_origin',
     verbatim: 'Product of USA', source: 'label-photo', demo: true };
   const plan = opts(both, { trip_date: null, pinned: true, ranking: { ...opts([]).ranking, held_back: [held] } });
+  // a skip is no answer to the rule (the trips would still buy a planned product): other meals are
   assert.equal(stockNotice(plan),
     'Table Salt 1kg is from the United States (Product of USA), which your rule leaves out. Choose another product, '
-    + 'or skip this ingredient.');
+    + 'or pick other meals.');
+  assert.equal(stockNotice({ ...plan, trip_date: D(1) }),
+    'Table Salt 1kg is from the United States (Product of USA), which your rule leaves out. Choose another product, '
+    + 'or leave it off the trip.');
   assert.equal(stockNotice({ ...plan, ranking: { ...plan.ranking, held_back: [{ ...held, product_id: 1 }] } }), '',
     'another product held back is not the pick');
+  // held back on only some of its evidence: said as a may-be
+  assert.equal(stockNotice({ ...plan, ranking: { ...plan.ranking, held_back: [{ ...held, country: 'China',
+    field: 'conflicting_evidence', verbatim: 'Product of China' }] } }),
+  'Table Salt 1kg may be from China (its sources disagree: Product of China), which your rule leaves out. Choose another '
+    + 'product, or pick other meals.');
 });
 
 test('after a choice a screen reader hears the trip total from the two answers', () => {
@@ -185,6 +194,16 @@ test('a pin the schedule refuses can be taken off, and nothing else is offered',
     + 'cannot be worked out. Choose another in Check ingredients, or use the planner’s product for that line.');
   assert.equal(heldPinText('pin_invalid', { ...held, unavailable_kind: undefined }, plan.draft, () => ''), null,
     'any other refusal is said as pantry-api said it');
+  // with two countries left out, the product's own country, from the basket's answer for its line;
+  // without that answer, no country is guessed from the rule
+  // (the draft as it is, its rule changed in place: changing it through the plan checks the products again)
+  const two = { ...plan.draft, settings: { ...plan.draft.settings, exclude_origin: ['United States', 'China'] } };
+  assert.match(heldPinText('pin_invalid', held, two, () => 'Pepperoni Pizza') ?? '',
+    /^The product you chose for Salt in Pepperoni Pizza is from a country your rule leaves out, so/);
+  const basket = { recipes: [{ key: PIZZA, lines: [{ line_no: 3, held_back: [{ product_id: SALT, product: 'Table Salt 1kg',
+    country: 'United States', claim: 'Product of USA', field: 'ingredient_origin', store: null, price: null }] }] }] };
+  assert.match(heldPinText('pin_invalid', held, two, () => 'Pepperoni Pizza', basket as never) ?? '',
+    /^The product you chose for Salt in Pepperoni Pizza is from the United States \(Product of USA\), which your rule leaves out, so/);
   assert.equal(heldPinText('stale_product', held, plan.draft, () => ''), null);
   // the fix applies, and the plan has no pin left on that line
   const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1)),

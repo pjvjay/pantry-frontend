@@ -7,13 +7,15 @@
 // ingredients…", no measure yet), then what was found ("33 of 35 found nearby", the bar split into
 // found, skipped and still to answer). Under it, the ingredients the plan cannot buy nearby that
 // still need an answer, pinned at the top as a short task list, each with its answers: another
-// product (its Options), skip this ingredient, or other meals; one sold only at stores the shopper
-// turned off can also turn a store back on. The rest of the recipes' rows stay below, quiet.
+// product (its Options), skip this ingredient (only where that means the plan buys nothing for it:
+// LineView.skippable), or other meals; one sold only at stores the shopper turned off can also turn
+// a store back on. The rest of the recipes' rows stay below, quiet.
 //
 // The origin rule can block the same product in several recipes (the shopper's own pick of a
-// product the rule now leaves out, pinned on every line that buys it). Each line keeps its own task
-// and answers (a skip is one recipe's; another product, chosen in Options, replaces it on every
-// line that buys it), but the reason is said once: a later task says it is the same as the first.
+// product the rule now leaves out, pinned on every line that buys it, or the planner's, chosen for
+// several before its evidence came in). Each line keeps its own task and answers (a skip is one
+// recipe's; another product, chosen in Options, replaces it on every line that buys it), but the
+// reason is said once: a later task says it is the same as the first.
 import type { BasketCounts, LineView, RecipeView } from './basket.ts';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -106,10 +108,19 @@ export function atRiskTasks(recipes: readonly RecipeView[]): AtRisk[] {
     if (line.blockKey && earlier === null) said.set(line.blockKey, r.title);
     return {
       line, recipe: r.title, same: earlier,
-      answers: [...(line.kind === 'stores_off' ? ['stores' as const] : []), 'product' as const, 'skip' as const,
-        'meals' as const],
+      answers: [...(line.kind === 'stores_off' ? ['stores' as const] : []), 'product' as const,
+        ...(line.skippable ? ['skip' as const] : []), 'meals' as const],
     };
   }));
+}
+
+// What the task list's tasks have in common, said over them: the country rule, when it is why none
+// of them can be bought; no store nearby, when it is not why any is; else the plan as it stands.
+export function tasksLede(tasks: readonly Pick<AtRisk, 'line'>[]): string {
+  const these = tasks.length === 1 ? 'this' : 'these';
+  const ruled = tasks.filter((t) => t.line.kind === 'origin_excluded').length;
+  if (ruled && ruled === tasks.length) return `The plan cannot buy ${these} under your country rule.`;
+  return ruled ? `The plan cannot buy ${these} as things stand.` : `The plan cannot buy ${these} near you.`;
 }
 
 // The words on each answer: "Another product" asks Options for one in place of the line's own;

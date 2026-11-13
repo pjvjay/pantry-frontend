@@ -77,7 +77,7 @@ test('Pick meals needs a meal, Check ingredients every product checked and answe
   assert.equal(gate(3, { ...READY, failed: ['Pepperoni Pizza', 'Dal'] }).text,
     'The products for Pepperoni Pizza and Dal could not be checked: try again, or take them out in Pick meals');
   assert.equal(gate(3, { ...READY, unanswered: 2 }).text,
-    'Answer 2 ingredients the plan cannot buy nearby: another product, skip it, or other meals');
+    'Answer 2 ingredients the plan cannot buy as things stand: another product, or other meals');
   assert.equal(gate(3, { ...READY, unanswered: 1 }).state, 'blocked');
   assert.equal(gate(4, READY).state, 'ok');
   assert.deepEqual(gate(5, { ...READY, approved: 0 }),
@@ -123,7 +123,7 @@ test('the progress indicator: done, current and ahead, and a done stage an edit 
   assert.deepEqual(views.map((v) => v.reachable), [true, true, true, true, true, false]);
   assert.ok(views.every((v) => v.attention === null));
   const undone = stepViews(4, { ...READY, unanswered: 1 });
-  assert.equal(undone[2].attention, 'Answer 1 ingredient the plan cannot buy nearby: another product, skip it, or other meals');
+  assert.equal(undone[2].attention, 'Answer 1 ingredient the plan cannot buy as things stand: another product, or other meals');
   assert.deepEqual(undone.map((v) => v.reachable), [true, true, true, false, false, false]);
   assert.ok(views.every((v) => !v.finished));
 });

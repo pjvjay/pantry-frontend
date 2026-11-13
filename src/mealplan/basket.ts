@@ -4,26 +4,26 @@
 // The wizard's Check ingredients stage: every chosen recipe's ingredients as the plan would buy them
 // (/mealplan/basket), each with its product, the store and how far it is, the price, where it is
 // from and its labels. Nothing is worked out here: a fact the basket does not give is unknown.
-// An ingredient the plan cannot buy nearby is said so, with why (only products from a country
-// the plan leaves out, none stocked, none within the distance, only at stores the shopper
-// turned off: then turning one back on is an answer too), and needs an answer before Place on
-// days: other meals (back to Pick meals), another product (its Options), or "skip this
-// ingredient".
+// An ingredient the plan cannot buy nearby is said so, with why (its product, or every product
+// nearby, from a country the plan leaves out; none stocked, none within the distance, only at
+// stores the shopper turned off: then turning one back on is an answer too), and needs an answer
+// before Place on days: other meals (back to Pick meals), another product (its Options), or "skip
+// this ingredient" where skipping means the plan buys nothing for it (LineView.skippable).
 //
 // How sure each row is, in words as well as a mark: how well its product matches the recipe's
 // line (lineGrade: "Same item", "Closest match", "Your choice"). Where each product comes from is
 // its origin tag, measured against the plan's country rules (mealplan/origin.ts); a row the rule
-// changed says what it left out ("Instead of …"), and the stage's header says what the rule did
-// across the basket (originSummary).
+// left something out for says what ("Your rule left out …"), and the stage's header says what the
+// rule did across the basket (originSummary).
 import { GROUP_LABELS, nameWithSize } from '../alternatives.ts';
 import { recipePicture } from './images.ts';
 import type { PictureSource } from './images.ts';
 import { lineKey, mealsOf, recipeTitle } from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
 import {
-  blockKey, countryRules, coveredText, excludedText, insteadOf, originTag, originTally, ruleDid, tallyText,
+  blockKey, countryRules, coveredText, excludedText, leftOutText, originTag, originTally, ruleDid, tallyText,
 } from './origin.ts';
-import type { CountryRules, InsteadOf, OriginWords } from './origin.ts';
+import type { CountryRules, OriginWords } from './origin.ts';
 import type { BasketLine, HeldBackProduct, MealBasket, MealPlanDraft, ResolvedLine, UnavailableKind } from '../types.ts';
 
 const money = (v: number) => `$${v.toFixed(2)}`;
@@ -85,7 +85,7 @@ export function lineGrade(ln: Pick<BasketLine, 'product' | 'pinned'>, picked: Re
 }
 
 // Why an ingredient cannot be bought, as the row and the task list say it. For the origin rule
-// the row's own words are better (lineView: the shopper's pick named, or the countries the products
+// the row's own words are better (lineView: its product named, or the countries the products
 // nearby are from); these are what is known without the line.
 export function unavailableHeading(kind: UnavailableKind | null | undefined, excluded: readonly string[]): string {
   switch (kind) {
@@ -138,8 +138,8 @@ export interface LineView {
   price: string;                   // a pack
   cost: string;                    // this recipe's share, all its meals
   origin: OriginWords;             // where its product comes from, as its tag says it
-  held: HeldBackProduct[];         // what the origin rule left out of it ([] also from an older API)
-  instead: InsteadOf | null;       // the same, said under a row the plan still buys
+  held: HeldBackProduct[];         // what the origin rule left out for it ([] also from an older API)
+  leftOut: string | null;          // the same, said under a row the plan still buys
   blockKey: string | null;         // the product the origin rule blocks it on, to say once (mealplan/check.ts)
   grade: MatchGrade | null;        // how well the product matches the line, null when not known
   labels: string[];
@@ -150,8 +150,14 @@ export interface LineView {
   heading: string;                 // the same, in words
   issue: LineIssue | null;         // what is wrong with the row, null when the plan buys it
   // pantry-api's own reason, '' when it gives none, or when the heading says it in plainer words
-  // (the origin rule's)
+  // (the origin rule's, which names the line's own product)
   why: string;
+  // Skip this ingredient is an answer only where it means the plan buys nothing for the line:
+  // /mealplan/schedule buys what the resolve picked unless no store in range sells it. So not for a
+  // product the origin rule holds back, which the schedule still buys when the planner picked it
+  // (before its evidence came in) and refuses when the shopper did; another product or other meals
+  // answer that, and a skip kept from before is not counted.
+  skippable: boolean;
   skipped: boolean;
   // nothing more to do: sold nearby, skipped by the shopper, or its recipe has no meals now
   answered: boolean;
@@ -174,7 +180,6 @@ function lineView(s: MealPlanState, rules: CountryRules, recipeKey: string, meal
   const p = ln.product;
   const product = p ? nameWithSize(p.name, p.size) : null;
   const k = lineKey(recipeKey, ln.line_no);
-  const skipped = (s.skipped ?? []).includes(k);
   const others = ln.shared_with.filter((x) => x !== recipeKey && s.draft.recipes[x]).map((x) => recipeTitle(s, x));
   const price = ln.price === null ? 'price unknown' : `${money(ln.price)} a pack`;
   const store = storeText(ln);
@@ -185,6 +190,8 @@ function lineView(s: MealPlanState, rules: CountryRules, recipeKey: string, meal
   const picked = s.draft.resolved[recipeKey]?.lines.find((r) => r.line_no === ln.line_no);
   const held = ln.held_back ?? [];
   const ruled = kind === 'origin_excluded';
+  const skippable = !(ruled && p !== null);
+  const skipped = skippable && (s.skipped ?? []).includes(k);
   const heading = ln.available ? ''
     : ruled ? excludedText({ pinned: ln.pinned, productId: p?.id ?? null, product, origin: ln.origin, held }, rules)
       : unavailableHeading(ln.unavailable_kind, excluded);
@@ -193,15 +200,15 @@ function lineView(s: MealPlanState, rules: CountryRules, recipeKey: string, meal
     productId: p?.id ?? null, product, productName: p?.name ?? null, store, storeName: ln.store?.name ?? null, price,
     cost: ln.cost_for_need === null ? '' : `${money(ln.cost_for_need)} for these meals`,
     origin: originTag(ln.origin, rules),
-    held, instead: ln.available ? insteadOf(held) : null,
+    held, leftOut: ln.available ? leftOutText(held) : null,
     blockKey: blockKey({ kind, pinned: ln.pinned, productId: p?.id ?? null, ingredient: ln.ingredient, held }),
     grade: lineGrade(ln, picked),
     labels, pinned: ln.pinned,
     shared: others.length ? `also bought for ${listOf(others)}` : '',
     available: ln.available, kind, heading,
     issue: lineIssue({ available: ln.available, productId: p?.id ?? null, kind, heading }, excluded),
-    why: ruled ? '' : ln.why_unavailable ?? '',
-    skipped, answered: ln.available || skipped || meals === 0,
+    why: ruled && p !== null ? '' : ln.why_unavailable ?? '',
+    skippable, skipped, answered: ln.available || skipped || meals === 0,
     optionsLabel: product
       ? `Options for ${ln.ingredient}: now ${product}, ${ln.price === null ? 'price unknown' : money(ln.price)}`
         + `${ln.store ? ` at ${ln.store.name}` : ''}${ln.available ? '' : '; not sold nearby'}`

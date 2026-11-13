@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 
 import { basketCounts, basketView } from '../src/mealplan/basket.ts';
 import {
-  answerLabel, atRiskTasks, checkProgress, checkedText, issueText, recipeCountText, toAnswerText,
+  answerLabel, atRiskTasks, checkProgress, checkedText, issueText, recipeCountText, tasksLede, toAnswerText,
 } from '../src/mealplan/check.ts';
 import type { MealBasket } from '../src/types.ts';
 import { add, planWith, run } from './helpers/mealplan.ts';
@@ -99,11 +99,13 @@ test('what is wrong, in bold, then pantry-api\'s reason when it adds something',
   assert.deepEqual(issueText(basil), { head: 'Sold only beyond your distance', why: 'no store within 5 km sells it' });
   assert.deepEqual(issueText(wine), { head: 'Every product nearby is from the United States, which your rule leaves out',
     why: '' }, 'no reason given');
-  // the origin rule's reason is said in plain words: pantry-api's own ("… is evidenced as United
-  // States (ingredients), which this plan excludes") is not repeated after it
+  // a line with no product left: pantry-api's own reason follows the plain words, as it says how many
+  // candidates the rule left out
   const b: MealBasket = structuredClone(BASKET);
-  b.recipes[1].lines[1].why_unavailable = 'Shaoxing Wine is evidenced as United States (ingredients), which this plan excludes';
-  assert.equal(issueText(atRiskTasks(basketView(b, plan()).recipes)[1].line).why, '');
+  b.recipes[1].lines[1].why_unavailable = 'all 3 candidates are evidenced as coming from United States, which this plan excludes';
+  assert.deepEqual(issueText(atRiskTasks(basketView(b, plan()).recipes)[1].line), {
+    head: 'Every product nearby is from the United States, which your rule leaves out',
+    why: 'all 3 candidates are evidenced as coming from United States, which this plan excludes' });
 });
 
 test('the origin rule blocking one product in several recipes is said once; each keeps its answers', () => {
@@ -117,15 +119,32 @@ test('the origin rule blocking one product in several recipes is said once; each
         field: 'ingredient_origin', store: 'ValueFoods East Van', price: 1.54 }] });
   }
   const tasks = atRiskTasks(basketView(b, plan()).recipes).filter((t) => t.line.ingredient === 'salt');
+  // no Skip: the schedule refuses the pin whatever is skipped (basket.ts LineView.skippable)
   assert.deepEqual(tasks.map((t) => [t.recipe, t.same, t.answers]), [
-    ['Pepperoni Pizza', null, ['product', 'skip', 'meals']],
-    ['Chicken Fried Rice', 'Pepperoni Pizza', ['product', 'skip', 'meals']],
+    ['Pepperoni Pizza', null, ['product', 'meals']],
+    ['Chicken Fried Rice', 'Pepperoni Pizza', ['product', 'meals']],
   ]);
   assert.deepEqual(issueText(tasks[0].line, tasks[0].same), {
     head: 'Your chosen product, Table Salt 1kg, is from the United States (Product of USA), which your rule leaves out', why: '' });
   assert.deepEqual(issueText(tasks[1].line, tasks[1].same), { head: 'Same as for Pepperoni Pizza above', why: '' });
   // another reason is never folded into the rule's
   assert.equal(atRiskTasks(basketView(BASKET, plan()).recipes).every((t) => t.same === null), true);
+  // the same product held back as the planner's pick (not pinned) is its own problem, named so
+  for (const r of b.recipes.slice(0, 2)) Object.assign(r.lines.find((l) => l.ingredient === 'salt')!, { pinned: false });
+  const planned = atRiskTasks(basketView(b, plan()).recipes).filter((t) => t.line.ingredient === 'salt');
+  assert.deepEqual(planned.map((t) => [t.same, t.answers, t.line.blockKey]),
+    [[null, ['product', 'meals'], 'planned:122'], ['Pepperoni Pizza', ['product', 'meals'], 'planned:122']]);
+  assert.equal(issueText(planned[0].line).head,
+    'The planned product, Table Salt 1kg, is from the United States (Product of USA), which your rule leaves out');
+});
+
+test('the task list says what its tasks have in common: the country rule, no store nearby, or the plan as it stands', () => {
+  const line = (kind: string | null) => ({ line: { kind } as never });
+  assert.equal(tasksLede([line('origin_excluded')]), 'The plan cannot buy this under your country rule.');
+  assert.equal(tasksLede([line('origin_excluded'), line('origin_excluded')]), 'The plan cannot buy these under your country rule.');
+  assert.equal(tasksLede([line('not_stocked'), line('out_of_range')]), 'The plan cannot buy these near you.');
+  assert.equal(tasksLede([line('origin_excluded'), line('stores_off')]), 'The plan cannot buy these as things stand.');
+  assert.equal(tasksLede([line(null)]), 'The plan cannot buy this near you.');
 });
 
 test('a recipe\'s count under its name says what waits in the list above', () => {

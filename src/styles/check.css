@@ -50,6 +50,7 @@
 .alt-held .alt-held-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .alt-held-list li, .alt-reach-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .alt-held-list .ppic { width: 36px; height: 36px; }
+.alt-held-what { display: grid; gap: 2px; min-width: 0; }
 .alt-reach { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .alt-reach-row {
   flex-wrap: wrap; padding: 8px 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius-2); font-size: var(--fs-compact);
@@ -246,6 +247,9 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
   /* no hover on a touch screen: the way in shows as it is */
   .mp-ing-go { color: var(--accent); }
 }
+/* a skipped row's darker ground takes the accent's darker words (4.5:1 for small text) */
+.mp-ing-skipped .mp-ing-go, .mp-ing-skipped button.mp-ing-open:hover .mp-ing-go,
+.mp-ing-skipped button.mp-ing-open:focus-visible .mp-ing-go { color: var(--accent-soft-fg); }
 
 /* ─── The layout ─────────────────────────────────────────────────────────────────────────── */
 /* No row gap: an empty row (no task list) would leave a double gap; each part keeps its own. */
@@ -385,12 +389,12 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
 
 /* ─── The recipes' rows ──────────────────────────────────────────────────────────────────── */
 .mp-check-recipes .mp-ing-recipe:first-child { margin-top: var(--space-4); }
-/* what the country rule left out of a row, quiet under its facts */
-.mp-ing-instead {
+/* what the country rule left out for a row, quiet under its facts */
+.mp-ing-leftout {
   display: flex; align-items: flex-start; gap: var(--space-1); color: var(--muted); font-size: var(--fs-compact);
   overflow-wrap: anywhere;
 }
-.mp-ing-instead .ico { flex: none; margin-top: 2px; }
+.mp-ing-leftout .ico { flex: none; margin-top: 2px; }
 .mp-ing-shell .mp-ing-recipe-sub { font-style: normal; }
 .mp-ing-shell .skel-group { margin: var(--space-1) 0 var(--space-2); }
 .mp-ing-shell .notice { margin: var(--space-1) 0 var(--space-2); }

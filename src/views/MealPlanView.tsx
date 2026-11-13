@@ -482,7 +482,8 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   // refusal is said in the shopper's words.
   const fix = schedule.status === 'error' ? pinFix(schedule.errorCode ?? null, schedule.errorDetail) : null;
   const refusal = schedule.status === 'error'
-    ? heldPinText(schedule.errorCode ?? null, schedule.errorDetail, d, (k) => recipeTitle(state, k)) ?? schedule.error
+    ? heldPinText(schedule.errorCode ?? null, schedule.errorDetail, d, (k) => recipeTitle(state, k), basket.answer)
+      ?? schedule.error
     : null;
   const placedAny = d.meals.some((m) => m.date !== null);
   // Meals held in the tray, which Fill empty slots would spread. Once it has run they wait unpinned

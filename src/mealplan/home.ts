@@ -29,7 +29,7 @@ import { addDays, dayLabel, daysBetween } from './dates.ts';
 import type { CivilDate } from './dates.ts';
 import { DIET_LABELS, SLOTS, approvedElsewhere, budgetOf, dietOf } from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
-import { countryRules, listOriginText, ruleText } from './origin.ts';
+import { againstRule, countryRules, listOriginText, ruleText } from './origin.ts';
 import { listOf, shopRows } from './shoplist.ts';
 import { changedSinceText, exportState, exportedText } from './exported.ts';
 import type { ExportMark } from './exported.ts';
@@ -252,8 +252,11 @@ export interface NextTrip {
   // how far the shopper got in the store (in-store mode's ticks), once anything is in the basket
   basket: { done: number; total: number; text: string } | null;
   // the plan's country rule and the labels this trip asks the shopper to read ("No US products ·
-  // 2 to check on the label"); null while the plan has no rules
+  // 2 products to check on the label"); null while the plan has no rules
   origin: string | null;
+  // any product the trip buys from a country the plan leaves out ("1 product here is from the
+  // United States, against your rule: …"), said apart; null when there is none
+  against: string | null;
 }
 
 // The first trip of the strategy shown from today on, approved or not (its state says which);
@@ -282,6 +285,7 @@ export function nextTrip(s: MealPlanState, sc: MealSchedule | null, today: Civil
     look: tripLook(t, approvedElsewhere(d, t.date, st.name)),
     basket: done ? { done, total: rows.length,
       text: done === rows.length ? 'All in the basket' : `${done} of ${rows.length} in the basket` } : null,
-    origin: listOriginText(countryRules(d.settings), rows.map((r) => r.origin)),
+    origin: listOriginText(countryRules(d.settings), rows),
+    against: againstRule(countryRules(d.settings), rows),
   };
 }

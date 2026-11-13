@@ -228,12 +228,22 @@ test('the next trip says the plan\'s country rule and the labels it asks the sho
   const unknown = { country: null, claim: 'Origin unknown', status: 'unknown' as const, preferred_rank: null };
   const answer = withTrips(twoTrips([{ lines: [line(10, 'Chicken Breast', { origin: canada }),
     line(19, 'Whole Milk 1L', { origin: unknown })] }, {}]));
-  assert.equal(nextTrip(s, answer, D(0))?.origin, 'No US products · 1 to check on the label');
+  assert.equal(nextTrip(s, answer, D(0))?.origin, 'No US products · 1 product to check on the label');
+  assert.equal(nextTrip(s, answer, D(0))?.against, null);
   const known = withTrips(twoTrips([{ lines: [line(10, 'Chicken Breast', { origin: canada })] }, {}]));
   assert.equal(nextTrip(s, known, D(0))?.origin, 'No US products · every product says where it comes from');
+  // a product from the United States still on the trip (approved before its evidence came in): a
+  // warning of its own, by name, not one more part of the quiet line
+  const us = { country: 'United States', claim: 'From United States', status: 'evidenced' as const, preferred_rank: null };
+  const against = withTrips(twoTrips([{ lines: [line(10, 'Chicken Breast', { origin: us }),
+    line(19, 'Whole Milk 1L', { origin: unknown })] }, {}]));
+  assert.equal(nextTrip(s, against, D(0))?.origin, 'No US products · 1 product to check on the label');
+  assert.equal(nextTrip(s, against, D(0))?.against,
+    '1 product here is from the United States, against your rule: Chicken Breast 1kg');
   // no rules: nothing to say
   const free = run(s, { type: 'setSettings', settings: { exclude_origin: [], preference: [] } });
   assert.equal(nextTrip(free, answer, D(0))?.origin, null);
+  assert.equal(nextTrip(free, against, D(0))?.against, null, 'nothing is against a rule the plan does not have');
 });
 
 test('a next trip approved under the other way to shop is that approved trip, not a suggestion', () => {

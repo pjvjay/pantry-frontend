@@ -6,8 +6,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  NOT_STOCKED, OTHER_SECTION, bySection, checkPlan, instoreView, listCountText, listOf, listOriginNote, listText, periodList,
-  sectionName, shopRows, storeGroups, storeLabels, strategyTiles, tickedText, tripList, tripStores, warningCountsText,
+  NOT_STOCKED, OTHER_SECTION, bySection, checkPlan, instoreView, listAgainstRule, listCountText, listOf, listOriginNote,
+  listText, periodList, sectionName, shopRows, storeGroups, storeLabels, strategyTiles, tickedText, tripList, tripStores,
+  warningCountsText,
 } from '../src/mealplan/shoplist.ts';
 import { strategyOf } from '../src/mealplan/board.ts';
 import { countryRules } from '../src/mealplan/origin.ts';
@@ -164,10 +165,11 @@ test('Your list\'s one line, and the list as text, while the plan has country ru
     lc(3, 'Garlic', 'produce', { price: 0.68, origin: UNCLEAR }),
   ], { total_cost: 8.63 });
   const lists = [tripList(t, s.draft)];
-  assert.equal(listOriginNote(lists, rules), 'No US products · 2 to check on the label');
+  assert.equal(listOriginNote(lists, rules), 'No US products · 2 products to check on the label');
+  assert.equal(listAgainstRule(lists, rules), null);
   assert.equal(listText(lists, 'List', 'Total $8.63', '', rules), [
     'List',
-    'No US products · 2 to check on the label',
+    'No US products · 2 products to check on the label',
     '',
     'Sat 10 Oct · Pantry Mart Downtown · $8.63',
     '  Produce',
@@ -186,6 +188,32 @@ test('Your list\'s one line, and the list as text, while the plan has country ru
   const old = [tripList(trip(D(1), [line(1, 'Rice', { price: 2 })]), s.draft)];
   assert.equal(listOriginNote(old, rules), 'No US products');
   assert.match(listText(old, 'List', 'Total $2.00', '', rules), /- 1 pack · Rice 1kg · \$2\.00\n/);
+});
+
+test('Your list counts each product once, however many trips buy it, and says one against the rule apart', () => {
+  const s = planWith(7);
+  const rules = countryRules(s.draft.settings);
+  const US = { country: 'United States', claim: 'From United States', status: 'evidenced' as const, preferred_rank: null };
+  const MADE = { country: 'Canada', claim: 'Made in Canada, ingredients may be imported', status: 'evidenced' as const,
+    preferred_rank: 1 };
+  // garlic on both trips is one product to check, as Check ingredients counts it; the chicken, approved
+  // before its evidence came in, is from the United States
+  const lists = [
+    tripList(trip(D(1), [lc(1, 'Garlic', 'produce', { origin: UNCLEAR }), lc(2, 'Chicken Breast', 'meat', { origin: US })]),
+      s.draft),
+    tripList(trip(D(4), [lc(1, 'Garlic', 'produce', { origin: UNCLEAR }), lc(3, 'Olive Oil', 'pantry', { origin: MADE }),
+      lc(4, 'Cilantro', 'produce', { origin: UNKNOWN })]), s.draft),
+  ];
+  assert.equal(listOriginNote(lists, rules), 'No US products · 2 products to check on the label');
+  assert.equal(listAgainstRule(lists, rules), '1 product here is from the United States, against your rule: Chicken Breast 1kg');
+  const text = listText(lists, 'List', 'Total', '', rules);
+  assert.deepEqual(text.split('\n').slice(0, 3), ['List', 'No US products · 2 products to check on the label',
+    '1 product here is from the United States, against your rule: Chicken Breast 1kg']);
+  assert.match(text, /Chicken Breast 1kg · .*\(from the United States: against your rule\)/);
+  // the copied list keeps a processing claim's caveat, as the tag does
+  assert.match(text, /Olive Oil 1kg · .*\(made in Canada, ingredients may be imported\)/);
+  // with the rule off, nothing is against it
+  assert.equal(listAgainstRule(lists, countryRules({ preference: ['Canada'] })), null);
 });
 
 test('in the store, a row keeps its origin', () => {

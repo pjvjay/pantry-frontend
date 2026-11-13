@@ -12,7 +12,9 @@
 // waits for the new answer and approves from it only a list the shopper saw (mealplan/store.tsx).
 // A trip's state is a Tag (matchmarks.tsx TripTag); the sheet's total is the groceries, and its cart
 // card's, titled so, the groceries and travel. Each item in the sheet says where its product comes
-// from in the origin tag that Shop's list and in-store mode wear (matchmarks.tsx OriginTag).
+// from in the origin tag that Shop's list and in-store mode wear (matchmarks.tsx OriginTag), and a
+// trip that buys a product against the plan's country rule (planned or approved before its
+// evidence came in) says so on its card and in its sheet.
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -27,8 +29,8 @@ import {
 import { dayLabel } from '../mealplan/dates';
 import { MAX_PACKS, STRATEGY_NAMES, approvedElsewhere, inWindow, windowDates, windowOf } from '../mealplan/model';
 import { tripLineKey, tripOptionsLabel } from '../mealplan/options';
-import { countryRules, originWords } from '../mealplan/origin';
-import { warningCountsText } from '../mealplan/shoplist';
+import { againstRule, countryRules, originWords } from '../mealplan/origin';
+import { shopRows, warningCountsText } from '../mealplan/shoplist';
 import { useMealPlan } from '../mealplan/store';
 import { hrefFor } from '../routes';
 import type {
@@ -197,6 +199,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
     if (!out.refused) onClose();
   };
   const delta = priceDeltaText(trip.price_delta);
+  const against = againstRule(countryRules(d.settings), shopRows(trip));
   // the groceries alone, named so: the cart card below adds the travel, under its own title
   const groceries = costText(trip.total_cost, trip.total_is_floor, tripPriced(trip));
   return (
@@ -228,7 +231,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
            </>}>
       <p className="mp-trip-status">
         <TripTag look={look} />
-        {look.kind === 'approved' && <span className="muted">Code will not rewrite this list.</span>}
+        {look.kind === 'approved' && <span className="muted">This list stays as you approved it.</span>}
       </p>
       {elsewhere && (
         <p>
@@ -237,6 +240,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
         </p>
       )}
       <p>{trip.reason}</p>
+      {against && <p className="mp-note-warn"><Icon name="alert" size={14} />{against}</p>}
       {trip.diff && trip.diff.text.length > 0 && (
         <div className="mp-diff" role="group" aria-label="Changed since approved">
           <strong>Changed since you approved it:</strong>
@@ -438,6 +442,7 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
     return [...out.entries()];
   }, [st]);
   const suggested = (st?.trips ?? []).filter((t) => tripLook(t, approvedElsewhere(d, t.date, strategy)).kind === 'suggested');
+  const rules = countryRules(d.settings);
 
   // Approved from its card: the Approve pressed is gone, and the trip's "Shop this trip" is where
   // the shopper goes on from. That only appears once the schedule has answered for the plan as it
@@ -505,6 +510,7 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
           // approved list (board.ts tripToShop)
           const approved = look.kind !== 'suggested';
           const delta = priceDeltaText(t.price_delta);
+          const against = againstRule(rules, shopRows(t));
           return (
             <li key={t.id} className="card mp-trip-card">
               <div className="card-head">
@@ -522,6 +528,7 @@ export function ShopPanel({ schedule, onOpenTrip }: { schedule: MealSchedule; on
               {t.diff && t.diff.text.length > 0 && (
                 <p className="mp-note-warn"><Icon name="alert" size={14} />Changed since you approved it: {t.diff.text.join(', ')}</p>
               )}
+              {against && <p className="mp-note-warn"><Icon name="alert" size={14} />{against}</p>}
               <div className="mp-trip-actions">
                 {approved && (
                   <a className={`btn ${look.kind === 'elsewhere' ? 'btn-secondary' : 'btn-primary'} btn-sm`}

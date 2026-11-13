@@ -46,7 +46,7 @@ export interface LineAsk {
   stores: MealStores | null;
 }
 
-export function TripLineOptionsDialog({ date, productId, productName, onClose, returnTo, line = null }: {
+export function TripLineOptionsDialog({ date, productId, productName, onClose, returnTo, line = null, heldOpen = false }: {
   // null: across the whole plan, with no trip
   date: string | null;
   // across the plan: where focus goes on close (the ingredient opened from, whose answer
@@ -58,6 +58,8 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
   onClose: () => void;
   // a line with no product (Check ingredients), asked by its recipe line
   line?: LineAsk | null;
+  // opened from a row that says what the country rule left out for it: that list is shown open
+  heldOpen?: boolean;
 }) {
   const mp = useMealPlan();
   const strategy = mp.state.draft.prefs.strategy;
@@ -197,6 +199,7 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
       loadKey={`${openKey}@${mp.state.draft.rev}`}
       place={date ? 'trip' : 'plan'}
       rules={countryRules(mp.state.draft.settings)}
+      heldOpen={heldOpen}
       title={productId === null && line ? optionsTitle(ingredient, false) : undefined}
       description={opts ? optionsDescription(opts) : undefined}
       notice={opts ? stockNotice(opts) : ''}

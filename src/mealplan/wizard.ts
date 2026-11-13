@@ -80,7 +80,7 @@ export interface WizardFacts {
   // the ingredients as the plan would buy them: still to come, could not be had, or answered
   // for the plan as it is now
   basket: 'waiting' | 'error' | 'ok';
-  unanswered: number;              // ingredients the plan cannot buy nearby, not yet answered
+  unanswered: number;              // ingredients the plan cannot buy as things stand, not yet answered
   approved: number;                // approved trips
 }
 
@@ -139,8 +139,10 @@ export function gate(n: StepNo, f: WizardFacts): Gate {
         return { step: n, state: 'blocked', text: 'The ingredients could not be checked: try again' };
       }
       if (f.unanswered > 0) {
+        // not "nearby": one the country rule holds back may well be sold nearby, and its answers are
+        // another product or other meals (Check ingredients' tasks say which apply)
         return { step: n, state: 'blocked', text: `Answer ${plural(f.unanswered, 'ingredient', 'ingredients')} `
-          + 'the plan cannot buy nearby: another product, skip it, or other meals' };
+          + 'the plan cannot buy as things stand: another product, or other meals' };
       }
       return ok(n);
     case 5:

@@ -18,8 +18,8 @@
 //
 // Where the food comes from: each row wears its product's origin tag (components/matchmarks.tsx
 // OriginTag: "Canada · preferred", "Origin unknown: check the label"), and a row the plan's country
-// rule changed says what the rule left out of it ("Instead of Ground Beef Medium 900g · Product of
-// USA"). While the plan has rules, the header says what they did across the basket ("No US
+// rule left something out for says what ("Your rule left out Ground Beef Medium 900g (Product of
+// USA)"). While the plan has rules, the header says what they did across the basket ("No US
 // products · your rule left out 6 products"), the products found by country, and what the rules
 // cannot do, with a Change back to Set up's "Where food comes from" (mealplan/origin.ts has the
 // words). Where every row would wear the same tag (as when no product's origin is known), the
@@ -30,7 +30,9 @@ import type { MouseEvent, ReactNode, RefObject } from 'react';
 import { basketAtLeast, basketCounts, basketView, originSummary } from '../mealplan/basket';
 import type { LineView, OriginSummary, RecipeView } from '../mealplan/basket';
 import { againstBudget } from '../mealplan/catalog';
-import { answerLabel, atRiskTasks, checkProgress, checkedText, issueText, recipeCountText, toAnswerText } from '../mealplan/check';
+import {
+  answerLabel, atRiskTasks, checkProgress, checkedText, issueText, recipeCountText, tasksLede, toAnswerText,
+} from '../mealplan/check';
 import type { Answer, AtRisk, CheckProgress } from '../mealplan/check';
 import { USABLE_RESOLVE, budgetOf, recipeTitle } from '../mealplan/model';
 import type { OriginWords } from '../mealplan/origin';
@@ -174,15 +176,15 @@ function AtRiskList({ tasks, onAnswer }: { tasks: AtRisk[]; onAnswer: (t: AtRisk
         <Icon name="alert" size={20} />{toAnswerText(tasks.length)}
       </h3>
       <p className="mp-tasks-lede">
-        The plan cannot buy {tasks.length === 1 ? 'this' : 'these'} near you. Choose what to do
-        for each: Place on days waits for every answer.
+        {tasksLede(tasks)} Choose what to do for each: Place on days waits for every answer.
       </p>
       <ol className="mp-tasks-list">
         {tasks.map((t) => {
           const l = t.line;
           const issue = issueText(l, t.same);
-          // the shopper's own pick that the rule leaves out is named in the issue already
-          const named = l.kind === 'origin_excluded' && l.pinned;
+          // a product the rule holds back (the shopper's pick or the planner's) is named in the issue
+          // already, as what is wrong, not as what is planned
+          const named = l.kind === 'origin_excluded' && l.productId !== null;
           return (
             <li key={l.key} className="mp-task" data-task={l.key}>
               <ProductPicture product={l.productName} ingredient={l.ingredient} />
@@ -260,14 +262,8 @@ function Line({ l, title, onOptions, onHot, origin }: { l: LineView; title: stri
               {l.labels.map((x) => <span key={x} className="chip">{x}</span>)}
               {l.shared && <span className="muted">{l.shared}</span>}
             </span>
-            {/* what the rule left out, quiet under the row: seen as "Instead of …", heard as what it is */}
-            {l.instead && (
-              <span className="mp-ing-instead">
-                <Icon name="ban" size={13} />
-                <span aria-hidden="true">{l.instead.text}</span>
-                <span className="sr-only">{l.instead.label}</span>
-              </span>
-            )}
+            {/* what the rule left out for it, quiet under the row */}
+            {l.leftOut && <span className="mp-ing-leftout"><Icon name="ban" size={13} /><span>{l.leftOut}</span></span>}
           </span>
         </span>
         <span className="mp-ing-side">
@@ -554,7 +550,7 @@ export function IngredientsStage({ basket, facts, onMeals, onRules }: { basket: 
                                recipeKey: open.recipeKey, lineNo: open.lineNo, ingredient: open.ingredient,
                                skipped: open.skipped, onMeals, onStores: toStores, stores: stores.answer,
                              } : null}
-                             onClose={() => setOptionsFor(null)} returnTo={returnTo} />
+                             heldOpen={Boolean(open?.leftOut)} onClose={() => setOptionsFor(null)} returnTo={returnTo} />
     </div>
   );
 }

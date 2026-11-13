@@ -8,7 +8,8 @@
 //                   this trip" on each approved trip (in-store mode, views/InStoreView.tsx). Each
 //                   line has its product's picture and its origin tag; while the plan has country
 //                   rules, one line under the heading says the rule and how many labels the list
-//                   asks the shopper to read (mealplan/origin.ts).
+//                   asks the shopper to read, and a warning names any product the list still buys
+//                   against the rule (mealplan/origin.ts).
 //   StrategyTiles   the two ways to shop as two tiles, each with its trips and total.
 //
 // The words and the grouping are in mealplan/shoplist.ts; the trips, their warnings and the trip
@@ -21,7 +22,9 @@ import { periodText } from '../mealplan/home';
 import { STRATEGY_NAMES } from '../mealplan/model';
 import { countryRules, originWords } from '../mealplan/origin';
 import type { CountryRules } from '../mealplan/origin';
-import { checkPlan, listCountText, listOf, listOriginNote, listText, periodList, strategyTiles } from '../mealplan/shoplist';
+import {
+  checkPlan, listAgainstRule, listCountText, listOf, listOriginNote, listText, periodList, strategyTiles,
+} from '../mealplan/shoplist';
 import type { CheckItem, TripList } from '../mealplan/shoplist';
 import { readShopping, tickedOn } from '../mealplan/shopping';
 import { useMealPlan } from '../mealplan/store';
@@ -32,7 +35,7 @@ import { Icon } from './icons';
 import { OriginTag, TripTag } from './matchmarks';
 import { ProductPicture } from './pictures';
 import { Sheet } from './Sheet';
-import { useToast } from './ui';
+import { Notice, useToast } from './ui';
 
 // ─── Check your plan ─────────────────────────────────────────
 
@@ -200,6 +203,9 @@ export function YourList({ schedule }: { schedule: MealSchedule }) {
   const lists = useMemo(() => periodList(st, d), [st, d]);
   const rules = countryRules(d.settings);
   const origin = listOriginNote(lists, rules);
+  // a product bought against the rule (planned or approved before its evidence came in): a warning
+  // of its own, not one more part of the rule's quiet line
+  const against = listAgainstRule(lists, rules);
   // the basket each trip has in the store, read as the list opens (Done shopping comes back here)
   const shopping = useMemo(() => readShopping(browserStorage()), [d.id]);
   // the list's text, when the clipboard would not take it
@@ -236,6 +242,10 @@ export function YourList({ schedule }: { schedule: MealSchedule }) {
           </div>
         )}
       </div>
+      {lists.length > 0 && against && (
+        <Notice tone="warn" className="shop-list-against" title={against}
+                hint="Open its trip's list in Trips below to choose another product, or leave it off the trip." />
+      )}
       {lists.length ? lists.map((l) => (
         <TripBlock key={l.date} list={l} ticked={tickedOn(shopping, d.id, l.date)} rules={rules} />))
         : <p className="muted shop-list-none">No trips yet: trips appear once meals are on days.</p>}

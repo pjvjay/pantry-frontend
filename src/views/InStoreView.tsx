@@ -6,7 +6,8 @@
 // "Done shopping" goes back to the shopping plan, at this trip in Your list. Each row also says
 // where its product comes from, in a short origin tag ("Canada · preferred", "Origin unknown: check
 // the label" while the plan leaves a country out), so the labels worth reading are marked where
-// the shopper stands.
+// the shopper stands; a product the trip buys against the rule (planned or approved before its
+// evidence came in) is named over the list as well.
 //
 // Where pantry-api cannot be reached (a shop's signal), the list opens from the offline copy this
 // browser kept of the trip as last approved (mealplan/offline.ts), with when it was made; the
@@ -39,9 +40,9 @@ import { useWakeLock } from '../components/useWakeLock';
 import { tripToShop } from '../mealplan/board';
 import { dayLabel } from '../mealplan/dates';
 import { inWindow, windowDates, windowOf } from '../mealplan/model';
-import { countryRules, originWords } from '../mealplan/origin';
+import { againstRule, countryRules, originWords } from '../mealplan/origin';
 import type { CountryRules } from '../mealplan/origin';
-import { instoreView, listOf, tickedText } from '../mealplan/shoplist';
+import { instoreView, listOf, shopRows, tickedText } from '../mealplan/shoplist';
 import type { ShopRow } from '../mealplan/shoplist';
 import { useMealPlan } from '../mealplan/store';
 import { hrefFor } from '../routes';
@@ -89,8 +90,9 @@ function Row({ row, on, settling = false, onToggle, rules }: { row: ShopRow; on:
           {settling && <span className="is-moved" aria-hidden="true"><Icon name="bag" size={14} />In the basket</span>}
         </span>
         <span className={`is-price${row.price === null ? ' is-price-unknown' : ''}`}>{row.priceText}</span>
-        {/* under the words and the price, the width of both, so it stays one line on a phone */}
-        {origin && <span className="is-origin"><OriginTag words={origin} compact /></span>}
+        {/* under the words and the price, the width of both, so the pill stays one line on a phone (a
+            processing claim's caveat wraps under it) */}
+        {origin && <span className="is-origin"><OriginTag words={origin} /></span>}
       </label>
     </li>
   );
@@ -191,6 +193,8 @@ export default function InStoreView({ date }: { date: string }) {
   // a section's name is a level under its store's, or under the page's own heading when the trip
   // has one store and no store heading is drawn, so no heading level is skipped
   const Sec = severalStores ? 'h4' : 'h3';
+  // a product this trip buys against the plan's country rule, named over the list
+  const against = trip ? againstRule(rules, shopRows(trip)) : null;
 
   return (
     <div className="view instore">
@@ -227,6 +231,8 @@ export default function InStoreView({ date }: { date: string }) {
           )}
         </p>
       )}
+
+      {view && against && <Notice tone="warn" className="is-against" title={against} />}
 
       {loading && <Skeleton kind="row" count={8} label="Loading your trip" />}
 

@@ -20,9 +20,9 @@
 // The words here: the plan's rules in a few words (ruleText, firstText, preferenceText); a
 // product's origin tag (originTag, drawn by components/matchmarks.tsx OriginTag); the products
 // found, counted by country (originTally, tallyText); what the rule did and what it cannot do
-// (ruleDid, coveredText); what it left out of one line ("Instead of …": insteadOf) and why a
-// line cannot be bought at all (excludedText); and the labels a list asks the shopper to read
-// (listOriginText).
+// (ruleDid, coveredText); what it left out for one line (leftOutText) and why a line cannot be
+// bought at all (excludedText, heldFrom); and, for a list, the labels it asks the shopper to read
+// (listOriginText) and any product on it that is against the rule (againstRule).
 import type { BasketOrigin, HeldBackProduct, PlanSettings } from '../types.ts';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -30,6 +30,9 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 // "A", "A or B", "A, B or C"
 export const listOr = (parts: readonly string[]): string => (parts.length < 2 ? parts.join('')
   : `${parts.slice(0, -1).join(', ')} or ${parts[parts.length - 1]}`);
+
+// Words kept on one line: a count with its word, a label's claim.
+const unbroken = (t: string) => t.replace(/ /g, '\u00a0');
 
 const same = (a: string | null | undefined, b: string | null | undefined): boolean =>
   Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
@@ -82,8 +85,8 @@ export function preferenceText(r: CountryRules): string {
 
 // preferred: from the plan's first country; country: from another one; made: made there from
 // ingredients that may be imported (a processing claim); excluded: from a country the plan leaves
-// out (a product planned before that evidence came in); unclear: the sources disagree; unknown: no
-// source says.
+// out (a product planned or approved before that evidence came in, or before the rule was set);
+// unclear: the sources disagree; unknown: no source says.
 export type OriginKind = 'preferred' | 'country' | 'made' | 'excluded' | 'unclear' | 'unknown';
 
 export interface OriginWords {
@@ -125,9 +128,10 @@ export function originTag(o: BasketOrigin, r: CountryRules): OriginWords {
   const text = made ? `Made in ${theCountry(country)}` : country;
   const lead = made ? '' : 'From ';
   const where = `${made ? 'Made in' : 'From'} ${theCountry(country)}`;
+  // Shown only where it is still bought (a list, a trip, a row the rule holds back), so it is
+  // "against your rule": the rule did not leave it out.
   if (excludes(r, country)) {
-    return tag('excluded', { country, lead, text, note: 'your rule leaves it out',
-      label: `${where}, which your rule leaves out` });
+    return tag('excluded', { country, lead, text, note: 'against your rule', label: `${where}, against your rule` });
   }
   if (made) {
     return tag('made', { country, text, note: 'ingredients may be imported',
@@ -148,8 +152,11 @@ export const originWords = (o: BasketOrigin | null | undefined, r: CountryRules)
 export interface OriginTally {
   told: boolean;                   // pantry-api said where the products come from (an older one did not)
   products: number;                // the products counted, each once
-  countries: { country: string; n: number }[];   // the evidenced ones, most first
-  unknown: number;                 // no country: no source says, or the sources disagree
+  // the evidenced ones, most first: from the country, or made there (made) from ingredients that
+  // may be imported, which the rows' tags tell apart
+  countries: { country: string; made: boolean; n: number }[];
+  unknown: number;                 // no source says
+  unclear: number;                 // the sources disagree
 }
 
 // Each product once, however many lines buy it. Items pantry-api said nothing of are left out,
@@ -157,29 +164,43 @@ export interface OriginTally {
 export function originTally(items: Iterable<{ id: number; origin?: BasketOrigin | null }>, r: CountryRules): OriginTally {
   const seen = new Map<number, BasketOrigin>();
   for (const it of items) if (it.origin && !seen.has(it.id)) seen.set(it.id, it.origin);
-  const by = new Map<string, number>();
+  const by = new Map<string, { country: string; made: boolean; n: number }>();
   let unknown = 0;
+  let unclear = 0;
   for (const o of seen.values()) {
     const country = o.status === 'evidenced' && o.country ? o.country.trim() : '';
-    if (country) by.set(country, (by.get(country) ?? 0) + 1);
-    else unknown += 1;
+    if (o.status === 'conflicting') unclear += 1;
+    else if (!country) unknown += 1;
+    else {
+      const made = MADE.test(o.claim.trim());
+      const key = `${made ? 'made' : 'from'}|${country}`;
+      const was = by.get(key);
+      by.set(key, { country, made, n: (was?.n ?? 0) + 1 });
+    }
   }
-  // most first; a tie in the plan's order of preference, then by name
+  // most first; a tie in the plan's order of preference, a country before what is made there,
+  // then by name
   const rank = (c: string) => {
     const i = r.preferred.findIndex((p) => same(p, c));
     return i === -1 ? r.preferred.length : i;
   };
-  const countries = [...by.entries()].map(([country, n]) => ({ country, n }))
-    .sort((a, b) => b.n - a.n || rank(a.country) - rank(b.country) || a.country.localeCompare(b.country, 'en'));
-  return { told: seen.size > 0, products: seen.size, countries, unknown };
+  const countries = [...by.values()].sort((a, b) => b.n - a.n || rank(a.country) - rank(b.country)
+    || Number(a.made) - Number(b.made) || a.country.localeCompare(b.country, 'en'));
+  return { told: seen.size > 0, products: seen.size, countries, unknown, unclear };
 }
 
-// "Canada 7 · Italy 2 · Mexico 2 · India 1 · 5 unknown: check the label"; '' when nothing was said.
-// Each count keeps to its word (a no-break space), so a narrow line never leaves a number alone.
+// "Your 18 products: Canada 8 · made in Canada 2 · Italy 1 · 3 unknown · 1 unclear: check the
+// label"; '' when nothing was said. The label is asked for after the last count it applies to:
+// sources that disagree always, no source at all only while the plan leaves a country out. Each
+// count keeps to its words (no-break spaces), and the label to its count, so a narrow line never
+// leaves a number or the ask alone.
 export function tallyText(t: OriginTally, r: CountryRules): string {
   if (!t.told) return '';
-  const unknown = t.unknown ? `${t.unknown}\u00a0unknown${r.excluded.length ? ': check the label' : ''}` : '';
-  return [...t.countries.map((c) => `${c.country}\u00a0${c.n}`), unknown].filter(Boolean).join(' · ');
+  const counts = t.countries.map((c) => unbroken(`${c.made ? 'made in ' : ''}${c.country} ${c.n}`));
+  const open = [t.unknown ? unbroken(`${t.unknown} unknown`) : '', t.unclear ? unbroken(`${t.unclear} unclear`) : '']
+    .filter(Boolean);
+  if (open.length && (t.unclear > 0 || r.excluded.length > 0)) open[open.length - 1] += unbroken(': check the label');
+  return `Your ${plural(t.products, 'product', 'products')}: ${[...counts, ...open].join(' · ')}`;
 }
 
 // ─── What the rule did ───────────────────────────────────────
@@ -204,98 +225,151 @@ export function ruleDidText(r: CountryRules, heldBack: number | undefined): stri
 }
 
 // What the rules cannot do, in plain words: they act only on products whose origin is known.
+// A product whose sources disagree is not known either.
 export function coveredText(r: CountryRules, t: OriginTally): string | null {
   if (!hasRules(r) || !t.told || !t.products) return null;
-  if (!t.unknown) return 'Every product found says where it comes from, so your rules cover them all.';
+  const open = t.unknown + t.unclear;
+  if (!open) return 'Every product found says where it comes from, so your rules cover them all.';
   if (r.excluded.length) {
-    const stay = t.unknown === 1 ? 'the 1 whose origin is not known stays'
-      : `the ${t.unknown} whose origin is not known stay`;
+    const stay = open === 1 ? 'the 1 whose origin is not known stays' : `the ${open} whose origin is not known stay`;
     return `Only products known to be from ${listOr(r.excluded.map(theCountry))} can be left out: ${stay} in your plan.`;
   }
-  const known = t.products - t.unknown;
-  return `Your preferences can only favour products whose origin is known: ${known} of ${t.products} here.`;
+  return `Your preferences can only favour products whose origin is known: ${t.products - open} of ${t.products} here.`;
 }
 
 // ─── One line ────────────────────────────────────────────────
 
-// What the rule left out of a line the plan still buys: "Instead of Ground Beef Medium 900g ·
-// Product of USA", and "· and 1 more" past the first; its label says that the rule did it.
-export interface InsteadOf {
-  text: string;
-  label: string;
+const countriesOf = (held: readonly HeldBackProduct[]): string[] =>
+  [...new Set(held.map((h) => h.country.trim()).filter(Boolean))];
+
+// A held-back product's claim, kept on one line ("Product of USA"), and that its sources disagree
+// when only some of its evidence names the country.
+function heldClaim(h: HeldBackProduct): string {
+  const claim = unbroken(h.claim.trim() || `From ${theCountry(h.country)}`);
+  return h.field === 'conflicting_evidence' ? `${claim}; its sources disagree` : claim;
 }
 
-export function insteadOf(held: readonly HeldBackProduct[] | undefined): InsteadOf | null {
+// What the rule left out for a line the plan still buys, said under its row: "Your rule left out
+// Gluten-Free Penne 340g (Product of USA)", then "and 1 more from the United States" past the first.
+// On such a line pantry-api's held_back is what the rule took out of the products the plan picks
+// from, not what the plan would have bought without it, so nothing here says the rule changed the
+// pick. null with nothing left out (and from an older API).
+export function leftOutText(held: readonly HeldBackProduct[] | undefined): string | null {
   if (!held?.length) return null;
   const [first, ...rest] = held;
-  const claim = first.claim.trim() || `From ${theCountry(first.country)}`;
-  return {
-    text: `Instead of ${first.product} · ${claim}${rest.length ? ` · and ${rest.length} more` : ''}`,
-    label: `Your rule left out ${first.product} (${claim})${rest.length ? ` and ${rest.length} more` : ''}.`,
-  };
+  const where = countriesOf(rest);
+  const more = rest.length ? ` and ${rest.length} more${where.length ? ` from ${listOr(where.map(theCountry))}` : ''}` : '';
+  return `Your rule left out ${first.product} (${heldClaim(first)})${more}`;
 }
 
-// Why a line cannot be bought at all because of the rule: the shopper's own pick is from a
-// country it leaves out ("Your chosen product, Ground Beef Medium 900g, is from the United States
-// (Product of USA), which your rule leaves out"), or every product near them is. product: the
-// line's product as the row names it (null for none); held: its held_back (absent from an older
-// API, when the line's own origin or the rule names the country instead).
+// A product the rule holds back, after its name: "is from the United States (Product of USA), which
+// your rule leaves out", or "may be from China (its sources disagree: Product of China), …" when
+// only some of its evidence names the country. h: a basket line's held_back (HeldBackProduct), or
+// an Options ranking's with its verbatim as the claim.
+export function heldFrom(h: { country: string; claim: string; field: string }): string {
+  const claim = h.claim.trim();
+  return h.field === 'conflicting_evidence'
+    ? `may be from ${theCountry(h.country)} (its sources disagree${claim ? `: ${claim}` : ''}), which your rule leaves out`
+    : `is from ${theCountry(h.country)}${claim ? ` (${claim})` : ''}, which your rule leaves out`;
+}
+
+// Why a line cannot be bought at all because of the rule. A line with a product is held back for
+// that product alone, which pantry-api lists first in its held_back: the shopper's own pick ("Your
+// chosen product, Ground Beef Medium 900g, is from the United States (Product of USA), which your
+// rule leaves out"), or the planner's, chosen before its evidence came in ("The planned product,
+// …"); other products may well be sold nearby. A line with none is one whose every candidate
+// nearby the rule leaves out ("Every product nearby is from the United States, which your rule
+// leaves out"). product: the line's product as the row names it (null for none); held: its
+// held_back (absent from an older API, when the line's own origin or the rule names the country).
 export function excludedText(l: { pinned: boolean; productId: number | null; product: string | null;
   origin: BasketOrigin | null; held?: readonly HeldBackProduct[] }, r: CountryRules): string {
   const held = l.held ?? [];
-  if (l.pinned && l.product) {
+  if (l.product) {
+    const who = l.pinned ? `Your chosen product, ${l.product},` : `The planned product, ${l.product},`;
     const h = held.find((x) => x.product_id === l.productId);
-    const country = h?.country || (l.origin?.status === 'evidenced' ? l.origin.country ?? '' : '');
-    const claim = h?.claim.trim() ?? '';
-    const from = country ? `${theCountry(country)}${claim ? ` (${claim})` : ''}, which your rule leaves out`
-      : 'a country your rule leaves out';
-    return `Your chosen product, ${l.product}, is from ${from}`;
+    if (h) return `${who} ${heldFrom(h)}`;
+    const country = l.origin?.status === 'evidenced' ? l.origin.country ?? '' : '';
+    return `${who} is from ${country ? `${theCountry(country)}, which your rule leaves out` : 'a country your rule leaves out'}`;
   }
-  const countries = [...new Set(held.map((h) => h.country.trim()).filter(Boolean))];
+  const countries = countriesOf(held);
   const named = countries.length ? countries : r.excluded;
-  return named.length ? `Every product nearby is from ${listOr(named.map(theCountry))}, which your rule leaves out`
-    : 'Every product nearby is from a country your rule leaves out';
+  if (!named.length) return 'Every product nearby is from a country your rule leaves out';
+  // every one of them left out on only some of its evidence
+  const unsure = held.length > 0 && held.every((h) => h.field === 'conflicting_evidence');
+  return `Every product nearby ${unsure ? 'may be' : 'is'} from ${listOr(named.map(theCountry))}`
+    + `${unsure ? ' (sources disagree)' : ''}, which your rule leaves out`;
 }
 
-// What makes two lines blocked by the rule the same problem: the shopper's own pick, or the first
-// product held back; null for a line the rule does not block.
+// What makes two lines blocked by the rule the same problem, said once: the same product held back
+// as the shopper's pick or as the planner's, or, for lines with none, the same first product held
+// back; null for a line the rule does not block.
 export function blockKey(l: { kind: string | null; pinned: boolean; productId: number | null;
   ingredient: string; held?: readonly HeldBackProduct[] }): string | null {
   if (l.kind !== 'origin_excluded') return null;
-  if (l.pinned && l.productId !== null) return `pin:${l.productId}`;
+  if (l.productId !== null) return `${l.pinned ? 'pin' : 'planned'}:${l.productId}`;
   const first = l.held?.[0];
   return first ? `held:${first.product_id}` : `ingredient:${l.ingredient.trim().toLowerCase()}`;
 }
 
 // ─── A list ──────────────────────────────────────────────────
 
-// The one line over a shopping list while the plan has rules: the rule, then what the list asks of
-// the shopper in the store ("No US products · 4 to check on the label"), or that every product
-// says where it is from. A product from an excluded country (planned before the evidence came) is
-// named. Only the rule is said when pantry-api said nothing of the products. null with no rules.
-export function listOriginText(r: CountryRules, origins: readonly (BasketOrigin | null | undefined)[]): string | null {
-  if (!hasRules(r)) return null;
-  const head = r.excluded.length ? ruleText(r) : `${ruleText(r)} · ${firstText(r)}`;
-  const tags = origins.map((o) => originWords(o, r)).filter((w): w is OriginWords => w !== null);
-  if (!tags.length) return head;
-  const out = tags.filter((w) => w.kind === 'excluded').length;
-  const check = tags.filter((w) => w.check).length;
-  const parts = [
-    out ? `${out} from ${listOr(r.excluded.map(theCountry))}` : '',
-    check ? `${check} to check on the label` : '',
-    !out && !check && tags.every((w) => w.kind !== 'unknown') ? 'every product says where it comes from' : '',
-  ].filter(Boolean);
-  return [head, ...parts].join(' · ');
+// A row of a shopping list as these words read it (mealplan/shoplist.ts ShopRow).
+export interface ListedRow {
+  productId: number;
+  name: string;
+  origin: BasketOrigin | null | undefined;
 }
 
-// A row's origin in a few words for the copied and printed list: "from Canada", "made in Canada",
-// "origin unclear: check the label"; '' when there is nothing to tell the shopper (no answer, or an
-// unknown origin while nothing is left out).
+// Each product of a list once, however many trips buy it, with its tag; none for a row pantry-api
+// said nothing of.
+function listedTags(rows: readonly ListedRow[], r: CountryRules): { row: ListedRow; tag: OriginWords }[] {
+  const seen = new Map<number, { row: ListedRow; tag: OriginWords }>();
+  for (const row of rows) {
+    const w = originWords(row.origin, r);
+    if (w && !seen.has(row.productId)) seen.set(row.productId, { row, tag: w });
+  }
+  return [...seen.values()];
+}
+
+// The one line over a shopping list while the plan has rules: the rule, then what the list asks of
+// the shopper in the store ("No US products · 4 products to check on the label"), or that every
+// product says where it is from. Products are counted once, as Check ingredients counts them,
+// however many trips buy them. One from a country the plan leaves out is said apart (againstRule).
+// Only the rule is said when pantry-api said nothing of the products. null with no rules.
+export function listOriginText(r: CountryRules, rows: readonly ListedRow[]): string | null {
+  if (!hasRules(r)) return null;
+  const head = r.excluded.length ? ruleText(r) : `${ruleText(r)} · ${firstText(r)}`;
+  const tags = listedTags(rows, r).map((x) => x.tag);
+  if (!tags.length) return head;
+  const check = tags.filter((w) => w.check).length;
+  const said = check ? `${plural(check, 'product', 'products')} to check on the label`
+    : tags.every((w) => w.kind !== 'unknown') ? 'every product says where it comes from' : '';
+  return said ? `${head} · ${said}` : head;
+}
+
+// The products a list still buys from a country the plan leaves out (planned or approved before
+// that evidence came in, or before the rule was set), named, each once: "1 product here is from the
+// United States, against your rule: Boneless Skinless Chicken Breast 500g". null when there is
+// none.
+export function againstRule(r: CountryRules, rows: readonly ListedRow[]): string | null {
+  const out = listedTags(rows, r).filter((x) => x.tag.kind === 'excluded');
+  if (!out.length) return null;
+  const countries = [...new Set(out.map((x) => x.tag.country))];
+  const names = out.slice(0, 3).map((x) => x.row.name).join(', ');
+  const more = out.length > 3 ? ` and ${out.length - 3} more` : '';
+  return `${plural(out.length, 'product', 'products')} here ${out.length === 1 ? 'is' : 'are'} from `
+    + `${listOr(countries.map(theCountry))}, against your rule: ${names}${more}`;
+}
+
+// A row's origin in a few words for the copied and printed list: "from Canada", "made in Canada,
+// ingredients may be imported", "origin unclear: check the label"; '' when there is nothing to tell
+// the shopper (no answer, or an unknown origin while nothing is left out).
 export function originListWords(o: BasketOrigin | null | undefined, r: CountryRules): string {
   const w = originWords(o, r);
   if (!w || (w.kind === 'unknown' && !w.check)) return '';
   const where = `${MADE.test(w.text) ? 'made in' : 'from'} ${theCountry(w.country)}`;
-  if (w.kind === 'excluded') return `${where}: your rule leaves it out`;
+  if (w.kind === 'excluded') return `${where}: against your rule`;
+  if (w.kind === 'made') return `${where}, ${w.note}`;
   if (w.country) return where;
   return w.words.charAt(0).toLowerCase() + w.words.slice(1);
 }

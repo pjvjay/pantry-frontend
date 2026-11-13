@@ -252,7 +252,7 @@ function OriginCard() {
               help={`Leaving out is a rule; preferring is only an order for close choices. Most products do not say where they come from: those stay in your plan, marked “check the label”.${Object.keys(d.recipes).length ? ' Changing these checks your recipes’ products again.' : ''}`}>
       <div className="switches" role="group" aria-labelledby={head}>
         <Switch checked={r.excludeUS} onChange={(on) => save({ ...r, excludeUS: on })}
-                hint="A product whose label or source says it is from the United States is never planned">
+                hint="A product whose label or source says it is from the United States is never chosen for your plan">
           Leave out US products
         </Switch>
         <Switch checked={r.preferCanada} onChange={(on) => save({ ...r, preferCanada: on })}
