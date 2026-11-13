@@ -333,12 +333,27 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
 .mp-check-about { font-size: var(--fs-compact); color: var(--muted); }
 .mp-check-about summary { width: fit-content; cursor: pointer; }
 .mp-check-about p { margin: var(--space-1) 0 0; max-width: 62ch; }
-/* what the rows have in common, said once (the origin rules' coverage; the one origin every row has) */
+/* What the plan's country rules did, under a hairline: the rule in bold with what it left out and
+   a Change back to it, the products found by country, then what the rules cannot do, quieter. With
+   no rules, the one origin tag every row would wear, said once. */
+.mp-check-origin {
+  display: grid; gap: var(--space-1); margin-top: var(--space-3); padding-top: var(--space-3);
+  border-top: 1px solid var(--border); font-size: var(--fs-compact);
+}
+.mp-check-rule { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); margin: 0; }
+.mp-check-rule > .ico { flex: none; align-self: center; color: var(--accent); }
+.mp-check-rule strong { font-weight: 600; }
+.mp-check-change { font-weight: 600; text-underline-offset: 2px; }
+.mp-check-tally { margin: 0; font-variant-numeric: tabular-nums; }
+.mp-check-origin .mp-check-coverage { margin: 0; }
 .mp-check-coverage {
-  display: flex; align-items: flex-start; gap: var(--space-1); margin: var(--space-2) 0 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin: var(--space-2) 0 0;
   color: var(--muted); font-size: var(--fs-compact);
 }
-.mp-check-coverage > .ico { flex: none; margin-top: 2px; }
+@media (pointer: coarse) {
+  /* a fingertip's 44px, reaching over the line's edges rather than growing it */
+  .mp-check-change { display: inline-flex; align-items: center; min-height: 44px; margin: -13px -8px; padding: 0 8px; }
+}
 
 /* ─── The ingredients still to answer ────────────────────────────────────────────────────── */
 /* A card with the warning's edge, its sign beside the count; each task a row: the product's
@@ -370,7 +385,12 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
 
 /* ─── The recipes' rows ──────────────────────────────────────────────────────────────────── */
 .mp-check-recipes .mp-ing-recipe:first-child { margin-top: var(--space-4); }
-.mp-ing-origin { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); }
+/* what the country rule left out of a row, quiet under its facts */
+.mp-ing-instead {
+  display: flex; align-items: flex-start; gap: var(--space-1); color: var(--muted); font-size: var(--fs-compact);
+  overflow-wrap: anywhere;
+}
+.mp-ing-instead .ico { flex: none; margin-top: 2px; }
 .mp-ing-shell .mp-ing-recipe-sub { font-style: normal; }
 .mp-ing-shell .skel-group { margin: var(--space-1) 0 var(--space-2); }
 .mp-ing-shell .notice { margin: var(--space-1) 0 var(--space-2); }
@@ -399,8 +419,7 @@ button.mp-ing-open:hover .mp-ing-go, button.mp-ing-open:focus-visible .mp-ing-go
 }
 
 /* ─── The Options sheet: each row's marks, and the pick compared with the best others ────── */
-.alt-marks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: 3px; }
-.alt-origin { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); color: var(--muted); font-size: var(--fs-compact); }
+.alt-marks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: 3px; }
 
 .alt-compare { margin: var(--space-1) 0 var(--space-4); }
 .alt-compare h3 { margin: 4px 0 6px; }

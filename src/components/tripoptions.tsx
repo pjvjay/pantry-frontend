@@ -22,6 +22,7 @@ import type { RefObject } from 'react';
 import { scheduleMealPlan, tripLineOptions } from '../api';
 import { strategyOf } from '../mealplan/board';
 import { step } from '../mealplan/model';
+import { countryRules } from '../mealplan/origin';
 import {
   choiceAnnouncement, chosenLineKey, lineChoices, nearestText, nothingText, optionsDescription, optionsEdit,
   optionsRequest, optionsTitle, reachText, stockNotice, storesToTurnOn, tripLineKey,
@@ -195,6 +196,7 @@ export function TripLineOptionsDialog({ date, productId, productName, onClose, r
       load={load}
       loadKey={`${openKey}@${mp.state.draft.rev}`}
       place={date ? 'trip' : 'plan'}
+      rules={countryRules(mp.state.draft.settings)}
       title={productId === null && line ? optionsTitle(ingredient, false) : undefined}
       description={opts ? optionsDescription(opts) : undefined}
       notice={opts ? stockNotice(opts) : ''}

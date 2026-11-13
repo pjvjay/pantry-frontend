@@ -82,7 +82,7 @@ test('while the products are checked: Check ingredients is in progress, and what
   const h = homeTasks(s, f, null, { answer: null, failed: false });
   assert.deepEqual(h.tasks.map((t) => t.name), ['Set up', 'Pick meals', 'Check ingredients', 'Place on days', 'Shop', 'Calendar']);
   assert.deepEqual(tags(h), ['done', 'done', 'progress', 'blocked', 'blocked', 'blocked']);
-  assert.deepEqual(lines(h), ['Fri 9 Oct – Thu 15 Oct · no budget', '3 dinners picked',
+  assert.deepEqual(lines(h), ['Fri 9 Oct – Thu 15 Oct · no budget · no US products', '3 dinners picked',
     'Checking the products for Pepperoni Pizza…', '3 meals to place', 'Once meals are on days', 'Once a trip is approved']);
   assert.equal(h.next, 3);
 });
@@ -91,7 +91,7 @@ test('a plan ready to shop: everything before Shop is done, Shop is next, Calend
   const s = placedPlan(90);
   const h = homeTasks(s, ok(s), ALL_FOUND, { answer: withTrips(twoTrips()), failed: false });
   assert.deepEqual(tags(h), ['done', 'done', 'done', 'done', 'next', 'blocked']);
-  assert.deepEqual(lines(h), ['Fri 9 Oct – Thu 15 Oct · $90 budget', '3 dinners picked', '16 of 16 found nearby',
+  assert.deepEqual(lines(h), ['Fri 9 Oct – Thu 15 Oct · $90 budget · no US products', '3 dinners picked', '16 of 16 found nearby',
     '3 meals placed', '2 trips · $17.91 of $90', 'Once a trip is approved']);
   assert.equal(h.next, 5);
   assert.deepEqual(h.tasks.map((t) => t.open), [true, true, true, true, true, false]);
@@ -218,6 +218,22 @@ test('the next trip: the first from today, approved or not, with its day, stores
   assert.equal(nextTrip(s, answer, D(5)), null, 'every trip is behind us');
   assert.equal(nextTrip(s, null, D(0)), null);
   assert.equal(n.basket, null, 'nothing ticked yet');
+  // an older API says nothing of where the products come from: the plan's rule alone
+  assert.equal(n.origin, 'No US products');
+});
+
+test('the next trip says the plan\'s country rule and the labels it asks the shopper to read', () => {
+  const s = placedPlan();
+  const canada = { country: 'Canada', claim: 'From Canada', status: 'evidenced' as const, preferred_rank: 1 };
+  const unknown = { country: null, claim: 'Origin unknown', status: 'unknown' as const, preferred_rank: null };
+  const answer = withTrips(twoTrips([{ lines: [line(10, 'Chicken Breast', { origin: canada }),
+    line(19, 'Whole Milk 1L', { origin: unknown })] }, {}]));
+  assert.equal(nextTrip(s, answer, D(0))?.origin, 'No US products · 1 to check on the label');
+  const known = withTrips(twoTrips([{ lines: [line(10, 'Chicken Breast', { origin: canada })] }, {}]));
+  assert.equal(nextTrip(s, known, D(0))?.origin, 'No US products · every product says where it comes from');
+  // no rules: nothing to say
+  const free = run(s, { type: 'setSettings', settings: { exclude_origin: [], preference: [] } });
+  assert.equal(nextTrip(free, answer, D(0))?.origin, null);
 });
 
 test('a next trip approved under the other way to shop is that approved trip, not a suggestion', () => {

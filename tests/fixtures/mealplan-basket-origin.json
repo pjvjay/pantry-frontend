@@ -1,0 +1,690 @@
+{
+ "v": 1,
+ "rev": 0,
+ "recipes": [
+  {
+   "key": "lib:beef_rice_bowl",
+   "title": "Beef & Broccoli Rice Bowl",
+   "image": {
+    "kind": "wiki",
+    "title": "Beef and broccoli"
+   },
+   "status": "ok",
+   "meals": 2,
+   "lines": [
+    {
+     "line_no": 1,
+     "ingredient": "Ground Beef",
+     "need": "600 g",
+     "product": {
+      "id": 22,
+      "name": "Ground Beef Lean",
+      "size": "450g",
+      "labels": [
+       "meat"
+      ],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "GreenLeaf Grocers Kitsilano",
+      "distance_km": 2.9
+     },
+     "price": 6.79,
+     "cost_for_need": 11.11,
+     "origin": {
+      "country": "Canada",
+      "claim": "From Canada",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:spaghetti_bolognese"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": [
+      {
+       "product_id": 35,
+       "product": "Ground Beef Medium 900g",
+       "country": "United States",
+       "claim": "Product of USA",
+       "field": "ingredient_origin",
+       "store": "ValueFoods East Van",
+       "price": 10.56
+      }
+     ]
+    },
+    {
+     "line_no": 2,
+     "ingredient": "Basmati Rice",
+     "need": "300 g",
+     "product": {
+      "id": 8,
+      "name": "Basmati Rice 2kg",
+      "size": "2kg",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "GreenLeaf Grocers Kitsilano",
+      "distance_km": 2.9
+     },
+     "price": 12.83,
+     "cost_for_need": 12.83,
+     "origin": {
+      "country": "India",
+      "claim": "From India",
+      "status": "evidenced",
+      "preferred_rank": null
+     },
+     "pinned": false,
+     "shared_with": [],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": []
+    },
+    {
+     "line_no": 3,
+     "ingredient": "Broccoli",
+     "need": "400 g",
+     "product": {
+      "id": 30,
+      "name": "Frozen Broccoli 500g",
+      "size": "500g",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "Pantry Mart Downtown",
+      "distance_km": 0.3
+     },
+     "price": 3.0,
+     "cost_for_need": 3.0,
+     "origin": {
+      "country": "Mexico",
+      "claim": "From Mexico",
+      "status": "evidenced",
+      "preferred_rank": 16
+     },
+     "pinned": false,
+     "shared_with": [],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": [
+      {
+       "product_id": 53,
+       "product": "Broccoli Crown",
+       "country": "United States",
+       "claim": "Grown in USA",
+       "field": "ingredient_origin",
+       "store": "ValueFoods East Van",
+       "price": 2.27
+      }
+     ]
+    },
+    {
+     "line_no": 4,
+     "ingredient": "Garlic",
+     "need": "13.3 g",
+     "product": {
+      "id": 13,
+      "name": "Fresh Garlic",
+      "size": "~50g",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "Pantry Mart Downtown",
+      "distance_km": 0.3
+     },
+     "price": 0.68,
+     "cost_for_need": 0.23,
+     "origin": {
+      "country": null,
+      "claim": "Origin unclear: sources disagree",
+      "status": "conflicting",
+      "preferred_rank": null
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:spaghetti_bolognese",
+      "lib:tomato_penne"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": []
+    },
+    {
+     "line_no": 5,
+     "ingredient": "Canola Oil",
+     "need": "26.7 ml",
+     "product": {
+      "id": 17,
+      "name": "Canola Oil 1L",
+      "size": "1L",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "Pantry Mart Downtown",
+      "distance_km": 0.3
+     },
+     "price": 3.9,
+     "cost_for_need": 3.9,
+     "origin": {
+      "country": "Canada",
+      "claim": "From Canada",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": []
+    }
+   ]
+  },
+  {
+   "key": "lib:spaghetti_bolognese",
+   "title": "Spaghetti Bolognese",
+   "image": {
+    "kind": "wiki",
+    "title": "Bolognese sauce"
+   },
+   "status": "ok",
+   "meals": 2,
+   "lines": [
+    {
+     "line_no": 1,
+     "ingredient": "Spaghetti",
+     "need": "400 g",
+     "product": {
+      "id": 21,
+      "name": "Spaghetti Pasta 500g",
+      "size": "500g",
+      "labels": [
+       "gluten"
+      ],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "Pantry Mart Downtown",
+      "distance_km": 0.3
+     },
+     "price": 2.32,
+     "cost_for_need": 2.32,
+     "origin": {
+      "country": "Canada",
+      "claim": "Made in Canada, ingredients may be imported",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": []
+    },
+    {
+     "line_no": 2,
+     "ingredient": "Ground Beef",
+     "need": "500 g",
+     "product": {
+      "id": 22,
+      "name": "Ground Beef Lean",
+      "size": "450g",
+      "labels": [
+       "meat"
+      ],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "GreenLeaf Grocers Kitsilano",
+      "distance_km": 2.9
+     },
+     "price": 6.79,
+     "cost_for_need": 9.26,
+     "origin": {
+      "country": "Canada",
+      "claim": "From Canada",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:beef_rice_bowl"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": [
+      {
+       "product_id": 35,
+       "product": "Ground Beef Medium 900g",
+       "country": "United States",
+       "claim": "Product of USA",
+       "field": "ingredient_origin",
+       "store": "ValueFoods East Van",
+       "price": 10.56
+      }
+     ]
+    },
+    {
+     "line_no": 3,
+     "ingredient": "Yellow Onion",
+     "need": "150 g",
+     "product": {
+      "id": 163,
+      "name": "Yellow Onions 10lb Bag",
+      "size": "4.54kg",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "Pantry Mart Downtown",
+      "distance_km": 0.3
+     },
+     "price": 5.95,
+     "cost_for_need": 5.95,
+     "origin": {
+      "country": "Canada",
+      "claim": "From Canada",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": [
+      {
+       "product_id": 12,
+       "product": "Yellow Onion",
+       "country": "United States",
+       "claim": "Grown in USA",
+       "field": "ingredient_origin",
+       "store": "Pantry Mart Downtown",
+       "price": 0.87
+      },
+      {
+       "product_id": 164,
+       "product": "Organic Yellow Onions 2lb Bag",
+       "country": "United States",
+       "claim": "Product of U.S.A.",
+       "field": "ingredient_origin",
+       "store": "Pantry Mart Downtown",
+       "price": 3.54
+      }
+     ]
+    },
+    {
+     "line_no": 4,
+     "ingredient": "Garlic",
+     "need": "10 g",
+     "product": {
+      "id": 13,
+      "name": "Fresh Garlic",
+      "size": "~50g",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "Pantry Mart Downtown",
+      "distance_km": 0.3
+     },
+     "price": 0.68,
+     "cost_for_need": 0.17,
+     "origin": {
+      "country": null,
+      "claim": "Origin unclear: sources disagree",
+      "status": "conflicting",
+      "preferred_rank": null
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:beef_rice_bowl",
+      "lib:tomato_penne"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": []
+    },
+    {
+     "line_no": 5,
+     "ingredient": "Canned Tomatoes",
+     "need": "796 ml",
+     "product": {
+      "id": 165,
+      "name": "Petite Diced Tomatoes 796ml",
+      "size": "796ml",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "GreenLeaf Grocers Kitsilano",
+      "distance_km": 2.9
+     },
+     "price": 2.45,
+     "cost_for_need": 3.67,
+     "origin": {
+      "country": "Canada",
+      "claim": "From Canada",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:tomato_penne"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": [
+      {
+       "product_id": 15,
+       "product": "Canned Diced Tomatoes",
+       "country": "United States",
+       "claim": "Product of U.S.A.",
+       "field": "ingredient_origin",
+       "store": "GreenLeaf Grocers Kitsilano",
+       "price": 1.89
+      }
+     ]
+    },
+    {
+     "line_no": 6,
+     "ingredient": "Olive Oil",
+     "need": "30 ml",
+     "product": {
+      "id": 62,
+      "name": "Olive Oil 1L",
+      "size": "1L",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "GreenLeaf Grocers Kitsilano",
+      "distance_km": 2.9
+     },
+     "price": 11.91,
+     "cost_for_need": 5.1,
+     "origin": {
+      "country": "Canada",
+      "claim": "Made in Canada, ingredients may be imported",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:tomato_penne"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": []
+    },
+    {
+     "line_no": 7,
+     "ingredient": "Mozzarella",
+     "need": "100 g",
+     "product": {
+      "id": 24,
+      "name": "Mozzarella Shredded 200g",
+      "size": "200g",
+      "labels": [
+       "dairy"
+      ],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "Pantry Mart Downtown",
+      "distance_km": 0.3
+     },
+     "price": 4.49,
+     "cost_for_need": 3.45,
+     "origin": {
+      "country": "Canada",
+      "claim": "From Canada",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:tomato_penne"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": []
+    }
+   ]
+  },
+  {
+   "key": "lib:tomato_penne",
+   "title": "Tomato Penne",
+   "image": {
+    "kind": "wiki",
+    "title": "Pasta al pomodoro"
+   },
+   "status": "ok",
+   "meals": 2,
+   "lines": [
+    {
+     "line_no": 1,
+     "ingredient": "Penne",
+     "need": "500 g",
+     "product": {
+      "id": 51,
+      "name": "Penne Rigate 500g",
+      "size": "500g",
+      "labels": [
+       "gluten"
+      ],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "GreenLeaf Grocers Kitsilano",
+      "distance_km": 2.9
+     },
+     "price": 1.97,
+     "cost_for_need": 1.97,
+     "origin": {
+      "country": "Italy",
+      "claim": "From Italy",
+      "status": "evidenced",
+      "preferred_rank": 5
+     },
+     "pinned": false,
+     "shared_with": [],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": [
+      {
+       "product_id": 49,
+       "product": "Gluten-Free Penne 340g",
+       "country": "United States",
+       "claim": "Product of USA",
+       "field": "ingredient_origin",
+       "store": "Pantry Mart Downtown",
+       "price": 4.04
+      }
+     ]
+    },
+    {
+     "line_no": 2,
+     "ingredient": "Canned Tomatoes",
+     "need": "800 ml",
+     "product": {
+      "id": 165,
+      "name": "Petite Diced Tomatoes 796ml",
+      "size": "796ml",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "GreenLeaf Grocers Kitsilano",
+      "distance_km": 2.9
+     },
+     "price": 2.45,
+     "cost_for_need": 3.68,
+     "origin": {
+      "country": "Canada",
+      "claim": "From Canada",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:spaghetti_bolognese"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": [
+      {
+       "product_id": 15,
+       "product": "Canned Diced Tomatoes",
+       "country": "United States",
+       "claim": "Product of U.S.A.",
+       "field": "ingredient_origin",
+       "store": "GreenLeaf Grocers Kitsilano",
+       "price": 1.89
+      }
+     ]
+    },
+    {
+     "line_no": 3,
+     "ingredient": "Garlic",
+     "need": "16 g",
+     "product": {
+      "id": 13,
+      "name": "Fresh Garlic",
+      "size": "~50g",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "Pantry Mart Downtown",
+      "distance_km": 0.3
+     },
+     "price": 0.68,
+     "cost_for_need": 0.28,
+     "origin": {
+      "country": null,
+      "claim": "Origin unclear: sources disagree",
+      "status": "conflicting",
+      "preferred_rank": null
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:beef_rice_bowl",
+      "lib:spaghetti_bolognese"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": []
+    },
+    {
+     "line_no": 4,
+     "ingredient": "Olive Oil",
+     "need": "40 ml",
+     "product": {
+      "id": 62,
+      "name": "Olive Oil 1L",
+      "size": "1L",
+      "labels": [],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "GreenLeaf Grocers Kitsilano",
+      "distance_km": 2.9
+     },
+     "price": 11.91,
+     "cost_for_need": 6.81,
+     "origin": {
+      "country": "Canada",
+      "claim": "Made in Canada, ingredients may be imported",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:spaghetti_bolognese"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": []
+    },
+    {
+     "line_no": 5,
+     "ingredient": "Mozzarella",
+     "need": "160 g",
+     "product": {
+      "id": 24,
+      "name": "Mozzarella Shredded 200g",
+      "size": "200g",
+      "labels": [
+       "dairy"
+      ],
+      "says_organic": false,
+      "demo_product": false
+     },
+     "store": {
+      "name": "Pantry Mart Downtown",
+      "distance_km": 0.3
+     },
+     "price": 4.49,
+     "cost_for_need": 5.53,
+     "origin": {
+      "country": "Canada",
+      "claim": "From Canada",
+      "status": "evidenced",
+      "preferred_rank": 1
+     },
+     "pinned": false,
+     "shared_with": [
+      "lib:spaghetti_bolognese"
+     ],
+     "available": true,
+     "unavailable_kind": null,
+     "why_unavailable": null,
+     "held_back": []
+    }
+   ]
+  }
+ ],
+ "unavailable_count": 0,
+ "est_total": 79.26,
+ "budget": null,
+ "latency_ms": 193,
+ "origin_held_back": 6
+}

@@ -97,6 +97,30 @@
 .tag-blocked, .tag-paused { background: var(--surface-2); color: var(--muted); }
 .tag-attention { background: var(--warn-soft); color: var(--warn); }
 
+/* ─── OriginTag: where a product comes from (components/matchmarks.tsx) ──────────────────── */
+/* A pill, so it reads apart from a state Tag and a match's square-cornered mark beside it. The
+   plan's first country in the accent's soft pair, another country or where it was made on a quiet
+   fill, an origin to check on the label in the warning's pair, one the plan's rule leaves out in
+   the danger's; every one also says it in words, with its own glyph. A long one wraps inside its
+   pill rather than pushing past a narrow row. */
+.otag {
+  display: inline-flex; align-items: flex-start; gap: var(--space-1); max-width: 100%; padding: 1px var(--space-2);
+  border: 1px solid transparent; border-radius: var(--radius-pill);
+  font: 600 var(--fs-label)/16px var(--font-body); overflow-wrap: anywhere;
+}
+.otag .ico { flex: none; margin-top: 1px; }
+.otag-preferred { background: var(--accent-soft); color: var(--accent-soft-fg); }
+.otag-country, .otag-made, .otag-unknown { background: var(--surface-2); border-color: var(--border); color: var(--text); }
+.otag-unknown { color: var(--muted); }
+.otag-check { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+.otag-excluded { background: var(--danger-soft); color: var(--danger-fg); }
+/* a processing claim's caveat, quiet after its pill, wrapping as words do */
+.otag-with { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-1); min-width: 0; }
+.otag-caveat { color: var(--muted); font-size: var(--fs-label); }
+@media (forced-colors: active) {
+  .otag { border-color: CanvasText; }
+}
+
 /* ─── Toasts: above the bottom bar on a phone, low in the middle on a wide screen ─────────── */
 /* Above whatever else lies along the bottom of the screen too (the meal plan's Back and Next, its
    Moving bar, the Assistant's message box: --bottom-cover, components/useKeepClear.ts), so a

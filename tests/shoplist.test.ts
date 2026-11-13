@@ -6,10 +6,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  NOT_STOCKED, OTHER_SECTION, bySection, checkPlan, instoreView, listCountText, listOf, listText, periodList,
+  NOT_STOCKED, OTHER_SECTION, bySection, checkPlan, instoreView, listCountText, listOf, listOriginNote, listText, periodList,
   sectionName, shopRows, storeGroups, storeLabels, strategyTiles, tickedText, tripList, tripStores, warningCountsText,
 } from '../src/mealplan/shoplist.ts';
 import { strategyOf } from '../src/mealplan/board.ts';
+import { countryRules } from '../src/mealplan/origin.ts';
 import type { MealSchedule, TripLine } from '../src/types.ts';
 import { D, add, line, planWith, run, schedule, trip } from './helpers/mealplan.ts';
 
@@ -139,6 +140,60 @@ test('the list as text: each trip with its sections and lines, the total and the
   assert.doesNotMatch(one, /at Pantry Mart/);
 });
 
+const CANADA = { country: 'Canada', claim: 'From Canada', status: 'evidenced' as const, preferred_rank: 1 };
+const UNKNOWN = { country: null, claim: 'Origin unknown', status: 'unknown' as const, preferred_rank: null };
+const UNCLEAR = { country: null, claim: 'Origin unclear: sources disagree', status: 'conflicting' as const, preferred_rank: null };
+
+test('each row says where its product comes from, as the basket does; an older API says nothing', () => {
+  const t = trip(D(1), [
+    line(11, 'Chicken Thighs', { origin: CANADA }),
+    line(11, 'Chicken Thighs', { storage: 'freezer', freeze_on_arrival: true, origin: CANADA }),
+    line(12, 'Garlic', { origin: UNCLEAR }),
+    line(13, 'Rice'),
+  ]);
+  assert.deepEqual(shopRows(t).map((r) => [r.name, r.origin?.status ?? null]),
+    [['Chicken Thighs 1kg', 'evidenced'], ['Garlic 1kg', 'conflicting'], ['Rice 1kg', null]]);
+});
+
+test('Your list\'s one line, and the list as text, while the plan has country rules', () => {
+  const s = planWith(7);
+  const rules = countryRules(s.draft.settings);
+  const t = trip(D(1), [
+    lc(1, 'Cilantro', 'produce', { price: 1.16, origin: UNKNOWN, for_meals: [meal('Chicken Biryani', 1)] }),
+    lc(2, 'Ground Beef', 'meat', { price: 6.79, origin: CANADA }),
+    lc(3, 'Garlic', 'produce', { price: 0.68, origin: UNCLEAR }),
+  ], { total_cost: 8.63 });
+  const lists = [tripList(t, s.draft)];
+  assert.equal(listOriginNote(lists, rules), 'No US products · 2 to check on the label');
+  assert.equal(listText(lists, 'List', 'Total $8.63', '', rules), [
+    'List',
+    'No US products · 2 to check on the label',
+    '',
+    'Sat 10 Oct · Pantry Mart Downtown · $8.63',
+    '  Produce',
+    '  - 1 pack · Cilantro 1kg · $1.16 (for Chicken Biryani; origin unknown: check the label)',
+    '  - 1 pack · Garlic 1kg · $0.68 (origin unclear: check the label)',
+    '  Meat',
+    '  - 1 pack · Ground Beef 1kg · $6.79 (from Canada)',
+    '',
+    'Total $8.63',
+  ].join('\n'));
+  // no rules: the list as it always was
+  const free = countryRules({});
+  assert.equal(listOriginNote(lists, free), null);
+  assert.doesNotMatch(listText(lists, 'List', 'Total $8.63', '', free), /Canada|label/);
+  // an older API's trip: the rule alone, and nothing on the lines
+  const old = [tripList(trip(D(1), [line(1, 'Rice', { price: 2 })]), s.draft)];
+  assert.equal(listOriginNote(old, rules), 'No US products');
+  assert.match(listText(old, 'List', 'Total $2.00', '', rules), /- 1 pack · Rice 1kg · \$2\.00\n/);
+});
+
+test('in the store, a row keeps its origin', () => {
+  const v = instoreView(trip(D(1), [line(1, 'Rice', { origin: UNCLEAR }), line(2, 'Beef', { origin: CANADA })]), []);
+  assert.deepEqual(v.toGet.flatMap((g) => g.sections.flatMap((x) => x.rows.map((r) => r.origin?.status))),
+    ['conflicting', 'evidenced']);
+});
+
 test('in the store: by store in the trip\'s order, then section; nobody stocks it last', () => {
   const rows = shopRows(trip(D(1), [
     lc(1, 'Rice', 'pantry', { store: 'B' }),
@@ -181,9 +236,11 @@ test('Check your plan: the diet, the total against the budget, the days, the sto
   let s = planWith(14, add('pepperoni_pizza', 'Pepperoni Pizza', 1));
   const st = strategyOf(real, 'fresh');
   let items = checkPlan(s.draft, st, real);
-  assert.deepEqual(items.map((x) => x.key), ['diet', 'budget', 'days', 'stores', 'strategy']);
+  assert.deepEqual(items.map((x) => x.key), ['diet', 'countries', 'budget', 'days', 'stores', 'strategy']);
   const by = (k: string) => items.find((x) => x.key === k)!;
-  assert.deepEqual([by('diet').value, by('diet').note], ['Anything', 'leaving nothing out']);
+  assert.deepEqual([by('diet').value, by('diet').note], ['Anything', 'no allergies set']);
+  assert.deepEqual([by('countries').label, by('countries').value, by('countries').note, by('countries').change],
+    ['Countries', 'No US products', 'Canada first', 'where food comes from']);
   assert.deepEqual([by('budget').value, by('budget').note, by('budget').over], ['$219.40', 'no budget set', false]);
   assert.deepEqual([by('days').value, by('days').note], ['Fri 9 Oct – Thu 22 Oct', '2 weeks · you shop any day']);
   assert.equal(by('stores').value, 'Pantry Mart Downtown and GreenLeaf Grocers Kitsilano');
@@ -194,7 +251,7 @@ test('Check your plan: the diet, the total against the budget, the days, the sto
   s = run(s, { type: 'setPrefs', prefs: { diet: 'vegetarian', avoid: ['peanuts', 'dairy'], budget: 100,
     shop_weekdays: [5, 6] } });
   items = checkPlan(s.draft, st, real);
-  assert.deepEqual([by('diet').value, by('diet').note], ['Vegetarian', 'leaving out peanuts and milk']);
+  assert.deepEqual([by('diet').value, by('diet').note], ['Vegetarian', 'avoiding peanuts and milk']);
   assert.deepEqual([by('budget').value, by('budget').note, by('budget').over], ['$219.40', '$119.40 over your $100.00 budget', true]);
   assert.equal(by('days').note, '2 weeks · you shop at weekends');
   s = run(s, { type: 'setPrefs', prefs: { budget: 250 } });

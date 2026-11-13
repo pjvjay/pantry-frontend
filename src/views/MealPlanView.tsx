@@ -64,7 +64,7 @@ import type { DragEffect, DragPayload } from '../mealplan/dnd';
 import { planPictures } from '../mealplan/images';
 import { recipeTitle } from '../mealplan/model';
 import type { PlanEdit } from '../mealplan/model';
-import { pinFix } from '../mealplan/options';
+import { heldPinText, pinFix } from '../mealplan/options';
 import type { CheckItem } from '../mealplan/shoplist';
 import { useBasket, useMealPlan, usePlanFacts } from '../mealplan/store';
 import {
@@ -83,12 +83,14 @@ const tripChipSelector = (date: string) => `[data-trip="${CSS.escape(date)}"] .m
 const trayMoreSelector = (key: string) => `[data-tray-more="${CSS.escape(key)}"]`;
 
 // What a Change in Pick meals' setup strip focuses in Set up: the answer's own control (the chosen
-// one of a group), so the keyboard is where the change is made.
+// one of a group), so the keyboard is where the change is made. The countries: the first rule,
+// "Leave out US products".
 const CHANGE_FOCUS: Record<SetupItem['key'], string[]> = {
   when: ['#su-when input:checked'],
   budget: ['#su-budget input'],
   diet: ['#su-diet input:checked'],
   avoid: ['#su-avoid input'],
+  origin: ['#su-origin input'],
   where: ['#su-where input', '#su-where button'],
   days: ['#su-days input'],
 };
@@ -97,6 +99,7 @@ const CHANGE_FOCUS: Record<SetupItem['key'], string[]> = {
 // its stores (which to use and how far to go). How to shop is on Shop itself (its tiles).
 const CHECK_TO: Record<Exclude<CheckItem['key'], 'strategy'>, { step: StepNo; focus: string[] }> = {
   diet: { step: 1, focus: CHANGE_FOCUS.diet },
+  countries: { step: 1, focus: CHANGE_FOCUS.origin },
   budget: { step: 1, focus: CHANGE_FOCUS.budget },
   days: { step: 1, focus: CHANGE_FOCUS.when },
   stores: { step: 3, focus: ['.fc-stores input[name="mp-km"]:checked', `#${STORES_HEAD}`] },
@@ -475,8 +478,12 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
       : schedule.current ? 'checked' : '',
   ].filter(Boolean).join(' · ');
   // A pin the schedule now refuses (its product held back or no longer sold in range) can be
-  // taken off from here, so the plan is never stuck on it.
+  // taken off from here, so the plan is never stuck on it; held back by the country rule, the
+  // refusal is said in the shopper's words.
   const fix = schedule.status === 'error' ? pinFix(schedule.errorCode ?? null, schedule.errorDetail) : null;
+  const refusal = schedule.status === 'error'
+    ? heldPinText(schedule.errorCode ?? null, schedule.errorDetail, d, (k) => recipeTitle(state, k)) ?? schedule.error
+    : null;
   const placedAny = d.meals.some((m) => m.date !== null);
   // Meals held in the tray, which Fill empty slots would spread. Once it has run they wait unpinned
   // for the schedule to place them, and filling again would do nothing.
@@ -491,7 +498,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
         <Notice tone="danger" title="The trips could not be worked out" className="mp-status-problem"
                 actions={[...(fix ? [{ label: fix.label, onClick: () => { mp.dispatch(fix.edit); } }] : []),
                   { label: 'Try again', icon: 'refresh' as const, onClick: mp.recheck }]}>
-          {schedule.error}
+          {refusal}
         </Notice>
       )}
     </>
@@ -552,7 +559,8 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
 
         {step === 2 && <MealsStage quickText={quickText} setQuickText={setQuickText} onChange={changeSetup} />}
 
-        {step === 3 && <IngredientsStage basket={basket} facts={facts} onMeals={() => go(2)} />}
+        {step === 3 && <IngredientsStage basket={basket} facts={facts} onMeals={() => go(2)}
+                                         onRules={() => changeSetup('origin')} />}
 
         {step === 4 && (
           <>

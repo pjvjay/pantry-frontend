@@ -10,8 +10,8 @@
 // strip at the top of Pick meals (setupStrip).
 import { addDays, dayLabel } from './dates.ts';
 import { AVOID_LABELS, DIET_LABELS, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf } from './model.ts';
-import { originRules } from './wizard.ts';
-import type { MealPlanDraft, PlanSettings } from '../types.ts';
+import { countryRules, firstText, preferenceText, ruleText } from './origin.ts';
+import type { AvoidTag, MealPlanDraft, PlanSettings } from '../types.ts';
 
 // The demo's areas as quick picks. Downtown is the server's default: no point, no address.
 export interface Area {
@@ -126,23 +126,28 @@ export interface SummaryRow {
   note?: string;
 }
 
+// The allergens the plan leaves out, as the strip and the summary say them: "Peanuts, sesame", or
+// "None". (Named for what they are, so "None" never reads as if the plan left nothing out while
+// its country rule is on.)
+export function allergiesText(avoid: readonly AvoidTag[]): string {
+  const t = avoid.map((x) => AVOID_LABELS[x]).join(', ');
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'None';
+}
+
 // The "Your plan" card: each answer in Set up in a few words.
 export function planSummary(d: MealPlanDraft): SummaryRow[] {
   const budget = budgetOf(d.prefs);
-  const avoid = avoidOf(d.prefs);
-  const o = originRules(d.settings);
+  const rules = countryRules(d.settings);
   const st = d.settings;
   const slots = SLOTS.filter((sl) => d.prefs.slots_on.includes(sl)).map((sl) => SLOT_LABELS[sl]);
-  const origin = [o.excludeUS ? 'No US products' : 'US products allowed',
-    o.preferCanada ? 'Canada first' : '', o.allies.length ? `then ${o.allies.length} more` : ''].filter(Boolean);
   return [
     { key: 'when', label: 'When', value: `${dayLabel(d.start_date)} – ${dayLabel(addDays(d.start_date, d.days - 1))}`,
       note: d.days === 7 ? '1 week' : d.days === 14 ? '2 weeks' : `${d.days} days` },
     { key: 'budget', label: 'Budget', value: budget === null ? 'No budget' : money(budget),
       ...(budget === null ? {} : { note: perDayText(budget, d.days) }) },
     { key: 'diet', label: 'Diet', value: DIET_LABELS[dietOf(d.prefs)] },
-    { key: 'avoid', label: 'Leave out', value: avoid.length ? avoid.map((t) => AVOID_LABELS[t]).join(', ') : 'Nothing' },
-    { key: 'origin', label: 'Origin', value: origin.join(' · ') },
+    { key: 'avoid', label: 'Allergies', value: allergiesText(avoidOf(d.prefs)) },
+    { key: 'origin', label: 'Countries', value: ruleText(rules), note: preferenceText(rules) },
     { key: 'where', label: 'Where you are', value: placeText(st) },
     { key: 'days', label: 'Shop on', value: weekdaysText(d.prefs.shop_weekdays) },
     { key: 'meals', label: 'Meals', value: slots.join(', ') },
@@ -154,9 +159,11 @@ export function planSummary(d: MealPlanDraft): SummaryRow[] {
 // Set up is optional, so Pick meals opens by restating what it holds, as GOV.UK's "check your
 // answers" does: each answer with a Change that goes back to its card in Set up. `change` finishes
 // "Change" for a screen reader, which hears the link out of the row it sits in ("Change the
-// budget"). `key` names the card: the view focuses it.
+// budget"). `key` names the card: the view focuses it. The country rules have an item of their
+// own ("Countries: No US products, Canada first"), so a shopper who never opens Set up sees that
+// the plan leaves US products out before picking a meal.
 export interface SetupItem {
-  key: 'when' | 'budget' | 'diet' | 'avoid' | 'where' | 'days';
+  key: 'when' | 'budget' | 'diet' | 'avoid' | 'origin' | 'where' | 'days';
   label: string;
   value: string;
   note?: string;
@@ -170,8 +177,8 @@ const unbroken = (text: string) => text.replace(/ /g, '\u00a0');
 
 export function setupStrip(d: MealPlanDraft): SetupItem[] {
   const budget = budgetOf(d.prefs);
-  const avoid = avoidOf(d.prefs);
   const st = d.settings;
+  const rules = countryRules(st);
   const off = st.stores_off?.length ?? 0;
   return [
     { key: 'when', label: 'When',
@@ -180,8 +187,8 @@ export function setupStrip(d: MealPlanDraft): SetupItem[] {
     { key: 'budget', label: 'Budget', value: budget === null ? 'No budget' : money(budget),
       ...(budget === null ? {} : { note: perDayText(budget, d.days) }), change: 'the budget' },
     { key: 'diet', label: 'Diet', value: DIET_LABELS[dietOf(d.prefs)], change: 'the diet' },
-    { key: 'avoid', label: 'Leave out', value: avoid.length ? avoid.map((t) => AVOID_LABELS[t]).join(', ') : 'Nothing',
-      change: 'what to leave out' },
+    { key: 'avoid', label: 'Allergies', value: allergiesText(avoidOf(d.prefs)), change: 'your allergies' },
+    { key: 'origin', label: 'Countries', value: ruleText(rules), note: firstText(rules), change: 'where food comes from' },
     { key: 'where', label: 'Where', value: placeText(st),
       note: st.max_km == null ? 'stores at any distance' : `stores within ${st.max_km} km`, change: 'where you are' },
     { key: 'days', label: 'Shop on', value: weekdaysText(d.prefs.shop_weekdays),

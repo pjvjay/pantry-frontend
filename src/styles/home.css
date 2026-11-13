@@ -99,6 +99,9 @@ a.home-step-name:hover { text-decoration-thickness: 2px; }
 .home-trip-stores { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-2) 0 0; font-size: var(--fs-compact); }
 .home-trip-stores .ico { flex: none; margin-top: 1px; color: var(--muted); }
 .home-trip-meta { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--fs-compact); font-variant-numeric: tabular-nums; }
+/* the plan's country rule and the labels this trip asks the shopper to read */
+.home-trip-origin { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-2) 0 0; font-size: var(--fs-compact); }
+.home-trip-origin .ico { flex: none; margin-top: 1px; color: var(--accent); }
 .home-trip-basket { margin-top: var(--space-3); }
 .home-trip-basket p {
   display: flex; align-items: center; gap: var(--space-1); margin: 0; font-size: var(--fs-compact); font-weight: 600;

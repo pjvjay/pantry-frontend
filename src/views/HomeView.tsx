@@ -7,9 +7,11 @@
 //     and one "Continue" to the step to do next (mealplan/home.ts decides all of it). Once every
 //     step is done (the last once the plan's events have gone to a calendar: mealplan/exported.ts)
 //     the week is planned, and the way on is the shopping plan;
-//   - "Next trip": the next shopping trip, its state as a tag and, once the shopper has begun it
-//     in the store, how far they got ("3 of 8 in the basket", from the ticks kept beside the plan),
-//     with "Shop this trip" (in-store mode) and the way to the shopping plan;
+//   - "Next trip": the next shopping trip, its state as a tag, the plan's country rule and the
+//     labels the trip asks the shopper to read ("No US products · 2 to check on the label") and,
+//     once the shopper has begun it in the store, how far they got ("3 of 8 in the basket", from the
+//     ticks kept beside the plan), with "Shop this trip" (in-store mode) and the way to the shopping
+//     plan;
 //   - "Ask": a question for the assistant, carried to it and put in its message box, unsent.
 // With no plan yet, one invitation to start: build a week of dinners, try the example sentence,
 // or start planning by hand. How the console works is a quiet link to Workshop › About.
@@ -135,6 +137,7 @@ function NextTripCard({ trip }: { trip: NextTrip }) {
       </div>
       <p className="home-trip-stores"><Icon name="store" size={18} /><span>{trip.stores}</span></p>
       <p className="home-trip-meta">{trip.items} · {trip.cost}</p>
+      {trip.origin && <p className="home-trip-origin"><Icon name="globe" size={16} /><span>{trip.origin}</span></p>}
       {basket && (
         <div className="home-trip-basket">
           <p><Icon name="bag" size={16} />{basket.text}</p>

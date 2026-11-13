@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 
 import {
   MAX_OWN, addCheck, addCost, addCostText, againstBudget, budgetBar, budgetBarText, budgetSaid, byKey, catalogRequest, mealsText,
-  catalogSections, cleanRef, costPerMealText, dietBadge, estimateText, estimatedSpend, excludedWords, hiddenText,
+  catalogSections, cleanRef, costPerMealText, dietBadge, estimateText, estimatedSpend, hiddenText,
   notInCatalog, ownRecipes, packCost, picksOf, slotCounts, unavailableText,
 } from '../src/mealplan/catalog.ts';
 import type { Pick } from '../src/mealplan/catalog.ts';
@@ -75,9 +75,11 @@ test('a card says its diet, what a meal costs, and what is not sold nearby', () 
   assert.deepEqual(unavailableText(recipe('a', 'A')), []);
   // what only the origin rule keeps out is said as that
   assert.deepEqual(unavailableText(recipe('a', 'A', { unavailable: ['Yellow Onion', 'saffron'], held_back: ['Yellow Onion'] }),
-    ['United States']), ['Only US-origin nearby, left out by your rule: Yellow Onion', 'Not sold nearby: saffron']);
-  assert.equal(excludedWords(['United States', 'China']), 'from United States and China');
-  assert.equal(excludedWords([]), 'excluded-origin');
+    ['United States']), ['Only from the United States nearby, which your rule leaves out: Yellow Onion', 'Not sold nearby: saffron']);
+  assert.deepEqual(unavailableText(recipe('a', 'A', { unavailable: ['Rice'], held_back: ['Rice'] }), ['United States', 'China']),
+    ['Only from the United States or China nearby, which your rule leaves out: Rice']);
+  assert.deepEqual(unavailableText(recipe('a', 'A', { unavailable: ['Rice'], held_back: ['Rice'] })),
+    ['Left out by your origin rule: Rice'], 'the rule not known here');
   // the ref goes into the plan with its one source only
   assert.deepEqual(cleanRef({ key: 'starter:x', starter: 'x', slug: null as never, doc: null as never }),
     { key: 'starter:x', starter: 'x' });

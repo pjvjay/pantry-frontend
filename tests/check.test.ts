@@ -97,7 +97,35 @@ test('an ingredient sold only at stores turned off can turn one back on, first',
 test('what is wrong, in bold, then pantry-api\'s reason when it adds something', () => {
   const [basil, wine] = atRiskTasks(basketView(BASKET, plan()).recipes).map((t) => t.line);
   assert.deepEqual(issueText(basil), { head: 'Sold only beyond your distance', why: 'no store within 5 km sells it' });
-  assert.deepEqual(issueText(wine), { head: 'Only US-origin nearby, left out by your rule', why: '' }, 'no reason given');
+  assert.deepEqual(issueText(wine), { head: 'Every product nearby is from the United States, which your rule leaves out',
+    why: '' }, 'no reason given');
+  // the origin rule's reason is said in plain words: pantry-api's own ("… is evidenced as United
+  // States (ingredients), which this plan excludes") is not repeated after it
+  const b: MealBasket = structuredClone(BASKET);
+  b.recipes[1].lines[1].why_unavailable = 'Shaoxing Wine is evidenced as United States (ingredients), which this plan excludes';
+  assert.equal(issueText(atRiskTasks(basketView(b, plan()).recipes)[1].line).why, '');
+});
+
+test('the origin rule blocking one product in several recipes is said once; each keeps its answers', () => {
+  // the shopper chose the same salt for both recipes, and the rule now leaves it out
+  const b: MealBasket = structuredClone(BASKET);
+  for (const r of b.recipes.slice(0, 2)) {
+    const salt = r.lines.find((l) => l.ingredient === 'salt')!;
+    Object.assign(salt, { available: false, unavailable_kind: 'origin_excluded', store: null, price: null,
+      origin: { country: 'United States', claim: 'From United States', status: 'evidenced', preferred_rank: null },
+      held_back: [{ product_id: 122, product: 'Table Salt 1kg', country: 'United States', claim: 'Product of USA',
+        field: 'ingredient_origin', store: 'ValueFoods East Van', price: 1.54 }] });
+  }
+  const tasks = atRiskTasks(basketView(b, plan()).recipes).filter((t) => t.line.ingredient === 'salt');
+  assert.deepEqual(tasks.map((t) => [t.recipe, t.same, t.answers]), [
+    ['Pepperoni Pizza', null, ['product', 'skip', 'meals']],
+    ['Chicken Fried Rice', 'Pepperoni Pizza', ['product', 'skip', 'meals']],
+  ]);
+  assert.deepEqual(issueText(tasks[0].line, tasks[0].same), {
+    head: 'Your chosen product, Table Salt 1kg, is from the United States (Product of USA), which your rule leaves out', why: '' });
+  assert.deepEqual(issueText(tasks[1].line, tasks[1].same), { head: 'Same as for Pepperoni Pizza above', why: '' });
+  // another reason is never folded into the rule's
+  assert.equal(atRiskTasks(basketView(BASKET, plan()).recipes).every((t) => t.same === null), true);
 });
 
 test('a recipe\'s count under its name says what waits in the list above', () => {

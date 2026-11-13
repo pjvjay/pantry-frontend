@@ -9,6 +9,11 @@
 // still need an answer, pinned at the top as a short task list, each with its answers: another
 // product (its Options), skip this ingredient, or other meals; one sold only at stores the shopper
 // turned off can also turn a store back on. The rest of the recipes' rows stay below, quiet.
+//
+// The origin rule can block the same product in several recipes (the shopper's own pick of a
+// product the rule now leaves out, pinned on every line that buys it). Each line keeps its own task
+// and answers (a skip is one recipe's; another product, chosen in Options, replaces it on every
+// line that buys it), but the reason is said once: a later task says it is the same as the first.
 import type { BasketCounts, LineView, RecipeView } from './basket.ts';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -89,14 +94,22 @@ export interface AtRisk {
   line: LineView;
   recipe: string;                  // its recipe's title
   answers: Answer[];
+  // the recipe of an earlier task that the origin rule blocks on the same product, whose reason this
+  // one does not repeat; null for the first, and for any other reason
+  same: string | null;
 }
 
 export function atRiskTasks(recipes: readonly RecipeView[]): AtRisk[] {
-  return recipes.flatMap((r) => r.lines.filter((l) => !l.answered).map((line) => ({
-    line, recipe: r.title,
-    answers: [...(line.kind === 'stores_off' ? ['stores' as const] : []), 'product' as const, 'skip' as const,
-      'meals' as const],
-  })));
+  const said = new Map<string, string>();
+  return recipes.flatMap((r) => r.lines.filter((l) => !l.answered).map((line) => {
+    const earlier = line.blockKey ? said.get(line.blockKey) ?? null : null;
+    if (line.blockKey && earlier === null) said.set(line.blockKey, r.title);
+    return {
+      line, recipe: r.title, same: earlier,
+      answers: [...(line.kind === 'stores_off' ? ['stores' as const] : []), 'product' as const, 'skip' as const,
+        'meals' as const],
+    };
+  }));
 }
 
 // The words on each answer: "Another product" asks Options for one in place of the line's own;
@@ -116,8 +129,11 @@ export const toAnswerText = (n: number): string => `${plural(n, 'ingredient', 'i
 // What is wrong with a task, in bold, and pantry-api's own reason after it when that adds
 // something ("Sold only beyond your distance · no store within 5 km sells it; the nearest offer is
 // …"). A reason that starts by saying the same thing stands alone instead ("Sold only at stores you
-// turned off: ValueFoods East Van"), so nothing is said twice.
-export function issueText(line: Pick<LineView, 'issue' | 'heading' | 'why'>): { head: string; why: string } {
+// turned off: ValueFoods East Van"), so nothing is said twice. same: the recipe of an earlier task
+// with the same reason (AtRisk.same), which this one points back to instead of repeating it.
+export function issueText(line: Pick<LineView, 'issue' | 'heading' | 'why'>, same: string | null = null):
+  { head: string; why: string } {
+  if (same) return { head: `Same as for ${same} above`, why: '' };
   const head = line.issue?.label ?? line.heading;
   const why = line.why.trim();
   if (why && why.toLowerCase().startsWith(head.toLowerCase())) return { head: why, why: '' };

@@ -14,25 +14,34 @@
 // as a card of quiet rows, a skeleton of rows in its place while its products are checked. "Your
 // stores" sits beside them on a wide screen, staying in view, and lights the store a row is
 // bought at; on a phone it comes before the recipes. The words are in mealplan/basket.ts and
-// mealplan/check.ts. Where every row would say the same about its origin ("origin unknown · not
-// checked", as in the demo), the header says it once and the rows leave it out.
+// mealplan/check.ts.
+//
+// Where the food comes from: each row wears its product's origin tag (components/matchmarks.tsx
+// OriginTag: "Canada · preferred", "Origin unknown: check the label"), and a row the plan's country
+// rule changed says what the rule left out of it ("Instead of Ground Beef Medium 900g · Product of
+// USA"). While the plan has rules, the header says what they did across the basket ("No US
+// products · your rule left out 6 products"), the products found by country, and what the rules
+// cannot do, with a Change back to Set up's "Where food comes from" (mealplan/origin.ts has the
+// words). Where every row would wear the same tag (as when no product's origin is known), the
+// header says it once and the rows leave it out.
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode, RefObject } from 'react';
+import type { MouseEvent, ReactNode, RefObject } from 'react';
 
-import { basketAtLeast, basketCounts, basketView, originCoverage, originCoverageText } from '../mealplan/basket';
-import type { LineView, RecipeView } from '../mealplan/basket';
+import { basketAtLeast, basketCounts, basketView, originSummary } from '../mealplan/basket';
+import type { LineView, OriginSummary, RecipeView } from '../mealplan/basket';
 import { againstBudget } from '../mealplan/catalog';
 import { answerLabel, atRiskTasks, checkProgress, checkedText, issueText, recipeCountText, toAnswerText } from '../mealplan/check';
 import type { Answer, AtRisk, CheckProgress } from '../mealplan/check';
 import { USABLE_RESOLVE, budgetOf, recipeTitle } from '../mealplan/model';
+import type { OriginWords } from '../mealplan/origin';
 import { useMealPlan, useStores } from '../mealplan/store';
 import type { KeyedCall } from '../mealplan/store';
-import { clockText, originRules } from '../mealplan/wizard';
+import { clockText, stepHash } from '../mealplan/wizard';
 import type { WizardFacts } from '../mealplan/wizard';
 import type { MealBasket } from '../types';
 import { Icon } from './icons';
 import type { IconName } from './icons';
-import { EvidenceMark, MatchTag } from './matchmarks';
+import { MatchTag, OriginTag } from './matchmarks';
 import { ServingsPrompt } from './mealtray';
 import { ProductPicture, RecipePicture } from './pictures';
 import { STORES_HEAD, StoresPanel } from './stores';
@@ -52,21 +61,23 @@ const taskSelector = (key: string) => `[data-task="${CSS.escape(key)}"] button`;
 const rowSelector = (key: string) => `[data-ing-line="${CSS.escape(key)}"]`;
 
 const cap = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
-const lowerFirst = (t: string) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 
 // ─── The header ──────────────────────────────────────────────
 
 // How far the check has got, in words over a bar, and the basket's total. The bar shows what the
 // words say (found, skipped, still to answer; recipes checked while their products are), so it is
 // decoration to a screen reader; while a check is under way a sweep runs along it, which holds
-// still under reduced motion.
-function CheckHeader({ progress, total, coverage, origin, elapsed }: {
+// still under reduced motion. Under them, while the plan has country rules, what the rules did.
+function CheckHeader({ progress, total, origin, shared, elapsed, onRules }: {
   progress: CheckProgress;
   total: { text: string; over: boolean } | null;
-  coverage: { text: string; flag: boolean } | null;
-  // what every row would say about its origin, said here once instead
-  origin: LineView | null;
+  // what the plan's country rules did across the basket, while it has any
+  origin: OriginSummary | null;
+  // the origin tag every row would wear, said here once instead
+  shared: OriginWords | null;
   elapsed: number | null;
+  // to Set up's "Where food comes from", focused there
+  onRules?: () => void;
 }) {
   const p = progress;
   const pct = (n: number) => `${p.max > 0 ? (n / p.max) * 100 : 0}%`;
@@ -115,16 +126,37 @@ function CheckHeader({ progress, total, coverage, origin, elapsed }: {
           </details>
         </div>
       )}
-      {coverage && (
-        <p className="mp-check-coverage">{coverage.flag && <Icon name="alert" size={14} />}{coverage.text}</p>
-      )}
-      {origin && (
-        <p className="mp-check-coverage mp-ing-origin">
-          Every product here: {lowerFirst(origin.origin.text)}
-          <EvidenceMark kind={origin.evidence.kind} word={origin.evidence.word} />
-        </p>
+      {origin && <OriginLines origin={origin} onRules={onRules} />}
+      {shared && (
+        <p className="mp-check-coverage">Every product here: <OriginTag words={shared} /></p>
       )}
     </section>
+  );
+}
+
+// The rule and what it did ("No US products · your rule left out 6 products"), with a Change back to
+// it; the products found by country; what the rules cannot do.
+function OriginLines({ origin, onRules }: { origin: OriginSummary; onRules?: () => void }) {
+  // a plain click changes it here, focused on the rule; one that asks for another tab is the browser's
+  const change = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (!onRules || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    onRules();
+  };
+  return (
+    <div className="mp-check-origin">
+      <p className="mp-check-rule">
+        <Icon name="globe" size={16} />
+        <span><strong>{origin.rule}</strong>{origin.did && ` · ${origin.did}`}</span>
+        {onRules && (
+          <a className="mp-check-change" href={stepHash(1)} onClick={change}>
+            Change<span className="sr-only"> where food comes from</span>
+          </a>
+        )}
+      </p>
+      {origin.tally && <p className="mp-check-tally">{origin.tally}</p>}
+      {origin.covered && <p className="mp-check-coverage">{origin.covered}</p>}
+    </div>
   );
 }
 
@@ -148,7 +180,9 @@ function AtRiskList({ tasks, onAnswer }: { tasks: AtRisk[]; onAnswer: (t: AtRisk
       <ol className="mp-tasks-list">
         {tasks.map((t) => {
           const l = t.line;
-          const issue = issueText(l);
+          const issue = issueText(l, t.same);
+          // the shopper's own pick that the rule leaves out is named in the issue already
+          const named = l.kind === 'origin_excluded' && l.pinned;
           return (
             <li key={l.key} className="mp-task" data-task={l.key}>
               <ProductPicture product={l.productName} ingredient={l.ingredient} />
@@ -159,7 +193,7 @@ function AtRiskList({ tasks, onAnswer }: { tasks: AtRisk[]; onAnswer: (t: AtRisk
                 </p>
                 <p className="mp-task-issue"><strong>{issue.head}</strong>
                   {issue.why && <span className="mp-task-why"> · {issue.why}</span>}</p>
-                {l.product && <p className="mp-task-had">Planned: {l.product}</p>}
+                {l.product && !named && <p className="mp-task-had">Planned: {l.product}</p>}
                 <div className="mp-task-answers" role="group" aria-label={`${cap(l.ingredient)}: what to do`}>
                   {t.answers.map((a) => (
                     <button key={a} type="button" className="btn btn-secondary btn-sm"
@@ -181,12 +215,12 @@ function AtRiskList({ tasks, onAnswer }: { tasks: AtRisk[]; onAnswer: (t: AtRisk
 // ─── A recipe's rows ─────────────────────────────────────────
 
 // One ingredient as a row: its product's picture, its name and the product, the price, then the
-// need, store and cost, how sure the match is, its origin and how that is known, its labels. The
-// row is one button that opens the ingredient's Options (its words name the product and price; the
-// rest describes it), so a click anywhere on it, Enter or Space open them. A row the plan cannot
-// buy that is answered (skipped, or its recipe has no meals now) stays quiet and says so; one
-// still to answer is in the task list above instead.
-// origin: the row says its own origin (false when the header says the one every row shares).
+// need, store and cost, how sure the match is, where its product comes from, its labels, and what
+// the country rule left out of it. The row is one button that opens the ingredient's Options (its
+// words name the product and price; the rest describes it), so a click anywhere on it, Enter or
+// Space open them. A row the plan cannot buy that is answered (skipped, or its recipe has no meals
+// now) stays quiet and says so; one still to answer is in the task list above instead.
+// origin: the row wears its own origin tag (false when the header says the one every row shares).
 function Line({ l, title, onOptions, onHot, origin }: { l: LineView; title: string; onOptions: Open; onHot: Hot;
   origin: boolean }) {
   const mp = useMealPlan();
@@ -222,15 +256,18 @@ function Line({ l, title, onOptions, onHot, origin }: { l: LineView; title: stri
             {meta && <span className="mp-ing-meta">{meta}</span>}
             <span className="mp-ing-facts">
               {l.grade && <MatchTag kind={l.grade.kind} label={l.grade.label} />}
-              {origin && (
-                <span className="mp-ing-origin">
-                  <span className="muted">{l.origin.text}</span>
-                  <EvidenceMark kind={l.evidence.kind} word={l.evidence.word} />
-                </span>
-              )}
+              {origin && <OriginTag words={l.origin} />}
               {l.labels.map((x) => <span key={x} className="chip">{x}</span>)}
               {l.shared && <span className="muted">{l.shared}</span>}
             </span>
+            {/* what the rule left out, quiet under the row: seen as "Instead of …", heard as what it is */}
+            {l.instead && (
+              <span className="mp-ing-instead">
+                <Icon name="ban" size={13} />
+                <span aria-hidden="true">{l.instead.text}</span>
+                <span className="sr-only">{l.instead.label}</span>
+              </span>
+            )}
           </span>
         </span>
         <span className="mp-ing-side">
@@ -297,8 +334,8 @@ function RecipeShell({ title, slot, sub, children }: { title: string; slot: Reci
 
 // ─── The stage ───────────────────────────────────────────────
 
-export function IngredientsStage({ basket, facts, onMeals }: { basket: KeyedCall<MealBasket>; facts: WizardFacts;
-  onMeals: () => void }) {
+export function IngredientsStage({ basket, facts, onMeals, onRules }: { basket: KeyedCall<MealBasket>;
+  facts: WizardFacts; onMeals: () => void; onRules?: () => void }) {
   const mp = useMealPlan();
   const d = mp.state.draft;
   const stores = useStores(true);
@@ -324,16 +361,10 @@ export function IngredientsStage({ basket, facts, onMeals }: { basket: KeyedCall
   const checked = (k: string) => Boolean(d.resolved[k]) && USABLE_RESOLVE.includes(d.resolved[k].status);
   const ready = view?.recipes.filter((r) => checked(r.key)) ?? [];
   const shown = new Set(ready.map((r) => r.key));
-  // the origin every row shown would say, when they all say the same: said once, in the header
+  // the origin tag every row shown would wear, when they all wear the same: said once, in the header
   const rows = ready.flatMap((r) => r.lines.filter((l) => l.answered));
-  const sameOrigin = rows.length > 1 && rows.every((l) => l.origin.text === rows[0].origin.text
-    && l.evidence.kind === rows[0].evidence.kind && l.evidence.word === rows[0].evidence.word) ? rows[0] : null;
-  // Origin coverage, said only when the plan has origin rules: they act on known origins only.
-  const rules = originRules(d.settings);
-  const hasRules = rules.excludeUS || rules.preferCanada || rules.allies.length > 0;
-  const covered = b && hasRules ? originCoverage(b) : null;
-  const coverageText = covered ? originCoverageText(covered) : null;
-  const coverage = coverageText && covered ? { text: coverageText, flag: covered.known === 0 } : null;
+  const sameOrigin = rows.length > 1 && rows.every((l) => l.origin.words === rows[0].origin.words) ? rows[0].origin : null;
+  const summary = useMemo(() => (b ? originSummary(b, mp.state) : null), [b, mp.state]);
   const open = optionsFor ? view?.recipes.flatMap((r) => r.lines).find((l) => l.key === optionsFor) ?? null : null;
 
   const progress = checkProgress({ recipes: keys.length, checking: facts.checking, failed: facts.failed,
@@ -342,8 +373,13 @@ export function IngredientsStage({ basket, facts, onMeals }: { basket: KeyedCall
   const elapsed = useElapsed(pending);
   // the basket's total once every recipe's products are in it (while it is checked again after an
   // edit, the last one, which the header says is being checked)
-  const total = b && (progress.state === 'done' || progress.state === 'ingredients')
-    ? againstBudget(b.est_total, basketAtLeast(b), budgetOf(d.prefs)) : null;
+  const counted = Boolean(b) && (progress.state === 'done' || progress.state === 'ingredients');
+  const total = b && counted ? againstBudget(b.est_total, basketAtLeast(b), budgetOf(d.prefs)) : null;
+  // what the plan's country rules did, while it has any, from the same basket as the total: never
+  // while the recipes' products are still being checked, when the basket has nothing in it yet to
+  // say anything of (the summary counts each product once, and says a tag every row shares as a
+  // count of its own)
+  const origin = counted ? summary : null;
 
   // Once a check that was under way is in, a screen reader hears what it found, once.
   const was = useRef(progress.state);
@@ -423,8 +459,8 @@ export function IngredientsStage({ basket, facts, onMeals }: { basket: KeyedCall
   return (
     <div className="mp-check">
       <div className="mp-check-lead">
-        <CheckHeader progress={progress} total={total} coverage={coverage} origin={sameOrigin}
-                     elapsed={pending ? elapsed : null} />
+        <CheckHeader progress={progress} total={total} origin={origin} shared={origin ? null : sameOrigin}
+                     elapsed={pending ? elapsed : null} onRules={onRules} />
         {/* A call that failed is said once, here, with its reason and Try again (the header says
             what could not be checked); a recipe its check answered with a problem says so in its
             own card below. */}

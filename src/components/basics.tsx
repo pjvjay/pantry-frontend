@@ -221,7 +221,7 @@ function AvoidCard() {
   const head = useId();
   const avoid = avoidOf(mp.state.draft.prefs);
   return (
-    <FormCard icon="ban" title="Leave out"
+    <FormCard icon="ban" title="Allergies"
               help="Health Canada's priority allergens, with gluten and sulphites. Recipes with any of these are hidden, and Options never offers a product that has one."
               headId={head} id="su-avoid">
       <div className="chips" role="group" aria-labelledby={head}>
@@ -248,11 +248,11 @@ function OriginCard() {
   const save = (next: OriginRules) => mp.dispatch({ type: 'setSettings', settings: originSettings(next) });
   const add = adding && missing.includes(adding) ? adding : missing[0] ?? '';
   return (
-    <FormCard icon="globe" title="Where food comes from" headId={head} className="fc-wide"
-              help={`A preference, never a rule: most products do not say where they are from, so only the first switch leaves anything out.${Object.keys(d.recipes).length ? ' Changing these checks your recipes’ products again.' : ''}`}>
+    <FormCard icon="globe" title="Where food comes from" headId={head} className="fc-wide" id="su-origin"
+              help={`Leaving out is a rule; preferring is only an order for close choices. Most products do not say where they come from: those stay in your plan, marked “check the label”.${Object.keys(d.recipes).length ? ' Changing these checks your recipes’ products again.' : ''}`}>
       <div className="switches" role="group" aria-labelledby={head}>
         <Switch checked={r.excludeUS} onChange={(on) => save({ ...r, excludeUS: on })}
-                hint="Products evidenced as from the United States are held back">
+                hint="A product whose label or source says it is from the United States is never planned">
           Leave out US products
         </Switch>
         <Switch checked={r.preferCanada} onChange={(on) => save({ ...r, preferCanada: on })}
@@ -260,6 +260,11 @@ function OriginCard() {
           Prefer Canadian products
         </Switch>
       </div>
+      {/* countries left out some other way (the Assistant, an imported plan): said, so this card and
+          the strip that sends the shopper here agree */}
+      {r.otherExcluded.length > 0 && (
+        <p className="fc-note">Also left out: {r.otherExcluded.join(', ')}.</p>
+      )}
       <p className="label fc-sub">Then prefer, in this order</p>
       <ol className="cchips">
         {r.allies.map((c, i) => (

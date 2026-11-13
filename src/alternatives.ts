@@ -4,8 +4,10 @@
 // The words of a chat cart's Options dialog and of a swap, built from what pantry and the hub
 // return. Nothing here works a fact out: a price, store, trip total or reason is shown as the
 // ranking states it, and what the ranking does not know is said to be unknown, never zero.
+import { countryRules, originTag } from './mealplan/origin.ts';
+import type { CountryRules } from './mealplan/origin.ts';
 import type {
-  AlternativeRanking, AltOrigin, AltReason, CartLine, CartSummary, FilteredProduct, MatchGroup, PlanCardData,
+  AlternativeRanking, AltOrigin, AltReason, BasketOrigin, CartLine, CartSummary, FilteredProduct, MatchGroup, PlanCardData,
   RankedAlternative,
 } from './types.ts';
 
@@ -138,22 +140,25 @@ export function rowGrade(item: Pick<RankedAlternative, 'group' | 'group_label' |
   return { kind: 'outside', label: GROUP_LABELS.outside };
 }
 
-// A row's origin in a few words, and how it is known, as Check ingredients marks it: a source on
-// file (a demo label photo says so), sources that disagree (read the label in the store), or not
-// checked, which pantry tells apart from evidence that names no country.
-export function altOrigin(o: AltOrigin): { text: string; kind: 'checked' | 'disputed' | 'none'; word: string } {
-  if (o.status === 'resolved' && o.country) {
-    const text = o.claim === 'processing' ? `Made in ${o.country}` : `From ${o.country}`;
-    return { text, kind: 'checked', word: o.demo ? 'demo label photo' : 'source on file' };
+// A row's origin in the basket's terms (BasketOrigin, as pantry-api words it for a basket line), so
+// its tag reads as Check ingredients' rows do (mealplan/origin.ts): a country only when the evidence
+// resolved, "Made in" for a processing claim, sources that disagree, or nothing known.
+export function altBasketOrigin(o: AltOrigin): BasketOrigin {
+  const country = o.status === 'resolved' && o.country ? o.country : null;
+  if (o.status === 'conflicting') {
+    return { country: null, claim: 'Origin unclear: sources disagree', status: 'conflicting', preferred_rank: null };
   }
-  if (o.status === 'conflicting') return { text: 'Sources disagree', kind: 'disputed', word: 'check the label' };
-  return { text: o.label?.trim() || 'Origin not checked', kind: 'none', word: '' };
+  if (!country) return { country: null, claim: 'Origin unknown', status: 'unknown', preferred_rank: null };
+  return { country, claim: o.claim === 'processing' ? `Made in ${country}, ingredients may be imported` : `From ${country}`,
+    status: 'evidenced', preferred_rank: null };
 }
 
 // ─── Compare with your pick ──────────────────────────────────
 // The plan's pick beside the two best other rows, attribute by attribute, as a comparison table
 // reads (NN/g): what a pack costs, the price per unit, the pack's size, where it is sold, where it
 // is from and how close a match it is. Nothing is left blank: what pantry does not know says so.
+// Where it is from is said in the words of the rows' origin tags below the table, measured against
+// the plan's country rules (rules; none for a chat's cart), so the sheet says one thing of it.
 
 export interface CompareColumn {
   productId: number;
@@ -164,7 +169,7 @@ export interface CompareColumn {
   unit: string;                    // "$1.36 / 100 g", "unknown"
   size: string;                    // "~50g", "unknown"
   store: string;                   // "Pantry Mart Downtown, 0.3 km", "catalog price"
-  origin: string;                  // "Origin not checked", "From Canada", "Sources disagree"
+  origin: string;                  // "Canada · preferred", "Origin unknown: check the label"
 }
 
 export const COMPARE_ROWS: readonly { key: 'price' | 'unit' | 'size' | 'store' | 'origin'; label: string }[] = [
@@ -172,7 +177,7 @@ export const COMPARE_ROWS: readonly { key: 'price' | 'unit' | 'size' | 'store' |
   { key: 'store', label: 'Store' }, { key: 'origin', label: 'Origin' },
 ];
 
-function compareColumn(it: RankedAlternative): CompareColumn {
+function compareColumn(it: RankedAlternative, rules: CountryRules): CompareColumn {
   // The store the price is from: where the row's trip buys it, as packPrice prices it, else the
   // cheapest offer in range. The two differ when the best trip skips the cheapest store (a cart in
   // Ask, often), and one store's name beside another store's price would be untrue.
@@ -183,16 +188,16 @@ function compareColumn(it: RankedAlternative): CompareColumn {
     unit: it.unit_price != null && it.unit_basis ? `${money(it.unit_price)} / ${it.unit_basis}` : 'unknown',
     size: it.size?.trim() || 'unknown',
     store: at.store ? `${at.store}${at.distance_km != null ? `, ${at.distance_km.toFixed(1)} km` : ''}` : 'catalog price',
-    origin: altOrigin(it.origin).text,
+    origin: originTag(altBasketOrigin(it.origin), rules).words,
   };
 }
 
 // The plan's pick first, then the best-ranked others, `size` columns at most. With no pick (a line
 // with nothing chosen yet) the best rows alone. Fewer than two columns compare nothing: none.
-export function compareColumns(r: AlternativeRanking, size = 3): CompareColumn[] {
+export function compareColumns(r: AlternativeRanking, rules: CountryRules = countryRules(null), size = 3): CompareColumn[] {
   const current = r.items.find((it) => it.current) ?? null;
   const rest = r.items.filter((it) => !it.current).sort((a, b) => a.rank - b.rank);
-  const cols = [...(current ? [current] : []), ...rest].slice(0, size).map(compareColumn);
+  const cols = [...(current ? [current] : []), ...rest].slice(0, size).map((it) => compareColumn(it, rules));
   return cols.length >= 2 ? cols : [];
 }
 

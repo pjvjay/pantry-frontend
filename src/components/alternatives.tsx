@@ -20,21 +20,24 @@
 // allergen, breaks the diet) is listed, closed, as "Not offered"; and a note under the heading
 // says whether the line was matched by meaning or, with the meaning model off, by words. An older
 // pantry's rows are under "Same ingredient" and "Not the same ingredient", as before
-// (alternatives.rowGroups). Each row also wears its group as a tag, and its origin with how that
-// is known, so how sure it is reads on the row itself (components/matchmarks.tsx). Over the rows,
-// the pick and the two best others side by side: price, unit price, size, store, origin
-// (alternatives.compareColumns), nothing left blank.
+// (alternatives.rowGroups). Each row also wears its group as a tag, and its origin tag as Check
+// ingredients' rows do (measured against the plan's country rules, `rules`; a chat cart passes
+// none), with "demo label photo" after it where the evidence is one, so how sure it is reads on the
+// row itself (components/matchmarks.tsx). Over the rows, the pick and the two best others side by
+// side: price, unit price, size, store, origin (alternatives.compareColumns), nothing left blank.
 import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import {
-  COMPARE_ROWS, altOrigin, compareColumns, coversText, footText, matchingNote, movedText, needText, notOffered, priceLine,
-  reasonOf, reasonsLine, rowGrade, rowGroups, sizeInName, storeText, unitPriceText,
+  COMPARE_ROWS, altBasketOrigin, compareColumns, coversText, footText, matchingNote, movedText, needText, notOffered,
+  priceLine, reasonOf, reasonsLine, rowGrade, rowGroups, sizeInName, storeText, unitPriceText,
 } from '../alternatives';
 import type { CompareColumn } from '../alternatives';
 import { agentAlternatives } from '../hub';
+import { countryRules, originTag } from '../mealplan/origin';
+import type { CountryRules } from '../mealplan/origin';
 import type { AlternativeRanking, CartLine, RankedAlternative } from '../types';
 import { Icon } from './icons';
-import { EvidenceMark, MatchTag } from './matchmarks';
+import { EvidenceMark, MatchTag, OriginTag } from './matchmarks';
 import { ProductPicture } from './pictures';
 import { Sheet } from './Sheet';
 import { Notice } from './ui';
@@ -49,15 +52,18 @@ export interface OptionsTarget {
 // How many rows the hub asks pantry for (pantry allows 1..25).
 const LIMIT = 12;
 
+// A chat cart has no country rules of its own here: its rows' tags say the country, nothing more.
+const NO_RULES = countryRules({});
+
 // ingredient: what the row's picture falls back to when the product has none.
-function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; action: ReactNode; buyer?: string;
-  ingredient: string }) {
+function Row({ item, action, buyer, ingredient, rules }: { item: RankedAlternative; action: ReactNode; buyer?: string;
+  ingredient: string; rules: CountryRules }) {
   const price = priceLine(item, buyer);
   const trip = reasonOf(item, 'trip');
   const { summary, chips } = reasonsLine(item);
   const brandSize = [item.brand, sizeInName(item.product, item.size) ? '' : item.size].filter(Boolean).join(' · ');
   const grade = rowGrade(item);
-  const origin = altOrigin(item.origin);
+  const origin = originTag(altBasketOrigin(item.origin), rules);
   return (
     <li className={`card-row alt-row${item.current ? ' alt-row-current' : ''}`}>
       <span className="card-pic"><ProductPicture product={item.product} ingredient={ingredient} /></span>
@@ -68,7 +74,8 @@ function Row({ item, action, buyer, ingredient }: { item: RankedAlternative; act
         </div>
         <div className="alt-marks">
           <MatchTag kind={grade.kind} label={grade.label} />
-          <span className="alt-origin">{origin.text}<EvidenceMark kind={origin.kind} word={origin.word} /></span>
+          <OriginTag words={origin} />
+          {item.origin.demo && <EvidenceMark kind="checked" word="demo label photo" />}
         </div>
         <div className="alt-price">
           <strong>{price.main}</strong> <span className="muted">{unitPriceText(item)}</span>
@@ -138,7 +145,7 @@ function CompareStrip({ cols, holds }: { cols: CompareColumn[]; holds: string })
 }
 
 export function AlternativesDialog({ conversationId, target, blocked, returnFocus, onChoose,
-  onClose, load, loadKey, place = 'cart', description, notice, title, empty, extra }: {
+  onClose, load, loadKey, place = 'cart', description, notice, title, empty, extra, rules = NO_RULES }: {
   conversationId: string | null;
   // null: closed
   target: OptionsTarget | null;
@@ -166,6 +173,8 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
   // then listed open; and what follows the rows (a meal plan line's rows out of reach)
   empty?: ReactNode;
   extra?: ReactNode;
+  // the plan's country rules, which each row's origin tag is read against (a meal plan's)
+  rules?: CountryRules;
 }) {
   const [ranking, setRanking] = useState<AlternativeRanking | null>(null);
   const [error, setError] = useState('');
@@ -236,13 +245,14 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
       {choosing === item.product_id ? updating : 'Use this'}
     </button>
   );
-  const compare = ranking ? compareColumns(ranking) : [];
+  const compare = ranking ? compareColumns(ranking, rules) : [];
 
   const list = (heading: string, items: RankedAlternative[], tone: string) => items.length > 0 && (
     <section className={`alt-section alt-section-${tone}`} aria-label={heading}>
       <h3>{heading}</h3>
       <ul className="alt-list">
-        {items.map((it) => <Row key={it.product_id} item={it} action={useThis(it)} buyer={buyer} ingredient={ingredient} />)}
+        {items.map((it) => <Row key={it.product_id} item={it} action={useThis(it)} buyer={buyer} ingredient={ingredient}
+                                rules={rules} />)}
       </ul>
     </section>
   );
@@ -283,7 +293,7 @@ export function AlternativesDialog({ conversationId, target, blocked, returnFocu
             <section className="alt-section" aria-label={holds}>
               <h3>{holds} ({target?.pinned ? 'chosen by you' : 'chosen by the planner'})</h3>
               <ul className="alt-list">
-                <Row item={current} buyer={buyer} ingredient={ingredient} action={target?.pinned ? (
+                <Row item={current} buyer={buyer} ingredient={ingredient} rules={rules} action={target?.pinned ? (
                   <button type="button" className="btn btn-secondary alt-use" {...actionProps}
                           onClick={() => void choose(null)}>
                     {choosing === 'back' ? updating : 'Back to the planner’s pick'}

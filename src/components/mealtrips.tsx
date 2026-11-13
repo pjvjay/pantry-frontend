@@ -11,7 +11,8 @@
 // Approve stays Approve while the trips are worked out again after an edit: pressed then, it
 // waits for the new answer and approves from it only a list the shopper saw (mealplan/store.tsx).
 // A trip's state is a Tag (matchmarks.tsx TripTag); the sheet's total is the groceries, and its cart
-// card's, titled so, the groceries and travel.
+// card's, titled so, the groceries and travel. Each item in the sheet says where its product comes
+// from in the origin tag that Shop's list and in-store mode wear (matchmarks.tsx OriginTag).
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -26,6 +27,7 @@ import {
 import { dayLabel } from '../mealplan/dates';
 import { MAX_PACKS, STRATEGY_NAMES, approvedElsewhere, inWindow, windowDates, windowOf } from '../mealplan/model';
 import { tripLineKey, tripOptionsLabel } from '../mealplan/options';
+import { countryRules, originWords } from '../mealplan/origin';
 import { warningCountsText } from '../mealplan/shoplist';
 import { useMealPlan } from '../mealplan/store';
 import { hrefFor } from '../routes';
@@ -38,7 +40,7 @@ import { Sheet } from './Sheet';
 import { TripLineOptionsDialog } from './tripoptions';
 import { Icon } from './icons';
 import type { IconName } from './icons';
-import { TripTag } from './matchmarks';
+import { OriginTag, TripTag } from './matchmarks';
 import { Notice } from './ui';
 
 // A trip card's "Shop this trip", which Done shopping in the store brings focus back to, and its
@@ -86,6 +88,7 @@ function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Tr
     dispatch({ type: 'setPacks', date: trip.date, productId: ln.product.id, packs });
   const yours = ln.packs_basis === 'your_setting';
   const delta = priceDeltaText(ln.price_delta);
+  const origin = originWords(ln.origin, countryRules(state.draft.settings));
   return (
     <li className="mp-line">
       <div className="mp-line-head">
@@ -103,6 +106,7 @@ function LineRow({ ln, trip, allowFreezer, onOptions }: { ln: TripLine; trip: Tr
                 onClick={() => onOptions(ln)}>Options<Icon name="chevron-right" size={14} /></button>
       </div>
       <div className="muted">{forMealsText(ln)}</div>
+      {origin && <div className="mp-line-origin"><OriginTag words={origin} /></div>}
       <div className="mp-line-ctl">
         <span className="mp-stepper">
           <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`One pack fewer of ${ln.product.name}`}
@@ -247,7 +251,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
         <p className="mp-note-warn"><Icon name="alert" size={14} />Not stocked within range: {trip.not_stocked.join(', ')}</p>
       )}
       <CartCard summary={tripToCartSummary(trip)} copyButton={false} />
-      <h4>Each item</h4>
+      <h3 className="mp-sheet-label">Each item</h3>
       <ul className="mp-lines">
         {/* The engine groups lines by product and storage, so a product can be here twice. */}
         {trip.lines.map((ln) => (
@@ -257,7 +261,7 @@ export function TripSheet({ date, onClose, optionsFor = null }: { date: string |
       </ul>
       {trip.dismissed.length > 0 && (
         <>
-          <h4>Left off this trip by you</h4>
+          <h3 className="mp-sheet-label">Left off this trip by you</h3>
           <ul className="mp-lines mp-left-off">
             {trip.dismissed.map((p) => (
               <li key={p.id}>

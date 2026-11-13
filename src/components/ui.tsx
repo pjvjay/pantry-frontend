@@ -39,7 +39,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffe
 import type { FocusEvent, HTMLAttributes, ReactNode } from 'react';
 
 import { useHubStatus } from '../hubStatus';
-import { STAT_TONES, overflows, scrollRegionProps } from '../primitives';
+import { STAT_TONES, overflows, scrollRegionProps, toastClearance } from '../primitives';
 import type { StatTone } from '../primitives';
 import { hrefFor } from '../routes';
 import { Icon } from './icons';
@@ -308,10 +308,30 @@ const MAX_TOASTS = 3;
 
 // The region is always on the page, empty until a toast arrives, so a screen reader is already
 // listening to it: it reads each toast once, politely. A page that also announces the same
-// change in its own live region (the meal plan does) should not toast it as well.
+// change in its own live region (the meal plan does) should not toast it as well. A new toast
+// never settles over the control that has focus: when it would, the page scrolls that control
+// clear above it (primitives.ts toastClearance). A control in a sheet or a toast, or in a bar
+// fixed or stuck to the screen (which the page's scroll would not move), stays put.
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const nextId = useRef(1);
+  const region = useRef<HTMLDivElement>(null);
+  const newest = toasts.length ? toasts[toasts.length - 1].id : 0;
+  useLayoutEffect(() => {
+    const box = region.current;
+    const el = document.activeElement;
+    if (!newest || !box || !(el instanceof HTMLElement) || el === document.body || box.contains(el)
+      || el.closest('dialog') || pinned(el)) return;
+    const kids = Array.from(box.children).map((k) => k.getBoundingClientRect());
+    if (!kids.length) return;
+    // the stack's own box (its toasts slide in from a little lower), as wide as its toasts
+    const outer = box.getBoundingClientRect();
+    const stack = { top: outer.top, bottom: outer.bottom, left: Math.min(...kids.map((k) => k.left)),
+      right: Math.max(...kids.map((k) => k.right)) };
+    const topCover = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-cover')) || 0;
+    const by = toastClearance(el.getBoundingClientRect(), stack, topCover);
+    if (by > 0) window.scrollBy(0, by);
+  }, [newest]);
   const dismiss = useCallback((id: number) => setToasts((ts) => ts.filter((t) => t.id !== id)), []);
   const show = useCallback((toast: ToastInput) => {
     const id = nextId.current;
@@ -323,11 +343,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="toasts" role="status">
+      <div ref={region} className="toasts" role="status">
         {toasts.map((t) => <Toast key={t.id} toast={t} dismiss={dismiss} />)}
       </div>
     </ToastContext.Provider>
   );
+}
+
+// Whether an element is in a box fixed or stuck to the screen, which scrolling the page leaves where it is.
+function pinned(el: HTMLElement): boolean {
+  for (let n: HTMLElement | null = el; n && n !== document.body; n = n.parentElement) {
+    const { position } = getComputedStyle(n);
+    if (position === 'fixed' || position === 'sticky') return true;
+  }
+  return false;
 }
 
 function Toast({ toast, dismiss }: { toast: ToastItem; dismiss: (id: number) => void }) {

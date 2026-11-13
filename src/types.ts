@@ -1293,6 +1293,9 @@ export interface TripLine {
   price_at_approval: number | null;
   price_delta: number | null;
   stocked: boolean;
+  // where the product comes from, as the basket says it of the same product (BasketOrigin);
+  // absent from an older API, and null on a trip pantry-api worked out only to compare
+  origin?: BasketOrigin | null;
 }
 
 export interface TripDiffLine {
@@ -1822,6 +1825,21 @@ export interface BasketOrigin {
 // older API.
 export type UnavailableKind = 'origin_excluded' | 'not_stocked' | 'out_of_range' | 'stores_off';
 
+// A product the plan's origin rule left out of a basket line: the country its evidence matched,
+// that evidence in a shopper's words (claim: "Product of USA", "Grown in USA"), which field of it
+// matched, and the offer it would have been bought at (null when it has none in range). The
+// line's own planned or pinned product, when the rule now holds it back, comes first. Absent
+// from an older API.
+export interface HeldBackProduct {
+  product_id: number;
+  product: string;
+  country: string;
+  claim: string;
+  field: string;                   // ingredient_origin | manufactured_in | conflicting_evidence
+  store: string | null;
+  price: number | null;
+}
+
 // One ingredient of a recipe as the plan would buy it. price: one pack; cost_for_need: this
 // recipe's share over all its meals. shared_with: the other recipe keys buying the same product.
 export interface BasketLine {
@@ -1838,6 +1856,9 @@ export interface BasketLine {
   available: boolean;
   why_unavailable: string | null;
   unavailable_kind?: UnavailableKind | null;
+  // what the origin rule left out of this line, at most 3 ([] when the plan excludes nothing or
+  // nothing was dropped); absent from an older API, which says nothing of it either way
+  held_back?: HeldBackProduct[];
 }
 
 export interface BasketRecipe {
@@ -1857,6 +1878,9 @@ export interface MealBasket {
   est_total: number | null;
   budget: number | null;
   latency_ms: number;
+  // the distinct products the origin rule left out across the whole basket; absent from an older
+  // API, which is never read as "nothing was left out"
+  origin_held_back?: number;
 }
 
 // Quick add. The shopper's own recipes are sent so the parse can match them too.

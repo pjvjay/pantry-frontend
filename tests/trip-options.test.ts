@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { historyStep, sameArea, step, undoPlan } from '../src/mealplan/model.ts';
 import {
   choiceAnnouncement, chosenLineKey, coveredText, lineChoices, nearestText, nothingText, optionsDescription,
-  optionsEdit, optionsRequest, optionsTitle, pinFix, reachText, stockNotice, storesToTurnOn, tripLineKey,
+  heldPinText, optionsEdit, optionsRequest, optionsTitle, pinFix, reachText, stockNotice, storesToTurnOn, tripLineKey,
   tripOptionsLabel,
 } from '../src/mealplan/options.ts';
 import { startHistory } from '../src/mealplan/undo.ts';
@@ -140,6 +140,18 @@ test('a line no store sells any more says so above the rows', () => {
     'Table Salt 1kg is no longer sold at a store in range. Choose another product, or leave it off the trip.');
 });
 
+test('the shopper\'s own pick that the country rule now leaves out says so above the rows', () => {
+  // as pantry-api answers Options for a pin it holds back: no row is the pick; it is held back, first
+  const held = { product_id: SALT, product: 'Table Salt 1kg', country: 'United States', field: 'ingredient_origin',
+    verbatim: 'Product of USA', source: 'label-photo', demo: true };
+  const plan = opts(both, { trip_date: null, pinned: true, ranking: { ...opts([]).ranking, held_back: [held] } });
+  assert.equal(stockNotice(plan),
+    'Table Salt 1kg is from the United States (Product of USA), which your rule leaves out. Choose another product, '
+    + 'or skip this ingredient.');
+  assert.equal(stockNotice({ ...plan, ranking: { ...plan.ranking, held_back: [{ ...held, product_id: 1 }] } }), '',
+    'another product held back is not the pick');
+});
+
 test('after a choice a screen reader hears the trip total from the two answers', () => {
   const before = trip(D(1), [], { total_cost: 118.83 });
   const after = trip(D(1), [], { total_cost: 118.2 });
@@ -162,6 +174,18 @@ test('a pin the schedule refuses can be taken off, and nothing else is offered',
   assert.equal(pinFix('pin_invalid', { recipe_key: PIZZA, line_no: null }), null);
   assert.equal(pinFix('pin_invalid', 'pin 3 is bad'), null);
   assert.equal(pinFix(null, null), null);
+  // held back by the country rule: said in the shopper's words, the line named from the plan
+  const plan = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1)), { type: 'setResolved', resolved: [
+    { key: PIZZA, title: 'Pepperoni Pizza', status: 'ok', servings: 2, lines: [{ line_no: 3, name: 'Salt', product_id: SALT }] } as never] });
+  const held = { error: 'pin_invalid', recipe_key: PIZZA, line_no: 3, product_id: SALT, unavailable_kind: 'origin_excluded',
+    detail: 'Pepperoni Pizza: Table Salt 1kg, your product for Salt, is held back by the origin rule: it is evidenced as '
+      + 'United States (ingredients), which this plan excludes' };
+  assert.equal(heldPinText('pin_invalid', held, plan.draft, () => 'Pepperoni Pizza'),
+    'The product you chose for Salt in Pepperoni Pizza is from the United States, which your rule leaves out, so the trips '
+    + 'cannot be worked out. Choose another in Check ingredients, or use the planner’s product for that line.');
+  assert.equal(heldPinText('pin_invalid', { ...held, unavailable_kind: undefined }, plan.draft, () => ''), null,
+    'any other refusal is said as pantry-api said it');
+  assert.equal(heldPinText('stale_product', held, plan.draft, () => ''), null);
   // the fix applies, and the plan has no pin left on that line
   const s = run(planWith(7, add('pepperoni_pizza', 'Pepperoni Pizza', 1)),
     { type: 'pinProduct', recipeKey: PIZZA, lineNo: 3, productId: SEA_SALT });

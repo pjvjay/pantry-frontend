@@ -14,6 +14,7 @@
 // fill it, and when none can be chosen the sheet says why and offers the row's own answers.
 import { dayLabel } from './dates.ts';
 import type { PlanEdit } from './model.ts';
+import { listOr, theCountry } from './origin.ts';
 import { distanceLabel, kmText } from './stores.ts';
 import type {
   AlternativeRanking, CoveredLine, HeldBack, MealPlanDraft, MealStores, OutOfReachRow, RankedAlternative, Trip,
@@ -97,11 +98,19 @@ export function optionsDescription(o: TripLineOptions): string {
     + `A choice here is used for every ${recipes} meal in the plan.`;
 }
 
-// Said above the rows when the line's own product can no longer be bought, so it has no row.
+// Said above the rows when the line's own product can no longer be bought, so it has no row: no
+// store in range sells it now, or the plan's country rule leaves it out (the shopper's own pick of
+// a product whose evidence came in since, which pantry-api lists among what the rule holds back).
 export function stockNotice(o: TripLineOptions): string {
-  if (o.stocked || o.product_id === null) return '';
-  return `${o.product} is no longer sold at a store in range. Choose another product, or `
-    + `${o.trip_date ? 'leave it off the trip' : 'skip this ingredient'}.`;
+  if (o.product_id === null) return '';
+  const then = `Choose another product, or ${o.trip_date ? 'leave it off the trip' : 'skip this ingredient'}.`;
+  const held = o.ranking.held_back.find((h) => h.product_id === o.product_id);
+  if (held) {
+    return `${o.product} is from ${theCountry(held.country)}${held.verbatim ? ` (${held.verbatim})` : ''}, `
+      + `which your rule leaves out. ${then}`;
+  }
+  if (o.stocked) return '';
+  return `${o.product} is no longer sold at a store in range. ${then}`;
 }
 
 // What a screen reader hears after a choice, from the two answers' own numbers:
@@ -135,6 +144,25 @@ export function pinFix(code: string | null, detail: unknown)
     || !Number.isInteger(d.line_no)) return null;
   return { edit: { type: 'pinProduct', recipeKey: d.recipe_key, lineNo: d.line_no, productId: null },
     label: 'Use the planner’s product for that line' };
+}
+
+// The same refusal in the shopper's words when the country rule is why: pantry-api's own ("… is
+// held back by the origin rule: it is evidenced as United States (ingredients), which this plan
+// excludes") reads as jargon. The line is named from the plan (its recipe's title, its
+// ingredient). null for any other refusal, which is said as pantry-api said it.
+export function heldPinText(code: string | null, detail: unknown, d: MealPlanDraft,
+  title: (recipeKey: string) => string): string | null {
+  if (code !== 'pin_invalid' || typeof detail !== 'object' || detail === null) return null;
+  const x = detail as { recipe_key?: unknown; line_no?: unknown; unavailable_kind?: unknown };
+  if (x.unavailable_kind !== 'origin_excluded') return null;
+  const key = typeof x.recipe_key === 'string' && d.recipes[x.recipe_key] ? x.recipe_key : null;
+  const ingredient = key ? d.resolved[key]?.lines.find((l) => l.line_no === x.line_no)?.name ?? '' : '';
+  const where = key ? ` ${ingredient ? `for ${ingredient} ` : ''}in ${title(key)}` : '';
+  const excluded = d.settings.exclude_origin ?? [];
+  const from = excluded.length ? `from ${listOr(excluded.map(theCountry))}, which your rule leaves out`
+    : 'from a country your rule leaves out';
+  return `The product you chose${where} is ${from}, so the trips cannot be worked out. Choose another in Check `
+    + 'ingredients, or use the planner’s product for that line.';
 }
 
 // ─── An ingredient with no product (line mode) ───────────────

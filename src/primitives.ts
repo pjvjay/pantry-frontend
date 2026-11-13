@@ -3,8 +3,9 @@
 //
 // The decisions behind the console's shared primitives, kept apart from the components so they
 // can be tested without a browser: when a box that scrolls inside itself becomes a stop for the
-// keyboard (components/ui.tsx, ScrollRegion), how a figure's tone is drawn (StatTile), and when a
-// change of view cross-fades (components/viewTransition.ts).
+// keyboard (components/ui.tsx, ScrollRegion), how a figure's tone is drawn (StatTile), when a
+// change of view cross-fades (components/viewTransition.ts), and how far the page moves so a new
+// toast does not settle over the control that has focus (ToastProvider).
 
 // ─── ScrollRegion ────────────────────────────────────────────
 
@@ -66,4 +67,26 @@ export const STAT_TONES: Record<StatTone, { className: string; icon: 'check' | '
 // and never for a shopper who asked for less motion, for whom the new view simply appears.
 export function wantsViewTransition(browserCan: boolean, reducedMotion: boolean): boolean {
   return browserCan && !reducedMotion;
+}
+
+// ─── Toasts ──────────────────────────────────────────────────
+
+// A box on the screen, in the viewport's pixels.
+export interface Box {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+// How far to scroll the page, down, so the control with focus sits clear above a new stack of
+// toasts: the toasts rise from the bottom of the screen, and the control just pressed (Build a
+// week for me, low on a phone's screen) would otherwise be under the toast that answers it, out
+// of sight while it still has the keyboard. 0 when the toasts cover nothing of it, or by no more
+// than keeps it below a bar at the top of the screen (topCover, how far that bar reaches down).
+export function toastClearance(focus: Box, stack: Box, topCover: number, gap = 8): number {
+  const meets = stack.left < focus.right && stack.right > focus.left
+    && stack.top < focus.bottom + gap && stack.bottom > focus.top;
+  if (!meets) return 0;
+  return Math.max(0, Math.min(focus.bottom + gap - stack.top, focus.top - topCover));
 }

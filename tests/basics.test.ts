@@ -75,8 +75,9 @@ test('"Your plan" sums Set up up in a few words', () => {
   assert.deepEqual(rows.when, { key: 'when', label: 'When', value: 'Fri 9 Oct – Thu 15 Oct', note: '1 week' });
   assert.deepEqual(rows.budget, { key: 'budget', label: 'Budget', value: 'No budget' });
   assert.equal(rows.diet.value, 'Anything');
-  assert.equal(rows.avoid.value, 'Nothing');
-  assert.equal(rows.origin.value, 'No US products · Canada first · then 15 more');
+  assert.deepEqual([rows.avoid.label, rows.avoid.value], ['Allergies', 'None']);
+  assert.deepEqual(rows.origin, { key: 'origin', label: 'Countries', value: 'No US products',
+    note: 'Canada first, then 15 more' });
   assert.deepEqual(rows.where, { key: 'where', label: 'Where you are', value: 'Downtown Vancouver' });
   assert.equal(rows.days.value, 'Every day');
   assert.equal(rows.meals.value, 'Breakfast, Lunch, Dinner, Snack');
@@ -87,8 +88,8 @@ test('"Your plan" sums Set up up in a few words', () => {
   assert.deepEqual([rows.budget.value, rows.budget.note], ['$75.00', 'about $5.36 a day']);
   assert.equal(rows.when.note, '2 weeks');
   assert.equal(rows.diet.value, 'Vegan');
-  assert.equal(rows.avoid.value, 'soy, nuts (peanuts and tree nuts)', 'an older plan\'s nuts reads as both');
-  assert.equal(rows.origin.value, 'US products allowed');
+  assert.equal(rows.avoid.value, 'Soy, nuts (peanuts and tree nuts)', 'an older plan\'s nuts reads as both');
+  assert.deepEqual([rows.origin.value, rows.origin.note], ['Any country', 'no preference']);
   assert.equal(rows.where.value, 'Kitsilano', 'the location only: stores are chosen in Check ingredients');
   assert.equal(rows.days.value, 'Weekends');
   assert.equal(rows.meals.value, 'Dinner');
@@ -105,18 +106,20 @@ test('the budget\'s quick picks and its figure a day; shop days in words', () =>
 test('Pick meals restates Set up: each answer, and what its Change says to a screen reader', () => {
   let s = planWith(7);
   let items = setupStrip(s.draft);
-  assert.deepEqual(items.map((x) => x.key), ['when', 'budget', 'diet', 'avoid', 'where', 'days']);
+  assert.deepEqual(items.map((x) => x.key), ['when', 'budget', 'diet', 'avoid', 'origin', 'where', 'days']);
   assert.deepEqual(items.map((x) => [x.label, x.value, x.note ?? null]), [
     // each day kept on one line, so a narrow cell wraps at the dash
     ['When', 'Fri\u00a09\u00a0Oct – Thu\u00a015\u00a0Oct', '1 week'],
     ['Budget', 'No budget', null],
     ['Diet', 'Anything', null],
-    ['Leave out', 'Nothing', null],
+    // named for what they are: "None" here never reads as if nothing were left out of the plan
+    ['Allergies', 'None', null],
+    ['Countries', 'No US products', 'Canada first'],
     ['Where', 'Downtown Vancouver', 'stores within 5 km'],
     ['Shop on', 'Every day', null],
   ]);
-  assert.deepEqual(items.map((x) => x.change), ['the dates', 'the budget', 'the diet', 'what to leave out',
-    'where you are', 'the shopping days']);
+  assert.deepEqual(items.map((x) => x.change), ['the dates', 'the budget', 'the diet', 'your allergies',
+    'where food comes from', 'where you are', 'the shopping days']);
   s = run(s, { type: 'setPrefs', prefs: { budget: 90, diet: 'vegetarian', avoid: ['peanuts', 'sesame'], shop_weekdays: [5, 6] } },
     { type: 'setSettings', settings: { ...areaSettings(AREAS[1]), max_km: null, stores_off: [3, 7] } },
     { type: 'setWindow', start_date: s.draft.start_date, days: 14 });
@@ -125,9 +128,17 @@ test('Pick meals restates Set up: each answer, and what its Change says to a scr
   assert.deepEqual([by.when.value.replace(/\u00a0/g, ' '), by.when.note], ['Fri 9 Oct – Thu 22 Oct', '2 weeks']);
   assert.deepEqual([by.budget.value, by.budget.note], ['$90.00', 'about $6.43 a day']);
   assert.equal(by.diet.value, 'Vegetarian');
-  assert.equal(by.avoid.value, 'peanuts, sesame');
+  assert.equal(by.avoid.value, 'Peanuts, sesame');
   assert.deepEqual([by.where.value, by.where.note], ['Kitsilano', 'stores at any distance']);
   assert.deepEqual([by.days.value, by.days.note], ['Weekends', '2 stores turned off']);
-  assert.equal(setupStrip(run(s, { type: 'setSettings', settings: { stores_off: [3] } }).draft)[5].note,
+  assert.equal(setupStrip(run(s, { type: 'setSettings', settings: { stores_off: [3] } }).draft)[6].note,
     '1 store turned off');
+  // the countries: every one left out named, and the first preference, whatever it is
+  const countries = (settings: Parameters<typeof run>[1] & { type: 'setSettings' }) =>
+    setupStrip(run(s, settings).draft).find((x) => x.key === 'origin');
+  assert.deepEqual(countries({ type: 'setSettings', settings: { exclude_origin: ['United States', 'China'],
+    preference: ['France', 'Canada'] } }), { key: 'origin', label: 'Countries',
+    value: 'No products from the United States or China', note: 'France first', change: 'where food comes from' });
+  assert.deepEqual([countries({ type: 'setSettings', settings: { exclude_origin: [], preference: [] } })?.value,
+    countries({ type: 'setSettings', settings: { exclude_origin: [], preference: [] } })?.note], ['Any country', 'no preference']);
 });

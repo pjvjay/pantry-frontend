@@ -98,6 +98,36 @@ test('kept in this browser under its own key, read back, and refused quietly', (
   assert.equal(readOffline(null), null);
 });
 
+test('the copy keeps where each product comes from, so the store list still asks for the label', () => {
+  const s = plan();
+  const unclear = { country: null, claim: 'Origin unclear: sources disagree', status: 'conflicting' as const, preferred_rank: null };
+  const answer = schedule(s.draft.rev, [], [trip(D(1), [line(10, 'Chicken Thighs', { origin: unclear }),
+    line(11, 'Whole Milk', { origin: null }), line(12, 'Butter')], { status: 'approved' })]);
+  const store = memory();
+  assert.equal(writeOffline(store, copyOf(answer, s.draft, AT)), true);
+  const [thighs, milk, butter] = readOffline(store)!.trips[0].lines;
+  assert.deepEqual(thighs.origin, unclear);
+  assert.equal(milk.origin, undefined, 'none said: none kept');
+  assert.equal(butter.origin, undefined, 'an older API: none kept');
+  assert.deepEqual(instoreView(readOffline(store)!.trips[0], []).toGet[0].sections[0].rows.map((r) => r.origin?.status ?? null),
+    ['conflicting', null, null]);
+  // a copy kept before its lines said where they come from is not the same list: the next answer
+  // replaces it (the trip's fingerprint leaves the origin out)
+  const before = copyOf(schedule(s.draft.rev, [], [trip(D(1), [line(10, 'Chicken Thighs'), line(11, 'Whole Milk'),
+    line(12, 'Butter')], { status: 'approved' })]), s.draft, AT);
+  const now = copyOf(answer, s.draft, AT);
+  assert.notEqual(copyKey(before), copyKey(now));
+  const evidenced = copyOf(schedule(s.draft.rev, [], [trip(D(1), [line(10, 'Chicken Thighs', { origin: { ...unclear,
+    status: 'evidenced', country: 'Canada', claim: 'From Canada' } }), line(11, 'Whole Milk', { origin: null }), line(12, 'Butter')],
+  { status: 'approved' })]), s.draft, AT);
+  assert.notEqual(copyKey(evidenced), copyKey(now), 'evidence that came in since');
+  assert.equal(copyKey(copyOf(answer, s.draft, '2026-10-09T08:00:00')), copyKey(now), 'the same list, later');
+  // an origin this console could not have written makes the copy unreadable, as any damage does
+  const broken = JSON.parse(store.data[OFFLINE_KEY]);
+  broken.copy.trips[0].lines[0].origin.status = 'probably';
+  assert.equal(parseOffline(JSON.stringify(broken)), null);
+});
+
 test('a copy larger than the cap is not written, and the one before it is kept', () => {
   const s = plan();
   const store = memory();

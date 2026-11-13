@@ -11,6 +11,7 @@
 // the card as a guide.
 import { CAPACITY, SLOTS, SLOT_LABELS, avoidOf, budgetOf, dietOf, docRef, mealsOf, recipeTitle } from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
+import { listOr, theCountry } from './origin.ts';
 import { roomOf } from './room.ts';
 import type { SlotRoom } from './room.ts';
 import type { CatalogRecipe, CatalogRequest, MealCatalog, MealPlanDraft, RecipeDoc, RecipeRef } from '../types.ts';
@@ -69,18 +70,15 @@ export function costPerMealText(r: CatalogRecipe): string {
   return `about ${money(r.est_cost_per_meal)} a meal`;
 }
 
-// What a plan's origin exclusion is called: "US-origin" for the default rule.
-export function excludedWords(excluded: readonly string[]): string {
-  if (excluded.length === 1 && excluded[0] === 'United States') return 'US-origin';
-  return excluded.length ? `from ${listOf([...excluded])}` : 'excluded-origin';
-}
-
-// What cannot be bought, split by why: the origin rule (held_back) or no offer nearby.
+// What cannot be bought, split by why: the origin rule (held_back: every product nearby is from a
+// country the plan leaves out, said as Check ingredients says it) or no offer nearby.
 export function unavailableText(r: CatalogRecipe, excluded: readonly string[] = []): string[] {
   const held = r.held_back ?? [];
   const rest = r.unavailable.filter((x) => !held.includes(x));
+  const why = excluded.length ? `Only from ${listOr(excluded.map(theCountry))} nearby, which your rule leaves out`
+    : 'Left out by your origin rule';
   return [
-    held.length ? `Only ${excludedWords(excluded)} nearby, left out by your rule: ${held.join(', ')}` : '',
+    held.length ? `${why}: ${held.join(', ')}` : '',
     rest.length ? `Not sold nearby: ${rest.join(', ')}` : '',
   ].filter(Boolean);
 }

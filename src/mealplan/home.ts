@@ -29,6 +29,7 @@ import { addDays, dayLabel, daysBetween } from './dates.ts';
 import type { CivilDate } from './dates.ts';
 import { DIET_LABELS, SLOTS, approvedElsewhere, budgetOf, dietOf } from './model.ts';
 import type { MealPlanState, Slot } from './model.ts';
+import { countryRules, listOriginText, ruleText } from './origin.ts';
 import { listOf, shopRows } from './shoplist.ts';
 import { changedSinceText, exportState, exportedText } from './exported.ts';
 import type { ExportMark } from './exported.ts';
@@ -127,11 +128,15 @@ export interface ScheduleFacts {
   failed: boolean;
 }
 
+// The period, the budget, the diet when there is one, and the country rule when the plan leaves a
+// country out ("no US products"), so the rule is on Home before any trip is.
 function setupStep(d: MealPlanDraft): StepState {
   const budget = budgetOf(d.prefs);
   const diet = dietOf(d.prefs);
+  const rules = countryRules(d.settings);
+  const rule = rules.excluded.length ? ruleText(rules) : '';
   return { state: 'complete', produces: [periodText(d), budget === null ? 'no budget' : `${budgetText(budget)} budget`,
-    diet === 'any' ? '' : DIET_LABELS[diet]].filter(Boolean).join(' · ') };
+    diet === 'any' ? '' : DIET_LABELS[diet], rule.charAt(0).toLowerCase() + rule.slice(1)].filter(Boolean).join(' · ') };
 }
 
 function ingredientsStep(f: WizardFacts, basket: BasketCounts | null): StepState {
@@ -246,6 +251,9 @@ export interface NextTrip {
   look: TripLook;
   // how far the shopper got in the store (in-store mode's ticks), once anything is in the basket
   basket: { done: number; total: number; text: string } | null;
+  // the plan's country rule and the labels this trip asks the shopper to read ("No US products ·
+  // 2 to check on the label"); null while the plan has no rules
+  origin: string | null;
 }
 
 // The first trip of the strategy shown from today on, approved or not (its state says which);
@@ -274,5 +282,6 @@ export function nextTrip(s: MealPlanState, sc: MealSchedule | null, today: Civil
     look: tripLook(t, approvedElsewhere(d, t.date, st.name)),
     basket: done ? { done, total: rows.length,
       text: done === rows.length ? 'All in the basket' : `${done} of ${rows.length} in the basket` } : null,
+    origin: listOriginText(countryRules(d.settings), rows.map((r) => r.origin)),
   };
 }

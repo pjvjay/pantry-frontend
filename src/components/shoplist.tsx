@@ -5,7 +5,10 @@
 //                   stores and how to shop, each with a Change (GOV.UK's check answers).
 //   YourList        "Your list": one list for the whole period, trip by trip, each trip's lines by
 //                   store section, with one Copy list and one Print list for all of it, and "Shop
-//                   this trip" on each approved trip (in-store mode, views/InStoreView.tsx).
+//                   this trip" on each approved trip (in-store mode, views/InStoreView.tsx). Each
+//                   line has its origin tag; while the plan has country rules, one line under the
+//                   heading says the rule and how many labels the list asks the shopper to read
+//                   (mealplan/origin.ts).
 //   StrategyTiles   the two ways to shop as two tiles, each with its trips and total.
 //
 // The words and the grouping are in mealplan/shoplist.ts; the trips, their warnings and the trip
@@ -16,7 +19,9 @@ import type { MouseEvent, RefObject } from 'react';
 import { costText, strategyOf, tripPriced } from '../mealplan/board';
 import { periodText } from '../mealplan/home';
 import { STRATEGY_NAMES } from '../mealplan/model';
-import { checkPlan, listCountText, listOf, listText, periodList, strategyTiles } from '../mealplan/shoplist';
+import { countryRules, originWords } from '../mealplan/origin';
+import type { CountryRules } from '../mealplan/origin';
+import { checkPlan, listCountText, listOf, listOriginNote, listText, periodList, strategyTiles } from '../mealplan/shoplist';
 import type { CheckItem, TripList } from '../mealplan/shoplist';
 import { readShopping, tickedOn } from '../mealplan/shopping';
 import { useMealPlan } from '../mealplan/store';
@@ -24,7 +29,7 @@ import { hrefFor } from '../routes';
 import type { MealSchedule } from '../types';
 import { copyText } from './cart';
 import { Icon } from './icons';
-import { TripTag } from './matchmarks';
+import { OriginTag, TripTag } from './matchmarks';
 import { Sheet } from './Sheet';
 import { useToast } from './ui';
 
@@ -108,9 +113,9 @@ function browserStorage(): Storage | null {
 }
 
 // One trip of the list: its day and stores, its state, how far the shopper got with it in the store
-// (the ticks, kept beside the plan: mealplan/shopping.ts), and its lines by section. Its heading
-// is where Done shopping in the store brings the keyboard back to.
-function TripBlock({ list, ticked }: { list: TripList; ticked: readonly number[] }) {
+// (the ticks, kept beside the plan: mealplan/shopping.ts), and its lines by section, each with where
+// it comes from. Its heading is where Done shopping in the store brings the keyboard back to.
+function TripBlock({ list, ticked, rules }: { list: TripList; ticked: readonly number[]; rules: CountryRules }) {
   // approved under either way to shop: in-store mode opens its approved list (board.ts tripToShop)
   const approved = list.look.kind !== 'suggested';
   const head = `shop-trip-${list.date}`;
@@ -145,6 +150,7 @@ function TripBlock({ list, ticked }: { list: TripList; ticked: readonly number[]
               {s.rows.map((r) => {
                 const about = [r.forText, ...r.notes, list.manyStores ? list.storeLabels[r.store] ?? r.store : '']
                   .filter(Boolean);
+                const origin = originWords(r.origin, rules);
                 return (
                   <li key={r.key} className="shop-line">
                     <span className="shop-line-name">{r.name}</span>
@@ -153,6 +159,7 @@ function TripBlock({ list, ticked }: { list: TripList; ticked: readonly number[]
                       <span className="shop-line-qty">{r.amount}</span>
                       {about.length > 0 && <> · {about.join(' · ')}</>}
                     </span>
+                    {origin && <span className="shop-line-origin"><OriginTag words={origin} /></span>}
                   </li>
                 );
               })}
@@ -188,6 +195,8 @@ export function YourList({ schedule }: { schedule: MealSchedule }) {
   const d = mp.state.draft;
   const st = strategyOf(schedule, d.prefs.strategy);
   const lists = useMemo(() => periodList(st, d), [st, d]);
+  const rules = countryRules(d.settings);
+  const origin = listOriginNote(lists, rules);
   // the basket each trip has in the store, read as the list opens (Done shopping comes back here)
   const shopping = useMemo(() => readShopping(browserStorage()), [d.id]);
   // the list's text, when the clipboard would not take it
@@ -195,7 +204,7 @@ export function YourList({ schedule }: { schedule: MealSchedule }) {
   const copyButton = useRef<HTMLButtonElement>(null);
   const total = st ? costText(st.total_cost, st.total_is_floor, st.trips.some(tripPriced)) : '';
   const text = () => listText(lists, `Shopping list · ${periodText(d)} · ${STRATEGY_NAMES[d.prefs.strategy]}`,
-    `Total ${total}`, schedule.synthetic_notice);
+    `Total ${total}`, schedule.synthetic_notice, rules);
   // The older copy command, which copyText falls back on, copies from a box it focuses and then
   // removes, which leaves focus on the page: it comes back to Copy list.
   const copy = async () => {
@@ -211,6 +220,7 @@ export function YourList({ schedule }: { schedule: MealSchedule }) {
         <div>
           <h3 id="shop-list-head" className="shop-card-title">Your list</h3>
           {lists.length > 0 && <p className="shop-list-sum">{listCountText(lists)} · {total}</p>}
+          {lists.length > 0 && origin && <p className="shop-list-origin"><Icon name="globe" size={16} />{origin}</p>}
         </div>
         {lists.length > 0 && (
           <div className="shop-list-actions">
@@ -223,7 +233,8 @@ export function YourList({ schedule }: { schedule: MealSchedule }) {
           </div>
         )}
       </div>
-      {lists.length ? lists.map((l) => <TripBlock key={l.date} list={l} ticked={tickedOn(shopping, d.id, l.date)} />)
+      {lists.length ? lists.map((l) => (
+        <TripBlock key={l.date} list={l} ticked={tickedOn(shopping, d.id, l.date)} rules={rules} />))
         : <p className="muted shop-list-none">No trips yet: trips appear once meals are on days.</p>}
       <CopySheet text={manual} onClose={() => setManual(null)} back={copyButton} />
     </section>

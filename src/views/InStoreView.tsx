@@ -3,7 +3,10 @@
 // 12 · $38.40 of $52.00"); under it the lines to pick up, by store and then by section, each one
 // row with a big check (two to a row on a wide screen); a line ticked shows it where it was, ticked
 // and "In the basket", for a moment, then moves to "In the basket" at the end, struck through; and
-// "Done shopping" goes back to the shopping plan, at this trip in Your list.
+// "Done shopping" goes back to the shopping plan, at this trip in Your list. Each row also says
+// where its product comes from, in a short origin tag ("Canada · preferred", "Origin unknown: check
+// the label" while the plan leaves a country out), so the labels worth reading are marked where
+// the shopper stands.
 //
 // Where pantry-api cannot be reached (a shop's signal), the list opens from the offline copy this
 // browser kept of the trip as last approved (mealplan/offline.ts), with when it was made; the
@@ -26,6 +29,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { arriving } from '../components/arrival';
 import { Icon } from '../components/icons';
+import { OriginTag } from '../components/matchmarks';
 import { ProductPicture } from '../components/pictures';
 import { EmptyState, Notice, Skeleton } from '../components/ui';
 import { copiedAt, offlineTrip, readOffline } from '../mealplan/offline';
@@ -35,6 +39,8 @@ import { useWakeLock } from '../components/useWakeLock';
 import { tripToShop } from '../mealplan/board';
 import { dayLabel } from '../mealplan/dates';
 import { inWindow, windowDates, windowOf } from '../mealplan/model';
+import { countryRules, originWords } from '../mealplan/origin';
+import type { CountryRules } from '../mealplan/origin';
 import { instoreView, listOf, tickedText } from '../mealplan/shoplist';
 import type { ShopRow } from '../mealplan/shoplist';
 import { useMealPlan } from '../mealplan/store';
@@ -63,9 +69,11 @@ const SETTLE_MS = 900;
 const SLOW_MS = 1500;
 
 // settling: just ticked, still shown in its place with "In the basket" before it moves there.
-function Row({ row, on, settling = false, onToggle }: { row: ShopRow; on: boolean; settling?: boolean;
-  onToggle: (row: ShopRow, on: boolean) => void }) {
+// rules: the plan's country rules, which its origin tag is read against.
+function Row({ row, on, settling = false, onToggle, rules }: { row: ShopRow; on: boolean; settling?: boolean;
+  onToggle: (row: ShopRow, on: boolean) => void; rules: CountryRules }) {
   const meta = [row.amount, row.forText, ...row.notes].filter(Boolean).join(' · ');
+  const origin = originWords(row.origin, rules);
   return (
     <li className={`is-row${on ? ' is-row-on' : ''}${settling ? ' is-row-settling' : ''}`} data-row={row.key}>
       {/* one label is the whole row, a fingertip's target; the checkbox is named by all of it */}
@@ -81,6 +89,8 @@ function Row({ row, on, settling = false, onToggle }: { row: ShopRow; on: boolea
           {settling && <span className="is-moved" aria-hidden="true"><Icon name="bag" size={14} />In the basket</span>}
         </span>
         <span className={`is-price${row.price === null ? ' is-price-unknown' : ''}`}>{row.priceText}</span>
+        {/* under the words and the price, the width of both, so it stays one line on a phone */}
+        {origin && <span className="is-origin"><OriginTag words={origin} compact /></span>}
       </label>
     </li>
   );
@@ -91,6 +101,7 @@ export default function InStoreView({ date }: { date: string }) {
   const d = mp.state.draft;
   const schedule = mp.schedule;
   const answer = schedule.answer;
+  const rules = countryRules(d.settings);
   const fresh = tripToShop(answer, d, date);
   // With no answer yet (on its way, or pantry-api out of reach), the trip as this browser last kept
   // it, if that copy is of the plan as it is now; a fresh answer always takes over.
@@ -177,6 +188,9 @@ export default function InStoreView({ date }: { date: string }) {
   const ticked = new Set(ticks.ticked);
   const pct = view && view.total ? Math.round((view.done / view.total) * 100) : 0;
   const severalStores = (view?.toGet.length ?? 0) > 1 || (view?.stores.length ?? 0) > 1;
+  // a section's name is a level under its store's, or under the page's own heading when the trip
+  // has one store and no store heading is drawn, so no heading level is skipped
+  const Sec = severalStores ? 'h4' : 'h3';
 
   return (
     <div className="view instore">
@@ -237,11 +251,11 @@ export default function InStoreView({ date }: { date: string }) {
               {severalStores && <h3 className="is-store-name"><Icon name="store" size={18} />{g.store}</h3>}
               {g.sections.map((s) => (
                 <div key={s.name}>
-                  <h4 className="is-sec-name">{s.name}</h4>
+                  <Sec className="is-sec-name">{s.name}</Sec>
                   <ul className="is-rows">
                     {s.rows.map((r) => (
                       <Row key={r.key} row={r} on={ticked.has(r.productId)} settling={settling.includes(r.productId)}
-                           onToggle={toggle} />
+                           onToggle={toggle} rules={rules} />
                     ))}
                   </ul>
                 </div>
@@ -261,7 +275,9 @@ export default function InStoreView({ date }: { date: string }) {
                 <Icon name="bag" size={18} />In the basket <span className="is-basket-count">({view.basket.length})</span>
               </h3>
               <ul className="is-rows">
-                {drawn.basket.map((r) => <Row key={r.key} row={r} on={ticked.has(r.productId)} onToggle={toggle} />)}
+                {drawn.basket.map((r) => (
+                  <Row key={r.key} row={r} on={ticked.has(r.productId)} onToggle={toggle} rules={rules} />
+                ))}
               </ul>
             </section>
           )}

@@ -116,6 +116,7 @@ nothing. The logic is in pure modules under `src/mealplan/`:
 | `catalog.ts` | the Meals stage: recipe cards by meal from `/mealplan/catalog`, the budget bar's arithmetic, a real total against the budget |
 | `room.ts` | how many of each meal the plan's days hold (one breakfast, lunch and dinner and two snacks a day, for the meals planned), and why a recipe's + stops |
 | `basket.ts` | the Ingredients stage: each recipe's ingredients from `/mealplan/basket`, and which ones no store nearby sells still need an answer |
+| `origin.ts` | where food comes from: the plan's country rules in a few words ("No US products", "Canada first"), each product's origin tag measured against them ("Canada · preferred", "Origin unknown: check the label"), what the rule left out of a line ("Instead of …") and across the basket, the products found by country, and the labels a shopping list asks the shopper to read |
 | `basics.ts` | Basics: where the shopper is (areas, the device's location, the address search's words), the budget's picks and the "Your plan" summary |
 | `stores.ts` | Ingredients' "Your stores": the distances, the stores near the shopper, and the warning when none is in range |
 | `images.ts` | the pictures: which source a recipe's comes from (the shopper's own import first, then the one pantry-api names) and its credit, and the names a product's picture is asked by |
@@ -187,8 +188,12 @@ to its heading. `views/MealPlanView.tsx` puts them together:
    hovering or focusing a store's row lights its marker, and clicking a marker
    focuses its row. Then each recipe as a card with its picture, and its
    ingredients from `/mealplan/basket`, each a row with its product's picture
-   (`/hub/images/ingredient`), product, store and distance, price, origin and
-   labels, and the basket's total against the budget. The whole row is a button
+   (`/hub/images/ingredient`), product, store and distance, price, origin tag
+   and labels, and what the country rule left out of it ("Instead of Ground Beef
+   Medium 900g · Product of USA"); the basket's total against the budget; and,
+   while the plan has country rules, what they did across the basket ("No US
+   products · your rule left out 6 products"), the products found by country,
+   and that the rules act only on products whose origin is known. The whole row is a button
    that opens the ingredient's Options across the whole plan (no trip); a choice
    pins every line that buys it. A row with no product opens them for its recipe
    line ("Options for X: nothing chosen yet", `/mealplan/alternatives` with

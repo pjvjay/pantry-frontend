@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { STAT_TONES, overflows, scrollRegionProps, wantsViewTransition } from '../src/primitives.ts';
+import { STAT_TONES, overflows, scrollRegionProps, toastClearance, wantsViewTransition } from '../src/primitives.ts';
 
 const box = (client: [number, number], scroll: [number, number]) => ({
   clientWidth: client[0], clientHeight: client[1], scrollWidth: scroll[0], scrollHeight: scroll[1],
@@ -55,4 +55,17 @@ test('a change of view fades only where the browser can and motion is welcome', 
   assert.equal(wantsViewTransition(true, true), false, 'reduced motion: the view simply appears');
   assert.equal(wantsViewTransition(false, false), false, 'no View Transitions: the update just runs');
   assert.equal(wantsViewTransition(false, true), false);
+});
+
+test('a new toast moves the page only as far as clears the control that has focus', () => {
+  const button = { top: 650, bottom: 700, left: 16, right: 374 };
+  const stack = { top: 628, bottom: 688, left: 16, right: 374 };
+  // Build a week for me on a phone, under the toast that answers it: up by its overlap and a gap
+  assert.equal(toastClearance(button, stack, 0), 80);
+  // already clear above the toast, or beside a narrow one: nothing moves
+  assert.equal(toastClearance({ ...button, top: 560, bottom: 610 }, stack, 0), 0);
+  assert.equal(toastClearance(button, { ...stack, left: 450, right: 830 }, 0), 0);
+  // never up under a bar at the top of the screen
+  assert.equal(toastClearance({ ...button, top: 120, bottom: 700 }, stack, 90), 30);
+  assert.equal(toastClearance({ ...button, top: 60, bottom: 700 }, stack, 90), 0);
 });

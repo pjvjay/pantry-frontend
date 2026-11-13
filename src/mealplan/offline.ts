@@ -37,10 +37,13 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const STRATEGIES: readonly TripStrategy[] = ['fresh', 'fewest_trips'];
 
 // A line as in-store mode reads it (mealplan/shoplist.ts shopRows): the product, its store and
-// section, how many and what they cost, which recipes it is for, whether to freeze it and whether
-// it is stocked. What only the trip sheet shows (storage times and their sources, leftovers, price
-// changes) is left out.
+// section, how many and what they cost, which recipes it is for, whether to freeze it, whether it
+// is stocked and where it comes from (so a row still says "check the label" in a shop with no
+// signal). What only the trip sheet shows (storage times and their sources, leftovers, price
+// changes) is left out. A line from an older API, which says nothing of its origin, keeps saying
+// nothing.
 function trimLine(ln: TripLine): TripLine {
+  const o = ln.origin;
   return {
     product: { id: ln.product.id, name: ln.product.name, unit_size: ln.product.unit_size,
       category: ln.product.category, demo_product: ln.product.demo_product },
@@ -51,6 +54,7 @@ function trimLine(ln: TripLine): TripLine {
     for_meals: ln.for_meals.map((m) => ({ meal_id: m.meal_id, recipe_key: m.recipe_key, title: m.title, date: m.date,
       slot: m.slot })),
     store: ln.store, price: ln.price, price_at_approval: null, price_delta: null, stocked: ln.stocked,
+    ...(o ? { origin: { country: o.country, claim: o.claim, status: o.status, preferred_rank: o.preferred_rank } } : {}),
   };
 }
 
@@ -75,11 +79,17 @@ export function copyOf(answer: MealSchedule, d: MealPlanDraft, at: string): Offl
   return { id: d.id, rev: d.rev, strategy: d.prefs.strategy, at, trips: trips.map(trimTrip) };
 }
 
-// What makes two copies the same list, without comparing every line: the plan, its rev, the way
-// to shop and each trip's own fingerprint and state.
+// What makes two copies the same list, without comparing every line in full: the plan, its rev,
+// the way to shop, each trip's own fingerprint and state, and where each line's product comes
+// from. The fingerprint leaves the origin out (evidence that comes in later never asks the shopper
+// to look at an approved trip again), so a copy kept before its lines said where they come from,
+// or before that evidence changed, is replaced by the next answer rather than kept as it is.
+const originKey = (ln: TripLine) => (ln.origin ? `${ln.origin.status}:${ln.origin.country ?? ''}` : '-');
+
 export function copyKey(c: OfflineCopy | null): string {
   if (!c) return '';
-  return [c.id, c.rev, c.strategy, ...c.trips.map((t) => `${t.date}:${t.status}:${t.fingerprint}`)].join('|');
+  return [c.id, c.rev, c.strategy,
+    ...c.trips.map((t) => `${t.date}:${t.status}:${t.fingerprint}:${t.lines.map(originKey).join(',')}`)].join('|');
 }
 
 // ─── Reading what was stored ─────────────────────────────────
@@ -88,6 +98,13 @@ const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object
 const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
 const numOrNull = (x: unknown) => x === null || isNum(x);
 const strOrNull = (x: unknown) => x === null || typeof x === 'string';
+
+const ORIGIN_STATES: readonly unknown[] = ['evidenced', 'unknown', 'conflicting'];
+
+// A stored origin: none at all (an older API's line), or one its tag can read.
+const originOk = (o: unknown) => o === undefined || o === null
+  || (isObj(o) && strOrNull(o.country) && typeof o.claim === 'string' && ORIGIN_STATES.includes(o.status)
+    && numOrNull(o.preferred_rank));
 
 // A stored line in-store mode can draw without tripping over it.
 function lineOk(x: unknown): boolean {
@@ -98,7 +115,7 @@ function lineOk(x: unknown): boolean {
     && strOrNull(x.store) && strOrNull(x.category) && typeof x.stocked === 'boolean'
     && typeof x.freeze_on_arrival === 'boolean' && Array.isArray(x.for_meals)
     && x.for_meals.every((m) => isObj(m) && typeof m.title === 'string')
-    && isObj(x.shelf_life);
+    && isObj(x.shelf_life) && originOk(x.origin);
 }
 
 function tripOk(x: unknown): boolean {

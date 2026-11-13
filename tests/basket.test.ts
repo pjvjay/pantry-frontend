@@ -1,18 +1,28 @@
 // The wizard's Ingredients stage: each recipe's ingredients as the plan would buy them, and
-// which ones no store nearby sells still need the shopper's answer. The fixture is shaped as
-// pantry-api's /mealplan/basket answers (fixtures/mealplan-basket.json).
+// which ones no store nearby sells still need the shopper's answer. The fixtures are shaped as
+// pantry-api's /mealplan/basket answers: an older one, which says nothing of what the origin rule
+// left out (fixtures/mealplan-basket.json), and today's live answer for tomato penne, spaghetti
+// bolognese and the beef rice bowl under the default rules (fixtures/mealplan-basket-origin.json).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  originCoverage, originCoverageText,
-  basketAtLeast, basketKey, basketView, lineGrade, lineIssue, originEvidence, originText, unansweredCount, unavailableHeading,
+  basketAtLeast, basketKey, basketView, lineGrade, lineIssue, originSummary, unansweredCount, unavailableHeading,
 } from '../src/mealplan/basket.ts';
+import { libraryRef } from '../src/mealplan/model.ts';
 import type { MealBasket, ResolvedLine, ResolvedRecipe } from '../src/types.ts';
 import { D, add, planWith, run } from './helpers/mealplan.ts';
 
 const BASKET: MealBasket = JSON.parse(readFileSync(new URL('./fixtures/mealplan-basket.json', import.meta.url), 'utf8'));
+const LIVE: MealBasket = JSON.parse(readFileSync(new URL('./fixtures/mealplan-basket-origin.json', import.meta.url), 'utf8'));
+const BOWL = 'lib:beef_rice_bowl';
+const BOLOGNESE = 'lib:spaghetti_bolognese';
+
+// The live answer's three library recipes, two dinners each, under the default rules.
+const libPlan = () => planWith(7, ...([['beef_rice_bowl', 'Beef & Broccoli Rice Bowl'], ['spaghetti_bolognese',
+  'Spaghetti Bolognese'], ['tomato_penne', 'Tomato Penne']] as const).map(([slug, title]) =>
+  ({ type: 'addRecipe' as const, ref: libraryRef(slug), title, slot: 'dinner' as const, wanted: 2 })));
 const PIZZA = 'starter:pepperoni_pizza';
 const RICE = 'starter:chicken_fried_rice';
 
@@ -28,26 +38,29 @@ test('each ingredient: its product, store and distance, price, origin and labels
   assert.equal(dough.store, 'Pantry Mart Downtown · 1.2 km');
   assert.equal(dough.price, '$3.49 a pack');
   assert.equal(dough.cost, '$3.49 for these meals');
-  assert.deepEqual(dough.origin, { text: 'Made in Canada, ingredients may be imported · a preferred origin', flag: false });
+  assert.deepEqual([dough.origin.kind, dough.origin.words], ['made', 'Made in Canada · ingredients may be imported']);
   assert.deepEqual(dough.labels, ['fresh']);
   assert.equal(dough.optionsLabel, 'Options for pizza dough: now Pizza Dough Ball 500g, $3.49 at Pantry Mart Downtown');
   assert.equal(salt.store, 'GreenLeaf Grocers Kitsilano', 'distance unknown: none claimed');
-  assert.deepEqual(salt.origin, { text: 'origin unknown', flag: false });
+  assert.equal(salt.origin.words, 'Origin unknown: check the label', 'the plan leaves US products out');
   assert.equal(salt.pinned, true);
   assert.equal(salt.shared, 'also bought for Chicken Fried Rice');
   assert.equal(basil.store, 'no store nearby');
   assert.equal(basil.price, 'price unknown');
   assert.equal(basil.cost, '');
   assert.deepEqual(basil.labels, ['organic', 'demo product']);
-  assert.equal(basil.origin.text, 'From Mexico · a preferred origin');
+  assert.equal(basil.origin.words, 'Mexico', 'a country after the first preference is not marked');
   assert.equal(basil.heading, 'Sold only beyond your distance');
   assert.equal(basil.why, 'no store within 5 km sells it');
   assert.equal(dough.heading, '');
   const rice = view.recipes[1].lines;
-  assert.deepEqual(rice[0].origin, { text: 'origin unclear: sources disagree', flag: true });
+  assert.equal(rice[0].origin.words, 'Origin unclear: check the label');
   assert.equal(rice[1].product, null);
-  assert.equal(rice[1].heading, 'Only US-origin nearby, left out by your rule');
+  assert.equal(rice[1].heading, 'Every product nearby is from the United States, which your rule leaves out');
   assert.equal(rice[1].why, '');
+  // an older API says nothing of what the rule left out: nothing is claimed either way
+  assert.deepEqual(view.recipes.flatMap((r) => r.lines.map((l) => [l.held.length, l.instead])),
+    [[0, null], [0, null], [0, null], [0, null], [0, null]]);
   assert.equal(rice[1].optionsLabel, 'Options for shaoxing wine: nothing chosen yet, not sold nearby');
 });
 
@@ -56,7 +69,7 @@ test('what no store nearby sells needs an answer: skipping it, other meals, or a
   let view = basketView(BASKET, s);
   assert.deepEqual(view.unanswered.map((l) => [l.recipeKey, l.ingredient, l.heading]), [
     [PIZZA, 'fresh basil', 'Sold only beyond your distance'],
-    [RICE, 'shaoxing wine', 'Only US-origin nearby, left out by your rule'],
+    [RICE, 'shaoxing wine', 'Every product nearby is from the United States, which your rule leaves out'],
   ]);
   assert.equal(view.recipes[0].unanswered, 1);
   assert.equal(unansweredCount(BASKET, s), 2);
@@ -96,24 +109,77 @@ test('the basket is asked again when what it depends on changes, not when a meal
     basketKey({ ...s.draft, pins: { a: {}, b: { 1: 3, 2: 1 } } } as never));
 });
 
-test('an origin reads as the evidence words it, else the country, else unknown; a conflict is flagged', () => {
-  assert.deepEqual(originText({ country: null, claim: '', status: 'evidenced', preferred_rank: null }),
-    { text: 'origin unknown', flag: false });
-  assert.deepEqual(originText({ country: 'Japan', claim: '', status: 'evidenced', preferred_rank: null }),
-    { text: 'Japan', flag: false });
-  // the claim is shown as pantry-api words it
-  assert.deepEqual(originText({ country: 'Thailand', claim: 'From Thailand', status: 'evidenced', preferred_rank: null }),
-    { text: 'From Thailand', flag: false });
-  assert.deepEqual(originText({ country: 'Canada', claim: 'Made in Canada, ingredients may be imported',
-    status: 'evidenced', preferred_rank: 1 }),
-  { text: 'Made in Canada, ingredients may be imported · a preferred origin', flag: false });
-  assert.deepEqual(originText({ country: null, claim: 'Labels disagree: Canada or Mexico', status: 'conflicting',
-    preferred_rank: null }), { text: 'Labels disagree: Canada or Mexico', flag: true });
+test('each line\'s origin tag, and what the rule left out of the lines the plan still buys', () => {
+  const view = basketView(LIVE, libPlan());
+  const [beef, rice, broccoli, garlic] = view.recipes[0].lines;
+  assert.deepEqual([beef.product, beef.origin.words], ['Ground Beef Lean 450g', 'Canada · preferred']);
+  assert.equal(rice.origin.words, 'India');
+  assert.equal(broccoli.origin.words, 'Mexico');
+  assert.equal(garlic.origin.words, 'Origin unclear: check the label');
+  // what the rule left out, under the row it changed
+  assert.deepEqual(beef.instead, { text: 'Instead of Ground Beef Medium 900g · Product of USA',
+    label: 'Your rule left out Ground Beef Medium 900g (Product of USA).' });
+  assert.equal(broccoli.instead?.text, 'Instead of Broccoli Crown · Grown in USA');
+  assert.equal(rice.instead, null, 'nothing was left out of it');
+  const onions = view.recipes[1].lines[2];
+  assert.equal(onions.instead?.text, 'Instead of Yellow Onion · Grown in USA · and 1 more');
+  assert.deepEqual(onions.held.map((h) => h.product), ['Yellow Onion', 'Organic Yellow Onions 2lb Bag']);
+  assert.equal(view.recipes[1].lines[0].origin.words, 'Made in Canada · ingredients may be imported');
+  assert.deepEqual(view.unanswered, [], 'the planner chose products from elsewhere by itself');
+});
+
+test('a product the shopper chose that the rule now leaves out: their pick named, in plain words', () => {
+  // as pantry-api answers once Ground Beef Medium 900g is pinned on both recipes that buy ground beef
+  const live = structuredClone(LIVE);
+  for (const [key, no] of [[BOWL, 1], [BOLOGNESE, 2]] as const) {
+    const r = live.recipes.find((x) => x.key === key)!;
+    const i = r.lines.findIndex((l) => l.line_no === no);
+    r.lines[i] = { ...r.lines[i], product: { id: 35, name: 'Ground Beef Medium 900g', size: '900g', labels: ['meat'],
+      says_organic: false, demo_product: false }, store: null, price: null, cost_for_need: null, pinned: true,
+    available: false, unavailable_kind: 'origin_excluded', origin: { country: 'United States', claim: 'From United States',
+      status: 'evidenced', preferred_rank: null },
+    why_unavailable: 'Ground Beef Medium 900g is evidenced as United States (ingredients), which this plan excludes' };
+  }
+  const view = basketView(live, libPlan());
+  assert.deepEqual(view.unanswered.map((l) => [l.recipeKey, l.heading, l.why, l.blockKey]), [
+    [BOWL, 'Your chosen product, Ground Beef Medium 900g, is from the United States (Product of USA), which your rule leaves out',
+      '', 'pin:35'],
+    [BOLOGNESE, 'Your chosen product, Ground Beef Medium 900g, is from the United States (Product of USA), which your rule leaves out',
+      '', 'pin:35'],
+  ]);
+  const [bowl] = view.unanswered;
+  assert.deepEqual(bowl.issue, { kind: 'origin_excluded', label: bowl.heading });
+  assert.equal(bowl.instead, null, 'nothing is bought instead: the row asks for an answer');
+  assert.equal(bowl.origin.words, 'United States · your rule leaves it out');
+});
+
+test('what the country rules did across the basket, while the plan has any', () => {
+  const s = libPlan();
+  const summary = originSummary(LIVE, s);
+  assert.deepEqual(summary && { ...summary, tally: summary.tally.replace(/\u00a0/g, ' ') }, {
+    rule: 'No US products', did: 'your rule left out 6 products',
+    tally: 'Canada 7 · Italy 1 · Mexico 1 · India 1 · 1 unknown: check the label',
+    covered: 'Only products known to be from the United States can be left out: the 1 whose origin is not known stays in your plan.',
+  });
+  // an older API sends no count: the rule alone
+  assert.deepEqual([originSummary({ ...LIVE, origin_held_back: undefined }, s)?.rule,
+    originSummary({ ...LIVE, origin_held_back: undefined }, s)?.did], ['No US products', '']);
+  // a recipe with no meals buys nothing, so its products are not counted
+  const fewer = run(s, { type: 'setWanted', key: 'lib:tomato_penne', wanted: 0 }, { type: 'setWanted', key: BOLOGNESE, wanted: 0 });
+  assert.equal(originSummary(LIVE, fewer)?.tally.replace(/\u00a0/g, ' '), 'Canada 2 · Mexico 1 · India 1 · 1 unknown: check the label');
+  // a basket with nothing in it yet (the recipes' products still being checked): the rule alone
+  const empty = { ...LIVE, origin_held_back: 0, recipes: LIVE.recipes.map((r) => ({ ...r, lines: [] })) };
+  assert.deepEqual(originSummary(empty, s), { rule: 'No US products', did: '', tally: '', covered: null });
+  // preferences only; and no rules at all, nothing to say
+  const prefer = run(s, { type: 'setSettings', settings: { exclude_origin: [] } });
+  assert.deepEqual([originSummary(LIVE, prefer)?.rule, originSummary(LIVE, prefer)?.did], ['Any country', 'Canada first']);
+  assert.equal(originSummary(LIVE, run(s, { type: 'setSettings', settings: { exclude_origin: [], preference: [] } })), null);
 });
 
 test('why an ingredient cannot be bought: the origin rule, nothing stocked, or the distance', () => {
-  assert.equal(unavailableHeading('origin_excluded', ['United States']), 'Only US-origin nearby, left out by your rule');
-  assert.equal(unavailableHeading('origin_excluded', ['China']), 'Only from China nearby, left out by your rule');
+  assert.equal(unavailableHeading('origin_excluded', ['United States']),
+    'Every product nearby is from the United States, which your rule leaves out');
+  assert.equal(unavailableHeading('origin_excluded', ['China']), 'Every product nearby is from China, which your rule leaves out');
   assert.equal(unavailableHeading('not_stocked', []), 'No store nearby stocks it');
   assert.equal(unavailableHeading('out_of_range', []), 'Sold only beyond your distance');
   assert.equal(unavailableHeading(undefined, []), 'Not sold nearby', 'an older API');
@@ -127,7 +193,7 @@ test('a row with no match says what is wrong, and a matched one nothing', () => 
   assert.deepEqual(basil.issue, { kind: 'out_of_range', label: 'Sold only beyond your distance' });
   // held back by the origin rule, with no product left: the rule is what is wrong
   assert.deepEqual(view.recipes[1].lines[1].issue,
-    { kind: 'origin_excluded', label: 'Only US-origin nearby, left out by your rule' });
+    { kind: 'origin_excluded', label: 'Every product nearby is from the United States, which your rule leaves out' });
   const us = ['United States'];
   assert.deepEqual(lineIssue({ available: false, productId: 7, kind: 'stores_off' }, us),
     { kind: 'stores_off', label: 'Sold only at stores you turned off' });
@@ -162,29 +228,6 @@ test('each recipe heading has its meal and its picture', () => {
   ]);
 });
 
-test('origin coverage counts each product once, and only evidenced origins as known', () => {
-  const ids = new Map<number, boolean>();
-  for (const r of BASKET.recipes) for (const l of r.lines) {
-    if (l.product) ids.set(l.product.id, (ids.get(l.product.id) ?? false) || l.origin.status === 'evidenced');
-  }
-  const c = originCoverage(BASKET);
-  assert.equal(c.total, ids.size);
-  assert.equal(c.known, [...ids.values()].filter(Boolean).length);
-  assert.ok(c.known > 0 && c.known < c.total, 'the fixture has both, so both branches are read');
-
-  const none: MealBasket = { ...BASKET, recipes: BASKET.recipes.map((r) => ({
-    ...r, lines: r.lines.map((l) => ({ ...l, origin: { ...l.origin, status: 'unknown' as const } })) })) };
-  assert.equal(originCoverage(none).known, 0);
-  const conflicting: MealBasket = { ...BASKET, recipes: BASKET.recipes.map((r) => ({
-    ...r, lines: r.lines.map((l) => ({ ...l, origin: { ...l.origin, status: 'conflicting' as const } })) })) };
-  assert.equal(originCoverage(conflicting).known, 0, 'a conflicting record is not a known origin');
-
-  assert.equal(originCoverageText({ known: 0, total: 0 }), null);
-  assert.equal(originCoverageText({ known: 3, total: 3 }), 'Origin is known for 3 of 3 products: your origin rules apply to all of them.');
-  assert.equal(originCoverageText({ known: 0, total: 1 }),
-    'Origin is known for 0 of 1 product: your origin rules (leave out, prefer) can only act on products whose origin is known.');
-});
-
 // A recipe's products as the check chose them: line_no → [product id, match].
 const checked = (key: string, title: string, lines: Record<number, [number | null, ResolvedLine['match']]>): ResolvedRecipe => ({
   key, title, status: 'ok', message: '', servings: 2, servings_basis: 'source', label: null,
@@ -214,14 +257,7 @@ test('how sure each match is: the check\'s grade for its own pick, the shopper\'
   assert.equal(basketView(BASKET, plan()).recipes[0].lines[0].grade, null, 'not checked yet');
 });
 
-test('how each origin is known follows it: a source on file, sources that disagree, or none yet', () => {
-  const [dough, salt] = basketView(BASKET, plan()).recipes[0].lines;
-  assert.deepEqual(dough.evidence, { kind: 'checked', word: 'source on file' });
-  assert.deepEqual(salt.evidence, { kind: 'none', word: 'not checked' });
-  assert.deepEqual(basketView(BASKET, plan()).recipes[1].lines[0].evidence, { kind: 'disputed', word: 'check the label' });
-  assert.deepEqual(originEvidence({ country: null, claim: '', status: 'unknown', preferred_rank: null }),
-    { kind: 'none', word: 'not checked' });
-  // where each is bought, by the store's own name, for the map
+test('where each ingredient is bought, by the store\'s own name, for the map', () => {
   assert.deepEqual(basketView(BASKET, plan()).recipes[0].lines.map((l) => l.storeName),
     ['Pantry Mart Downtown', 'GreenLeaf Grocers Kitsilano', null]);
 });

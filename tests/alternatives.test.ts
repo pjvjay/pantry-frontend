@@ -2,12 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  altOrigin, cartChangeText, cartLineKey, cartTotal, chipReasons, compareColumns, coversText, footText, isPinned,
+  altBasketOrigin, cartChangeText, cartLineKey, cartTotal, chipReasons, compareColumns, coversText, footText, isPinned,
   lineNotes, linesOf, money, movedText, nameWithSize, needText, optionsLabel, packPrice, priceLine, purchaseLineNo,
   replaceCard, routedLinks, rowGrade,
   matchingNote, notOffered, reasonsLine, replyBeforeChange, rowGroups, sizeInName, storeText,
   swapAnnouncement, swapBlocked, swapNotice, unitPriceText,
 } from '../src/alternatives.ts';
+import { countryRules } from '../src/mealplan/origin.ts';
 import type {
   AlternativeRanking, CartLine, CartSummary, PlanCardData, RankedAlternative,
 } from '../src/types.ts';
@@ -356,17 +357,17 @@ test('each row wears its match grade in words: pantry\'s group, or the older tie
   assert.deepEqual(rowGrade(row({ tier: 'other' })), { kind: 'looser', label: 'Not the same ingredient' });
 });
 
-test('a row\'s origin in a few words, and how it is known', () => {
-  assert.deepEqual(altOrigin(row().origin), { text: 'Origin not checked', kind: 'none', word: '' });
-  assert.deepEqual(altOrigin({ ...row().origin, label: 'Origin not published' }),
-    { text: 'Origin not published', kind: 'none', word: '' }, 'evidence that names no country');
+test('a row\'s origin in the basket\'s terms, so its tag reads as Check ingredients\' rows do', () => {
+  const unknown = { country: null, claim: 'Origin unknown', status: 'unknown', preferred_rank: null };
+  assert.deepEqual(altBasketOrigin(row().origin), unknown);
+  assert.deepEqual(altBasketOrigin({ ...row().origin, label: 'Origin not published' }), unknown,
+    'evidence that names no country names none');
   const canada = { status: 'resolved', country: 'Canada', claim: 'full' as const, label: 'Canada: origin',
     verbatim: 'Product of Canada', source: 'label-photo', demo: false };
-  assert.deepEqual(altOrigin(canada), { text: 'From Canada', kind: 'checked', word: 'source on file' });
-  assert.deepEqual(altOrigin({ ...canada, claim: 'processing', demo: true }),
-    { text: 'Made in Canada', kind: 'checked', word: 'demo label photo' });
-  assert.deepEqual(altOrigin({ ...canada, status: 'conflicting', country: '' }),
-    { text: 'Sources disagree', kind: 'disputed', word: 'check the label' });
+  assert.deepEqual(altBasketOrigin(canada), { country: 'Canada', claim: 'From Canada', status: 'evidenced', preferred_rank: null });
+  assert.equal(altBasketOrigin({ ...canada, claim: 'processing' }).claim, 'Made in Canada, ingredients may be imported');
+  assert.deepEqual(altBasketOrigin({ ...canada, status: 'conflicting', country: '' }),
+    { country: null, claim: 'Origin unclear: sources disagree', status: 'conflicting', preferred_rank: null });
 });
 
 test('compare with your pick: the plan\'s pick, then the two best others; nothing left blank', () => {
@@ -387,7 +388,14 @@ test('compare with your pick: the plan\'s pick, then the two best others; nothin
   assert.deepEqual(cols.map((c) => c.size), ['~50g', '227g', 'unknown']);
   assert.deepEqual(cols.map((c) => c.store),
     ['Pantry Mart Downtown, 0.3 km', 'GreenLeaf Grocers Kitsilano, 2.9 km', 'catalog price']);
-  assert.deepEqual(cols.map((c) => c.origin), ['Origin not checked', 'Origin not checked', 'Origin not checked']);
+  // where each is from, in the words of the rows' tags: with no rules (a chat's cart), plainly unknown
+  assert.deepEqual(cols.map((c) => c.origin), ['Origin unknown', 'Origin unknown', 'Origin unknown']);
+  // measured against a plan's rules: the first preference, and the label to check while a country is left out
+  const rules = countryRules({ exclude_origin: ['United States'], preference: ['Canada', 'Mexico'] });
+  const canada = { status: 'resolved', country: 'Canada', claim: 'full' as const, label: 'Canada: origin',
+    verbatim: 'Product of Canada', source: 'label-photo', demo: false };
+  assert.deepEqual(compareColumns(ranking([celery, shallots, { ...pick, origin: canada }]), rules).map((c) => c.origin),
+    ['Canada · preferred', 'Origin unknown: check the label', 'Origin unknown: check the label']);
   // nothing chosen yet: the best rows alone; one row compares nothing
   assert.deepEqual(compareColumns(ranking([shallots, celery])).map((c) => c.yours), [false, false]);
   assert.deepEqual(compareColumns(ranking([pick])), []);

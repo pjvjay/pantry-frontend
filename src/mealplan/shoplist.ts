@@ -7,8 +7,8 @@
 //   Your list (Shop, and #/shop): one list for the whole period, every trip of the strategy
 //     shown, each trip under its day and stores, then its lines by store section (the line's
 //     category from pantry-api, "Other" when it names none). Each line says how many to buy, what,
-//     what it costs and which recipes it is for. Copy list and Print list give the same list as
-//     text (listText).
+//     what it costs, which recipes it is for and where it comes from (its origin, as the basket says
+//     it: mealplan/origin.ts). Copy list and Print list give the same list as text (listText).
 //   In-store mode (#/shop/trip/<date>): one trip, by store and then section, with the lines the
 //     shopper has ticked moved to "In the basket" at the end, and how far along the trip is
 //     (instoreView). The ticks themselves are kept in mealplan/shopping.ts, outside the plan.
@@ -30,8 +30,10 @@ import type { TripLook } from './board.ts';
 import { addDays, dayLabel } from './dates.ts';
 import type { CivilDate } from './dates.ts';
 import { AVOID_LABELS, DIET_LABELS, STRATEGY_NAMES, approvedElsewhere, avoidOf, budgetOf, dietOf } from './model.ts';
+import { countryRules, firstText, hasRules, listOriginText, originListWords, ruleText } from './origin.ts';
+import type { CountryRules } from './origin.ts';
 import type {
-  ApprovedTrip, MealPlanDraft, MealSchedule, StrategyResult, Trip, TripLine, TripStrategy, WarningCounts,
+  ApprovedTrip, BasketOrigin, MealPlanDraft, MealSchedule, StrategyResult, Trip, TripLine, TripStrategy, WarningCounts,
 } from '../types.ts';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -82,6 +84,7 @@ export interface ShopRow {
   store: string;                   // the store, or NOT_STOCKED
   section: string;                 // "Produce"
   notes: string[];                 // "freeze 1 on arrival", "no store in range stocks it now"
+  origin: BasketOrigin | null;     // where it comes from; null when pantry-api did not say (an older one)
 }
 
 const qtyText = (q: number) => (Number.isInteger(q) ? String(q) : q.toFixed(1));
@@ -123,7 +126,7 @@ export function shopRows(trip: Trip): ShopRow[] {
       priceText: price === null ? 'price unknown' : `${floor ? 'at least ' : ''}${money(price)}`,
       recipes, forText: recipes.length ? `for ${listOf(recipes)}` : '',
       store: first.store ?? NOT_STOCKED, section: sectionName(first.category ?? first.product.category),
-      notes,
+      notes, origin: lines.find((ln) => ln.origin)?.origin ?? null,
     };
   });
 }
@@ -200,17 +203,32 @@ export function listCountText(lists: readonly TripList[]): string {
   return `${plural(items, 'item', 'items')} on ${plural(lists.length, 'trip', 'trips')}`;
 }
 
+// The rows of every trip in a list, in its order.
+const rowsOf = (lists: readonly TripList[]): ShopRow[] => lists.flatMap((l) => l.sections.flatMap((s) => s.rows));
+
+// The one line over Your list while the plan has country rules: the rule, and how many of the
+// rows shown ask the shopper to read the label in the store ("No US products · 4 to check on the
+// label"); null with no rules.
+export const listOriginNote = (lists: readonly TripList[], rules: CountryRules): string | null =>
+  listOriginText(rules, rowsOf(lists).map((r) => r.origin));
+
 // The list as text, for the clipboard and the printer: the heading, then each trip with its
-// sections and lines, then the total and the demo's notice.
+// sections and lines, then the total and the demo's notice. While the plan has country rules
+// (rules), the line under the heading says the rule, and each line where its product comes from
+// in a few words ("from Canada", "origin unknown: check the label").
 //   head: "Shopping list · Thu 12 Nov – Wed 25 Nov · Shop fresh"; total: "Total $214.44"
-export function listText(lists: readonly TripList[], head: string, total: string, notice = ''): string {
-  const out = [head];
+export function listText(lists: readonly TripList[], head: string, total: string, notice = '',
+  rules: CountryRules | null = null): string {
+  const ruled = rules !== null && hasRules(rules) ? rules : null;
+  const note = ruled ? listOriginNote(lists, ruled) : null;
+  const out = note ? [head, note] : [head];
   for (const l of lists) {
     out.push('', `${l.heading} · ${l.cost}`);
     for (const s of l.sections) {
       out.push(`  ${s.name}`);
       for (const r of s.rows) {
-        const extra = [r.forText, ...r.notes, l.manyStores ? `at ${r.store}` : ''].filter(Boolean).join('; ');
+        const extra = [r.forText, ...r.notes, l.manyStores ? `at ${r.store}` : '',
+          ruled ? originListWords(r.origin, ruled) : ''].filter(Boolean).join('; ');
         out.push(`  - ${r.amount} · ${r.name} · ${r.priceText}${extra ? ` (${extra})` : ''}`);
       }
     }
@@ -280,11 +298,12 @@ export function tickedText(row: ShopRow, on: boolean, view: InStoreView): string
 // ─── Check your plan ─────────────────────────────────────────
 
 // The Shop stage opens by restating what the trips were made from, as GOV.UK's "check your
-// answers" does before the last step: the diet, the total against the budget, the days, the
-// stores and how to shop, each with a Change that goes back to where it is set. `change` finishes
-// "Change" for a screen reader, which hears the link apart from its row ("Change the budget").
+// answers" does before the last step: the diet and its allergies, the country rules, the total
+// against the budget, the days, the stores and how to shop, each with a Change that goes back to
+// where it is set. `change` finishes "Change" for a screen reader, which hears the link apart from
+// its row ("Change the budget").
 export interface CheckItem {
-  key: 'diet' | 'budget' | 'days' | 'stores' | 'strategy';
+  key: 'diet' | 'countries' | 'budget' | 'days' | 'stores' | 'strategy';
   label: string;
   value: string;
   note: string;
@@ -340,10 +359,13 @@ export function checkPlan(d: MealPlanDraft, st: StrategyResult | undefined, sc: 
   const stores = tripStores(st);
   const km = d.settings.max_km;
   const other = sc?.strategies.find((s) => s.name !== p.strategy);
+  const rules = countryRules(d.settings);
   return [
     { key: 'diet', label: 'Diet', value: DIET_LABELS[dietOf(p)],
-      note: avoid.length ? `leaving out ${listOf(avoid.map((t) => AVOID_LABELS[t]))}` : 'leaving nothing out',
+      note: avoid.length ? `avoiding ${listOf(avoid.map((t) => AVOID_LABELS[t]))}` : 'no allergies set',
       over: false, change: 'the diet' },
+    { key: 'countries', label: 'Countries', value: ruleText(rules), note: firstText(rules), over: false,
+      change: 'where food comes from' },
     { key: 'budget', label: 'Total', value, note, over, change: 'the budget' },
     { key: 'days', label: 'Days', value: `${dayLabel(d.start_date)} – ${dayLabel(addDays(d.start_date, d.days - 1))}`,
       note: `${weeksText(d.days)} · you shop ${shopDaysText(p.shop_weekdays)}`, over: false, change: 'the dates' },
