@@ -10,7 +10,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
 import { getRecipes } from '../api';
-import { trayRows } from '../mealplan/board';
+import { notBought, trayRows } from '../mealplan/board';
 import type { TrayRow } from '../mealplan/board';
 import { canDrop, TRAY_KEY } from '../mealplan/dnd';
 import { SLOTS, SLOT_LABELS, USABLE_RESOLVE, docRef, libraryRef, starterRef } from '../mealplan/model';
@@ -210,6 +210,7 @@ function RecipeRow({ row, ctl, shared }: { row: TrayRow; ctl: BoardCtl; shared: 
   const needsServings = resolved?.status === 'needs_servings' && answered === null;
   const full = addStop(d, r.slot, r.wanted);
   const done = row.wanted > 0 && row.placed >= row.wanted;
+  const unbought = resolved ? notBought(resolved, d.pins[row.key]) : [];
   return (
     <li className={`mp-recipe${done ? ' mp-recipe-done' : ''}`}>
       <div className="mp-recipe-head">
@@ -271,12 +272,7 @@ function RecipeRow({ row, ctl, shared }: { row: TrayRow; ctl: BoardCtl; shared: 
                   onClick={() => mp.dispatch({ type: 'setRecipeServings', key: row.key, servings: null })}>Change</button>
         </div>
       )}
-      {resolved && (resolved.not_stocked.length + resolved.out_of_range.length + resolved.skipped.length) > 0 && (
-        <div className="muted mp-recipe-note">
-          Not bought: {[...resolved.not_stocked, ...resolved.out_of_range, ...resolved.skipped]
-            .map((x) => x.ingredient).join(', ')}
-        </div>
-      )}
+      {unbought.length > 0 && <div className="muted mp-recipe-note">Not bought: {unbought.join(', ')}</div>}
       {row.waiting.length > 0 && (
         <ul className="mp-tray-chips" aria-label={`${row.title}: ${row.waiting.length} to place`}>
           {row.waiting.map((m) => <li key={m.id}><MealChip ctl={ctl} meal={m} inTray /></li>)}

@@ -11,7 +11,7 @@ import {
   buyBy, moveChoices, moveConsequence, productNames, productsText, remedyLabel, remedyStep, tripMoveConsequence,
   warningRows, warningsFor,
 } from '../src/mealplan/consequences.ts';
-import type { MealSchedule, PlanWarning, RemedyOp } from '../src/types.ts';
+import type { MealSchedule, PlanWarning, RemedyOp, ResolvedRecipe } from '../src/types.ts';
 import { D, add, planWith, run } from './helpers/mealplan.ts';
 
 const real: MealSchedule = JSON.parse(readFileSync(new URL('./fixtures/mealplan-schedule.json',
@@ -217,9 +217,40 @@ test('warnings that say the same thing one product at a time are one row listing
     message: `Ginger Congee on Mon 12 Oct: ${names.get(pid)} bought Fri is past its cited fridge time, ${days}.` });
   assert.equal(warningRows([fridge(1, '1 to 2 days'), fridge(2, '3 to 5 days')], names)[0].text,
     'Ginger Congee on Mon 12 Oct: Fresh Ginger bought Fri is past its cited fridge time, 1 to 2 days. The same for Soy Sauce.');
+  // a product whose name nobody knows is never merged into "product 13"
+  assert.equal(warningRows([before(1), { ...before(2), product_id: 99 }], names).length, 2);
   // plan-wide warnings, with no meal or product, are never merged
   const wide = { ...before(1), meal_ids: [], product_id: null, message: 'x' };
   assert.equal(warningRows([wide, wide], names).length, 2);
   assert.equal(productsText(['A', 'B', 'C']), 'A, B and C');
   assert.equal(productsText(['A']), 'A');
+});
+
+test('held-back planned products are named from the resolves, one row per recipe, every sentence whole', () => {
+  const bowl = 'lib:beef_rice_bowl';
+  const held = (pid: number, product: string, ingredient: string): PlanWarning => ({
+    level: 'decide', code: 'origin_excluded', strategy: null, product_id: pid, trip_date: null,
+    recipe_key: bowl, meal_ids: [`${bowl}#1`], remedies: [{ op: 'resolve', recipe_key: bowl }],
+    message: `Beef & Broccoli Rice Bowl: ${product}, the planned product for ${ingredient}, is held back by the `
+      + `origin rule. The trips buy nothing for ${ingredient} until the recipe's products are checked again.` });
+  const line = (line_no: number, product_id: number, product_name: string) => ({
+    line_no, name: '', quantity: null, unit: '', need_qty: null, need_uom: null, product_id, product_name,
+    match: null, amount_basis: null });
+  // no trip buys them, so only the resolve knows their names
+  const names = productNames({ ...real, strategies: [] }, {
+    [bowl]: { lines: [line(1, 31, 'Ground Beef Medium 900g'), line(3, 32, 'Broccoli Crown')] } as ResolvedRecipe });
+  const two = warningRows([held(31, 'Ground Beef Medium 900g', 'Ground Beef'), held(32, 'Broccoli Crown', 'Broccoli')],
+    names);
+  assert.equal(two.length, 1);
+  assert.match(two[0].text, /^Beef & Broccoli Rice Bowl: Ground Beef Medium 900g, the planned product for Ground Beef/);
+  assert.match(two[0].text, / The same for Broccoli Crown\.$/);
+  // one product on two of its lines, said differently for each: both sentences, never "The same for ."
+  const both = warningRows([held(31, 'Ground Beef Medium 900g', 'Ground Beef'),
+    held(31, 'Ground Beef Medium 900g', 'Beef for the sauce')], names);
+  assert.equal(both.length, 1);
+  assert.ok(!both[0].text.includes('The same for'));
+  assert.match(both[0].text, /for Ground Beef until .* for Beef for the sauce until/);
+  // a trip's own name for a product wins over the resolve's
+  assert.equal(productNames(real, { [bowl]: { lines: [line(1, 11, 'Old name')] } as ResolvedRecipe }).get(11),
+    'Chicken Thighs Bone-In');
 });

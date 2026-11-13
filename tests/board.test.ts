@@ -5,13 +5,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  costText, forMealsText, lineWarn, mealCountText, mealsByCell, mealsByDay, packsText, priceDeltaText, shelfText,
-  shownSlots, summaryLine, trayRows, tripChipText, tripLook, tripMoveDays, tripToCartSummary, weekEdit,
+  costText, forMealsText, lineWarn, mealCountText, mealsByCell, mealsByDay, notBought, packsText, priceDeltaText,
+  shelfText, shownSlots, summaryLine, trayRows, tripChipText, tripLook, tripMoveDays, tripToCartSummary, weekEdit,
   queuedApprovals, queuedMissText, tripToShop,
 } from '../src/mealplan/board.ts';
 import { dayLabel } from '../src/mealplan/dates.ts';
 import { cellKey, step } from '../src/mealplan/model.ts';
-import type { MealSchedule } from '../src/types.ts';
+import type { MealSchedule, ResolvedLine, ResolvedRecipe } from '../src/types.ts';
 import { D, TODAY, add, line, planWith, run, schedule, trip } from './helpers/mealplan.ts';
 
 const real: MealSchedule = JSON.parse(readFileSync(new URL('./fixtures/mealplan-schedule.json',
@@ -296,4 +296,23 @@ test('a day is shopped from its approved list, under the way to shop it was appr
   moved.strategies[1].trips = [trip(D(1), [line(10, 'Chicken Breast')])];
   assert.equal(tripToShop(moved, s.draft, D(1)), moved.strategies[1].trips[0],
     'the approval\'s way has no trip that day: the one shown');
+});
+
+test("a tray row's Not bought leaves out an ingredient the shopper answered with a product", () => {
+  const ln = (line_no: number, name: string, product_id: number | null): ResolvedLine => ({
+    line_no, name, quantity: 1, unit: 'each', need_qty: 1, need_uom: 'each', product_id,
+    product_name: product_id === null ? null : `Product ${product_id}`, match: null, amount_basis: null });
+  const resolved: ResolvedRecipe = {
+    key: 'starter:chicken_fried_rice', title: 'Chicken Fried Rice', status: 'ok', message: '', servings: 4,
+    servings_basis: 'source', label: null, cached: false, llm_cost_usd: 0, model_used: '', burr_run: '',
+    lines: [ln(1, 'Chicken Breast', null), ln(2, 'Rice', 9), ln(3, 'Water', null), ln(4, 'Scallions', null)],
+    not_stocked: [{ ingredient: 'Water', reason: 'not sold', suggestions: [] }],
+    out_of_range: [{ ingredient: 'Scallions', reason: 'too far', suggestions: [] }],
+    skipped: [{ ingredient: 'Chicken Breast', reason: 'only from the United States', suggestions: [] }],
+  };
+  assert.deepEqual(notBought(resolved, undefined), ['Water', 'Scallions', 'Chicken Breast']);
+  // Chicken Thighs chosen for the chicken breast line in Check ingredients: it is bought
+  assert.deepEqual(notBought(resolved, { 1: 31 }), ['Water', 'Scallions']);
+  // a pin on another line answers nothing here
+  assert.deepEqual(notBought(resolved, { 2: 31 }), ['Water', 'Scallions', 'Chicken Breast']);
 });

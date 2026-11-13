@@ -200,9 +200,13 @@ test('a product the planner chose that the rule now holds back: named as what is
   bowl.lines[0] = { ...bowl.lines[0], product: null, origin: { country: null, claim: 'Origin unknown', status: 'unknown',
     preferred_rank: null }, why_unavailable: 'all 2 candidates are evidenced as coming from United States, which this plan excludes' };
   const [first] = basketView(none, s).recipes[0].lines;
+  // the heading names the country from held_back, so pantry-api's reason would only repeat it
   assert.deepEqual([first.heading, first.why, first.skippable, first.skipped, first.answered],
-    ['Every product nearby is from the United States, which your rule leaves out',
-      'all 2 candidates are evidenced as coming from United States, which this plan excludes', true, true, true]);
+    ['Every product nearby is from the United States, which your rule leaves out', '', true, true, true]);
+  // from an older pantry-api, with no held_back, its reason stays
+  bowl.lines[0] = { ...bowl.lines[0], held_back: undefined };
+  assert.equal(basketView(none, s).recipes[0].lines[0].why,
+    'all 2 candidates are evidenced as coming from United States, which this plan excludes');
 });
 
 test('what the country rules did across the basket, while the plan has any', () => {

@@ -93,13 +93,16 @@ test("the button's name keeps every note drawn inside it, so a screen reader hea
   const doubtful: CartLine = { ...line, packs: 2, match: 'generic', confidence: 0.72,
                                origin_status: 'unknown' };
   assert.deepEqual(lineNotes(doubtful, true), [
-    { text: 'origin unclear', flag: true, title: 'origin unknown' },
+    { text: 'Origin unknown: check the label', flag: true, origin: true, title: 'origin unknown' },
     { text: 'closest match', flag: true },
     { text: 'check this pick', flag: true, title: 'the planner is 72% sure of this pick' },
   ]);
   assert.equal(optionsLabel(doubtful, true, true), 'See options for Ground Beef: now Ground Beef '
-    + 'Extra Lean 300g ×2, $6.27 at Pantry Mart Downtown (changed by you); origin unclear, '
+    + 'Extra Lean 300g ×2, $6.27 at Pantry Mart Downtown (changed by you); Origin unknown: check the label, '
     + 'closest match, check this pick');
+  // sources that disagree: unclear, in the same words the cart draws
+  assert.equal(lineNotes({ ...doubtful, origin_status: 'conflicting' }, true)[0].text,
+    'Origin unclear: check the label');
   // a known origin is a plain note; with no origin asked for, its absence is not a flag
   const sure: CartLine = { ...line, origin_country: 'Canada', match: 'exact', confidence: 0.95 };
   assert.deepEqual(lineNotes(sure, true), [{ text: 'Canada', flag: false }]);

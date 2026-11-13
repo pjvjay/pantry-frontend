@@ -14,7 +14,8 @@ import {
 } from './model.ts';
 import type { MealPlanState, PlanEdit, Slot } from './model.ts';
 import type {
-  CartLine, CartSummary, Meal, MealPlanDraft, MealSchedule, StrategyResult, Trip, TripLine, TripStrategy,
+  CartLine, CartSummary, Meal, MealPlanDraft, MealSchedule, ResolvedRecipe, StrategyResult, Trip, TripLine,
+  TripStrategy,
 } from '../types.ts';
 
 export const money = (v: number): string => `$${v.toFixed(2)}`;
@@ -55,6 +56,22 @@ export function shownSlots(s: MealPlanState, hideEmpty: boolean): Slot[] {
   const used = new Set(s.draft.meals.map((m) => m.slot));
   const shown = on.filter((sl) => used.has(sl));
   return shown.length ? shown : [...on];
+}
+
+// The ingredients a recipe's tray row says the plan does not buy: those its resolve left
+// without a product (none stocked, none in range, or left out under the plan's rules), less
+// any the shopper answered with a product of their own in Check ingredients (a pin on that
+// line). A left-out ingredient is matched to its line by name, one line each.
+export function notBought(resolved: ResolvedRecipe, pins: Record<string, number> | undefined): string[] {
+  const open = resolved.lines.filter((ln) => ln.product_id === null);
+  const out: string[] = [];
+  for (const x of [...resolved.not_stocked, ...resolved.out_of_range, ...resolved.skipped]) {
+    const i = open.findIndex((ln) => ln.name === x.ingredient);
+    const line = i < 0 ? undefined : open.splice(i, 1)[0];
+    if (line && pins?.[String(line.line_no)] !== undefined) continue;
+    out.push(x.ingredient);
+  }
+  return out;
 }
 
 export interface TrayRow {

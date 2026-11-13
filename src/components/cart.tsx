@@ -127,7 +127,7 @@ function why(d: LeftOut, kind: LeftKind): string {
 function LineMark({ note }: { note: LineNote }) {
   if (!note.flag) return <span>{note.text}</span>;
   if (note.text === 'closest match') return <MatchTag kind="closest" label="Closest match" />;
-  if (note.text === 'origin unclear') return <EvidenceMark kind="none" word="Origin unclear: check the label" />;
+  if (note.origin) return <EvidenceMark kind="none" word={note.text} />;
   return <span title={note.title}><EvidenceMark kind="disputed" word={note.text} /></span>;
 }
 
@@ -222,7 +222,7 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
             <span className="sr-only">{verified ? 'Verified: ' : 'Not verified: '}</span>
             {share != null ? coverageStatus(share, verified).word : 'No item’s origin is known'}
           </Tag>
-          {keptOut && <> <span className="cart-origin-note">{keptOut}</span></>}
+          {keptOut && <><span className="sr-only">. </span> <span className="cart-origin-note">{keptOut}</span></>}
         </p>
       )}
 

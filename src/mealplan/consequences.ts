@@ -14,7 +14,7 @@ import { CAPACITY, SLOT_LABELS, isPrefField, occupants, recipeTitle, windowDates
   from './model.ts';
 import type { MealPlanState, PlanEdit, Slot } from './model.ts';
 import type {
-  MealSchedule, PlanWarning, RemedyOp, StrategyResult, Trip, TripLine, TripStrategy, WarningLevel,
+  MealSchedule, PlanWarning, RemedyOp, ResolvedRecipe, StrategyResult, Trip, TripLine, TripStrategy, WarningLevel,
 } from '../types.ts';
 
 export type ConsequenceLevel = 'ok' | 'note' | 'warn';
@@ -192,8 +192,9 @@ export function productsText(names: readonly string[]): string {
   return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
 }
 
+// Only warnings whose product has a name are merged, so a row never lists "product 13".
 export function warningRows(list: readonly PlanWarning[], names: Map<number, string>): WarningRow[] {
-  const keyOf = (w: PlanWarning) => (w.meal_ids.length && w.product_id !== null
+  const keyOf = (w: PlanWarning) => (w.meal_ids.length && w.product_id !== null && names.has(w.product_id)
     ? `${w.level}|${w.code}|${[...w.meal_ids].sort().join(',')}|${JSON.stringify(w.remedies)}` : null);
   const groups: PlanWarning[][] = [];
   const byKey = new Map<string, PlanWarning[]>();
@@ -219,18 +220,28 @@ export function warningRows(list: readonly PlanWarning[], names: Map<number, str
       return name && w.message.includes(name) ? w.message.replace(name, hole) : null;
     });
     const same = shapes[0] !== null && shapes.every((x) => x === shapes[0]);
+    // one product on several lines, said differently for each: every sentence, once
     const text = same ? (shapes[0] as string).replace(hole, productsText(products))
-      : `${first.message} The same for ${productsText(products.slice(1))}.`;
+      : products.length < 2 ? [...new Set(ws.map((w) => w.message))].join(' ')
+        : `${first.message} The same for ${productsText(products.slice(1))}.`;
     return { warning: first, count: ws.length, products, text };
   });
 }
 
-export function productNames(sc: MealSchedule | null): Map<number, string> {
+// Product names for warnings and remedies: from the trips, then from the recipes' resolves,
+// which name a planned product no trip buys (one the origin rule now holds back).
+export function productNames(sc: MealSchedule | null,
+                             resolved: Record<string, ResolvedRecipe> = {}): Map<number, string> {
   const names = new Map<number, string>();
   for (const st of sc?.strategies ?? []) {
     for (const t of st.trips) {
       for (const ln of t.lines) names.set(ln.product.id, ln.product.name);
       for (const p of t.dismissed) names.set(p.id, p.name);
+    }
+  }
+  for (const r of Object.values(resolved)) {
+    for (const ln of r.lines) {
+      if (ln.product_id !== null && ln.product_name && !names.has(ln.product_id)) names.set(ln.product_id, ln.product_name);
     }
   }
   return names;

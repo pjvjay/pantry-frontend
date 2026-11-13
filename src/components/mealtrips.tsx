@@ -323,7 +323,7 @@ export function WarningsPanel({ schedule, onAsk }: {
   const mp = useMealPlan();
   const strategy = mp.state.draft.prefs.strategy;
   const list = warningsFor(schedule, strategy);
-  const names = productNames(schedule);
+  const names = productNames(schedule, mp.state.draft.resolved);
   if (!list.length) return <p className="muted">No warnings for this plan.</p>;
   // one row for warnings that say the same thing, one product at a time
   const groups = (['must_fix', 'should_fix', 'decide', 'note'] as const)

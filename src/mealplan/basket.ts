@@ -150,7 +150,7 @@ export interface LineView {
   heading: string;                 // the same, in words
   issue: LineIssue | null;         // what is wrong with the row, null when the plan buys it
   // pantry-api's own reason, '' when it gives none, or when the heading says it in plainer words
-  // (the origin rule's, which names the line's own product)
+  // (the origin rule's, which names the line's own product, or the countries its held_back names)
   why: string;
   // Skip this ingredient is an answer only where it means the plan buys nothing for the line:
   // /mealplan/schedule buys what the resolve picked unless no store in range sells it. So not for a
@@ -207,7 +207,7 @@ function lineView(s: MealPlanState, rules: CountryRules, recipeKey: string, meal
     shared: others.length ? `also bought for ${listOf(others)}` : '',
     available: ln.available, kind, heading,
     issue: lineIssue({ available: ln.available, productId: p?.id ?? null, kind, heading }, excluded),
-    why: ruled && p !== null ? '' : ln.why_unavailable ?? '',
+    why: ruled && (p !== null || held.length > 0) ? '' : ln.why_unavailable ?? '',
     skippable, skipped, answered: ln.available || skipped || meals === 0,
     optionsLabel: product
       ? `Options for ${ln.ingredient}: now ${product}, ${ln.price === null ? 'price unknown' : money(ln.price)}`

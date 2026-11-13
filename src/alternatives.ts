@@ -44,14 +44,17 @@ export function whereBought(line: CartLine): { store: string; price: number | nu
 
 // The notes under a cart line's name, as the cart shows them: where the product is from, and the
 // planner's own doubts about the pick. `flag` marks a warning; `title` is the longer wording a
-// pointer shows.
-export type LineNote = { text: string; flag: boolean; title?: string };
+// pointer shows; `origin` marks the note that says the origin is not known, which the cart draws
+// as a mark with these same words. Sources that disagree make the origin unclear; none at all,
+// unknown. Either way the plan asked about origin, so the label is worth a look.
+export type LineNote = { text: string; flag: boolean; title?: string; origin?: boolean };
 
 export function lineNotes(line: CartLine, originAsked: boolean): LineNote[] {
   const out: LineNote[] = [];
   if (line.origin_country) out.push({ text: line.origin_country, flag: false });
   else if (originAsked) {
-    out.push({ text: 'origin unclear', flag: true, title: `origin ${line.origin_status ?? 'unknown'}` });
+    out.push({ text: `Origin ${line.origin_status === 'conflicting' ? 'unclear' : 'unknown'}: check the label`,
+               flag: true, origin: true, title: `origin ${line.origin_status ?? 'unknown'}` });
   }
   if (line.match && line.match !== 'exact') out.push({ text: 'closest match', flag: true });
   // a meal-plan trip line: which meals it is for, and an amount or price it does not know
