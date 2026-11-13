@@ -36,7 +36,7 @@
 //                     own look, set on input, select and textarea themselves
 //   styles/ui.css     .vt-stage, what a view transition fades (components/viewTransition.ts)
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { FocusEvent, HTMLAttributes, ReactNode } from 'react';
+import type { FocusEvent, HTMLAttributes, MouseEvent, ReactNode } from 'react';
 
 import { useHubStatus } from '../hubStatus';
 import { STAT_TONES, overflows, scrollRegionProps, toastClearance } from '../primitives';
@@ -51,7 +51,8 @@ export type NoticeTone = 'danger' | 'warn' | 'info' | 'success';
 
 export interface NoticeAction {
   label: string;
-  onClick?: () => void;
+  // a link's handler is given the click, to tell a plain one from one for another tab
+  onClick?: (e: MouseEvent<HTMLElement>) => void;
   href?: string;
   icon?: IconName;
 }

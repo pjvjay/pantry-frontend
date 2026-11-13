@@ -515,6 +515,25 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
   // the plan can be on.
   const reach = furthest(facts);
   const shopWaits = shop && reach < SHOP_STEP ? nextBlock((SHOP_STEP - 1) as StepNo, facts) : null;
+  const waitsText = shopWaits ? `Not yet: ${shopWaits.text}.` : null;
+
+  // The shopping plan can give way to "Not yet" after it is drawn: the basket answers late and
+  // finds an ingredient left to answer (a product the country rule now holds back). The keyboard
+  // was on the plan (the trip Done shopping came back to), so it goes to the way on, and a screen
+  // reader hears why, rather than both being dropped at the top of the page.
+  const shopDrawn = useRef(false);
+  useEffect(() => {
+    if (waitsText === null) {
+      shopDrawn.current = shop;
+      return;
+    }
+    const active = document.activeElement;
+    if (shopDrawn.current && (!active || active === document.body)) {
+      document.querySelector<HTMLElement>('.mp-shop-waits a[href]')?.focus();
+      mp.announce(waitsText);
+    }
+    shopDrawn.current = false;
+  }, [waitsText, shop]);
 
   return (
     <div className={`view mealplan${shop ? ' mealplan-shop' : ''}`} onKeyDown={onKeyDown}>
@@ -608,7 +627,7 @@ export default function MealPlanView({ mode = 'plan' }: { mode?: MealPlanMode })
 
         {shopWaits && (
           <EmptyState icon="bag" className="mp-shop-waits"
-                      status={`Not yet: ${shopWaits.text}.`}
+                      status={waitsText}
                       cue="The shopping plan is made from the meals you pick and place on days: its trips, what to buy on each, and the total."
                       action={{ label: `Go to ${stepName(shopWaits.step)}`, href: stepHash(shopWaits.step),
                         onClick: () => arriveAt(stepHash(shopWaits.step), {}) }} />

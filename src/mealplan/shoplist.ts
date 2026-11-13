@@ -11,7 +11,8 @@
 //     it: mealplan/origin.ts). Copy list and Print list give the same list as text (listText).
 //   In-store mode (#/shop/trip/<date>): one trip, by store and then section, with the lines the
 //     shopper has ticked moved to "In the basket" at the end, and how far along the trip is
-//     (instoreView). The ticks themselves are kept in mealplan/shopping.ts, outside the plan.
+//     (instoreView). The ticks themselves are kept in mealplan/shopping.ts, outside the plan. A
+//     trip approved and since changed says what changed over the list (tripChangeText).
 //
 // A product bought twice on one trip (some for the fridge and some to freeze, as Fewest trips
 // can do) is one line here: in the store it is one thing to pick up, so many packs. The trip
@@ -33,7 +34,8 @@ import { AVOID_LABELS, DIET_LABELS, STRATEGY_NAMES, approvedElsewhere, avoidOf, 
 import { againstRule, countryRules, firstText, hasRules, listOriginText, originListWords, ruleText } from './origin.ts';
 import type { CountryRules } from './origin.ts';
 import type {
-  ApprovedTrip, BasketOrigin, MealPlanDraft, MealSchedule, StrategyResult, Trip, TripLine, TripStrategy, WarningCounts,
+  ApprovedTrip, BasketOrigin, MealPlanDraft, MealSchedule, StrategyResult, Trip, TripDiffLine, TripLine, TripStrategy,
+  WarningCounts,
 } from '../types.ts';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -298,6 +300,54 @@ export function tickedText(row: ShopRow, on: boolean, view: InStoreView): string
   const where = on ? 'in the basket' : 'back on the list';
   const all = view.total > 0 && view.done === view.total ? ' Everything is in the basket.' : '';
   return `${row.name} ${where}: ${view.count}, ${view.spent} so far.${all}`;
+}
+
+// ─── A trip changed since it was approved ────────────────────
+
+// The products the country rule now holds back, as the schedule names them (its origin_excluded
+// warnings): planned before their evidence came in, they are bought on no trip.
+export function heldProducts(sc: MealSchedule | null): Set<number> {
+  const out = new Set<number>();
+  for (const w of sc?.warnings ?? []) if (w.code === 'origin_excluded' && w.product_id !== null) out.add(w.product_id);
+  return out;
+}
+
+// "A", "A and B", "A, B and C", or "A, B and 4 more" past three
+const fewNames = (names: readonly string[]) =>
+  (names.length <= 3 ? listOf(names) : `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`);
+
+// What changed on an approved trip since the shopper approved it, said over the list in the store,
+// from pantry-api's diff against the list approved (TripDiff, by product and storage): "Boneless
+// Skinless Chicken Breast 500g is no longer on it: your country rule now leaves it out." A product
+// in `held` (heldProducts) is gone because of the rule, and the sentence says so. A product kept
+// two ways (fridge and freezer) is named once; one that only moved from one to the other is kept
+// another way, not gone and new. '' for a trip with no diff.
+export function tripChangeText(trip: Trip, held: ReadonlySet<number>): string {
+  const diff = trip.diff;
+  if (!diff) return '';
+  const addedIds = new Set(diff.added.map((x) => x.product_id));
+  const removedIds = new Set(diff.removed.map((x) => x.product_id));
+  const names = (xs: readonly TripDiffLine[], keep: (x: TripDiffLine) => boolean) =>
+    [...new Set(xs.filter(keep).map((x) => x.name))];
+  const ruled = names(diff.removed, (x) => !addedIds.has(x.product_id) && held.has(x.product_id));
+  const gone = names(diff.removed, (x) => !addedIds.has(x.product_id) && !held.has(x.product_id));
+  const fresh = names(diff.added, (x) => !removedIds.has(x.product_id));
+  const moved = new Map(diff.added.filter((x) => removedIds.has(x.product_id)).map((x) => [x.product_id, x]));
+  const is = (n: readonly string[]) => (n.length === 1 ? 'is' : 'are');
+  const out: string[] = [];
+  if (ruled.length) {
+    out.push(`${fewNames(ruled)} ${is(ruled)} no longer on it: your country rule now leaves `
+      + `${ruled.length === 1 ? 'it' : 'them'} out.`);
+  }
+  if (gone.length) out.push(`${fewNames(gone)} ${is(gone)} no longer on it.`);
+  if (fresh.length) out.push(`${fewNames(fresh)} ${is(fresh)} new on it.`);
+  for (const c of diff.changed) {
+    out.push(typeof c.packs_before === 'number' && typeof c.packs_after === 'number'
+      ? `${c.name}: ${plural(c.packs_after, 'pack', 'packs')} instead of ${c.packs_before}.`
+      : `${c.name}: a different number of packs.`);
+  }
+  for (const m of moved.values()) out.push(`${m.name}: now kept in the ${m.storage}.`);
+  return out.join(' ');
 }
 
 // ─── Check your plan ─────────────────────────────────────────

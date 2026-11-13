@@ -7,7 +7,10 @@
 // where its product comes from, in a short origin tag ("Canada · preferred", "Origin unknown: check
 // the label" while the plan leaves a country out), so the labels worth reading are marked where
 // the shopper stands; a product the trip buys against the rule (planned or approved before its
-// evidence came in) is named over the list as well.
+// evidence came in) is named over the list as well. A trip approved and since changed (pantry-api
+// would now buy it differently, as when the rule holds back a product the shopper approved) says
+// so over the list, with what changed and the way on: Check ingredients for a product the rule now
+// holds back, else the shopping plan, to approve the trip again.
 //
 // Where pantry-api cannot be reached (a shop's signal), the list opens from the offline copy this
 // browser kept of the trip as last approved (mealplan/offline.ts), with when it was made; the
@@ -42,9 +45,10 @@ import { dayLabel } from '../mealplan/dates';
 import { inWindow, windowDates, windowOf } from '../mealplan/model';
 import { againstRule, countryRules, originWords } from '../mealplan/origin';
 import type { CountryRules } from '../mealplan/origin';
-import { instoreView, listOf, shopRows, tickedText } from '../mealplan/shoplist';
+import { heldProducts, instoreView, listOf, shopRows, tickedText, tripChangeText } from '../mealplan/shoplist';
 import type { ShopRow } from '../mealplan/shoplist';
 import { useMealPlan } from '../mealplan/store';
+import { stepHash, stepName } from '../mealplan/wizard';
 import { hrefFor } from '../routes';
 
 const SHOP = hrefFor({ name: 'shop' });
@@ -195,6 +199,15 @@ export default function InStoreView({ date }: { date: string }) {
   const Sec = severalStores ? 'h4' : 'h3';
   // a product this trip buys against the plan's country rule, named over the list
   const against = trip ? againstRule(rules, shopRows(trip)) : null;
+  // an approved trip pantry-api would now buy differently: what changed, null when nothing did
+  const held = useMemo(() => heldProducts(answer), [answer]);
+  const changed = trip?.status === 'needs_review' ? tripChangeText(trip, held) : null;
+  // the way on: Check ingredients, where a product the country rule now holds back is answered
+  // (the shopping plan waits for it), else the shopping plan, where the trip is approved again
+  const heldGone = trip?.diff?.removed.some((x) => held.has(x.product_id)) ?? false;
+  const fix = heldGone
+    ? { label: `Go to ${stepName(3)}`, href: stepHash(3), onClick: arriving(stepHash(3)) }
+    : { label: 'Review it in the shopping plan', href: SHOP, onClick: back };
 
   return (
     <div className="view instore">
@@ -230,6 +243,13 @@ export default function InStoreView({ date }: { date: string }) {
             <button type="button" className="btn btn-ghost btn-sm" onClick={mp.recheck}>Try again</button>
           )}
         </p>
+      )}
+
+      {view && changed !== null && (
+        <Notice tone="warn" className="is-changed" title="This trip changed since you approved it"
+                actions={[fix]}>
+          {changed || null}
+        </Notice>
       )}
 
       {view && against && <Notice tone="warn" className="is-against" title={against} />}

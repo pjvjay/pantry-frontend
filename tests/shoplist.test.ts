@@ -6,13 +6,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  NOT_STOCKED, OTHER_SECTION, bySection, checkPlan, instoreView, listAgainstRule, listCountText, listOf, listOriginNote,
-  listText, periodList, sectionName, shopRows, storeGroups, storeLabels, strategyTiles, tickedText, tripList, tripStores,
-  warningCountsText,
+  NOT_STOCKED, OTHER_SECTION, bySection, checkPlan, heldProducts, instoreView, listAgainstRule, listCountText, listOf,
+  listOriginNote, listText, periodList, sectionName, shopRows, storeGroups, storeLabels, strategyTiles, tickedText,
+  tripChangeText, tripList, tripStores, warningCountsText,
 } from '../src/mealplan/shoplist.ts';
 import { strategyOf } from '../src/mealplan/board.ts';
 import { countryRules } from '../src/mealplan/origin.ts';
-import type { MealSchedule, TripLine } from '../src/types.ts';
+import type { MealSchedule, PlanWarning, TripDiff, TripLine } from '../src/types.ts';
 import { D, add, line, planWith, run, schedule, trip } from './helpers/mealplan.ts';
 
 const real: MealSchedule = JSON.parse(readFileSync(new URL('./fixtures/mealplan-schedule.json',
@@ -317,4 +317,60 @@ test('the two strategies as tiles: trips and total, the recommended one, and the
   assert.equal(strategyTiles(real, approved.slice(0, 1))[1].extra, '$1.88 more · keeps your 1 approved trip as it is · 1 note');
   assert.equal(warningCountsText({ must_fix: 2, decide: 0, note: 1, should_fix: 1 }), '2 must fix, 1 should fix, 1 note');
   assert.equal(warningCountsText({ must_fix: 0, decide: 0, note: 0 }), 'no warnings');
+});
+
+// ─── A trip changed since it was approved ────────────────────
+
+const diffOf = (over: Partial<TripDiff>): TripDiff => ({ added: [], removed: [], changed: [], text: ['…'], ...over });
+const gone = (product_id: number, name: string, storage: 'fridge' | 'freezer' | 'pantry' = 'fridge') =>
+  ({ product_id, name, packs: 1, storage });
+const heldWarning = (product_id: number | null, code = 'origin_excluded'): PlanWarning => ({
+  level: 'decide', code, message: 'held back by the origin rule', strategy: null,
+  remedies: [{ op: 'resolve', recipe_key: 'lib:fried_rice' }], meal_ids: ['m1'], product_id, trip_date: null,
+  recipe_key: 'lib:fried_rice',
+});
+
+test("the products the country rule now holds back are the schedule's origin_excluded warnings", () => {
+  const sc = { ...schedule(1, []), warnings: [heldWarning(10), heldWarning(11), heldWarning(12, 'not_stocked'),
+    heldWarning(null)] };
+  assert.deepEqual([...heldProducts(sc)], [10, 11]);
+  assert.deepEqual([...heldProducts(null)], []);
+});
+
+test('a changed trip says what is gone, and that the country rule left out a product it now holds back', () => {
+  const t = trip(D(3), [], { status: 'needs_review', diff: diffOf({
+    removed: [gone(10, 'Boneless Skinless Chicken Breast 500g')] }) });
+  assert.equal(tripChangeText(t, new Set([10])),
+    'Boneless Skinless Chicken Breast 500g is no longer on it: your country rule now leaves it out.');
+  // the same diff without the rule's warning: gone, and no reason made up
+  assert.equal(tripChangeText(t, new Set()), 'Boneless Skinless Chicken Breast 500g is no longer on it.');
+});
+
+test('a changed trip names what is new, what is gone and a different number of packs, each once', () => {
+  const t = trip(D(3), [], { status: 'needs_review', diff: diffOf({
+    removed: [gone(10, 'Chicken Breast'), gone(10, 'Chicken Breast', 'freezer'), gone(11, 'Ground Beef'),
+      gone(12, 'Leeks')],
+    added: [{ product_id: 20, name: 'Chicken Thighs', packs: 2, storage: 'fridge' }],
+    changed: [{ product_id: 30, name: 'Whole Milk 1L', packs_before: 1, packs_after: 2, storage: 'fridge' },
+      { product_id: 31, name: 'Eggs', packs_before: null, packs_after: 1, storage: 'fridge' }],
+  }) });
+  assert.equal(tripChangeText(t, new Set([10, 11])),
+    'Chicken Breast and Ground Beef are no longer on it: your country rule now leaves them out. '
+    + 'Leeks is no longer on it. Chicken Thighs is new on it. Whole Milk 1L: 2 packs instead of 1. '
+    + 'Eggs: a different number of packs.');
+});
+
+test('a product moved from the fridge to the freezer is kept another way, not gone and new', () => {
+  const t = trip(D(3), [], { status: 'needs_review', diff: diffOf({
+    removed: [gone(40, 'Salmon Fillets')], added: [{ product_id: 40, name: 'Salmon Fillets', packs: 1, storage: 'freezer' }],
+  }) });
+  assert.equal(tripChangeText(t, new Set([40])), 'Salmon Fillets: now kept in the freezer.');
+});
+
+test('past three products a changed trip counts the rest', () => {
+  const t = trip(D(3), [], { status: 'needs_review', diff: diffOf({
+    removed: [gone(1, 'A'), gone(2, 'B'), gone(3, 'C'), gone(4, 'D')] }) });
+  assert.equal(tripChangeText(t, new Set([1, 2, 3, 4])),
+    'A, B and 2 more are no longer on it: your country rule now leaves them out.');
+  assert.equal(tripChangeText(trip(D(3), [], { status: 'needs_review' }), new Set([1])), '');
 });
