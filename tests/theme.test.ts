@@ -40,6 +40,10 @@ test('the page applies the kept theme before first paint with the same key and v
   assert.match(inline, /=== 'light' \|\| \w+ === 'dark'/);
   assert.match(inline, /document\.documentElement\.dataset\.theme = /);
   assert.match(inline, /try \{[\s\S]*\} catch/, 'storage can throw; the script must not');
-  // and it runs before the app's module and the stylesheets that read data-theme
-  assert.ok(head.indexOf('<script>') < head.indexOf('stylesheet'));
+  // and it runs before the app's module and the stylesheets that read data-theme, which that
+  // module brings (the head links none: the display face is served with the console's files too)
+  const sheet = head.indexOf('stylesheet');
+  assert.ok(sheet === -1 || head.indexOf('<script>') < sheet);
+  assert.ok(html.indexOf('<script>') < html.indexOf('type="module"'));
+  assert.ok(!/https?:\/\//.test(head), 'the page asks no other site');
 });

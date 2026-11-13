@@ -88,9 +88,10 @@
   --print-paper: #ffffff;
   --print-ink: #000000;
 
-  /* Type. The body is the system's own face; the display face (Fraunces, from Google Fonts in
-     index.html) is for the page and section headings and the wordmark only. Without it, Georgia
-     takes its place: delete the stylesheet link in index.html to turn it off.
+  /* Type. The body is the system's own face; the display face (Fraunces, a variable font with
+     its optical sizes, served with the console's own files: src/main.tsx imports it) is for the
+     page and section headings and the wordmark only. Without it, Georgia takes its place: delete
+     that import to turn it off.
 
      Seven sizes and no others: every font-size in the stylesheets is one of these. Six are the
      type roles; --fs-chrome is for the console's own small furniture only (the bottom bar's
@@ -101,7 +102,7 @@
      Each role is also a whole `font` value: `font: var(--type-title)`. The shorthand resets
      font-variant-numeric, so a rule that needs tabular figures sets them after it. */
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --fs-chrome: 11px;   /* bottom-bar names, badges, credits */
   --fs-label: 12px;    /* labels in capitals, tags, counts, code, the board's densest lines */

@@ -1,6 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+// The display face for headings and the wordmark (--font-display in styles/tokens.css), served
+// with the console's own files: the browser asks no other site for it.
+import '@fontsource-variable/fraunces/opsz.css';
 // The tokens first, so every rule after them can use them; component styles after the base.
 import './styles/tokens.css';
 import './index.css';
