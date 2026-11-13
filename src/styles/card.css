@@ -126,3 +126,13 @@
   border-radius: var(--radius-2); border: 1px solid var(--border); background: var(--surface-2); color: var(--muted);
 }
 .ppic-none { position: absolute; inset: 0; display: grid; place-items: center; }
+/* In dark, a photo's own white (a product shot on a white ground, a plate) would glare against the
+   page: it is dimmed a little, and a recipe's small square gets the hairline edge a product's
+   picture has, so its corners read against the card. Twice, like the tokens: for the system's
+   dark unless light was chosen, and for a chosen dark. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .rpic img, :root:not([data-theme="light"]) .ppic img { filter: brightness(0.88); }
+  :root:not([data-theme="light"]) .rpic-head, :root:not([data-theme="light"]) .rpic-thumb { border: 1px solid var(--border); }
+}
+:root[data-theme="dark"] .rpic img, :root[data-theme="dark"] .ppic img { filter: brightness(0.88); }
+:root[data-theme="dark"] .rpic-head, :root[data-theme="dark"] .rpic-thumb { border: 1px solid var(--border); }

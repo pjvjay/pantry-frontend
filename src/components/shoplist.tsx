@@ -6,9 +6,9 @@
 //   YourList        "Your list": one list for the whole period, trip by trip, each trip's lines by
 //                   store section, with one Copy list and one Print list for all of it, and "Shop
 //                   this trip" on each approved trip (in-store mode, views/InStoreView.tsx). Each
-//                   line has its origin tag; while the plan has country rules, one line under the
-//                   heading says the rule and how many labels the list asks the shopper to read
-//                   (mealplan/origin.ts).
+//                   line has its product's picture and its origin tag; while the plan has country
+//                   rules, one line under the heading says the rule and how many labels the list
+//                   asks the shopper to read (mealplan/origin.ts).
 //   StrategyTiles   the two ways to shop as two tiles, each with its trips and total.
 //
 // The words and the grouping are in mealplan/shoplist.ts; the trips, their warnings and the trip
@@ -30,6 +30,7 @@ import type { MealSchedule } from '../types';
 import { copyText } from './cart';
 import { Icon } from './icons';
 import { OriginTag, TripTag } from './matchmarks';
+import { ProductPicture } from './pictures';
 import { Sheet } from './Sheet';
 import { useToast } from './ui';
 
@@ -113,8 +114,9 @@ function browserStorage(): Storage | null {
 }
 
 // One trip of the list: its day and stores, its state, how far the shopper got with it in the store
-// (the ticks, kept beside the plan: mealplan/shopping.ts), and its lines by section, each with where
-// it comes from. Its heading is where Done shopping in the store brings the keyboard back to.
+// (the ticks, kept beside the plan: mealplan/shopping.ts), and its lines by section, each with its
+// product's picture and where it comes from. Its heading is where Done shopping in the store brings
+// the keyboard back to.
 function TripBlock({ list, ticked, rules }: { list: TripList; ticked: readonly number[]; rules: CountryRules }) {
   // approved under either way to shop: in-store mode opens its approved list (board.ts tripToShop)
   const approved = list.look.kind !== 'suggested';
@@ -153,6 +155,7 @@ function TripBlock({ list, ticked, rules }: { list: TripList; ticked: readonly n
                 const origin = originWords(r.origin, rules);
                 return (
                   <li key={r.key} className="shop-line">
+                    <ProductPicture product={r.productName} ingredient={r.productName} />
                     <span className="shop-line-name">{r.name}</span>
                     <span className={`shop-line-price${r.price === null ? ' shop-line-unknown' : ''}`}>{r.priceText}</span>
                     <span className="shop-line-for">
