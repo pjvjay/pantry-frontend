@@ -197,6 +197,11 @@ export const coverageStatus = (share: number, meetsFloor: boolean): StatusWords 
   kind: meetsFloor ? 'done' : 'attention', word: `Origin checked for ${Math.round(share * 100)}% of the spend`,
 });
 
+// What the plan's origin exclusion kept out of a basket, said beside its coverage: the products it
+// left out (never a guess at the country, which the summary does not carry). Nothing when none.
+export const leftOutForOrigin = (n: number | null | undefined): string =>
+  !n || n < 1 ? '' : `${n} product${n === 1 ? '' : 's'} left out for ${n === 1 ? 'its' : 'their'} origin`;
+
 // The plan's own flags: the trip split the optimizer recommends, and a plan the router sent on to
 // the stronger model.
 export const PLAN_STATES = {

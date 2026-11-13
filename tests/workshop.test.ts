@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 
 import {
   PLAN_STATES, claimLabel, confidenceBand, confidenceStatus, coverageStatus, figureColumns, humanize, keyStatus, kindKey,
+  leftOutForOrigin,
   legendFor, observedStatus, originStatus, outcomeStatus, queueStatus, serviceStatus,
   newestFirst, rowAfterKey, runStatus, runnerDown, simStatus, sourceLabel, stamp, tabAfterKey, traceOf, unitPrice,
   unitPriceText, whenText,
@@ -206,6 +207,9 @@ test('the Workshop\'s other states have their words here: services, keys, answer
   assert.deepEqual(coverageStatus(0.92, true), { kind: 'done', word: 'Origin checked for 92% of the spend' });
   assert.deepEqual(coverageStatus(0, false), { kind: 'attention', word: 'Origin checked for 0% of the spend' },
     'under the floor it needs attention, never reads as clean');
+  assert.equal(leftOutForOrigin(2), '2 products left out for their origin');
+  assert.equal(leftOutForOrigin(1), '1 product left out for its origin');
+  for (const none of [0, undefined, null]) assert.equal(leftOutForOrigin(none), '', 'nothing said when none');
   assert.deepEqual(PLAN_STATES.recommended, { kind: 'done', word: 'Recommended' });
   assert.deepEqual(PLAN_STATES.escalated, { kind: 'changed', word: 'Escalated' });
 });

@@ -12,7 +12,7 @@ import type { ReactNode } from 'react';
 import { cartLineKey, isPinned, lineNotes, optionsLabel } from '../alternatives';
 import type { LineNote } from '../alternatives';
 import type { CartLine, CartSummary, LeftOut } from '../types';
-import { coverageStatus } from '../workshop';
+import { coverageStatus, leftOutForOrigin } from '../workshop';
 import { Icon } from './icons';
 import { EvidenceMark, MatchTag } from './matchmarks';
 import { ProductPicture } from './pictures';
@@ -127,7 +127,7 @@ function why(d: LeftOut, kind: LeftKind): string {
 function LineMark({ note }: { note: LineNote }) {
   if (!note.flag) return <span>{note.text}</span>;
   if (note.text === 'closest match') return <MatchTag kind="closest" label="Closest match" />;
-  if (note.text === 'origin unclear') return <EvidenceMark kind="none" word="Origin unclear" />;
+  if (note.text === 'origin unclear') return <EvidenceMark kind="none" word="Origin unclear: check the label" />;
   return <span title={note.title}><EvidenceMark kind="disputed" word={note.text} /></span>;
 }
 
@@ -170,6 +170,7 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
   ];
   const originAsked = !!summary.origin_status && summary.origin_status !== 'not_requested';
   const share = summary.coverage?.spend_fraction;
+  const keptOut = leftOutForOrigin(summary.coverage?.lines_excluded_origin);
   const verified = summary.origin_status === 'verified';
   // no line's origin is known: said once at the top, not as "origin unclear" on every line
   const unclearAll = originAsked && lines.length > 0 && lines.every((l) => !l.origin_country);
@@ -221,6 +222,7 @@ export function CartCard({ summary, cardRef, pinned, copyButton = true }: {
             <span className="sr-only">{verified ? 'Verified: ' : 'Not verified: '}</span>
             {share != null ? coverageStatus(share, verified).word : 'No item’s origin is known'}
           </Tag>
+          {keptOut && <> <span className="cart-origin-note">{keptOut}</span></>}
         </p>
       )}
 

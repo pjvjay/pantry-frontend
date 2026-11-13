@@ -784,7 +784,8 @@ export type CartLine = {
 export type LeftOut = { ingredient: string; reason?: string; suggestions?: string[] };
 export type CartSummary = {
   recipe_name?: string; total_cost?: number; lines?: CartLine[]; origin_status?: string;
-  coverage?: { spend_fraction?: number; lines_known?: number; lines_total?: number } | null;
+  coverage?: { spend_fraction?: number; lines_known?: number; lines_total?: number;
+    lines_excluded_origin?: number } | null;
   trip?: { stores: string[]; total_cost: number | null; basket_cost?: number; travel_cost?: number } | null;
   not_stocked?: LeftOut[]; out_of_range?: LeftOut[]; skipped?: LeftOut[];
   // with the meal plan: some price is unknown, so the totals are lower bounds ("at least")

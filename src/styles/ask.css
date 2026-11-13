@@ -356,6 +356,10 @@ div.rs-line { grid-template-columns: 18px minmax(0, 1fr) auto; }
 .cart-total-unknown { font: var(--type-body); white-space: normal; text-align: right; color: var(--muted); }
 .cart-origin { margin: 0; padding: 0 var(--space-4) var(--space-3); }
 .cart-origin .tag { white-space: normal; }
+/* what the origin rule left out: one phrase, which wraps to its own line rather than mid-way */
+.cart-origin-note { display: inline-block; color: var(--muted); }
+/* a long mark ("Origin unclear: check the label") wraps inside its line on a phone */
+.cart-item-meta .evid { white-space: normal; min-width: 0; }
 .cart-store { border-top: 1px solid var(--border); }
 .cart-store-head {
   display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-4) 2px;
